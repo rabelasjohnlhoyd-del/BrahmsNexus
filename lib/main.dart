@@ -1,91 +1,113 @@
 import 'package:flutter/material.dart';
 
 void main() {
-  runApp(const BrahmsNexusApp());
+  runApp(const BrahmsNexusAuthApp());
 }
 
-class BrahmsNexusApp extends StatelessWidget {
-  const BrahmsNexusApp({super.key});
+class BrahmsNexusAuthApp extends StatelessWidget {
+  const BrahmsNexusAuthApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Brahms Nexus',
+      title: 'Brahms Nexus - Login',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        // 60% Dominant Color: Off-white/Cream para malinis at maaliwalas
-        scaffoldBackgroundColor: const Color(0xFFFAF0E6),
-        fontFamily: 'Roboto', // Pwede ninyong palitan ng iOS font tulad ng Cupertino
+        scaffoldBackgroundColor: const Color(0xFFFAF0E6), // 60% Dominant
       ),
-      home: const StaffMainScreen(),
+      home: const LoginScreen(),
     );
   }
 }
 
-class StaffMainScreen extends StatefulWidget {
-  const StaffMainScreen({super.key});
+class LoginScreen extends StatefulWidget {
+  const LoginScreen({super.key});
 
   @override
-  State<StaffMainScreen> createState() => _StaffMainScreenState();
+  State<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _StaffMainScreenState extends State<StaffMainScreen> {
-  int _selectedIndex = 0;
-
-  // Ito ang mga dummy screens na papalitan ninyo ng totoong UI mamaya
-  static const List<Widget> _widgetOptions = <Widget>[
-    Center(child: Text('Home / Sales: Record Total Portions Sold')), //[cite: 5]
-    Center(child: Text('Inventory: Remaining Stocks & Restock')), //[cite: 5]
-    Center(child: Text('Announcements: Daily Updates')), //[cite: 5]
-  ];
-
-  void _onItemTapped(int index) {
-    setState(() {
-      _selectedIndex = index;
-    });
-  }
+class _LoginScreenState extends State<LoginScreen> {
+  final _usernameController = TextEditingController();
+  final _passwordController = TextEditingController();
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text(
-            'Brahms Nexus',
-            style: TextStyle(
-                color: Color(0xFFA0522D), // 10% Accent Color para sa text highlights
-                fontWeight: FontWeight.bold
-            )
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Text(
+                  'BRAHMS NEXUS',
+                  style: TextStyle(
+                    fontSize: 26,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFFA0522D), // 10% Accent
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Centralized Operations & Decision Support System',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 14, color: Color(0xFF8B4513)),
+                ),
+                const SizedBox(height: 32),
+
+                // Login Form Container (30% Secondary theme feel)
+                TextField(
+                  controller: _usernameController,
+                  decoration: InputDecoration(
+                    labelText: 'Username',
+                    filled: true,
+                    fillColor: Colors.white,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: _passwordController,
+                  obscureText: true,
+                  decoration: InputDecoration(
+                    labelText: 'Password',
+                    filled: true,
+                    fillColor: Colors.white,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 24),
+
+                // Login Button (10% Accent Color)
+                SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFA0522D), // 10% Accent
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    onPressed: () {
+                      // Dito ilalagay ang authentication logic sa Sept 14
+                    },
+                    child: const Text(
+                      'LOGIN',
+                      style: TextStyle(fontSize: 16, color: Colors.white, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
-        backgroundColor: const Color(0xFFFAF0E6), // 60% Dominant Color
-        elevation: 0, // Tinanggal ang shadow para flat at iOS-look
-        centerTitle: true,
-      ),
-      body: _widgetOptions.elementAt(_selectedIndex),
-      bottomNavigationBar: BottomNavigationBar(
-        items: const <BottomNavigationBarItem>[
-          BottomNavigationBarItem(
-            icon: Icon(Icons.point_of_sale_rounded),
-            label: 'Sales',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.inventory_2_rounded),
-            label: 'Inventory',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.campaign_rounded),
-            label: 'Updates',
-          ),
-        ],
-        currentIndex: _selectedIndex,
-        // Dito natin in-apply ang iOS style at 60-30-10 rules
-        backgroundColor: const Color(0xFFFAF0E6), // 60% Dominant (Background)
-        unselectedItemColor: const Color(0xFFD2B48C), // 30% Secondary (Unselected Tabs)
-        selectedItemColor: const Color(0xFFA0522D), // 10% Accent (Active Tab)
-        onTap: _onItemTapped,
-        type: BottomNavigationBarType.fixed, // Pinipigilan ang animation para stable tulad sa iOS
-        showUnselectedLabels: true,
-        selectedFontSize: 12,
-        unselectedFontSize: 12,
       ),
     );
   }
