@@ -1,9 +1,7 @@
-// This is a basic Flutter widget test.
+// Basic widget tests for the Brahms Nexus app.
 //
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
+// These verify that the app boots into the login screen and that the
+// core login form elements are present.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -11,20 +9,43 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:brahmsnexus/main.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const BrahmsNexusAuthApp());
+  testWidgets('App launches into the login screen', (tester) async {
+    await tester.pumpWidget(const BrahmsNexusApp());
+    await tester.pumpAndSettle();
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+    expect(find.text('BRAHMS NEXUS'), findsOneWidget);
+    expect(find.text('LOGIN'), findsOneWidget);
+    expect(find.byType(TextFormField), findsNWidgets(2));
+  });
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
+  testWidgets('Login shows validation errors on empty submit', (tester) async {
+    await tester.pumpWidget(const BrahmsNexusApp());
+    await tester.pumpAndSettle();
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    await tester.tap(find.text('LOGIN'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Username is required'), findsOneWidget);
+    expect(find.text('Password is required'), findsOneWidget);
+  });
+
+  testWidgets('Password visibility toggle switches obscureText', (tester) async {
+    await tester.pumpWidget(const BrahmsNexusApp());
+    await tester.pumpAndSettle();
+
+    final passwordField = find.byType(TextFormField).at(1);
+    TextField textField() => tester.widget<TextField>(
+          find.descendant(
+            of: passwordField,
+            matching: find.byType(TextField),
+          ),
+        );
+
+    expect(textField().obscureText, isTrue);
+
+    await tester.tap(find.byIcon(Icons.visibility_off_outlined));
+    await tester.pumpAndSettle();
+
+    expect(textField().obscureText, isFalse);
   });
 }
