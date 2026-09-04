@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import '../../theme/app_theme.dart';
-import '../../widgets/feature_card.dart';
-import '../auth/login_screen.dart';
-import 'staff/staff_management_screen.dart';
+import '../theme/app_theme.dart';
+import '../widgets/feature_card.dart';
+import '../pages/auth/login_screen.dart';
+import '../pages/admin_web/staff_management/staff_management_screen.dart';
 
 /// Admin/Owner dashboard. Combines the major features from all three
 /// merged project concepts: Bilao ordering, employee reporting, and

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import '../../../theme/app_theme.dart';
-import '../../../widgets/feature_card.dart';
+import '../theme/app_theme.dart';
+import '../widgets/feature_card.dart';
 
 /// Home tab ng Admin Dashboard. Simpleng overview + quick-access shortcuts
 /// para sa mga feature na wala nang sariling puwesto sa bottom nav o drawer

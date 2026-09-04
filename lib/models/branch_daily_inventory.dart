@@ -1,3 +1,5 @@
+import 'wage_calculator.dart';
+
 /// The 4 itemized inventory items tracked per branch, per day.
 /// - karne: meat, pre-portioned in plastic per order (Sisig or Bagnet)
 /// - mayo: used only for Sisig orders

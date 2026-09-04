@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
-import '../../theme/app_theme.dart';
-import '../../widgets/admin_drawer.dart';
-import '../../widgets/dss_chatbot_fab.dart';
-import '../../widgets/ios_style_bottom_nav.dart';
-import '../auth/login_screen.dart';
-import 'tabs/bilao_order_screen.dart';
-import 'tabs/branch_assignments_screen.dart';
-import 'tabs/home_tab_screen.dart';
-import 'tabs/sales_inventory_screen.dart';
+import '../theme/app_theme.dart';
+import 'admin_drawer.dart';
+import '../widgets/dss_chatbot_fab.dart';
+import 'ios_style_bottom_nav.dart';
+import '../pages/auth/login_screen.dart';
+import '../pages/admin_web/bilao_orders/bilao_order_screen.dart';
+import '../pages/admin_web/branch_assignments/branch_assignments_screen.dart';
+import 'home_tab_screen.dart';
+import '../pages/admin_web/sales_payroll/sales_payroll_screen.dart';
 
 /// Ito ang MAIN SHELL ng Admin Dashboard.
 /// Dito nakapaloob ang Bottom Nav, Drawer (burger menu), at ang
@@ -28,7 +28,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   // hindi na dapat pumasok dito — dini-drawer na lang siya.
   final List<Widget> _tabs = const [
     HomeTabScreen(),
-    SalesInventoryScreen(),
+    SalesPayrollScreen(),
     BranchAssignmentsScreen(),
     BilaoOrderScreen(),
   ];

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import '../pages/admin/announcements_screen.dart';
-import '../pages/admin/employee_reports_screen.dart';
-import '../pages/admin/staff/staff_management_screen.dart';
+import '../pages/admin_web/announcements/announcements_screen.dart';
+import '../pages/admin_web/employee_reports/employee_reports_screen.dart';
+import '../pages/admin_web/staff_management/staff_management_screen.dart';
 import '../theme/app_theme.dart';
 
 /// Drawer na lalabas kapag pinindot ang Burger icon sa Bottom Nav.
