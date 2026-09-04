@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
+import '../../models/account_status.dart';
 import '../../models/user_role.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/primary_button.dart';
-import '../admin/admin_home_screen.dart';
-import '../employee/employee_home_screen.dart';
+import 'register_screen.dart';
+import 'role_router.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -17,7 +18,14 @@ class _LoginScreenState extends State<LoginScreen> {
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
 
-  UserRole _selectedRole = UserRole.admin;
+  UserRole _selectedRole = UserRole.owner;
+
+  // DEV-ONLY: walang backend pa kaya wala pang totoong account status.
+  // Ginagamit lang ito para masubukan ang Pending/Rejected/Approved
+  // screens habang frontend-only phase pa. TANGGALIN ITO once Firebase/
+  // Supabase Auth na ang aktwal na nagbibigay ng account status.
+  AccountStatus _devSimulatedStatus = AccountStatus.approved;
+
   bool _obscurePassword = true;
   bool _isLoading = false;
 
@@ -55,8 +63,8 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _isLoading = true);
 
     // NOTE: Authentication is not wired up yet — this is a front-end-only
-    // simulation. Firebase Auth integration + role lookup will replace
-    // this block once the backend is implemented.
+    // simulation. Firebase/Supabase Auth + role & status lookup will
+    // replace this block once the backend is implemented.
     await Future.delayed(const Duration(milliseconds: 900));
 
     if (!mounted) return;
@@ -64,9 +72,12 @@ class _LoginScreenState extends State<LoginScreen> {
 
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(
-        builder: (_) => _selectedRole == UserRole.admin
-            ? const AdminHomeScreen()
-            : const EmployeeHomeScreen(),
+        builder: (_) => RoleRouter.resolveDestination(
+          role: _selectedRole,
+          status: _selectedRole == UserRole.owner
+              ? AccountStatus.approved // Owner account is pre-seeded/approved
+              : _devSimulatedStatus,
+        ),
       ),
     );
   }
@@ -113,7 +124,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       const SizedBox(height: 32),
 
                       // Role selector
-                      Align(
+                      const Align(
                         alignment: Alignment.centerLeft,
                         child: Text(
                           'Log in as',
@@ -128,14 +139,19 @@ class _LoginScreenState extends State<LoginScreen> {
                       SegmentedButton<UserRole>(
                         segments: const [
                           ButtonSegment(
-                            value: UserRole.admin,
-                            label: Text('Administrator'),
+                            value: UserRole.owner,
+                            label: Text('Owner'),
                             icon: Icon(Icons.admin_panel_settings_outlined),
                           ),
                           ButtonSegment(
-                            value: UserRole.employee,
-                            label: Text('Employee'),
+                            value: UserRole.staff,
+                            label: Text('Staff'),
                             icon: Icon(Icons.badge_outlined),
+                          ),
+                          ButtonSegment(
+                            value: UserRole.driver,
+                            label: Text('Driver'),
+                            icon: Icon(Icons.local_shipping_outlined),
                           ),
                         ],
                         selected: {_selectedRole},
@@ -191,25 +207,52 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                         validator: _validatePassword,
                       ),
-                      const SizedBox(height: 8),
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: TextButton(
-                          onPressed: _isLoading
-                              ? null
-                              : () {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text(
-                                        'Password reset is not available yet.',
-                                      ),
-                                    ),
-                                  );
-                                },
-                          child: const Text('Forgot password?'),
+
+                      if (_selectedRole != UserRole.owner) ...[
+                        const SizedBox(height: 16),
+                        _DevStatusSimulator(
+                          value: _devSimulatedStatus,
+                          onChanged: (status) {
+                            setState(() => _devSimulatedStatus = status);
+                          },
                         ),
+                      ],
+
+                      const SizedBox(height: 8),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          TextButton(
+                            onPressed: _isLoading
+                                ? null
+                                : () {
+                                    Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                        builder: (_) => const RegisterScreen(),
+                                      ),
+                                    );
+                                  },
+                            child: const Text('Register (Staff/Driver)'),
+                          ),
+                          TextButton(
+                            onPressed: _isLoading
+                                ? null
+                                : () {
+                                    ScaffoldMessenger.of(context)
+                                        .showSnackBar(
+                                      const SnackBar(
+                                        content: Text(
+                                          'Password reset is not available '
+                                          'yet.',
+                                        ),
+                                      ),
+                                    );
+                                  },
+                            child: const Text('Forgot password?'),
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 8),
 
                       PrimaryButton(
                         label: 'LOGIN',
@@ -223,6 +266,49 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// DEV-ONLY widget — nagpapa-simulate ng account status habang wala
+/// pang backend. Alisin na ito kapag naka-Firebase/Supabase Auth na.
+class _DevStatusSimulator extends StatelessWidget {
+  const _DevStatusSimulator({required this.value, required this.onChanged});
+
+  final AccountStatus value;
+  final ValueChanged<AccountStatus> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      decoration: BoxDecoration(
+        border: Border.all(color: AppColors.border),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.science_outlined,
+              size: 18, color: AppColors.textSecondary),
+          const SizedBox(width: 8),
+          const Expanded(
+            child: Text(
+              'DEV: simulate account status',
+              style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+            ),
+          ),
+          DropdownButton<AccountStatus>(
+            value: value,
+            underline: const SizedBox.shrink(),
+            items: AccountStatus.values
+                .map((s) => DropdownMenuItem(value: s, child: Text(s.label)))
+                .toList(),
+            onChanged: (s) {
+              if (s != null) onChanged(s);
+            },
+          ),
+        ],
       ),
     );
   }

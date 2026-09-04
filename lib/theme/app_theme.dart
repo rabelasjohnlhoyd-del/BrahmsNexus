@@ -8,7 +8,8 @@ class AppColors {
 
   static const Color background = Color(0xFFFAF0E6); // 60% Dominant
   static const Color surface = Colors.white; // 30% Secondary
-  static const Color accent = Color(0xFFA0522D); // 10% Accent (Sienna)
+  static const Color pastelBrown = Color(0xFFD2B48C); // 30% - Pastel brown (nav/drawer elements)
+  static const Color accent = Color(0xFFA0522D); // 10% Accent (Sienna / Terracotta)
   static const Color accentDark = Color(0xFF8B4513); // Saddle brown
   static const Color textPrimary = Color(0xFF3B2418);
   static const Color textSecondary = Color(0xFF8B4513);

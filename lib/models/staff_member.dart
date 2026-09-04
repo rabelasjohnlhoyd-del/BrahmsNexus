@@ -53,11 +53,13 @@ class StaffMember {
   }
 }
 
-/// Placeholder branch list — replace with the client's actual branch
-/// names (or a Firestore-backed list) once confirmed.
+/// Placeholder branch list — sourced from the client interview.
+/// Replace with a Firestore/Supabase-backed list once the backend
+/// is wired up (this should eventually read from `Branch` records).
 const List<String> kBranchOptions = [
-  'Main Branch',
-  'Branch 2',
-  'Branch 3',
-  'Other',
+  'Dayap, Calauan',
+  'Sta. Cruz',
+  'Pila',
+  'Labuin',
+  'Pagsanjan',
 ];
