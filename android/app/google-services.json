@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "807581777212",
+    "project_id": "brahmsnexus",
+    "storage_bucket": "brahmsnexus.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:807581777212:android:3eb5ad6e8cc98f9ec53239",
+        "android_client_info": {
+          "package_name": "com.example.brahmsnexus.brahmsnexus"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDlw5wp8i9FMriIyINmc4dqcJsvEhDjr5s"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
