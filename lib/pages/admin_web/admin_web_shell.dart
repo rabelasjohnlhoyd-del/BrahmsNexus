@@ -1,0 +1,90 @@
+import 'package:flutter/material.dart';
+import '../../theme/app_theme.dart';
+import '../../widgets/admin_sidebar.dart';
+import '../auth/login_screen.dart';
+import 'account_approvals/account_approvals_screen.dart';
+import 'analytics/analytics_screen.dart';
+import 'announcements/announcements_screen.dart';
+import 'bilao_orders/bilao_order_screen.dart';
+import 'branch_assignments/branch_assignments_screen.dart';
+import 'dashboard/dashboard_screen.dart';
+import 'employee_reports/employee_reports_screen.dart';
+import 'inventory/inventory_screen.dart';
+import 'sales_payroll/sales_payroll_screen.dart';
+import 'staff_management/staff_management_screen.dart';
+
+/// Full Admin shell — WEB ONLY. Side navigation (desktop pattern)
+/// dahil dito nakapaloob ang LAHAT ng admin-side features base sa
+/// merged system scope.
+class AdminWebShell extends StatefulWidget {
+  const AdminWebShell({super.key});
+
+  @override
+  State<AdminWebShell> createState() => _AdminWebShellState();
+}
+
+class _AdminWebShellState extends State<AdminWebShell> {
+  int _selectedIndex = 0;
+
+  static const _items = [
+    AdminSidebarItem(icon: Icons.dashboard_rounded, label: 'Dashboard'),
+    AdminSidebarItem(icon: Icons.groups_rounded, label: 'Staff Management'),
+    AdminSidebarItem(
+        icon: Icons.how_to_reg_rounded, label: 'Account Approvals'),
+    AdminSidebarItem(
+        icon: Icons.store_mall_directory_rounded,
+        label: 'Branch Assignments'),
+    AdminSidebarItem(icon: Icons.inventory_2_rounded, label: 'Inventory'),
+    AdminSidebarItem(icon: Icons.payments_rounded, label: 'Sales & Payroll'),
+    AdminSidebarItem(icon: Icons.shopping_bag_rounded, label: 'Bilao Orders'),
+    AdminSidebarItem(
+        icon: Icons.fact_check_rounded, label: 'Employee Reports'),
+    AdminSidebarItem(icon: Icons.campaign_rounded, label: 'Announcements'),
+    AdminSidebarItem(icon: Icons.insights_rounded, label: 'DSS Analytics'),
+  ];
+
+  static const _pages = [
+    DashboardScreen(),
+    StaffManagementScreen(),
+    AccountApprovalsScreen(),
+    BranchAssignmentsScreen(),
+    InventoryScreen(),
+    SalesPayrollScreen(),
+    BilaoOrderScreen(),
+    EmployeeReportsScreen(),
+    AnnouncementsScreen(),
+    AnalyticsScreen(),
+  ];
+
+  void _handleLogout() {
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const LoginScreen()),
+      (route) => false,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      body: Row(
+        children: [
+          AdminSidebar(
+            items: _items,
+            selectedIndex: _selectedIndex,
+            onSelect: (index) => setState(() => _selectedIndex = index),
+            onLogout: _handleLogout,
+          ),
+          Expanded(
+            child: SafeArea(
+              child: IndexedStack(
+                index: _selectedIndex,
+                children: _pages,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
