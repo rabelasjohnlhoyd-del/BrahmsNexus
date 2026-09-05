@@ -53,13 +53,15 @@ class StaffMember {
   }
 }
 
-/// Placeholder branch list — sourced from the client interview.
-/// Replace with a Firestore/Supabase-backed list once the backend
-/// is wired up (this should eventually read from `Branch` records).
+/// Placeholder branch list — sourced from the Owner's actual branch
+/// list (barangay-level). Replace with a Firestore/Supabase-backed
+/// list once the backend is wired up (this should eventually read
+/// from `Branch` records — see models/branch.dart).
 const List<String> kBranchOptions = [
-  'Dayap, Calauan',
-  'Sta. Cruz',
-  'Pila',
-  'Labuin',
-  'Pagsanjan',
+  'Brgy. Gatid, Sta. Cruz',
+  'Brgy. Labuin, Pila',
+  'Brgy. Sta. Clara Sur, Pila',
+  'Brgy. Nanhaya, Victoria',
+  'Brgy. San Francisco, Victoria',
+  'Brgy. Dayap, Calauan',
 ];

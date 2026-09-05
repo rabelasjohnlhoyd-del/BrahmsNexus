@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import '../../theme/app_theme.dart';
-import '../../widgets/feature_card.dart';
-import '../auth/login_screen.dart';
-import 'inventory_monitor_screen.dart';
-import 'reports_monitor_screen.dart';
+import '../theme/app_theme.dart';
+import '../widgets/feature_card.dart';
+import '../pages/auth/login_screen.dart';
+import 'owner_inventory_monitor_screen.dart';
+import 'owner_reports_monitor_screen.dart';
 
 /// Owner/Admin — MOBILE. Narrower kaysa sa Admin Web: monitoring lang
 /// ng Employee Reports at Staff Inventory, hindi full admin control

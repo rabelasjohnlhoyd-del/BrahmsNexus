@@ -1,10 +1,8 @@
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import '../../models/account_status.dart';
 import '../../models/user_role.dart';
 import '../admin_web/admin_web_shell.dart';
-import '../driver_app/driver_home_screen.dart';
-import '../owner_app/owner_dashboard_screen.dart';
+import '../driver_app/driver_shell.dart';
 import '../staff_app/staff_shell.dart';
 import 'account_status_screen.dart';
 
@@ -17,10 +15,11 @@ import 'account_status_screen.dart';
 ///    Rejected), diretso sa [AccountStatusScreen] — hindi pa dapat
 ///    makapasok sa app.
 /// 2. Kung approved na:
-///    - Owner + Web  -> [AdminWebShell] (buong admin control)
-///    - Owner + Mobile -> [OwnerDashboardScreen] (monitoring lang)
-///    - Staff -> [StaffHomeScreen]
-///    - Driver -> [DriverHomeScreen]
+///    - Owner -> [AdminWebShell] (WEB LANG — walang separate mobile
+///      app para sa Owner; puwede pa rin niyang buksan ang website
+///      mismo sa browser ng kanyang phone kung nasa labas siya)
+///    - Staff -> [StaffShell]
+///    - Driver -> [DriverShell]
 class RoleRouter {
   const RoleRouter._();
 
@@ -34,11 +33,11 @@ class RoleRouter {
 
     switch (role) {
       case UserRole.owner:
-        return kIsWeb ? const AdminWebShell() : const OwnerDashboardScreen();
+        return const AdminWebShell();
       case UserRole.staff:
         return const StaffShell();
       case UserRole.driver:
-        return const DriverHomeScreen();
+        return const DriverShell();
     }
   }
 }

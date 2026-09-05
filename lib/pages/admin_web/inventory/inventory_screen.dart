@@ -32,29 +32,29 @@ class _InventoryScreenState extends State<InventoryScreen>
 
   final List<BranchStock> _branchStocks = [
     BranchStock(
-      branchId: 'br1',
-      branchName: 'Dayap, Calauan',
+      branchId: 'br6',
+      branchName: 'Brgy. Dayap, Calauan',
       date: DateTime.now(),
       allocatedKg: 20,
       remainingKg: 14,
     ),
     BranchStock(
-      branchId: 'br2',
-      branchName: 'Sta. Cruz',
+      branchId: 'br1',
+      branchName: 'Brgy. Gatid, Sta. Cruz',
       date: DateTime.now(),
       allocatedKg: 25,
       remainingKg: 3,
     ),
     BranchStock(
       branchId: 'br3',
-      branchName: 'Pila',
+      branchName: 'Brgy. Sta. Clara Sur, Pila',
       date: DateTime.now(),
       allocatedKg: 18,
       remainingKg: 18,
     ),
     BranchStock(
-      branchId: 'br4',
-      branchName: 'Labuin',
+      branchId: 'br2',
+      branchName: 'Brgy. Labuin, Pila',
       date: DateTime.now(),
       allocatedKg: 15,
       remainingKg: 1,
@@ -64,10 +64,10 @@ class _InventoryScreenState extends State<InventoryScreen>
   final List<StockTransferLog> _transferLogs = [
     StockTransferLog(
       id: 'tl1',
-      sourceBranchId: 'br2',
-      sourceBranchName: 'Sta. Cruz',
-      destinationBranchId: 'br4',
-      destinationBranchName: 'Labuin',
+      sourceBranchId: 'br1',
+      sourceBranchName: 'Brgy. Gatid, Sta. Cruz',
+      destinationBranchId: 'br2',
+      destinationBranchName: 'Brgy. Labuin, Pila',
       quantityKg: 5,
       dateTime: DateTime.now().subtract(const Duration(hours: 4)),
     ),
@@ -184,7 +184,7 @@ class _InventoryScreenState extends State<InventoryScreen>
                 decoration: const InputDecoration(labelText: 'From Branch'),
                 items: kSampleBranches
                     .map((b) =>
-                        DropdownMenuItem(value: b.id, child: Text(b.name)))
+                        DropdownMenuItem(value: b.id, child: Text(b.fullName)))
                     .toList(),
                 onChanged: (v) {
                   if (v != null) setDialogState(() => sourceId = v);
@@ -196,7 +196,7 @@ class _InventoryScreenState extends State<InventoryScreen>
                 decoration: const InputDecoration(labelText: 'To Branch'),
                 items: kSampleBranches
                     .map((b) =>
-                        DropdownMenuItem(value: b.id, child: Text(b.name)))
+                        DropdownMenuItem(value: b.id, child: Text(b.fullName)))
                     .toList(),
                 onChanged: (v) {
                   if (v != null) setDialogState(() => destId = v);
@@ -229,9 +229,9 @@ class _InventoryScreenState extends State<InventoryScreen>
                     StockTransferLog(
                       id: 'tl${_transferLogs.length + 1}',
                       sourceBranchId: source.id,
-                      sourceBranchName: source.name,
+                      sourceBranchName: source.fullName,
                       destinationBranchId: dest.id,
-                      destinationBranchName: dest.name,
+                      destinationBranchName: dest.fullName,
                       quantityKg: qty,
                       dateTime: DateTime.now(),
                     ),

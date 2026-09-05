@@ -73,6 +73,7 @@ class BilaoOrder {
     required this.size,
     required this.quantity,
     required this.scheduledDateTime,
+    this.deliveryAddress = '',
     this.preparationStatus = PreparationStatus.pending,
     this.deliveryStatus = DeliveryStatus.forDelivery,
   });
@@ -83,6 +84,7 @@ class BilaoOrder {
   final BilaoSize size;
   final int quantity;
   final DateTime scheduledDateTime;
+  final String deliveryAddress;
   final PreparationStatus preparationStatus;
   final DeliveryStatus deliveryStatus;
 
@@ -99,6 +101,7 @@ class BilaoOrder {
       size: size,
       quantity: quantity,
       scheduledDateTime: scheduledDateTime,
+      deliveryAddress: deliveryAddress,
       preparationStatus: preparationStatus ?? this.preparationStatus,
       deliveryStatus: deliveryStatus ?? this.deliveryStatus,
     );

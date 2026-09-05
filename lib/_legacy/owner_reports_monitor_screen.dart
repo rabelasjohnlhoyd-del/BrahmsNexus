@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import '../../models/daily_report.dart';
-import '../../theme/app_theme.dart';
+import '../models/daily_report.dart';
+import '../theme/app_theme.dart';
 
 /// Owner monitors submitted daily reports here — replaces the old
 /// group-chat-based reporting. Filterable by branch, sortable by date,

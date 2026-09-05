@@ -27,8 +27,8 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
       id: 'a1',
       employeeId: 'emp1',
       employeeName: 'Juan Dela Cruz',
-      branchId: 'br2',
-      branchName: 'Sta. Cruz',
+      branchId: 'br1',
+      branchName: 'Brgy. Gatid, Sta. Cruz',
       date: DateTime.now(),
       workStatus: WorkStatus.onDuty,
     ),
@@ -37,7 +37,7 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
       employeeId: 'emp2',
       employeeName: 'Maria Reyes',
       branchId: 'br3',
-      branchName: 'Pila',
+      branchName: 'Brgy. Sta. Clara Sur, Pila',
       date: DateTime.now(),
       workStatus: WorkStatus.onDuty,
     ),
@@ -45,8 +45,8 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
       id: 'a3',
       employeeId: 'emp3',
       employeeName: 'Pedro Santos',
-      branchId: 'br4',
-      branchName: 'Labuin',
+      branchId: 'br2',
+      branchName: 'Brgy. Labuin, Pila',
       date: DateTime.now(),
       workStatus: WorkStatus.restDay,
     ),
@@ -72,7 +72,7 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
         employeeId: a.employeeId,
         employeeName: a.employeeName,
         branchId: branch.id,
-        branchName: branch.name,
+        branchName: branch.fullName,
         date: a.date,
         workStatus: a.workStatus,
       );
@@ -182,7 +182,7 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
                             items: kSampleBranches
                                 .map((b) => DropdownMenuItem(
                                       value: b.id,
-                                      child: Text(b.name),
+                                      child: Text(b.fullName),
                                     ))
                                 .toList(),
                             onChanged: (branchId) {

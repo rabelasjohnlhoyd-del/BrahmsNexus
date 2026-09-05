@@ -13,9 +13,16 @@ import 'inventory/inventory_screen.dart';
 import 'sales_payroll/sales_payroll_screen.dart';
 import 'staff_management/staff_management_screen.dart';
 
-/// Full Admin shell — WEB ONLY. Side navigation (desktop pattern)
-/// dahil dito nakapaloob ang LAHAT ng admin-side features base sa
-/// merged system scope.
+/// Full Admin shell — WEB (may access din via phone browser, kaya
+/// responsive ito). Sa malawak na screen (desktop/tablet), side
+/// navigation ang ginagamit. Sa makitid na screen (phone browser),
+/// nagiging Drawer (hamburger menu) ang parehong sidebar content, at
+/// AppBar na lang ang laging makikita sa taas.
+///
+/// Ginamit ang Drawer sa halip na bottom nav sa narrow screens dahil
+/// 10 ang sections — masyadong marami para sa isang bottom bar
+/// (karaniwang 3-5 lang ang bagay dito), habang kasya lahat sa isang
+/// scrollable na Drawer.
 class AdminWebShell extends StatefulWidget {
   const AdminWebShell({super.key});
 
@@ -25,6 +32,10 @@ class AdminWebShell extends StatefulWidget {
 
 class _AdminWebShellState extends State<AdminWebShell> {
   int _selectedIndex = 0;
+
+  /// Breakpoint: mas mababa dito (hal. phone browser) = Drawer layout.
+  /// Mas malawak dito (desktop/tablet) = laging-nakikitang side-nav.
+  static const double _wideBreakpoint = 700;
 
   static const _items = [
     AdminSidebarItem(icon: Icons.dashboard_rounded, label: 'Dashboard'),
@@ -85,26 +96,72 @@ class _AdminWebShellState extends State<AdminWebShell> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      body: Row(
-        children: [
-          AdminSidebar(
-            items: _items,
-            selectedIndex: _selectedIndex,
-            onSelect: (index) => setState(() => _selectedIndex = index),
-            onLogout: _handleLogout,
-          ),
-          Expanded(
-            child: SafeArea(
-              child: IndexedStack(
-                index: _selectedIndex,
-                children: _pages,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isWide = constraints.maxWidth >= _wideBreakpoint;
+
+        if (isWide) {
+          // --- DESKTOP / TABLET: laging-nakikitang side-nav ---
+          return Scaffold(
+            backgroundColor: AppColors.background,
+            body: Row(
+              children: [
+                AdminSidebar(
+                  items: _items,
+                  selectedIndex: _selectedIndex,
+                  onSelect: (index) => setState(() => _selectedIndex = index),
+                  onLogout: _handleLogout,
+                ),
+                Expanded(
+                  child: SafeArea(
+                    child: IndexedStack(
+                      index: _selectedIndex,
+                      children: _pages,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+
+        // --- PHONE BROWSER: Drawer (hamburger menu) ---
+        return Scaffold(
+          backgroundColor: AppColors.background,
+          appBar: AppBar(
+            backgroundColor: AppColors.surface,
+            elevation: 1,
+            iconTheme: const IconThemeData(color: AppColors.accent),
+            title: Text(
+              _items[_selectedIndex].label,
+              style: const TextStyle(
+                color: AppColors.textPrimary,
+                fontWeight: FontWeight.w600,
               ),
             ),
           ),
-        ],
-      ),
+          drawer: Drawer(
+            child: AdminSidebar(
+              items: _items,
+              selectedIndex: _selectedIndex,
+              onSelect: (index) {
+                setState(() => _selectedIndex = index);
+                Navigator.of(context).pop(); // isara ang drawer
+              },
+              onLogout: () {
+                Navigator.of(context).pop(); // isara muna ang drawer
+                _handleLogout();
+              },
+            ),
+          ),
+          body: SafeArea(
+            child: IndexedStack(
+              index: _selectedIndex,
+              children: _pages,
+            ),
+          ),
+        );
+      },
     );
   }
 }

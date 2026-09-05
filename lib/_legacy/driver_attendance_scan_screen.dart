@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../theme/app_theme.dart';
+import '../theme/app_theme.dart';
 
 /// Mock RFID attendance UI — walang ESP32 hardware pa hanggang sa
 /// workshop (Sept 19). "Simulate Tap" lang ang ginagawa dito para ma-

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import '../../models/bilao_order.dart';
-import '../../theme/app_theme.dart';
+import '../models/bilao_order.dart';
+import '../theme/app_theme.dart';
 
 /// Checklist ng mga bilao order na kailangang i-deliver ngayong araw
 /// (deliveryStatus == forDelivery). Driver marks each as Delivered.

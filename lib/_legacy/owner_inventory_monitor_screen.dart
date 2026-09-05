@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import '../../models/inventory_item.dart';
-import '../../theme/app_theme.dart';
+import '../models/inventory_item.dart';
+import '../theme/app_theme.dart';
 
 /// Owner monitors remaining branch stock here — sorted so the branches
 /// running low surface first, since those are the ones that may need
