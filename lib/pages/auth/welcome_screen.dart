@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/primary_button.dart';
@@ -16,156 +18,240 @@ class WelcomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final screenHeight = MediaQuery.of(context).size.height;
+    final heroHeight = math.max(300.0, screenHeight * 0.46);
+
     return Scaffold(
-      backgroundColor: AppColors.background,
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(28, 12, 28, 28),
-          child: Column(
-            children: [
-              const Spacer(flex: 2),
-              const _BrandGraphic(),
-              const SizedBox(height: 34),
-              const Text(
-                'BRAHMS NEXUS',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 3,
-                  color: AppColors.accent,
-                ),
+      backgroundColor: AppColors.accent,
+      body: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            SizedBox(
+              height: heroHeight,
+              child: const _HeroPanel(),
+            ),
+            Container(
+              constraints: BoxConstraints(minHeight: screenHeight - heroHeight),
+              decoration: const BoxDecoration(
+                color: AppColors.background,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
               ),
-              const SizedBox(height: 14),
-              const Text(
-                'Run Every Branch\nFrom One Place',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 27,
-                  fontWeight: FontWeight.w800,
-                  height: 1.25,
-                  color: AppColors.textPrimary,
-                ),
-              ),
-              const SizedBox(height: 10),
-              const Text(
-                'Inventory, sales, reports, and your whole team — '
-                'organized in one simple app.',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 14.5, color: AppColors.textSecondary),
-              ),
-              const Spacer(flex: 3),
-              PrimaryButton(
-                label: 'Login',
-                onPressed: () => Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const LoginScreen()),
-                ),
-              ),
-              const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                height: 50,
-                child: OutlinedButton(
-                  onPressed: () => Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const RegisterScreen()),
-                  ),
-                  style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: AppColors.accent),
-                    foregroundColor: AppColors.accent,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    textStyle: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
+              padding: const EdgeInsets.fromLTRB(28, 32, 28, 24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  const Text(
+                    'BRAHMS NEXUS',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 2.2,
+                      color: AppColors.accent,
                     ),
                   ),
-                  child: const Text('Register as Staff / Driver'),
-                ),
+                  const SizedBox(height: 10),
+                  const Text(
+                    'Every branch,\none system.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.w800,
+                      height: 1.2,
+                      letterSpacing: -0.5,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Daily assignments, sales, inventory, and bilao orders '
+                    '— tracked from Pending to Delivered, without the '
+                    'notes and group chats.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 14,
+                      height: 1.5,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: 28),
+                  PrimaryButton(
+                    label: 'Log in',
+                    onPressed: () => Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const LoginScreen()),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  TextButton(
+                    onPressed: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                          builder: (_) => const RegisterScreen()),
+                    ),
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                    child: RichText(
+                      textAlign: TextAlign.center,
+                      text: const TextSpan(
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: AppColors.textSecondary,
+                        ),
+                        children: [
+                          TextSpan(text: 'New staff or driver? '),
+                          TextSpan(
+                            text: 'Create an account',
+                            style: TextStyle(
+                              color: AppColors.accent,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Internal system for Brahms Crispy Sisig Bagnet',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
   }
 }
 
-/// Hand-built decorative graphic — no external image assets required.
-/// Soft concentric circles behind a storefront glyph, with a few small
-/// floating accent dots for visual interest. Deliberately abstract
-/// rather than a literal illustration, to stay original.
-class _BrandGraphic extends StatelessWidget {
-  const _BrandGraphic();
+/// Full-bleed colored panel behind the woven-burst hero graphic and
+/// brand monogram — the "illustration half" of the landing screen.
+class _HeroPanel extends StatelessWidget {
+  const _HeroPanel();
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: 210,
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          Container(
-            width: 210,
-            height: 210,
-            decoration: BoxDecoration(
-              color: AppColors.pastelBrown.withValues(alpha: 0.22),
-              shape: BoxShape.circle,
+    return Container(
+      width: double.infinity,
+      decoration: const BoxDecoration(
+        // Flat, solid accent brown — the same fill DriverNavBar and
+        // StaffNavBar use everywhere else in the app, so the Landing
+        // screen doesn't introduce a one-off gradient look.
+        color: AppColors.accent,
+      ),
+      child: SafeArea(
+        bottom: false,
+        child: Stack(
+          clipBehavior: Clip.none,
+          alignment: Alignment.center,
+          children: [
+            const Positioned.fill(
+              child: CustomPaint(painter: _WovenBurstPainter()),
             ),
-          ),
-          Container(
-            width: 152,
-            height: 152,
-            decoration: BoxDecoration(
-              color: AppColors.pastelBrown.withValues(alpha: 0.38),
-              shape: BoxShape.circle,
+            const _Monogram(),
+            Positioned(
+              top: 28,
+              left: 28,
+              child: _floatingDot(10, Colors.white.withValues(alpha: 0.28)),
             ),
-          ),
-          Container(
-            width: 104,
-            height: 104,
-            decoration: BoxDecoration(
-              color: AppColors.accent,
-              shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                  color: AppColors.accentDark.withValues(alpha: 0.32),
-                  blurRadius: 20,
-                  offset: const Offset(0, 8),
-                ),
-              ],
+            Positioned(
+              bottom: 32,
+              right: 40,
+              child: _floatingDot(7, Colors.white.withValues(alpha: 0.32)),
             ),
-            child: const Icon(
-              Icons.storefront_rounded,
-              size: 48,
-              color: Colors.white,
-            ),
-          ),
-          Positioned(
-            top: 10,
-            right: 26,
-            child: _floatingDot(14, AppColors.accent.withValues(alpha: 0.85)),
-          ),
-          Positioned(
-            bottom: 18,
-            left: 20,
-            child: _floatingDot(10, AppColors.accentDark.withValues(alpha: 0.6)),
-          ),
-          Positioned(
-            bottom: 40,
-            right: 4,
-            child: _floatingDot(8, AppColors.accent.withValues(alpha: 0.5)),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
+}
 
-  Widget _floatingDot(double size, Color color) {
+Widget _floatingDot(double size, Color color) {
+  return Container(
+    width: size,
+    height: size,
+    decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+  );
+}
+
+/// Circular brand monogram — sits at the center of the woven burst.
+class _Monogram extends StatelessWidget {
+  const _Monogram();
+
+  @override
+  Widget build(BuildContext context) {
     return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+      width: 108,
+      height: 108,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        shape: BoxShape.circle,
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.accentDark.withValues(alpha: 0.35),
+            blurRadius: 24,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: const Text(
+        'BN',
+        style: TextStyle(
+          fontSize: 34,
+          fontWeight: FontWeight.w800,
+          color: AppColors.accent,
+          letterSpacing: 1,
+        ),
+      ),
     );
   }
+}
+
+/// Paints a ring of thin, round-capped spokes radiating outward —
+/// an abstract nod to the woven rim of a bilao tray — plus a single
+/// soft containing ring. Purely decorative, no external assets.
+class _WovenBurstPainter extends CustomPainter {
+  const _WovenBurstPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width * 0.5, size.height * 0.5);
+    const spokeCount = 26;
+    final maxRadius = math.min(size.width, size.height) * 0.34;
+
+    for (var i = 0; i < spokeCount; i++) {
+      final angle = (2 * math.pi / spokeCount) * i;
+      final lengthFactor = 0.6 + 0.4 * ((i % 3) / 2);
+      final radius = maxRadius * lengthFactor;
+      final start = Offset(
+        center.dx + math.cos(angle) * radius * 0.42,
+        center.dy + math.sin(angle) * radius * 0.42,
+      );
+      final end = Offset(
+        center.dx + math.cos(angle) * radius,
+        center.dy + math.sin(angle) * radius,
+      );
+      final paint = Paint()
+        ..color = Colors.white.withValues(alpha: i.isEven ? 0.20 : 0.13)
+        ..strokeWidth = 3
+        ..strokeCap = StrokeCap.round;
+      canvas.drawLine(start, end, paint);
+    }
+
+    final ringPaint = Paint()
+      ..color = Colors.white.withValues(alpha: 0.22)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.4;
+    canvas.drawCircle(center, maxRadius * 0.78, ringPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _WovenBurstPainter oldDelegate) => false;
 }

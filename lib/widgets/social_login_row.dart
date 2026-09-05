@@ -19,78 +19,85 @@ class SocialLoginRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        _SocialButton(
-          label: 'G',
-          color: const Color(0xFFDB4437),
-          onTap: () => _notReady(context, 'Google sign-in'),
+        Expanded(
+          child: _SocialPill(
+            icon: Icons.g_mobiledata_rounded,
+            iconColor: const Color(0xFFDB4437),
+            label: 'Google',
+            onTap: () => _notReady(context, 'Google sign-in'),
+          ),
         ),
-        const SizedBox(width: 16),
-        _SocialButton(
-          icon: Icons.facebook_rounded,
-          color: const Color(0xFF1877F2),
-          onTap: () => _notReady(context, 'Facebook sign-in'),
+        const SizedBox(width: 12),
+        Expanded(
+          child: _SocialPill(
+            icon: Icons.facebook_rounded,
+            iconColor: const Color(0xFF1877F2),
+            label: 'Facebook',
+            onTap: () => _notReady(context, 'Facebook sign-in'),
+          ),
         ),
-        const SizedBox(width: 16),
-        _SocialButton(
-          icon: Icons.apple_rounded,
-          color: AppColors.textPrimary,
-          onTap: () => _notReady(context, 'Apple sign-in'),
+        const SizedBox(width: 12),
+        Expanded(
+          child: _SocialPill(
+            icon: Icons.apple_rounded,
+            iconColor: AppColors.textPrimary,
+            label: 'Apple',
+            onTap: () => _notReady(context, 'Apple sign-in'),
+          ),
         ),
       ],
     );
   }
 }
 
-class _SocialButton extends StatelessWidget {
-  const _SocialButton({
-    this.icon,
-    this.label,
-    required this.color,
+class _SocialPill extends StatelessWidget {
+  const _SocialPill({
+    required this.icon,
+    required this.iconColor,
+    required this.label,
     required this.onTap,
   });
 
-  final IconData? icon;
-  final String? label;
-  final Color color;
+  final IconData icon;
+  final Color iconColor;
+  final String label;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     return Material(
       color: Colors.white,
-      shape: const CircleBorder(
-        side: BorderSide(color: AppColors.border),
-      ),
-      elevation: 0,
+      borderRadius: BorderRadius.circular(12),
       child: InkWell(
         onTap: onTap,
-        customBorder: const CircleBorder(),
+        borderRadius: BorderRadius.circular(12),
         child: Container(
-          width: 52,
-          height: 52,
-          alignment: Alignment.center,
+          height: 50,
+          padding: const EdgeInsets.symmetric(horizontal: 8),
           decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            boxShadow: [
-              BoxShadow(
-                color: AppColors.accentDark.withValues(alpha: 0.06),
-                blurRadius: 8,
-                offset: const Offset(0, 3),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppColors.border),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, color: iconColor, size: 22),
+              const SizedBox(width: 6),
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
               ),
             ],
           ),
-          child: icon != null
-              ? Icon(icon, color: color, size: 22)
-              : Text(
-                  label!,
-                  style: TextStyle(
-                    color: color,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 18,
-                  ),
-                ),
         ),
       ),
     );
