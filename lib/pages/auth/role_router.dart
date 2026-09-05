@@ -5,7 +5,7 @@ import '../../models/user_role.dart';
 import '../admin_web/admin_web_shell.dart';
 import '../driver_app/driver_home_screen.dart';
 import '../owner_app/owner_dashboard_screen.dart';
-import '../staff_app/staff_home_screen.dart';
+import '../staff_app/staff_shell.dart';
 import 'account_status_screen.dart';
 
 /// Central place para sa "saan pupunta pagkatapos mag-login/register"
@@ -36,7 +36,7 @@ class RoleRouter {
       case UserRole.owner:
         return kIsWeb ? const AdminWebShell() : const OwnerDashboardScreen();
       case UserRole.staff:
-        return const StaffHomeScreen();
+        return const StaffShell();
       case UserRole.driver:
         return const DriverHomeScreen();
     }

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import '../../theme/app_theme.dart';
-import '../../widgets/primary_button.dart';
+import '../theme/app_theme.dart';
+import '../widgets/primary_button.dart';
 
 /// Staff submits remaining stock at end-of-day here — maps to
 /// [BranchStock.remainingKg]. This is what the Owner's Inventory

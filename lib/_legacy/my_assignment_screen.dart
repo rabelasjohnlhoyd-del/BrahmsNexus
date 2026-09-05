@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import '../../models/branch_assignment.dart';
-import '../../theme/app_theme.dart';
+import '../models/branch_assignment.dart';
+import '../theme/app_theme.dart';
 
 /// Shows the logged-in Staff member's assignment for today: which
 /// branch, and whether they're On Duty or on a Rest Day.

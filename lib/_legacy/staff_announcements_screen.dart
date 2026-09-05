@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import '../../models/announcement.dart';
-import '../../theme/app_theme.dart';
+import '../models/announcement.dart';
+import '../theme/app_theme.dart';
 
 /// View-only para sa Staff — ang pag-post ng announcements ay sa
 /// Admin Web na lang (see admin_web/announcements).

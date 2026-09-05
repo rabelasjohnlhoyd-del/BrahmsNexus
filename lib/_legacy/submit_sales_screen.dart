@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import '../../theme/app_theme.dart';
-import '../../widgets/primary_button.dart';
+import '../theme/app_theme.dart';
+import '../widgets/primary_button.dart';
 
 /// Staff submits their end-of-day sales here. Maps to [SalesRecord]
 /// (portionsSold, commissionRatePerPortion, totalSalesAmount) — the

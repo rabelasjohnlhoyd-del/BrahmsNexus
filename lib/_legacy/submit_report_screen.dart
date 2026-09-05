@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import '../../theme/app_theme.dart';
-import '../../widgets/primary_button.dart';
+import '../theme/app_theme.dart';
+import '../widgets/primary_button.dart';
 
 /// Staff submits their daily operational report here — replaces the
 /// client's old group-chat-based reporting. Maps to [DailyReport].
