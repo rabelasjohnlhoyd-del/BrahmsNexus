@@ -75,6 +75,44 @@ class _SalesScreenState extends State<SalesScreen> {
     );
   }
 
+  /// Confirms before actually submitting — sales figures feed directly
+  /// into payroll, so a single accidental tap on "Submit Sales"
+  /// shouldn't be enough to lock them in.
+  Future<void> _confirmSubmit() async {
+    final computation = _computation;
+    if (computation == null) return;
+
+    final confirmed = await showCupertinoDialog<bool>(
+      context: context,
+      builder: (dialogContext) => CupertinoAlertDialog(
+        title: const Text('Submit Sales?'),
+        content: Text(
+          computation.hasDiscrepancy
+              ? 'A discrepancy was found between Karne and Styro usage. '
+                  'The Owner will be notified. Submit anyway?'
+              : 'Orders Sold: ${computation.ordersSold} · Net Total: '
+                  '\u20b1${computation.netTotal.toStringAsFixed(0)}. This '
+                  "can't be edited once submitted.",
+        ),
+        actions: [
+          CupertinoDialogAction(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          CupertinoDialogAction(
+            isDefaultAction: true,
+            isDestructiveAction: computation.hasDiscrepancy,
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Submit'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+    _submit();
+  }
+
   void _submit() {
     setState(() => _submitted = true);
     showCupertinoModalPopup<void>(
@@ -234,7 +272,7 @@ class _SalesScreenState extends State<SalesScreen> {
               StaffButton(
                 label: _submitted ? 'Submitted' : 'Submit Sales',
                 icon: _submitted ? CupertinoIcons.check_mark : null,
-                onPressed: _submitted ? null : _submit,
+                onPressed: _submitted ? null : _confirmSubmit,
               ),
             ] else
               Container(

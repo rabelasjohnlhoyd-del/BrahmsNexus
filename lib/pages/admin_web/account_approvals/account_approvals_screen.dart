@@ -87,7 +87,7 @@ class _AccountApprovalsScreenState extends State<AccountApprovalsScreen> {
                   const Padding(
                     padding: EdgeInsets.symmetric(vertical: 24),
                     child: Text(
-                      'Walang pending na registration sa ngayon.',
+                      'No pending registrations right now.',
                       style: TextStyle(color: AppColors.textSecondary),
                     ),
                   )

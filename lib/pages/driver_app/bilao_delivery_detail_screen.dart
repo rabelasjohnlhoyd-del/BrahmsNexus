@@ -3,10 +3,12 @@ import 'package:flutter/cupertino.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../models/bilao_order.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/driver_button.dart';
+import '../../widgets/driver_card.dart';
+import '../../widgets/driver_nav_bar.dart';
 
-/// Buong impormasyon ng delivery + take-a-picture flow (parehong logic
-/// sa StockTransferDetailScreen) para i-confirm na successful ang
-/// pag-deliver.
+/// Full delivery details + take-a-picture flow (same logic as
+/// StockTransferDetailScreen) to confirm the delivery was successful.
 class BilaoDeliveryDetailScreen extends StatefulWidget {
   const BilaoDeliveryDetailScreen({super.key, required this.order});
 
@@ -37,7 +39,7 @@ class _BilaoDeliveryDetailScreenState
       showCupertinoDialog<void>(
         context: context,
         builder: (context) => CupertinoAlertDialog(
-          title: const Text('Hindi ma-access ang camera'),
+          title: const Text("Can't access the camera"),
           content: Text('$e'),
           actions: [
             CupertinoDialogAction(
@@ -59,7 +61,7 @@ class _BilaoDeliveryDetailScreenState
       context: context,
       builder: (context) => CupertinoAlertDialog(
         title: const Text('Are you sure?'),
-        content: const Text('I-confirm na successful ang pag-deliver?'),
+        content: const Text('Confirm this delivery was successful?'),
         actions: [
           CupertinoDialogAction(
             onPressed: () => Navigator.of(context).pop(false),
@@ -89,20 +91,17 @@ class _BilaoDeliveryDetailScreenState
 
     return CupertinoPageScaffold(
       backgroundColor: AppColors.background,
-      navigationBar: CupertinoNavigationBar(middle: Text(order.customerName)),
+      navigationBar: DriverNavBar(
+        title: order.customerName,
+        showBackButton: true,
+      ),
       child: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(20),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: CupertinoColors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.border),
-                ),
+              DriverCard(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -111,7 +110,7 @@ class _BilaoDeliveryDetailScreenState
                     _infoRow(
                       CupertinoIcons.location_solid,
                       order.deliveryAddress.isEmpty
-                          ? 'Walang naka-record na address'
+                          ? 'No address on file'
                           : order.deliveryAddress,
                     ),
                     _infoRow(
@@ -133,8 +132,8 @@ class _BilaoDeliveryDetailScreenState
                                 size: 56, color: AppColors.pastelBrown),
                             const SizedBox(height: 12),
                             const Text(
-                              'Kumuha ng litrato bilang patunay ng '
-                              'successful delivery.',
+                              'Take a photo as proof of successful '
+                              'delivery.',
                               textAlign: TextAlign.center,
                               style: TextStyle(color: AppColors.textSecondary),
                             ),
@@ -152,32 +151,27 @@ class _BilaoDeliveryDetailScreenState
               ),
               const SizedBox(height: 20),
               if (_photo == null)
-                CupertinoButton(
-                  color: AppColors.accent,
-                  borderRadius: BorderRadius.circular(12),
+                DriverButton(
+                  label: 'Take a Picture',
+                  icon: CupertinoIcons.camera_fill,
                   onPressed: _takePicture,
-                  child: const Text('Take a Picture'),
                 )
               else
                 Row(
                   children: [
                     Expanded(
-                      child: CupertinoButton(
+                      child: DriverButton(
+                        label: 'Retake',
                         color: AppColors.pastelBrown,
-                        borderRadius: BorderRadius.circular(12),
                         onPressed: _isSubmitting ? null : _retake,
-                        child: const Text('Retake'),
                       ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: CupertinoButton(
+                      child: DriverButton(
+                        label: _isSubmitting ? 'Submitting...' : 'Submit',
                         color: AppColors.success,
-                        borderRadius: BorderRadius.circular(12),
                         onPressed: _isSubmitting ? null : _confirmSubmit,
-                        child: Text(
-                          _isSubmitting ? 'Submitting...' : 'Submit',
-                        ),
                       ),
                     ),
                   ],

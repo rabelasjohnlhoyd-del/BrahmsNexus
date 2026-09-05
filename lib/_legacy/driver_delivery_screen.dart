@@ -59,7 +59,7 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
             : ListView.separated(
                 padding: const EdgeInsets.all(16),
                 itemCount: _orders.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 10),
+                separatorBuilder: (_, _) => const SizedBox(height: 10),
                 itemBuilder: (context, index) {
                   final order = _orders[index];
                   final isDelivered =

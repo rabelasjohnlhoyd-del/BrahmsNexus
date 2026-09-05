@@ -24,15 +24,15 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
     Announcement(
       id: 'an1',
       messageContent:
-          'Paalala: Mag-ingat sa paggamit ng mayo. I-double check ang '
-          'quantity bago magbenta.',
+          'Reminder: Be careful with mayo usage. Double-check the '
+          'quantity before selling.',
       datePosted: DateTime.now().subtract(const Duration(hours: 3)),
     ),
     Announcement(
       id: 'an2',
       messageContent:
-          'May advance na bilao order bukas ng umaga — asikasuhin agad '
-          'ang preparation.',
+          "There's an advance bilao order for tomorrow morning — start "
+          'preparation right away.',
       datePosted: DateTime.now().subtract(const Duration(days: 1)),
     ),
   ];
@@ -114,7 +114,7 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
                     maxLines: 3,
                     decoration: const InputDecoration(
                       labelText: 'New Announcement',
-                      hintText: 'I-type dito ang announcement...',
+                      hintText: 'Type your announcement here...',
                       alignLabelWithHint: true,
                     ),
                   ),
@@ -148,13 +148,13 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
             child: _announcements.isEmpty
                 ? const Center(
                     child: Text(
-                      'Wala pang announcement na na-post.',
+                      'No announcements posted yet.',
                       style: TextStyle(color: AppColors.textSecondary),
                     ),
                   )
                 : ListView.separated(
                     itemCount: _announcements.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 10),
+                    separatorBuilder: (_, _) => const SizedBox(height: 10),
                     itemBuilder: (context, index) {
                       final a = _announcements[index];
                       return Card(

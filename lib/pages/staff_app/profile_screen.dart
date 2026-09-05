@@ -5,8 +5,8 @@ import '../../widgets/staff_card.dart';
 import '../../widgets/staff_nav_bar.dart';
 import '../auth/login_screen.dart';
 
-/// Binubuksan mula sa profile avatar sa tuktok ng bawat tab. Ipinapakita
-/// dito ang mga detalye ng account ng naka-login na cook.
+/// Opened from the profile avatar at the top of every tab. Shows
+/// the logged-in cook's account details.
 ///
 /// NOTE: Mock data for now — once Supabase/Firebase Auth are wired up,
 /// this reads the actual logged-in user's profile record.

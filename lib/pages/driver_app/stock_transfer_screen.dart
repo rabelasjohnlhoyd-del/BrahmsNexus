@@ -1,16 +1,18 @@
 import 'package:flutter/cupertino.dart';
 import '../../models/transfer_request.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/driver_card.dart';
+import '../../widgets/driver_nav_bar.dart';
 import '../../widgets/driver_top_actions.dart';
 import 'stock_transfer_detail_screen.dart';
 
-/// StockTransferPage — mga branch na humingi ng dagdag na karne o
-/// gasul, at kung saang branch (suggested source) dapat kukunin.
+/// StockTransferPage — branches that requested extra meat or gas, and
+/// which branch (suggested source) it should be picked up from.
 ///
-/// NOTE: Ang "suggested source" ay STATIC/MOCK muna (proximity-based
-/// na halimbawa: Gatid -> Labuin -> Pila -> Nanhaya/San Francisco).
-/// Ang totoong DSS logic (proximity + available stock) ay gagawin sa
-/// backend phase — pure frontend muna.
+/// NOTE: The "suggested source" is STATIC/MOCK for now (a
+/// proximity-based example: Gatid -> Labuin -> Pila -> Nanhaya/San
+/// Francisco). The real DSS logic (proximity + available stock) will
+/// be done in the backend phase — pure frontend for now.
 class StockTransferScreen extends StatefulWidget {
   const StockTransferScreen({super.key});
 
@@ -60,22 +62,39 @@ class _StockTransferScreenState extends State<StockTransferScreen> {
   Widget build(BuildContext context) {
     return CupertinoPageScaffold(
       backgroundColor: AppColors.background,
-      navigationBar: const CupertinoNavigationBar(
-        middle: Text('Stock Transfer'),
+      navigationBar: const DriverNavBar(
+        title: 'Stock Transfer',
         trailing: DriverTopActions(initials: 'RS'),
       ),
       child: SafeArea(
         child: _requests.isEmpty
-            ? const Center(
-                child: Text(
-                  'Walang stock transfer request sa ngayon.',
-                  style: TextStyle(color: AppColors.textSecondary),
+            ? Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 64,
+                      height: 64,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: AppColors.pastelBrown.withValues(alpha: 0.25),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(CupertinoIcons.arrow_2_squarepath,
+                          size: 28, color: AppColors.accent),
+                    ),
+                    const SizedBox(height: 14),
+                    const Text(
+                      'No stock transfer requests right now.',
+                      style: TextStyle(color: AppColors.textSecondary),
+                    ),
+                  ],
                 ),
               )
             : ListView.separated(
                 padding: const EdgeInsets.all(16),
                 itemCount: _requests.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 10),
+                separatorBuilder: (_, _) => const SizedBox(height: 10),
                 itemBuilder: (context, index) {
                   final request = _requests[index];
                   final icon = request.type == TransferRequestType.meat
@@ -95,13 +114,7 @@ class _StockTransferScreenState extends State<StockTransferScreen> {
                         _updateStatus(request.id, result);
                       }
                     },
-                    child: Container(
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: CupertinoColors.white,
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: AppColors.border),
-                      ),
+                    child: DriverCard(
                       child: Row(
                         children: [
                           Container(
@@ -130,7 +143,7 @@ class _StockTransferScreenState extends State<StockTransferScreen> {
                                 ),
                                 const SizedBox(height: 3),
                                 Text(
-                                  'Kukunin sa: ${request.suggestedSourceBranchName}',
+                                  'Pick up from: ${request.suggestedSourceBranchName}',
                                   style: const TextStyle(
                                     fontSize: 12,
                                     color: AppColors.textSecondary,
@@ -139,6 +152,7 @@ class _StockTransferScreenState extends State<StockTransferScreen> {
                               ],
                             ),
                           ),
+                          const SizedBox(width: 8),
                           Container(
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 10, vertical: 4),

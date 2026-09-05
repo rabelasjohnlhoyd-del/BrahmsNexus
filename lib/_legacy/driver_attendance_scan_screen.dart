@@ -70,7 +70,7 @@ class _AttendanceScanScreenState extends State<AttendanceScanScreen> {
               child: ListView.separated(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 itemCount: _pickups.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 10),
+                separatorBuilder: (_, _) => const SizedBox(height: 10),
                 itemBuilder: (context, index) {
                   final pickup = _pickups[index];
                   final isScanned = pickup.scannedAt != null;

@@ -13,16 +13,16 @@ import 'inventory/inventory_screen.dart';
 import 'sales_payroll/sales_payroll_screen.dart';
 import 'staff_management/staff_management_screen.dart';
 
-/// Full Admin shell — WEB (may access din via phone browser, kaya
-/// responsive ito). Sa malawak na screen (desktop/tablet), side
-/// navigation ang ginagamit. Sa makitid na screen (phone browser),
-/// nagiging Drawer (hamburger menu) ang parehong sidebar content, at
-/// AppBar na lang ang laging makikita sa taas.
+/// Full Admin shell — WEB (also accessible via phone browser, hence
+/// responsive). On a wide screen (desktop/tablet), side navigation
+/// is used. On a narrow screen (phone browser), that same sidebar
+/// content becomes a Drawer (hamburger menu), with only an AppBar
+/// always visible at the top.
 ///
-/// Ginamit ang Drawer sa halip na bottom nav sa narrow screens dahil
-/// 10 ang sections — masyadong marami para sa isang bottom bar
-/// (karaniwang 3-5 lang ang bagay dito), habang kasya lahat sa isang
-/// scrollable na Drawer.
+/// A Drawer is used instead of a bottom nav on narrow screens because
+/// there are 10 sections — too many for a bottom bar (which
+/// comfortably fits only 3-5), while all of them fit in one
+/// scrollable Drawer.
 class AdminWebShell extends StatefulWidget {
   const AdminWebShell({super.key});
 
@@ -33,8 +33,8 @@ class AdminWebShell extends StatefulWidget {
 class _AdminWebShellState extends State<AdminWebShell> {
   int _selectedIndex = 0;
 
-  /// Breakpoint: mas mababa dito (hal. phone browser) = Drawer layout.
-  /// Mas malawak dito (desktop/tablet) = laging-nakikitang side-nav.
+  /// Breakpoint: below this (e.g. phone browser) = Drawer layout.
+  /// Above this (desktop/tablet) = always-visible side-nav.
   static const double _wideBreakpoint = 700;
 
   static const _items = [
@@ -101,7 +101,7 @@ class _AdminWebShellState extends State<AdminWebShell> {
         final isWide = constraints.maxWidth >= _wideBreakpoint;
 
         if (isWide) {
-          // --- DESKTOP / TABLET: laging-nakikitang side-nav ---
+          // --- DESKTOP / TABLET: always-visible side-nav ---
           return Scaffold(
             backgroundColor: AppColors.background,
             body: Row(
@@ -146,10 +146,10 @@ class _AdminWebShellState extends State<AdminWebShell> {
               selectedIndex: _selectedIndex,
               onSelect: (index) {
                 setState(() => _selectedIndex = index);
-                Navigator.of(context).pop(); // isara ang drawer
+                Navigator.of(context).pop(); // close the drawer
               },
               onLogout: () {
-                Navigator.of(context).pop(); // isara muna ang drawer
+                Navigator.of(context).pop(); // close the drawer first
                 _handleLogout();
               },
             ),

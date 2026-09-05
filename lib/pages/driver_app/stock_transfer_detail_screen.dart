@@ -3,10 +3,13 @@ import 'package:flutter/cupertino.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../models/transfer_request.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/driver_button.dart';
+import '../../widgets/driver_card.dart';
+import '../../widgets/driver_nav_bar.dart';
 
 /// Take a picture -> Retake/Submit -> "Are you sure?" confirmation ->
-/// bumalik sa listahan na may updated status. Parehong logic din ito
-/// para sa Bilao Deliveries (see bilao_deliveries_screen.dart).
+/// back to the list with an updated status. Same logic used for Bilao
+/// Deliveries (see bilao_deliveries_screen.dart).
 class StockTransferDetailScreen extends StatefulWidget {
   const StockTransferDetailScreen({super.key, required this.request});
 
@@ -37,7 +40,7 @@ class _StockTransferDetailScreenState
       showCupertinoDialog<void>(
         context: context,
         builder: (context) => CupertinoAlertDialog(
-          title: const Text('Hindi ma-access ang camera'),
+          title: const Text("Can't access the camera"),
           content: Text('$e'),
           actions: [
             CupertinoDialogAction(
@@ -59,7 +62,7 @@ class _StockTransferDetailScreenState
       context: context,
       builder: (context) => CupertinoAlertDialog(
         title: const Text('Are you sure?'),
-        content: const Text('Isusumite mo na ba itong transfer photo?'),
+        content: const Text('Submit this transfer photo?'),
         actions: [
           CupertinoDialogAction(
             onPressed: () => Navigator.of(context).pop(false),
@@ -89,8 +92,9 @@ class _StockTransferDetailScreenState
 
     return CupertinoPageScaffold(
       backgroundColor: AppColors.background,
-      navigationBar: CupertinoNavigationBar(
-        middle: Text('${request.type.label} — ${request.branchName}'),
+      navigationBar: DriverNavBar(
+        title: '${request.type.label} — ${request.branchName}',
+        showBackButton: true,
       ),
       child: SafeArea(
         child: Padding(
@@ -98,18 +102,12 @@ class _StockTransferDetailScreenState
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: CupertinoColors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.border),
-                ),
+              DriverCard(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Kukunin: ${request.type.label}',
+                      'Item: ${request.type.label}',
                       style: const TextStyle(
                         fontWeight: FontWeight.w600,
                         color: AppColors.textPrimary,
@@ -117,12 +115,12 @@ class _StockTransferDetailScreenState
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Mula sa: ${request.suggestedSourceBranchName}',
+                      'From: ${request.suggestedSourceBranchName}',
                       style: const TextStyle(color: AppColors.textSecondary),
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Papunta sa: ${request.branchName}',
+                      'To: ${request.branchName}',
                       style: const TextStyle(color: AppColors.textSecondary),
                     ),
                   ],
@@ -139,7 +137,7 @@ class _StockTransferDetailScreenState
                                 size: 56, color: AppColors.pastelBrown),
                             const SizedBox(height: 12),
                             const Text(
-                              'Kumuha ng malinaw na litrato bilang patunay.',
+                              'Take a clear photo as proof.',
                               textAlign: TextAlign.center,
                               style: TextStyle(color: AppColors.textSecondary),
                             ),
@@ -157,32 +155,27 @@ class _StockTransferDetailScreenState
               ),
               const SizedBox(height: 20),
               if (_photo == null)
-                CupertinoButton(
-                  color: AppColors.accent,
-                  borderRadius: BorderRadius.circular(12),
+                DriverButton(
+                  label: 'Take a Picture',
+                  icon: CupertinoIcons.camera_fill,
                   onPressed: _takePicture,
-                  child: const Text('Take a Picture'),
                 )
               else
                 Row(
                   children: [
                     Expanded(
-                      child: CupertinoButton(
+                      child: DriverButton(
+                        label: 'Retake',
                         color: AppColors.pastelBrown,
-                        borderRadius: BorderRadius.circular(12),
                         onPressed: _isSubmitting ? null : _retake,
-                        child: const Text('Retake'),
                       ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: CupertinoButton(
+                      child: DriverButton(
+                        label: _isSubmitting ? 'Submitting...' : 'Submit',
                         color: AppColors.success,
-                        borderRadius: BorderRadius.circular(12),
                         onPressed: _isSubmitting ? null : _confirmSubmit,
-                        child: Text(
-                          _isSubmitting ? 'Submitting...' : 'Submit',
-                        ),
                       ),
                     ),
                   ],

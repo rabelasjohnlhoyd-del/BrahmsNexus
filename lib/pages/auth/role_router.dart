@@ -6,18 +6,18 @@ import '../driver_app/driver_shell.dart';
 import '../staff_app/staff_shell.dart';
 import 'account_status_screen.dart';
 
-/// Central place para sa "saan pupunta pagkatapos mag-login/register"
-/// logic. Lahat ng ganitong desisyon ay dito lang dapat, para hindi
-/// kalat sa ibat-ibang screen.
+/// Central place for the "where to go after login/register" logic.
+/// All decisions like this should live here, so they don't end up
+/// scattered across different screens.
 ///
 /// Logic:
-/// 1. Kung hindi pa [AccountStatus.approved] ang account (Pending o
-///    Rejected), diretso sa [AccountStatusScreen] — hindi pa dapat
-///    makapasok sa app.
-/// 2. Kung approved na:
-///    - Owner -> [AdminWebShell] (WEB LANG — walang separate mobile
-///      app para sa Owner; puwede pa rin niyang buksan ang website
-///      mismo sa browser ng kanyang phone kung nasa labas siya)
+/// 1. If the account is not yet [AccountStatus.approved] (Pending or
+///    Rejected), go straight to [AccountStatusScreen] — they
+///    shouldn't be able to enter the app yet.
+/// 2. If already approved:
+///    - Owner -> [AdminWebShell] (WEB ONLY — there's no separate
+///      mobile app for Owner; they can still open the website
+///      itself in their phone's browser if they're out and about)
 ///    - Staff -> [StaffShell]
 ///    - Driver -> [DriverShell]
 class RoleRouter {

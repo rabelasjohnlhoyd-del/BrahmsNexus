@@ -1,5 +1,4 @@
 import 'package:flutter/cupertino.dart';
-import 'package:flutter/material.dart' show BottomNavigationBarItem;
 import 'package:flutter/services.dart';
 import '../../theme/app_theme.dart';
 import 'daily_report_screen.dart';
@@ -7,12 +6,12 @@ import 'homepage_screen.dart';
 import 'sales_screen.dart';
 import 'timer_screen.dart';
 
-/// Main shell ng Cook/Staff app — CupertinoTabScaffold na may 4 tabs
-/// (Homepage, Sales, Daily Report, Timer), sinusunod ang iOS Human
-/// Interface Guidelines gamit ang totoong Cupertino widgets.
+/// Main shell of the Cook/Staff app — a CupertinoTabScaffold with 4
+/// tabs (Homepage, Sales, Daily Report, Timer), following iOS Human
+/// Interface Guidelines with real Cupertino widgets.
 ///
-/// Ang Announcements ay wala nang sariling tab — pinalitan ito ng
-/// notification bell + profile avatar sa itaas ng bawat tab
+/// Announcements no longer has its own tab — it's been replaced by
+/// the notification bell + profile avatar at the top of every tab
 /// (see widgets/staff_top_actions.dart).
 class StaffShell extends StatelessWidget {
   const StaffShell({super.key});
@@ -96,10 +95,10 @@ class StaffShell extends StatelessWidget {
       value: _systemBarStyle,
       child: CupertinoTheme(
         data: cupertinoThemeData,
-        // Builder + DefaultTextStyle: kailangan ito para tama ang
-        // na-iinherit na font size ng LAHAT ng plain Text widgets sa
-        // loob (kung wala ito, malaki/mali ang laki ng font dahil naka-
-        // loob tayo sa isang MaterialApp, hindi CupertinoApp).
+        // Builder + DefaultTextStyle: needed so ALL plain Text
+        // widgets inside inherit the correct font size (without
+        // this, font sizes come out wrong/too large since we're
+        // nested inside a MaterialApp, not a CupertinoApp).
         child: Builder(
           builder: (context) => DefaultTextStyle(
             style: CupertinoTheme.of(context).textTheme.textStyle,

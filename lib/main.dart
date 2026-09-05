@@ -1,5 +1,6 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'firebase_options.dart';
 import 'pages/auth/welcome_screen.dart';
@@ -7,6 +8,16 @@ import 'theme/app_theme.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Force off the debug "paint baselines" overlay (the green/yellow
+  // lines drawn under every piece of text) regardless of whatever
+  // state the Flutter Inspector / DevTools "Toggle Baseline Painting"
+  // button was left in during a previous debug session. This runs on
+  // every app start, so it can't be silently left on again.
+  assert(() {
+    debugPaintBaselinesEnabled = false;
+    return true;
+  }());
 
   // Draw behind the system status bar / Android gesture-navigation bar
   // consistently (edge-to-edge) instead of leaving Android to pick its
@@ -46,6 +57,22 @@ class BrahmsNexusApp extends StatelessWidget {
       title: 'Brahms Nexus',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
+      // Clamp system font scaling app-wide. Without this, a phone set
+      // to a large accessibility text size inflates any Text that
+      // doesn't set an explicit fontSize (headings, sheet subtitles,
+      // etc.) far past what these fixed-size cards/sheets were laid
+      // out for — the exact bug that made the branch-inventory sheet's
+      // "Items to bring here" heading balloon into two giant, badly
+      // wrapped lines. 1.3x still respects the user's larger-text
+      // preference; it just stops it from breaking layouts.
+      builder: (context, child) {
+        final clampedScaler = MediaQuery.textScalerOf(context)
+            .clamp(minScaleFactor: 0.9, maxScaleFactor: 1.3);
+        return MediaQuery(
+          data: MediaQuery.of(context).copyWith(textScaler: clampedScaler),
+          child: child!,
+        );
+      },
       home: const WelcomeScreen(),
     );
   }

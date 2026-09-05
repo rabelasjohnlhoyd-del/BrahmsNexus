@@ -39,6 +39,36 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
       _needMoreMeat ||
       _messageController.text.trim().isNotEmpty;
 
+  /// Confirms before sending — the report immediately alerts the
+  /// Owner's phone, so it's worth a quick double-check instead of
+  /// firing the moment the button is tapped.
+  Future<void> _confirmSubmit() async {
+    final confirmed = await showCupertinoDialog<bool>(
+      context: context,
+      builder: (dialogContext) => CupertinoAlertDialog(
+        title: const Text('Send This Report?'),
+        content: const Text(
+          "The Owner's phone will be alerted right away once you send "
+          'this.',
+        ),
+        actions: [
+          CupertinoDialogAction(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          CupertinoDialogAction(
+            isDefaultAction: true,
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Send'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+    _submit();
+  }
+
   Future<void> _submit() async {
     setState(() => _isSubmitting = true);
     await Future.delayed(const Duration(milliseconds: 600));
@@ -141,7 +171,7 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
             StaffButton(
               label: _isSubmitting ? 'Sending...' : 'Send to Owner',
               icon: _isSubmitting ? null : CupertinoIcons.paperplane_fill,
-              onPressed: _canSubmit && !_isSubmitting ? _submit : null,
+              onPressed: _canSubmit && !_isSubmitting ? _confirmSubmit : null,
             ),
           ],
         ),

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 
-/// Ang FAB mismo para sa DSS Chatbot.
+/// The FAB itself for the DSS Chatbot.
 class DssChatbotFab extends StatelessWidget {
   const DssChatbotFab({super.key, required this.onTap});
 
@@ -21,8 +21,8 @@ class DssChatbotFab extends StatelessWidget {
 }
 
 /// Custom FloatingActionButtonLocation:
-/// Bottom-right ang position, pero bahagyang nakalutang sa ITAAS
-/// mismo ng Bottom Navigation Bar (hindi ito nakatago o nakapatong dito).
+/// Positioned bottom-right, but floating slightly ABOVE the Bottom
+/// Navigation Bar (not hidden behind or overlapping it).
 class DssFabLocation extends FloatingActionButtonLocation {
   const DssFabLocation({this.extraBottomOffset = 16});
 
@@ -35,9 +35,9 @@ class DssFabLocation extends FloatingActionButtonLocation {
         scaffoldGeometry.floatingActionButtonSize.width -
         16;
 
-    // contentBottom = taas kung saan nagsisimula ang bottom nav bar,
-    // kaya kung ibawas natin ang height ng FAB + extraBottomOffset,
-    // "lulutang" ito nang bahagyang mas mataas sa ibabaw ng bottom nav.
+    // contentBottom = the height at which the bottom nav bar starts,
+    // so subtracting the FAB height + extraBottomOffset makes it
+    // "float" slightly higher above the bottom nav.
     final double fabY = scaffoldGeometry.contentBottom -
         scaffoldGeometry.floatingActionButtonSize.height -
         extraBottomOffset;
