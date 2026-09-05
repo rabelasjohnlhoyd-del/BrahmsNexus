@@ -80,15 +80,45 @@ class ProfileScreen extends StatelessWidget {
             StaffButton(
               label: 'Log Out',
               color: AppColors.error,
-              onPressed: () {
-                Navigator.of(context).pushAndRemoveUntil(
-                  CupertinoPageRoute(builder: (_) => const LoginScreen()),
-                  (route) => false,
-                );
-              },
+              onPressed: () => _confirmLogout(context),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  /// Explicit confirmation before actually logging out — logout is
+  /// destructive (clears the whole Staff shell + tab stack), so a
+  /// single accidental tap shouldn't be enough to trigger it.
+  void _confirmLogout(BuildContext context) {
+    showCupertinoDialog<void>(
+      context: context,
+      builder: (dialogContext) => CupertinoAlertDialog(
+        title: const Text('Log Out'),
+        content: const Text('Are you sure you want to log out?'),
+        actions: [
+          CupertinoDialogAction(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Cancel'),
+          ),
+          CupertinoDialogAction(
+            isDestructiveAction: true,
+            onPressed: () {
+              Navigator.of(dialogContext).pop();
+              // rootNavigator: true is essential here — ProfileScreen is
+              // pushed inside one tab's own nested Navigator
+              // (CupertinoTabView), so a plain Navigator.of(context)
+              // would only replace that tab's stack, leaving the outer
+              // StaffShell (and its bottom tab bar) still on screen.
+              Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
+                CupertinoPageRoute(builder: (_) => const LoginScreen()),
+                (route) => false,
+              );
+            },
+            child: const Text('Log Out'),
+          ),
+        ],
       ),
     );
   }

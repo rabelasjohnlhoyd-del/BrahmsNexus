@@ -2,7 +2,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'firebase_options.dart';
-import 'pages/auth/login_screen.dart';
+import 'pages/auth/welcome_screen.dart';
 import 'theme/app_theme.dart';
 
 void main() async {
@@ -46,7 +46,7 @@ class BrahmsNexusApp extends StatelessWidget {
       title: 'Brahms Nexus',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
-      home: const LoginScreen(),
+      home: const WelcomeScreen(),
     );
   }
 }
