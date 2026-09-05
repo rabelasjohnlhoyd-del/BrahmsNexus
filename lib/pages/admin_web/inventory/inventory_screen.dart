@@ -316,13 +316,19 @@ class _InventoryScreenState extends State<InventoryScreen>
                   'Unallocated',
                   '${_warehouse.unallocatedKg.toStringAsFixed(0)} kg'),
               const SizedBox(height: 20),
-              SizedBox(
-                width: 240,
-                child: PrimaryButton(
-                  label: 'SET TOTAL STOCK',
-                  icon: Icons.edit_rounded,
-                  onPressed: _showSetTotalStockDialog,
-                ),
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  return SizedBox(
+                    width: constraints.maxWidth < 240
+                        ? double.infinity
+                        : 240,
+                    child: PrimaryButton(
+                      label: 'SET TOTAL STOCK',
+                      icon: Icons.edit_rounded,
+                      onPressed: _showSetTotalStockDialog,
+                    ),
+                  );
+                },
               ),
             ],
           ),
@@ -366,22 +372,23 @@ class _InventoryScreenState extends State<InventoryScreen>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
+                Text(
+                  stock.branchName,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  spacing: 8,
+                  runSpacing: 6,
                   children: [
-                    Expanded(
-                      child: Text(
-                        stock.branchName,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.textPrimary,
-                        ),
-                      ),
-                    ),
                     if (stock.isRunningLow)
                       Container(
                         padding: const EdgeInsets.symmetric(
                             horizontal: 10, vertical: 4),
-                        margin: const EdgeInsets.only(right: 8),
                         decoration: BoxDecoration(
                           color: AppColors.error.withValues(alpha: 0.15),
                           borderRadius: BorderRadius.circular(8),

@@ -19,11 +19,13 @@ class SalesPayrollScreen extends StatefulWidget {
 class _SalesPayrollScreenState extends State<SalesPayrollScreen> {
   double _commissionRate = 5;
 
+  static const double _wideBreakpoint = 700;
+
   final List<SalesRecord> _records = [
     SalesRecord(
       id: 's1',
       branchId: 'br1',
-      branchName: 'Dayap, Calauan',
+      branchName: 'Brgy. Gatid, Sta. Cruz',
       employeeId: 'emp1',
       employeeName: 'Juan Dela Cruz',
       date: DateTime.now(),
@@ -34,7 +36,7 @@ class _SalesPayrollScreenState extends State<SalesPayrollScreen> {
     SalesRecord(
       id: 's2',
       branchId: 'br2',
-      branchName: 'Sta. Cruz',
+      branchName: 'Brgy. Labuin, Pila',
       employeeId: 'emp2',
       employeeName: 'Maria Reyes',
       date: DateTime.now(),
@@ -44,8 +46,8 @@ class _SalesPayrollScreenState extends State<SalesPayrollScreen> {
     ),
     SalesRecord(
       id: 's3',
-      branchId: 'br4',
-      branchName: 'Labuin',
+      branchId: 'br3',
+      branchName: 'Brgy. Sta. Clara Sur, Pila',
       employeeId: 'emp3',
       employeeName: 'Pedro Santos',
       date: DateTime.now().subtract(const Duration(days: 1)),
@@ -106,170 +108,141 @@ class _SalesPayrollScreenState extends State<SalesPayrollScreen> {
   Widget build(BuildContext context) {
     final branches = _records.map((r) => r.branchName).toSet().toList();
 
-    return Padding(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isWide = constraints.maxWidth >= _wideBreakpoint;
+
+        return Padding(
+          padding: EdgeInsets.all(isWide ? 24 : 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Expanded(
-                child: Text(
-                  'Sales & Payroll',
-                  style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.textPrimary,
-                  ),
-                ),
-              ),
-              SizedBox(
-                width: 220,
-                child: PrimaryButton(
-                  label: 'COMMISSION RATE: ₱${_commissionRate.toStringAsFixed(2)}',
-                  icon: Icons.tune_rounded,
-                  onPressed: _showSetRateDialog,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-          Row(
-            children: [
-              Expanded(
-                child: _summaryCard(
-                  'Total Sales',
-                  '₱${_totalSales.toStringAsFixed(0)}',
-                  Icons.payments_rounded,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _summaryCard(
-                  'Total Wages',
-                  '₱${_totalWages.toStringAsFixed(0)}',
-                  Icons.badge_rounded,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _summaryCard(
-                  'Expected Remittance',
-                  '₱${_totalRemittance.toStringAsFixed(0)}',
-                  Icons.account_balance_wallet_rounded,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: [
-                ChoiceChip(
-                  label: const Text('All Branches'),
-                  selected: _branchFilter == null,
-                  onSelected: (_) => setState(() => _branchFilter = null),
-                ),
-                const SizedBox(width: 8),
-                ...branches.map(
-                  (b) => Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: ChoiceChip(
-                      label: Text(b),
-                      selected: _branchFilter == b,
-                      onSelected: (_) => setState(() => _branchFilter = b),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-          Expanded(
-            child: _visibleRecords.isEmpty
-                ? const Center(
-                    child: Text(
-                      'Walang sales record na tumutugma.',
-                      style: TextStyle(color: AppColors.textSecondary),
-                    ),
-                  )
-                : ListView.separated(
-                    itemCount: _visibleRecords.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 10),
-                    itemBuilder: (context, index) {
-                      final r = _visibleRecords[index];
-                      return Card(
-                        child: Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: Row(
-                            children: [
-                              CircleAvatar(
-                                backgroundColor: AppColors.pastelBrown,
-                                child: Text(
-                                  r.employeeName.substring(0, 1),
-                                  style: const TextStyle(color: Colors.white),
-                                ),
-                              ),
-                              const SizedBox(width: 14),
-                              Expanded(
-                                flex: 2,
-                                child: Column(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      r.employeeName,
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.w600,
-                                        color: AppColors.textPrimary,
-                                      ),
-                                    ),
-                                    Text(
-                                      '${r.branchName} · '
-                                      '${r.date.month}/${r.date.day}/${r.date.year}',
-                                      style: const TextStyle(
-                                        fontSize: 12,
-                                        color: AppColors.textSecondary,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              Expanded(
-                                child: _miniStat(
-                                  'Portions',
-                                  '${r.portionsSold}',
-                                ),
-                              ),
-                              Expanded(
-                                child: _miniStat(
-                                  'Total Sales',
-                                  '₱${r.totalSalesAmount.toStringAsFixed(0)}',
-                                ),
-                              ),
-                              Expanded(
-                                child: _miniStat(
-                                  'Wage',
-                                  '₱${r.computedWage.toStringAsFixed(0)}',
-                                ),
-                              ),
-                              Expanded(
-                                child: _miniStat(
-                                  'Remittance',
-                                  '₱${r.expectedCashRemittance.toStringAsFixed(0)}',
-                                  highlight: true,
-                                ),
-                              ),
-                            ],
+              isWide
+                  ? Row(
+                      children: [
+                        const Expanded(child: _TitleText()),
+                        SizedBox(
+                          width: 220,
+                          child: PrimaryButton(
+                            label:
+                                'COMMISSION RATE: ₱${_commissionRate.toStringAsFixed(2)}',
+                            icon: Icons.tune_rounded,
+                            onPressed: _showSetRateDialog,
                           ),
                         ),
-                      );
-                    },
-                  ),
+                      ],
+                    )
+                  : Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const _TitleText(),
+                        const SizedBox(height: 10),
+                        PrimaryButton(
+                          label:
+                              'RATE: ₱${_commissionRate.toStringAsFixed(2)}',
+                          icon: Icons.tune_rounded,
+                          onPressed: _showSetRateDialog,
+                        ),
+                      ],
+                    ),
+              const SizedBox(height: 20),
+              isWide
+                  ? Row(
+                      children: [
+                        Expanded(
+                          child: _summaryCard(
+                            'Total Sales',
+                            '₱${_totalSales.toStringAsFixed(0)}',
+                            Icons.payments_rounded,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _summaryCard(
+                            'Total Wages',
+                            '₱${_totalWages.toStringAsFixed(0)}',
+                            Icons.badge_rounded,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _summaryCard(
+                            'Expected Remittance',
+                            '₱${_totalRemittance.toStringAsFixed(0)}',
+                            Icons.account_balance_wallet_rounded,
+                          ),
+                        ),
+                      ],
+                    )
+                  : Column(
+                      children: [
+                        _summaryCard(
+                          'Total Sales',
+                          '₱${_totalSales.toStringAsFixed(0)}',
+                          Icons.payments_rounded,
+                        ),
+                        const SizedBox(height: 10),
+                        _summaryCard(
+                          'Total Wages',
+                          '₱${_totalWages.toStringAsFixed(0)}',
+                          Icons.badge_rounded,
+                        ),
+                        const SizedBox(height: 10),
+                        _summaryCard(
+                          'Expected Remittance',
+                          '₱${_totalRemittance.toStringAsFixed(0)}',
+                          Icons.account_balance_wallet_rounded,
+                        ),
+                      ],
+                    ),
+              const SizedBox(height: 20),
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    ChoiceChip(
+                      label: const Text('All Branches'),
+                      selected: _branchFilter == null,
+                      onSelected: (_) => setState(() => _branchFilter = null),
+                    ),
+                    const SizedBox(width: 8),
+                    ...branches.map(
+                      (b) => Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: ChoiceChip(
+                          label: Text(b),
+                          selected: _branchFilter == b,
+                          onSelected: (_) => setState(() => _branchFilter = b),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              Expanded(
+                child: _visibleRecords.isEmpty
+                    ? const Center(
+                        child: Text(
+                          'Walang sales record na tumutugma.',
+                          style: TextStyle(color: AppColors.textSecondary),
+                        ),
+                      )
+                    : ListView.separated(
+                        itemCount: _visibleRecords.length,
+                        separatorBuilder: (_, __) => const SizedBox(height: 10),
+                        itemBuilder: (context, index) {
+                          return _SalesRecordCard(
+                            record: _visibleRecords[index],
+                            isWide: isWide,
+                          );
+                        },
+                      ),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -312,6 +285,116 @@ class _SalesPayrollScreenState extends State<SalesPayrollScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _TitleText extends StatelessWidget {
+  const _TitleText();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Text(
+      'Sales & Payroll',
+      style: TextStyle(
+        fontSize: 22,
+        fontWeight: FontWeight.bold,
+        color: AppColors.textPrimary,
+      ),
+    );
+  }
+}
+
+/// Isang sales record — Row (magkatabi, 6 elements) sa malawak na
+/// screen; Column na may 2x2 grid ng mini-stats sa makitid na screen
+/// (phone browser) para hindi masiksik.
+class _SalesRecordCard extends StatelessWidget {
+  const _SalesRecordCard({required this.record, required this.isWide});
+
+  final SalesRecord record;
+  final bool isWide;
+
+  @override
+  Widget build(BuildContext context) {
+    final r = record;
+
+    final avatarAndName = Row(
+      children: [
+        CircleAvatar(
+          backgroundColor: AppColors.pastelBrown,
+          child: Text(
+            r.employeeName.substring(0, 1),
+            style: const TextStyle(color: Colors.white),
+          ),
+        ),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                r.employeeName,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              Text(
+                '${r.branchName} · '
+                '${r.date.month}/${r.date.day}/${r.date.year}',
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+
+    final stats = [
+      _miniStat('Portions', '${r.portionsSold}'),
+      _miniStat('Total Sales', '₱${r.totalSalesAmount.toStringAsFixed(0)}'),
+      _miniStat('Wage', '₱${r.computedWage.toStringAsFixed(0)}'),
+      _miniStat(
+        'Remittance',
+        '₱${r.expectedCashRemittance.toStringAsFixed(0)}',
+        highlight: true,
+      ),
+    ];
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: isWide
+            ? Row(
+                children: [
+                  Expanded(flex: 2, child: avatarAndName),
+                  ...stats.map((s) => Expanded(child: s)),
+                ],
+              )
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  avatarAndName,
+                  const SizedBox(height: 14),
+                  Row(
+                    children: [
+                      Expanded(child: stats[0]),
+                      Expanded(child: stats[1]),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(child: stats[2]),
+                      Expanded(child: stats[3]),
+                    ],
+                  ),
+                ],
+              ),
       ),
     );
   }

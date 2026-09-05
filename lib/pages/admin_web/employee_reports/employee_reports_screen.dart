@@ -18,13 +18,15 @@ class EmployeeReportsScreen extends StatefulWidget {
 }
 
 class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
+  static const double _wideBreakpoint = 700;
+
   final List<DailyReport> _reports = [
     DailyReport(
       id: 'r1',
       employeeId: 'emp1',
       employeeName: 'Juan Dela Cruz',
       branchId: 'br1',
-      branchName: 'Dayap, Calauan',
+      branchName: 'Brgy. Gatid, Sta. Cruz',
       date: DateTime.now(),
       content: 'Kumpleto ang benta ngayong araw, walang isyu sa stock.',
       status: ReportSubmissionStatus.submitted,
@@ -34,7 +36,7 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
       employeeId: 'emp2',
       employeeName: 'Maria Reyes',
       branchId: 'br3',
-      branchName: 'Pila',
+      branchName: 'Brgy. Sta. Clara Sur, Pila',
       date: DateTime.now(),
       content: 'Kulang ang mayo, humingi na ng dagdag kay Driver.',
       status: ReportSubmissionStatus.incomplete,
@@ -43,8 +45,8 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
       id: 'r3',
       employeeId: 'emp3',
       employeeName: 'Pedro Santos',
-      branchId: 'br4',
-      branchName: 'Labuin',
+      branchId: 'br2',
+      branchName: 'Brgy. Labuin, Pila',
       date: DateTime.now().subtract(const Duration(days: 1)),
       content: '',
       status: ReportSubmissionStatus.missing,
@@ -54,7 +56,7 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
       employeeId: 'emp1',
       employeeName: 'Juan Dela Cruz',
       branchId: 'br1',
-      branchName: 'Dayap, Calauan',
+      branchName: 'Brgy. Gatid, Sta. Cruz',
       date: DateTime.now().subtract(const Duration(days: 1)),
       content: 'Normal na araw, walang partikular na isyu.',
       status: ReportSubmissionStatus.submitted,
@@ -80,8 +82,8 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
     var list = _reports.where((r) {
       final matchesSearch = _searchQuery.isEmpty ||
           r.employeeName.toLowerCase().contains(_searchQuery.toLowerCase());
-      final matchesBranch = _branchFilter == null ||
-          r.branchName == _branchFilter;
+      final matchesBranch =
+          _branchFilter == null || r.branchName == _branchFilter;
       return matchesSearch && matchesBranch;
     }).toList();
 
@@ -135,152 +137,207 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
   Widget build(BuildContext context) {
     final branches = _reports.map((r) => r.branchName).toSet().toList();
 
-    return Padding(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Employee Reports',
-            style: TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
-              color: AppColors.textPrimary,
-            ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isWide = constraints.maxWidth >= _wideBreakpoint;
+
+        final statusCards = [
+          _statusCard(
+            'Submitted',
+            _countByStatus(ReportSubmissionStatus.submitted),
+            AppColors.success,
+            Icons.check_circle_rounded,
           ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: _statusCard(
-                  'Submitted',
-                  _countByStatus(ReportSubmissionStatus.submitted),
-                  AppColors.success,
-                  Icons.check_circle_rounded,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _statusCard(
-                  'Incomplete',
-                  _countByStatus(ReportSubmissionStatus.incomplete),
-                  AppColors.warning,
-                  Icons.error_rounded,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _statusCard(
-                  'Missing',
-                  _countByStatus(ReportSubmissionStatus.missing),
-                  AppColors.error,
-                  Icons.cancel_rounded,
-                ),
-              ),
-            ],
+          _statusCard(
+            'Incomplete',
+            _countByStatus(ReportSubmissionStatus.incomplete),
+            AppColors.warning,
+            Icons.error_rounded,
           ),
-          const SizedBox(height: 20),
-          Row(
+          _statusCard(
+            'Missing',
+            _countByStatus(ReportSubmissionStatus.missing),
+            AppColors.error,
+            Icons.cancel_rounded,
+          ),
+        ];
+
+        return Padding(
+          padding: EdgeInsets.all(isWide ? 24 : 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
-                flex: 2,
-                child: TextField(
-                  decoration: const InputDecoration(
-                    hintText: 'Search by employee name...',
-                    prefixIcon: Icon(Icons.search_rounded),
-                    isDense: true,
-                  ),
-                  onChanged: (v) => setState(() => _searchQuery = v),
+              const Text(
+                'Employee Reports',
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textPrimary,
                 ),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: [
-                      ChoiceChip(
-                        label: const Text('All Branches'),
-                        selected: _branchFilter == null,
-                        onSelected: (_) =>
-                            setState(() => _branchFilter = null),
-                      ),
-                      const SizedBox(width: 8),
-                      ...branches.map(
-                        (b) => Padding(
-                          padding: const EdgeInsets.only(right: 8),
-                          child: ChoiceChip(
-                            label: Text(b),
-                            selected: _branchFilter == b,
-                            onSelected: (_) =>
-                                setState(() => _branchFilter = b),
+              const SizedBox(height: 16),
+              isWide
+                  ? Row(
+                      children: [
+                        Expanded(child: statusCards[0]),
+                        const SizedBox(width: 12),
+                        Expanded(child: statusCards[1]),
+                        const SizedBox(width: 12),
+                        Expanded(child: statusCards[2]),
+                      ],
+                    )
+                  : Row(
+                      children: [
+                        Expanded(child: statusCards[0]),
+                        const SizedBox(width: 8),
+                        Expanded(child: statusCards[1]),
+                        const SizedBox(width: 8),
+                        Expanded(child: statusCards[2]),
+                      ],
+                    ),
+              const SizedBox(height: 20),
+              isWide
+                  ? Row(
+                      children: [
+                        Expanded(
+                          flex: 2,
+                          child: TextField(
+                            decoration: const InputDecoration(
+                              hintText: 'Search by employee name...',
+                              prefixIcon: Icon(Icons.search_rounded),
+                              isDense: true,
+                            ),
+                            onChanged: (v) =>
+                                setState(() => _searchQuery = v),
                           ),
                         ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              IconButton(
-                tooltip: _newestFirst ? 'Newest first' : 'Oldest first',
-                icon: Icon(
-                  _newestFirst
-                      ? Icons.arrow_downward_rounded
-                      : Icons.arrow_upward_rounded,
-                ),
-                onPressed: () => setState(() => _newestFirst = !_newestFirst),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Expanded(
-            child: _visibleReports.isEmpty
-                ? const Center(
-                    child: Text(
-                      'Walang report na tumutugma.',
-                      style: TextStyle(color: AppColors.textSecondary),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _branchChips(branches),
+                        ),
+                        IconButton(
+                          tooltip:
+                              _newestFirst ? 'Newest first' : 'Oldest first',
+                          icon: Icon(
+                            _newestFirst
+                                ? Icons.arrow_downward_rounded
+                                : Icons.arrow_upward_rounded,
+                          ),
+                          onPressed: () =>
+                              setState(() => _newestFirst = !_newestFirst),
+                        ),
+                      ],
+                    )
+                  : Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        TextField(
+                          decoration: const InputDecoration(
+                            hintText: 'Search by employee name...',
+                            prefixIcon: Icon(Icons.search_rounded),
+                            isDense: true,
+                          ),
+                          onChanged: (v) => setState(() => _searchQuery = v),
+                        ),
+                        const SizedBox(height: 10),
+                        Row(
+                          children: [
+                            Expanded(child: _branchChips(branches)),
+                            IconButton(
+                              tooltip: _newestFirst
+                                  ? 'Newest first'
+                                  : 'Oldest first',
+                              icon: Icon(
+                                _newestFirst
+                                    ? Icons.arrow_downward_rounded
+                                    : Icons.arrow_upward_rounded,
+                              ),
+                              onPressed: () => setState(
+                                  () => _newestFirst = !_newestFirst),
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
-                  )
-                : ListView.separated(
-                    itemCount: _visibleReports.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 10),
-                    itemBuilder: (context, index) {
-                      final r = _visibleReports[index];
-                      return Card(
-                        child: ListTile(
-                          onTap: () => _showReportDetail(r),
-                          leading: CircleAvatar(
-                            backgroundColor: AppColors.pastelBrown,
-                            child: Text(
-                              r.employeeName.substring(0, 1),
-                              style: const TextStyle(color: Colors.white),
-                            ),
-                          ),
-                          title: Text(r.employeeName),
-                          subtitle: Text(
-                            '${r.branchName} · ${_formatDate(r.date)}',
-                          ),
-                          trailing: Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 10, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: _statusColor(r.status)
-                                  .withValues(alpha: 0.15),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Text(
-                              r.status.label,
-                              style: TextStyle(
-                                color: _statusColor(r.status),
-                                fontWeight: FontWeight.w600,
-                                fontSize: 11.5,
+              const SizedBox(height: 16),
+              Expanded(
+                child: _visibleReports.isEmpty
+                    ? const Center(
+                        child: Text(
+                          'Walang report na tumutugma.',
+                          style: TextStyle(color: AppColors.textSecondary),
+                        ),
+                      )
+                    : ListView.separated(
+                        itemCount: _visibleReports.length,
+                        separatorBuilder: (_, __) =>
+                            const SizedBox(height: 10),
+                        itemBuilder: (context, index) {
+                          final r = _visibleReports[index];
+                          return Card(
+                            child: ListTile(
+                              onTap: () => _showReportDetail(r),
+                              leading: CircleAvatar(
+                                backgroundColor: AppColors.pastelBrown,
+                                child: Text(
+                                  r.employeeName.substring(0, 1),
+                                  style:
+                                      const TextStyle(color: Colors.white),
+                                ),
+                              ),
+                              title: Text(r.employeeName),
+                              subtitle: Text(
+                                '${r.branchName} · ${_formatDate(r.date)}',
+                              ),
+                              trailing: Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 10, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: _statusColor(r.status)
+                                      .withValues(alpha: 0.15),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Text(
+                                  r.status.label,
+                                  style: TextStyle(
+                                    color: _statusColor(r.status),
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 11.5,
+                                  ),
+                                ),
                               ),
                             ),
-                          ),
-                        ),
-                      );
-                    },
-                  ),
+                          );
+                        },
+                      ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _branchChips(List<String> branches) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: [
+          ChoiceChip(
+            label: const Text('All Branches'),
+            selected: _branchFilter == null,
+            onSelected: (_) => setState(() => _branchFilter = null),
+          ),
+          const SizedBox(width: 8),
+          ...branches.map(
+            (b) => Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: ChoiceChip(
+                label: Text(b),
+                selected: _branchFilter == b,
+                onSelected: (_) => setState(() => _branchFilter = b),
+              ),
+            ),
           ),
         ],
       ),
@@ -290,37 +347,42 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
   Widget _statusCard(String label, int count, Color color, IconData icon) {
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
         child: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              padding: const EdgeInsets.all(10),
+              padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
                 color: color.withValues(alpha: 0.15),
                 shape: BoxShape.circle,
               ),
-              child: Icon(icon, color: color),
+              child: Icon(icon, color: color, size: 20),
             ),
-            const SizedBox(width: 12),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: AppColors.textSecondary,
+            const SizedBox(width: 10),
+            Flexible(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    label,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 11.5,
+                      color: AppColors.textSecondary,
+                    ),
                   ),
-                ),
-                Text(
-                  '$count',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: color,
+                  Text(
+                    '$count',
+                    style: TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.bold,
+                      color: color,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ],
         ),
