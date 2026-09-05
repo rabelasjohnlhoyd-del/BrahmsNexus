@@ -2,10 +2,13 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/cupertino.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/staff_button.dart';
+import '../../widgets/staff_card.dart';
+import '../../widgets/staff_nav_bar.dart';
 import '../../widgets/staff_top_actions.dart';
 
-/// Timer tab — normal na countdown timer, pero may rule-based na mga
-/// paalala (hindi totoong AI/chatbot) habang papalapit sa 0.
+/// Timer tab — a normal countdown timer, with rule-based reminders
+/// (not a real AI/chatbot) as it approaches zero.
 class TimerScreen extends StatefulWidget {
   const TimerScreen({super.key});
 
@@ -45,8 +48,8 @@ class _TimerScreenState extends State<TimerScreen> {
         timer.cancel();
         setState(() {
           _isRunning = false;
-          _lastReminder = 'Tapos na ang oras — dapat malapit nang maluto '
-              'ang karne!';
+          _lastReminder = "Time's up — the Karne should be almost done "
+              'cooking!';
         });
         return;
       }
@@ -72,15 +75,15 @@ class _TimerScreenState extends State<TimerScreen> {
     });
   }
 
-  /// Simpleng rule-based na paalala base sa natitirang oras.
+  /// Simple rule-based reminder based on time remaining.
   String? _reminderFor(int remaining) {
     final halfway = _totalSeconds ~/ 2;
     if (remaining == halfway && halfway > 0) {
-      return 'Kalahati na ng oras — tingnan ang karne.';
+      return 'Halfway there — check on the Karne.';
     }
-    if (remaining == 300) return '5 minuto na lang!';
-    if (remaining == 60) return '1 minuto na lang — halos luto na!';
-    if (remaining == 10) return 'Halos tapos na — 10 segundo na lang.';
+    if (remaining == 300) return '5 minutes left!';
+    if (remaining == 60) return '1 minute left — almost done!';
+    if (remaining == 10) return 'Almost done — 10 seconds left.';
     return _lastReminder;
   }
 
@@ -97,39 +100,62 @@ class _TimerScreenState extends State<TimerScreen> {
 
     return CupertinoPageScaffold(
       backgroundColor: AppColors.background,
-      navigationBar: const CupertinoNavigationBar(
-        middle: Text('Timer'),
+      navigationBar: const StaffNavBar(
+        title: 'Timer',
         trailing: StaffTopActions(initials: 'JD'),
       ),
       child: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(20),
-          child: Column(
-            children: [
+          child: Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
               if (!_isRunning && _remainingSeconds == 0) ...[
+                const SizedBox(height: 12),
+                Container(
+                  width: 84,
+                  height: 84,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: AppColors.pastelBrown.withValues(alpha: 0.25),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(CupertinoIcons.timer,
+                      size: 38, color: AppColors.accent),
+                ),
+                const SizedBox(height: 20),
                 const Text(
-                  'Ilang minuto ang estimate mo bago maluto ang karne?',
+                  'How many minutes until the Karne is cooked?',
                   textAlign: TextAlign.center,
                   style: TextStyle(color: AppColors.textSecondary),
                 ),
                 const SizedBox(height: 16),
-                CupertinoTextField(
-                  controller: _minutesController,
-                  keyboardType: TextInputType.number,
-                  textAlign: TextAlign.center,
-                  placeholder: 'Minuto',
-                  suffix: const Padding(
-                    padding: EdgeInsets.only(right: 12),
-                    child: Text('minuto',
-                        style: TextStyle(color: AppColors.textSecondary)),
+                StaffCard(
+                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                  child: CupertinoTextField(
+                    controller: _minutesController,
+                    keyboardType: TextInputType.number,
+                    textAlign: TextAlign.center,
+                    placeholder: 'Minutes',
+                    decoration: const BoxDecoration(color: CupertinoColors.white),
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textPrimary,
+                    ),
+                    suffix: const Padding(
+                      padding: EdgeInsets.only(right: 12),
+                      child: Text('minutes',
+                          style: TextStyle(color: AppColors.textSecondary)),
+                    ),
                   ),
                 ),
                 const SizedBox(height: 20),
-                CupertinoButton(
-                  color: AppColors.accent,
-                  borderRadius: BorderRadius.circular(12),
+                StaffButton(
+                  label: 'Start Timer',
+                  icon: CupertinoIcons.play_fill,
                   onPressed: _start,
-                  child: const Text('Start Timer'),
                 ),
               ] else ...[
                 const SizedBox(height: 20),
@@ -185,28 +211,31 @@ class _TimerScreenState extends State<TimerScreen> {
                 Row(
                   children: [
                     Expanded(
-                      child: CupertinoButton(
+                      child: StaffButton(
+                        label: _isRunning ? 'Pause' : 'Resume',
+                        icon: _isRunning
+                            ? CupertinoIcons.pause_fill
+                            : CupertinoIcons.play_fill,
                         color: _isRunning
                             ? AppColors.warning
                             : AppColors.success,
-                        borderRadius: BorderRadius.circular(12),
                         onPressed: _isRunning ? _pause : _start,
-                        child: Text(_isRunning ? 'Pause' : 'Resume'),
                       ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: CupertinoButton(
+                      child: StaffButton(
+                        label: 'Reset',
+                        icon: CupertinoIcons.arrow_counterclockwise,
                         color: AppColors.error,
-                        borderRadius: BorderRadius.circular(12),
                         onPressed: _reset,
-                        child: const Text('Reset'),
                       ),
                     ),
                   ],
                 ),
               ],
-            ],
+              ],
+            ),
           ),
         ),
       ),

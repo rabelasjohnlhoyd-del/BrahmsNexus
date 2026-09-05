@@ -1,14 +1,18 @@
 import 'package:flutter/cupertino.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/staff_button.dart';
+import '../../widgets/staff_card.dart';
+import '../../widgets/staff_nav_bar.dart';
+import '../../widgets/staff_section_header.dart';
 import '../../widgets/staff_top_actions.dart';
 
-/// Daily Report tab — mabilis na paraan para mag-report ng mga
-/// karaniwang isyu (butas na mayo, ubos na gasul, kailangan ng dagdag
-/// na karne) papunta kay Owner, plus optional na free-text message.
+/// Daily Report tab — a quick way to report common issues (torn mayo
+/// bag, out of gas, need more karne) to Owner, plus an optional
+/// free-text message.
 ///
-/// NOTE: Sa backend phase, dapat mag-trigger ito ng HIGH-PRIORITY push
-/// notification (Firebase Cloud Messaging) papunta sa phone ni Owner,
-/// kahit naka-lock ang screen o naka-background ang app niya.
+/// NOTE: In the backend phase, this should trigger a HIGH-PRIORITY
+/// push notification (Firebase Cloud Messaging) to Owner's phone, even
+/// if their screen is locked or the app is backgrounded.
 class DailyReportScreen extends StatefulWidget {
   const DailyReportScreen({super.key});
 
@@ -51,7 +55,8 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
       context: context,
       builder: (context) => CupertinoActionSheet(
         message: const Text(
-          'Naipadala na ang report — mag-a-alert agad ang phone ni Owner.',
+          "Your report has been sent — the Owner's phone will be "
+          'alerted right away.',
         ),
         cancelButton: CupertinoActionSheetAction(
           onPressed: () => Navigator.of(context).pop(),
@@ -65,68 +70,78 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
   Widget build(BuildContext context) {
     return CupertinoPageScaffold(
       backgroundColor: AppColors.background,
-      navigationBar: const CupertinoNavigationBar(
-        middle: Text('Daily Report'),
+      navigationBar: const StaffNavBar(
+        title: 'Daily Report',
         trailing: StaffTopActions(initials: 'JD'),
       ),
       child: SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            const Text(
-              'Mabilis na Report',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: AppColors.textPrimary,
+            StaffCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: const [
+                  Text(
+                    'Quick Report',
+                    style: TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  SizedBox(height: 4),
+                  Text(
+                    'Select an issue below, or write your own message.',
+                    style: TextStyle(color: AppColors.textSecondary),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 4),
-            const Text(
-              'Piliin ang isyu, o magsulat ng sariling message sa ibaba.',
-              style: TextStyle(color: AppColors.textSecondary),
-            ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 18),
             _checklistTile(
               icon: CupertinoIcons.exclamationmark_bubble_fill,
-              label: 'Nabutas ang mayo na dala namin',
+              label: 'The mayo we brought got punctured',
               value: _mayoTorn,
               onChanged: (v) => setState(() => _mayoTorn = v),
             ),
             _checklistTile(
               icon: CupertinoIcons.flame_fill,
-              label: 'Ubos na ang gasul',
+              label: "We're out of gas (LPG)",
               value: _gasEmpty,
               onChanged: (v) => setState(() => _gasEmpty = v),
             ),
             _checklistTile(
               icon: CupertinoIcons.cube_box_fill,
-              label: 'Kailangan ng dagdag na karne',
+              label: 'Need additional Karne (meat)',
               value: _needMoreMeat,
               onChanged: (v) => setState(() => _needMoreMeat = v),
             ),
-            const SizedBox(height: 16),
-            const Text(
-              'Karagdagang Mensahe (opsyonal)',
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: AppColors.textSecondary,
-              ),
+            const SizedBox(height: 18),
+            const StaffSectionHeader(
+              label: 'Additional Message (optional)',
+              icon: CupertinoIcons.chat_bubble_text_fill,
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 10),
             CupertinoTextField(
               controller: _messageController,
-              placeholder: 'I-type dito ang detalye...',
+              placeholder: 'Type the details here...',
               maxLines: 5,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: CupertinoColors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.border),
+              ),
+              placeholderStyle: const TextStyle(color: AppColors.textSecondary),
+              style: const TextStyle(color: AppColors.textPrimary),
               onChanged: (_) => setState(() {}),
             ),
-            const SizedBox(height: 20),
-            CupertinoButton(
-              color: AppColors.accent,
-              borderRadius: BorderRadius.circular(12),
+            const SizedBox(height: 22),
+            StaffButton(
+              label: _isSubmitting ? 'Sending...' : 'Send to Owner',
+              icon: _isSubmitting ? null : CupertinoIcons.paperplane_fill,
               onPressed: _canSubmit && !_isSubmitting ? _submit : null,
-              child: Text(_isSubmitting ? 'Sending...' : 'Send to Owner'),
             ),
           ],
         ),
@@ -140,29 +155,36 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
     required bool value,
     required ValueChanged<bool> onChanged,
   }) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: CupertinoColors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: value ? AppColors.accent : AppColors.border,
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: StaffCard(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        highlighted: value,
+        child: Row(
+          children: [
+            Container(
+              width: 34,
+              height: 34,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: value
+                    ? AppColors.accent.withValues(alpha: 0.12)
+                    : AppColors.pastelBrown.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(icon, size: 18, color: AppColors.accent),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(label, style: const TextStyle(color: AppColors.textPrimary)),
+            ),
+            CupertinoSwitch(
+              value: value,
+              activeTrackColor: AppColors.accent,
+              onChanged: onChanged,
+            ),
+          ],
         ),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, size: 20, color: AppColors.accent),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(label, style: const TextStyle(color: AppColors.textPrimary)),
-          ),
-          CupertinoSwitch(
-            value: value,
-            activeTrackColor: AppColors.accent,
-            onChanged: onChanged,
-          ),
-        ],
       ),
     );
   }

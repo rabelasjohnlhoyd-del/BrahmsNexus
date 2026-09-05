@@ -1,9 +1,11 @@
 import 'package:flutter/cupertino.dart';
 import '../../models/announcement.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/staff_card.dart';
+import '../../widgets/staff_nav_bar.dart';
 
-/// Binubuksan mula sa notification bell icon sa tuktok ng bawat tab —
-/// kapalit ng dating hiwalay na Announcements tab.
+/// Opened from the notification bell icon at the top of every tab —
+/// replaces what used to be a separate Announcements tab.
 class NotificationsScreen extends StatelessWidget {
   const NotificationsScreen({super.key});
 
@@ -11,15 +13,15 @@ class NotificationsScreen extends StatelessWidget {
     Announcement(
       id: 'an1',
       messageContent:
-          'Paalala: Mag-ingat sa paggamit ng mayo. I-double check ang '
-          'quantity bago magbenta.',
+          'Reminder: Be careful with mayo usage. Double-check the '
+          'quantity before selling.',
       datePosted: DateTime.now().subtract(const Duration(hours: 3)),
     ),
     Announcement(
       id: 'an2',
       messageContent:
-          'May advance na bilao order bukas ng umaga — asikasuhin agad '
-          'ang preparation.',
+          "There's an advance bilao order for tomorrow morning — start "
+          'preparation right away.',
       datePosted: DateTime.now().subtract(const Duration(days: 1)),
     ),
   ];
@@ -34,15 +36,33 @@ class NotificationsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return CupertinoPageScaffold(
       backgroundColor: AppColors.background,
-      navigationBar: const CupertinoNavigationBar(
-        middle: Text('Notifications'),
+      navigationBar: const StaffNavBar(
+        title: 'Notifications',
+        showBackButton: true,
       ),
       child: SafeArea(
         child: _mockAnnouncements.isEmpty
-            ? const Center(
-                child: Text(
-                  'Walang notification sa ngayon.',
-                  style: TextStyle(color: AppColors.textSecondary),
+            ? Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 64,
+                      height: 64,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: AppColors.pastelBrown.withValues(alpha: 0.25),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(CupertinoIcons.bell_slash,
+                          size: 28, color: AppColors.accent),
+                    ),
+                    const SizedBox(height: 14),
+                    const Text(
+                      'No notifications right now.',
+                      style: TextStyle(color: AppColors.textSecondary),
+                    ),
+                  ],
                 ),
               )
             : ListView.separated(
@@ -51,22 +71,24 @@ class NotificationsScreen extends StatelessWidget {
                 separatorBuilder: (_, __) => const SizedBox(height: 10),
                 itemBuilder: (context, index) {
                   final a = _mockAnnouncements[index];
-                  return Container(
+                  return StaffCard(
                     padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: CupertinoColors.white,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: AppColors.border,
-                      ),
-                    ),
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Icon(
-                          CupertinoIcons.bell_fill,
-                          color: AppColors.accent,
-                          size: 20,
+                        Container(
+                          width: 34,
+                          height: 34,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: AppColors.pastelBrown.withValues(alpha: 0.25),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Icon(
+                            CupertinoIcons.bell_fill,
+                            color: AppColors.accent,
+                            size: 18,
+                          ),
                         ),
                         const SizedBox(width: 12),
                         Expanded(

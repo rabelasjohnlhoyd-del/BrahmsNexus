@@ -1,15 +1,20 @@
 import 'package:flutter/cupertino.dart';
 import '../../models/branch_daily_inventory.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/staff_button.dart';
+import '../../widgets/staff_card.dart';
+import '../../widgets/staff_nav_bar.dart';
+import '../../widgets/staff_section_header.dart';
+import '../../widgets/staff_stat_tile.dart';
 import '../../widgets/staff_top_actions.dart';
 
-/// Sales tab — hindi na kailangang isulat ulit ang allocated inventory
-/// (galing na sa Homepage), sapat na ang natitirang stock sa dulo ng
-/// araw. Awtomatikong nakukwenta: orders sold (base sa Karne usage),
-/// Sales, Wage (tiered rate ni Owner), at Net Total. May cross-check
-/// din laban sa Styro usage para ma-detect agad kung may discrepancy —
-/// direktang tumutugon ito sa dating problema ni Owner na mahirap
-/// i-track ang mga hindi-pagkakatugma.
+/// Sales tab — no need to re-enter the allocated inventory (that came
+/// from Homepage already); this just needs the remaining stock at the
+/// end of the day. Orders sold, Sales, Wage (Owner's tiered rate), and
+/// Net Total are all computed automatically. There's also a
+/// cross-check against Styro usage to catch discrepancies early —
+/// this directly addresses Owner's old problem of mismatches being
+/// hard to track down.
 class SalesScreen extends StatefulWidget {
   const SalesScreen({super.key});
 
@@ -18,14 +23,13 @@ class SalesScreen extends StatefulWidget {
 }
 
 class _SalesScreenState extends State<SalesScreen> {
-  // Galing sa Homepage — mock lang muna dito, iisang shared source
-  // once naka-backend na.
+  // From Homepage — mocked here for now, will be a single shared
+  // source once the backend is wired up.
   static const _allocated =
       InventoryCounts(karne: 35, mayo: 40, styro: 40, toyo: 7);
 
-  // TODO(backend): dapat editable ni Owner sa Admin Web (hindi
-  // hardcoded) — hindi pa raw nagbabago mula nung nagsimula, pero
-  // dapat pa rin settable.
+  // TODO(backend): should be editable by Owner in Admin Web (not
+  // hardcoded) — hasn't changed since launch, but should stay settable.
   static const double _pricePerOrder = 130;
 
   final _karneController = TextEditingController();
@@ -78,8 +82,8 @@ class _SalesScreenState extends State<SalesScreen> {
       builder: (context) => CupertinoActionSheet(
         message: Text(
           _computation!.hasDiscrepancy
-              ? 'Naisumite na, pero may na-flag na discrepancy — '
-                  'aabisuhan si Owner.'
+              ? 'Submitted, but a discrepancy was flagged — the Owner '
+                  'will be notified.'
               : 'Sales submitted!',
         ),
         cancelButton: CupertinoActionSheetAction(
@@ -96,58 +100,89 @@ class _SalesScreenState extends State<SalesScreen> {
 
     return CupertinoPageScaffold(
       backgroundColor: AppColors.background,
-      navigationBar: const CupertinoNavigationBar(
-        middle: Text('Sales'),
+      navigationBar: const StaffNavBar(
+        title: 'Sales',
         trailing: StaffTopActions(initials: 'JD'),
       ),
       child: SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            _sectionLabel('Inventory Ngayong Araw (galing sa Homepage)'),
+            const StaffSectionHeader(
+              label: "Today's Inventory (from Homepage)",
+              icon: CupertinoIcons.cube_box_fill,
+            ),
             const SizedBox(height: 10),
             Row(
               children: [
-                Expanded(child: _displayTile('Karne', '${_allocated.karne}')),
+                Expanded(child: StaffDisplayTile(label: 'Karne', value: '${_allocated.karne}')),
                 const SizedBox(width: 12),
-                Expanded(child: _displayTile('Mayo', '${_allocated.mayo}')),
+                Expanded(child: StaffDisplayTile(label: 'Mayo', value: '${_allocated.mayo}')),
               ],
             ),
             const SizedBox(height: 12),
             Row(
               children: [
-                Expanded(child: _displayTile('Styro', '${_allocated.styro}')),
+                Expanded(child: StaffDisplayTile(label: 'Styro', value: '${_allocated.styro}')),
                 const SizedBox(width: 12),
-                Expanded(child: _displayTile('Toyo', '${_allocated.toyo}')),
+                Expanded(child: StaffDisplayTile(label: 'Toyo', value: '${_allocated.toyo}')),
+              ],
+            ),
+            const SizedBox(height: 24),
+            const StaffSectionHeader(
+              label: 'Remaining Stock (End of Day)',
+              icon: CupertinoIcons.archivebox_fill,
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: StaffInputTile(
+                    label: 'Karne',
+                    controller: _karneController,
+                    onChanged: () => setState(() {}),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: StaffInputTile(
+                    label: 'Mayo',
+                    controller: _mayoController,
+                    onChanged: () => setState(() {}),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: StaffInputTile(
+                    label: 'Styro',
+                    controller: _styroController,
+                    onChanged: () => setState(() {}),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: StaffInputTile(
+                    label: 'Toyo',
+                    controller: _toyoController,
+                    onChanged: () => setState(() {}),
+                  ),
+                ),
               ],
             ),
             const SizedBox(height: 20),
-            _sectionLabel('Natitirang Stock (End of Day)'),
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                Expanded(child: _inputTile('Karne', _karneController)),
-                const SizedBox(width: 12),
-                Expanded(child: _inputTile('Mayo', _mayoController)),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(child: _inputTile('Styro', _styroController)),
-                const SizedBox(width: 12),
-                Expanded(child: _inputTile('Toyo', _toyoController)),
-              ],
-            ),
-            const SizedBox(height: 16),
             if (computation != null) ...[
               if (computation.hasDiscrepancy)
                 Container(
-                  margin: const EdgeInsets.only(bottom: 12),
+                  margin: const EdgeInsets.only(bottom: 16),
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
-                    color: AppColors.error.withValues(alpha: 0.12),
+                    color: AppColors.error.withValues(alpha: 0.10),
                     borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppColors.error.withValues(alpha: 0.3)),
                   ),
                   child: Row(
                     children: [
@@ -156,10 +191,10 @@ class _SalesScreenState extends State<SalesScreen> {
                       const SizedBox(width: 10),
                       Expanded(
                         child: Text(
-                          'May Discrepancy: Karne usage '
-                          '(${computation.karneUsed}) ay hindi tugma sa '
+                          'Discrepancy found: Karne usage '
+                          '(${computation.karneUsed}) does not match '
                           'Styro usage (${computation.styroUsed}). '
-                          'Aabisuhan si Owner.',
+                          'The Owner will be notified.',
                           style: const TextStyle(
                             color: AppColors.error,
                             fontWeight: FontWeight.w600,
@@ -170,9 +205,12 @@ class _SalesScreenState extends State<SalesScreen> {
                     ],
                   ),
                 ),
-              _sectionLabel('Computation'),
-              const SizedBox(height: 8),
-              _card(
+              const StaffSectionHeader(
+                label: 'Computation',
+                icon: CupertinoIcons.money_dollar_circle_fill,
+              ),
+              const SizedBox(height: 10),
+              StaffCard(
                 child: Column(
                   children: [
                     _computedRow('Orders Sold', '${computation.ordersSold}'),
@@ -181,7 +219,7 @@ class _SalesScreenState extends State<SalesScreen> {
                       '${computation.ordersSold} × ₱${_pricePerOrder.toStringAsFixed(0)} '
                           '= ₱${computation.salesAmount.toStringAsFixed(0)}',
                     ),
-                    _computedRow('Wage (Sahod)',
+                    _computedRow('Wage',
                         '- ₱${computation.wage.toStringAsFixed(0)}'),
                     const _CupertinoDivider(),
                     _computedRow(
@@ -193,136 +231,35 @@ class _SalesScreenState extends State<SalesScreen> {
                 ),
               ),
               const SizedBox(height: 20),
-              CupertinoButton(
-                color: AppColors.accent,
-                borderRadius: BorderRadius.circular(12),
+              StaffButton(
+                label: _submitted ? 'Submitted' : 'Submit Sales',
+                icon: _submitted ? CupertinoIcons.check_mark : null,
                 onPressed: _submitted ? null : _submit,
-                child: Text(_submitted ? 'Submitted' : 'Submit Sales'),
               ),
             ] else
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 12),
-                child: Text(
-                  'Punan muna ang lahat ng natitirang stock para makita '
-                  'ang computation.',
-                  style: TextStyle(color: AppColors.textSecondary),
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: AppColors.pastelBrown.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(CupertinoIcons.info_circle_fill,
+                        color: AppColors.accent, size: 18),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Fill in all remaining stock counts above to see '
+                        'the computation.',
+                        style: const TextStyle(color: AppColors.textSecondary),
+                      ),
+                    ),
+                  ],
                 ),
               ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _card({required Widget child}) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: CupertinoColors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: child,
-    );
-  }
-
-  Widget _sectionLabel(String text) {
-    return Text(
-      text,
-      style: const TextStyle(
-        fontSize: 13,
-        fontWeight: FontWeight.w600,
-        color: AppColors.textSecondary,
-      ),
-    );
-  }
-
-  Widget _tileHeader(String label) {
-    return Row(
-      children: [
-        Container(
-          width: 24,
-          height: 24,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: AppColors.pastelBrown.withValues(alpha: 0.3),
-            shape: BoxShape.circle,
-          ),
-          child: Text(
-            label[0],
-            style: const TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
-              color: AppColors.accent,
-            ),
-          ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              fontSize: 13,
-              color: AppColors.textSecondary,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _displayTile(String label, String value) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: CupertinoColors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _tileHeader(label),
-          const SizedBox(height: 10),
-          Text(
-            value,
-            style: const TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: AppColors.accent,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _inputTile(String label, TextEditingController controller) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: CupertinoColors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _tileHeader(label),
-          const SizedBox(height: 10),
-          CupertinoTextField(
-            controller: controller,
-            keyboardType: TextInputType.number,
-            placeholder: '0',
-            textAlign: TextAlign.center,
-            padding: const EdgeInsets.symmetric(vertical: 10),
-            style: const TextStyle(fontSize: 16),
-            onChanged: (_) => setState(() {}),
-          ),
-        ],
       ),
     );
   }
@@ -354,7 +291,7 @@ class _SalesScreenState extends State<SalesScreen> {
   }
 }
 
-/// Simpleng divider — walang built-in Divider widget ang Cupertino.
+/// Simple divider — Cupertino has no built-in Divider widget.
 class _CupertinoDivider extends StatelessWidget {
   const _CupertinoDivider();
 
