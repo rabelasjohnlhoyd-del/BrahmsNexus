@@ -75,6 +75,39 @@ class _TimerScreenState extends State<TimerScreen> {
     });
   }
 
+  /// Confirms before resetting a timer that's still running or has
+  /// time left — a single accidental tap shouldn't be enough to wipe
+  /// out progress on something that's actively cooking.
+  Future<void> _confirmReset() async {
+    if (!_isRunning && _remainingSeconds == 0) {
+      _reset();
+      return;
+    }
+
+    final confirmed = await showCupertinoDialog<bool>(
+      context: context,
+      builder: (dialogContext) => CupertinoAlertDialog(
+        title: const Text('Reset Timer?'),
+        content: const Text(
+          'This will clear the current countdown. Are you sure?',
+        ),
+        actions: [
+          CupertinoDialogAction(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          CupertinoDialogAction(
+            isDestructiveAction: true,
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Reset'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) _reset();
+  }
+
   /// Simple rule-based reminder based on time remaining.
   String? _reminderFor(int remaining) {
     final halfway = _totalSeconds ~/ 2;
@@ -228,7 +261,7 @@ class _TimerScreenState extends State<TimerScreen> {
                         label: 'Reset',
                         icon: CupertinoIcons.arrow_counterclockwise,
                         color: AppColors.error,
-                        onPressed: _reset,
+                        onPressed: _confirmReset,
                       ),
                     ),
                   ],

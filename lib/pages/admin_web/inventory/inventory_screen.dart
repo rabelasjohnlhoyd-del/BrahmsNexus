@@ -180,7 +180,7 @@ class _InventoryScreenState extends State<InventoryScreen>
             mainAxisSize: MainAxisSize.min,
             children: [
               DropdownButtonFormField<String>(
-                value: sourceId,
+                initialValue: sourceId,
                 decoration: const InputDecoration(labelText: 'From Branch'),
                 items: kSampleBranches
                     .map((b) =>
@@ -192,7 +192,7 @@ class _InventoryScreenState extends State<InventoryScreen>
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
-                value: destId,
+                initialValue: destId,
                 decoration: const InputDecoration(labelText: 'To Branch'),
                 items: kSampleBranches
                     .map((b) =>
@@ -353,7 +353,7 @@ class _InventoryScreenState extends State<InventoryScreen>
   Widget _buildBranchStockTab() {
     return ListView.separated(
       itemCount: _branchStocks.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 10),
+      separatorBuilder: (_, _) => const SizedBox(height: 10),
       itemBuilder: (context, index) {
         final stock = _branchStocks[index];
         final ratio = stock.allocatedKg == 0
@@ -447,13 +447,13 @@ class _InventoryScreenState extends State<InventoryScreen>
           child: _transferLogs.isEmpty
               ? const Center(
                   child: Text(
-                    'Wala pang inter-branch transfer.',
+                    'No inter-branch transfers yet.',
                     style: TextStyle(color: AppColors.textSecondary),
                   ),
                 )
               : ListView.separated(
                   itemCount: _transferLogs.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 8),
+                  separatorBuilder: (_, _) => const SizedBox(height: 8),
                   itemBuilder: (context, index) {
                     final log = _transferLogs[index];
                     return Card(

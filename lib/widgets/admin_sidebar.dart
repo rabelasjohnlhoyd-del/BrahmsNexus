@@ -7,9 +7,9 @@ class AdminSidebarItem {
   final String label;
 }
 
-/// Side navigation para sa Admin Web — desktop/web-appropriate na
-/// pattern (kabaligtaran ng bottom nav na para sa mobile). Ginagamit
-/// ito ng [AdminWebShell] na may maraming section (Dashboard, Staff
+/// Side navigation for Admin Web — a desktop/web-appropriate pattern
+/// (as opposed to a bottom nav, which is for mobile). Used by
+/// [AdminWebShell], which has many sections (Dashboard, Staff
 /// Management, Account Approvals, Branch Assignments, Inventory,
 /// Sales & Payroll, Bilao Orders, Employee Reports, Announcements,
 /// Analytics).

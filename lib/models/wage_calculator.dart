@@ -5,8 +5,8 @@
 ///
 /// Brackets confirmed by the Owner: 1–29 (₱320), 30–39 (₱370),
 /// 40–49 (₱470), 50–59 (₱570), 60–69 (₱670) — each +₱40 flat.
-/// Beyond 69, the same +₱100-per-bracket pattern continues
-/// ("kapag lumagpas, additional lang ulit").
+/// Beyond 69, the same +₱100-per-bracket pattern continues, per the
+/// Owner: "once you go past it, it's just another flat add-on."
 class WageCalculator {
   const WageCalculator._();
 

@@ -1,13 +1,16 @@
 import 'package:flutter/cupertino.dart';
 import '../../models/bilao_order.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/driver_card.dart';
+import '../../widgets/driver_nav_bar.dart';
+import '../../widgets/driver_section_header.dart';
 import '../../widgets/driver_top_actions.dart';
 import 'bilao_delivery_detail_screen.dart';
 
-/// Bilao Deliveries — listahan ng mga order na kailangang i-deliver.
-/// Pag pinindot, makikita ang buong impormasyon (address, contact,
-/// size, quantity), tapos parehong take-a-picture flow para i-confirm
-/// na successful ang delivery.
+/// Bilao Deliveries — list of orders that need to be delivered.
+/// Tapping one shows the full details (address, contact, size,
+/// quantity), then the same take-a-picture flow to confirm the
+/// delivery was successful.
 class BilaoDeliveriesScreen extends StatefulWidget {
   const BilaoDeliveriesScreen({super.key});
 
@@ -58,40 +61,57 @@ class _BilaoDeliveriesScreenState extends State<BilaoDeliveriesScreen> {
 
     return CupertinoPageScaffold(
       backgroundColor: AppColors.background,
-      navigationBar: const CupertinoNavigationBar(
-        middle: Text('Bilao Deliveries'),
+      navigationBar: const DriverNavBar(
+        title: 'Bilao Deliveries',
         trailing: DriverTopActions(initials: 'RS'),
       ),
       child: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            if (pending.isEmpty && done.isEmpty)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 40),
-                child: Center(
-                  child: Text(
-                    'Walang delivery ngayong araw.',
-                    style: TextStyle(color: AppColors.textSecondary),
-                  ),
+        child: pending.isEmpty && done.isEmpty
+            ? Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 64,
+                      height: 64,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: AppColors.pastelBrown.withValues(alpha: 0.25),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(CupertinoIcons.bag_fill,
+                          size: 28, color: AppColors.accent),
+                    ),
+                    const SizedBox(height: 14),
+                    const Text(
+                      'No deliveries scheduled for today.',
+                      style: TextStyle(color: AppColors.textSecondary),
+                    ),
+                  ],
                 ),
+              )
+            : ListView(
+                padding: const EdgeInsets.all(16),
+                children: [
+                  if (pending.isNotEmpty) ...[
+                    const DriverSectionHeader(
+                      label: 'For Delivery',
+                      icon: CupertinoIcons.bag_fill,
+                    ),
+                    const SizedBox(height: 10),
+                  ],
+                  ...pending.map((order) => _orderTile(order, isDone: false)),
+                  if (done.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    const DriverSectionHeader(
+                      label: 'Delivered',
+                      icon: CupertinoIcons.check_mark_circled_solid,
+                    ),
+                    const SizedBox(height: 10),
+                    ...done.map((order) => _orderTile(order, isDone: true)),
+                  ],
+                ],
               ),
-            ...pending.map((order) => _orderTile(order, isDone: false)),
-            if (done.isNotEmpty) ...[
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 10),
-                child: Text(
-                  'Naideliver Na',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-              ),
-              ...done.map((order) => _orderTile(order, isDone: true)),
-            ],
-          ],
-        ),
       ),
     );
   }
@@ -112,13 +132,7 @@ class _BilaoDeliveriesScreenState extends State<BilaoDeliveriesScreen> {
                   _markDelivered(order.id);
                 }
               },
-        child: Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: CupertinoColors.white,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: AppColors.border),
-          ),
+        child: DriverCard(
           child: Row(
             children: [
               Container(
@@ -156,6 +170,7 @@ class _BilaoDeliveriesScreenState extends State<BilaoDeliveriesScreen> {
                   ],
                 ),
               ),
+              const SizedBox(width: 8),
               if (isDone)
                 const Icon(CupertinoIcons.check_mark_circled_solid,
                     color: AppColors.success)

@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 
-/// Reusable placeholder layout para sa mga tab/section na wala pang
-/// aktwal na data/backend. Palitan na lang ang laman nito paglagay
-/// ng totoong content.
+/// Reusable placeholder layout for tabs/sections that don't have
+/// actual data/backend yet. Just swap out its contents once real
+/// content is in place.
 class PagePlaceholder extends StatelessWidget {
   const PagePlaceholder({
     super.key,

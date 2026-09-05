@@ -153,7 +153,7 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
                   : ListView.separated(
                       padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
                       itemCount: staff.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 10),
+                      separatorBuilder: (_, _) => const SizedBox(height: 10),
                       itemBuilder: (context, index) {
                         final member = staff[index];
                         return _StaffTile(

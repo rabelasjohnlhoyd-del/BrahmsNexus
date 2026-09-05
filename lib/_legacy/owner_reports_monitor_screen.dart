@@ -183,7 +183,7 @@ class _ReportsMonitorScreenState extends State<ReportsMonitorScreen> {
                   : ListView.separated(
                       padding: const EdgeInsets.all(16),
                       itemCount: _visibleReports.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 10),
+                      separatorBuilder: (_, _) => const SizedBox(height: 10),
                       itemBuilder: (context, index) {
                         final report = _visibleReports[index];
                         return Card(

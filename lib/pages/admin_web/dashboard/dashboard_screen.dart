@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import '../../../theme/app_theme.dart';
 import '../../../widgets/feature_card.dart';
 
-/// Landing page ng Admin Web — quick overview + shortcuts papunta sa
-/// mga section na wala nang sariling puwesto sa sidebar (hal. Order
-/// History, Search Records).
+/// Landing page of Admin Web — quick overview + shortcuts to
+/// sections that no longer have their own spot in the sidebar (e.g.
+/// Order History, Search Records).
 class DashboardScreen extends StatelessWidget {
   const DashboardScreen({super.key});
 

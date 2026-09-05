@@ -26,7 +26,7 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
       branchId: 'br1',
       branchName: 'Dayap, Calauan',
       date: DateTime.now(),
-      content: 'Kumpleto ang benta ngayong araw, walang isyu sa stock.',
+      content: 'Sales are complete for today, no stock issues.',
       status: ReportSubmissionStatus.submitted,
     ),
     DailyReport(
@@ -36,7 +36,7 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
       branchId: 'br3',
       branchName: 'Pila',
       date: DateTime.now(),
-      content: 'Kulang ang mayo, humingi na ng dagdag kay Driver.',
+      content: 'Running short on mayo, already asked the Driver for more.',
       status: ReportSubmissionStatus.incomplete,
     ),
     DailyReport(
@@ -56,7 +56,7 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
       branchId: 'br1',
       branchName: 'Dayap, Calauan',
       date: DateTime.now().subtract(const Duration(days: 1)),
-      content: 'Normal na araw, walang partikular na isyu.',
+      content: 'A normal day, no particular issues.',
       status: ReportSubmissionStatus.submitted,
     ),
   ];
@@ -111,7 +111,7 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
               const SizedBox(height: 12),
               Text(
                 report.content.isEmpty
-                    ? 'Wala pang naisusumiteng report.'
+                    ? 'No report submitted yet.'
                     : report.content,
                 style: const TextStyle(color: AppColors.textPrimary),
               ),
@@ -237,13 +237,13 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
             child: _visibleReports.isEmpty
                 ? const Center(
                     child: Text(
-                      'Walang report na tumutugma.',
+                      'No matching reports.',
                       style: TextStyle(color: AppColors.textSecondary),
                     ),
                   )
                 : ListView.separated(
                     itemCount: _visibleReports.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 10),
+                    separatorBuilder: (_, _) => const SizedBox(height: 10),
                     itemBuilder: (context, index) {
                       final r = _visibleReports[index];
                       return Card(

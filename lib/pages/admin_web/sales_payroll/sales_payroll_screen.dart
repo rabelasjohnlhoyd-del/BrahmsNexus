@@ -190,13 +190,13 @@ class _SalesPayrollScreenState extends State<SalesPayrollScreen> {
             child: _visibleRecords.isEmpty
                 ? const Center(
                     child: Text(
-                      'Walang sales record na tumutugma.',
+                      'No matching sales records.',
                       style: TextStyle(color: AppColors.textSecondary),
                     ),
                   )
                 : ListView.separated(
                     itemCount: _visibleRecords.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 10),
+                    separatorBuilder: (_, _) => const SizedBox(height: 10),
                     itemBuilder: (context, index) {
                       final r = _visibleRecords[index];
                       return Card(

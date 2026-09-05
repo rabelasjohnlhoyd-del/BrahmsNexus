@@ -145,7 +145,7 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
           Expanded(
             child: ListView.separated(
               itemCount: _assignments.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 10),
+              separatorBuilder: (_, _) => const SizedBox(height: 10),
               itemBuilder: (context, index) {
                 final a = _assignments[index];
                 return Card(
@@ -174,7 +174,7 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
                         Expanded(
                           flex: 2,
                           child: DropdownButtonFormField<String>(
-                            value: a.branchId,
+                            initialValue: a.branchId,
                             decoration: const InputDecoration(
                               labelText: 'Branch',
                               isDense: true,

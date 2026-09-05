@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../../widgets/page_placeholder.dart';
 
-/// DSS Analytics — Descriptive, Predictive, at Prescriptive insights
+/// DSS Analytics — Descriptive, Predictive, and Prescriptive insights
 /// (historical sales trends, employee conversion rates, inventory
-/// depletion rates, at system-generated recommendations).
+/// depletion rates, and system-generated recommendations).
 class AnalyticsScreen extends StatelessWidget {
   const AnalyticsScreen({super.key});
 
@@ -13,8 +13,8 @@ class AnalyticsScreen extends StatelessWidget {
       title: 'DSS Analytics',
       icon: Icons.insights_rounded,
       description:
-          'Descriptive, predictive, at prescriptive analytics charts '
-          'dito.',
+          'Descriptive, predictive, and prescriptive analytics charts '
+          'will go here.',
     );
   }
 }

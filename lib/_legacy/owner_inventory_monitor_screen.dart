@@ -95,7 +95,7 @@ class _InventoryMonitorScreenState extends State<InventoryMonitorScreen> {
               child: ListView.separated(
                 padding: const EdgeInsets.all(16),
                 itemCount: _sortedStocks.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 12),
+                separatorBuilder: (_, _) => const SizedBox(height: 12),
                 itemBuilder: (context, index) {
                   final stock = _sortedStocks[index];
                   final ratio = stock.allocatedKg == 0

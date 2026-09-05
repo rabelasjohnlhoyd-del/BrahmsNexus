@@ -4,9 +4,9 @@ import '../pages/staff_app/notifications_screen.dart';
 import '../pages/staff_app/profile_screen.dart';
 import '../theme/app_theme.dart';
 
-/// Shared trailing actions para sa bawat tab ng Cook/Staff app:
-/// notification bell (kaliwa) + profile avatar (kanan). Ito ang
-/// kapalit ng dating hiwalay na "Announcements" tab.
+/// Shared trailing actions for every tab of the Cook/Staff app:
+/// notification bell (left) + profile avatar (right). This replaces
+/// the old, separate "Announcements" tab.
 ///
 /// Colors here are white/inverted because this sits on top of the
 /// solid accent-brown [StaffNavBar] — see that file for why the bar

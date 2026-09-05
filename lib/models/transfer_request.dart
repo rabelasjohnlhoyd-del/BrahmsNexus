@@ -1,9 +1,9 @@
-/// Karne (meat) o gasul (gas) na hiniling ng isang branch.
+/// Meat or gas requested by a branch.
 enum TransferRequestType {
   meat,
   gas;
 
-  String get label => this == TransferRequestType.meat ? 'Karne' : 'Gasul';
+  String get label => this == TransferRequestType.meat ? 'Meat' : 'Gas';
 }
 
 enum TransferRequestStatus {
@@ -23,11 +23,11 @@ enum TransferRequestStatus {
   }
 }
 
-/// Isang request mula sa isang branch (via Owner's announcement/report)
-/// na kailangan ng dagdag na karne o gasul. Ang `suggestedSourceBranchName`
-/// ay STATIC/MOCK na lang muna — ang totoong pagpili ng pinaka-malapit
-/// at may-sapat-pa-na-stock na branch ay gagawin ng DSS sa backend phase
-/// (deferred, pure frontend muna).
+/// A request from a branch (via the Owner's announcement/report) that
+/// needs extra meat or gas. `suggestedSourceBranchName` is STATIC/MOCK
+/// for now — the real selection of the nearest branch with enough
+/// spare stock will be done by the DSS in the backend phase (deferred,
+/// pure frontend for now).
 class TransferRequest {
   const TransferRequest({
     required this.id,
