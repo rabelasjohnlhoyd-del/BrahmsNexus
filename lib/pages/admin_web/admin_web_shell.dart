@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
-import '../../theme/admin_theme.dart';
+import 'admin_web_colors.dart';
 import '../../widgets/admin_sidebar.dart';
-import '../../widgets/admin_top_bar.dart';
 import '../auth/login_screen.dart';
 import 'account_approvals/account_approvals_screen.dart';
 import 'analytics/analytics_screen.dart';
@@ -15,20 +14,25 @@ import 'sales_payroll/sales_payroll_screen.dart';
 import 'staff_management/staff_management_screen.dart';
 
 /// Full Admin shell — WEB (also accessible via phone browser, hence
-/// responsive). On a wide screen (desktop/tablet), side navigation
-/// plus a persistent top bar is used. On a narrow screen (phone
-/// browser), that same sidebar content becomes a Drawer (hamburger
-/// menu), with only an AppBar always visible at the top.
+/// responsive). On a wide screen (desktop/tablet), just the side
+/// navigation is shown — no separate top bar, since each page (e.g.
+/// DashboardScreen) renders its own title/subtitle/notification/
+/// profile row. On a narrow screen (phone browser), that same sidebar
+/// content becomes a Drawer (hamburger menu), with a bare AppBar
+/// (icon only, no title) always visible at the top just to expose the
+/// drawer toggle.
 ///
 /// A Drawer is used instead of a bottom nav on narrow screens because
 /// there are 10 sections — too many for a bottom bar (which
 /// comfortably fits only 3-5), while all of them fit in one
 /// scrollable Drawer.
 ///
-/// Everything under this shell is wrapped in [AdminTheme], so Cards,
-/// buttons, inputs, chips, etc. on every admin page automatically
-/// pick up the indigo/violet Admin Web palette instead of the
-/// warm-brown palette used by the Driver/Staff mobile apps.
+/// Everything under this shell is wrapped in [AdminWebTheme], so
+/// standard Material widgets (AppBar, Card, TextField,
+/// FloatingActionButton, Switch, etc.) on every admin page
+/// automatically pick up the brown/beige 60-30-10 palette instead of
+/// the old indigo [AdminTheme] (deprecated, no longer used here) or
+/// the mobile Driver/Staff [AppColors] palette.
 class AdminWebShell extends StatefulWidget {
   const AdminWebShell({super.key});
 
@@ -60,17 +64,17 @@ class _AdminWebShellState extends State<AdminWebShell> {
     AdminSidebarItem(icon: Icons.insights_rounded, label: 'DSS Analytics'),
   ];
 
-  static const _pages = [
-    DashboardScreen(),
-    StaffManagementScreen(),
-    AccountApprovalsScreen(),
-    BranchAssignmentsScreen(),
-    InventoryScreen(),
-    SalesPayrollScreen(),
-    BilaoOrderScreen(),
-    EmployeeReportsScreen(),
-    AnnouncementsScreen(),
-    AnalyticsScreen(),
+  List<Widget> get _pages => [
+    DashboardScreen(onLogout: _handleLogout),
+    const StaffManagementScreen(),
+    const AccountApprovalsScreen(),
+    const BranchAssignmentsScreen(),
+    const InventoryScreen(),
+    const SalesPayrollScreen(),
+    const BilaoOrderScreen(),
+    const EmployeeReportsScreen(),
+    const AnnouncementsScreen(),
+    const AnalyticsScreen(),
   ];
 
   void _handleLogout() {
@@ -85,7 +89,7 @@ class _AdminWebShellState extends State<AdminWebShell> {
             child: const Text('Cancel'),
           ),
           TextButton(
-            style: TextButton.styleFrom(foregroundColor: AdminColors.error),
+            style: TextButton.styleFrom(foregroundColor: AdminWebColors.error),
             onPressed: () {
               Navigator.of(dialogContext).pop();
               Navigator.of(context).pushAndRemoveUntil(
@@ -103,16 +107,19 @@ class _AdminWebShellState extends State<AdminWebShell> {
   @override
   Widget build(BuildContext context) {
     return Theme(
-      data: AdminTheme.themeData,
+      data: AdminWebTheme.themeData,
       child: LayoutBuilder(
         builder: (context, constraints) {
           final isWide = constraints.maxWidth >= _wideBreakpoint;
           final currentPage = _pages[_selectedIndex];
 
           if (isWide) {
-            // --- DESKTOP / TABLET: side-nav + persistent top bar ---
+            // --- DESKTOP / TABLET: side-nav, no separate top bar —
+            // each page (e.g. DashboardScreen's own header) owns its
+            // title/subtitle/notification/profile row, so we don't
+            // render a second duplicate bar above it here.
             return Scaffold(
-              backgroundColor: AdminColors.background,
+              backgroundColor: AdminWebColors.background,
               body: Row(
                 children: [
                   SizedBox(
@@ -126,19 +133,8 @@ class _AdminWebShellState extends State<AdminWebShell> {
                     ),
                   ),
                   Expanded(
-                    child: Column(
-                      children: [
-                        AdminTopBar(
-                          currentLabel: _items[_selectedIndex].label,
-                          onLogout: _handleLogout,
-                        ),
-                        Expanded(
-                          child: SafeArea(
-                            top: false,
-                            child: currentPage,
-                          ),
-                        ),
-                      ],
+                    child: SafeArea(
+                      child: currentPage,
                     ),
                   ),
                 ],
@@ -147,19 +143,18 @@ class _AdminWebShellState extends State<AdminWebShell> {
           }
 
           // --- PHONE BROWSER: Drawer (hamburger menu) ---
+          // No title text here — the page itself (e.g. DashboardScreen's
+          // own header) already shows the title/subtitle/notification/
+          // profile row, so this bar only needs to expose the drawer
+          // toggle. A bare AppBar with a drawer set automatically gets
+          // the hamburger icon from Scaffold, so nothing else is drawn.
           return Scaffold(
-            backgroundColor: AdminColors.background,
+            backgroundColor: AdminWebColors.background,
             appBar: AppBar(
-              backgroundColor: AdminColors.surface,
+              backgroundColor: AdminWebColors.background,
               elevation: 1,
-              iconTheme: const IconThemeData(color: AdminColors.primary),
-              title: Text(
-                _items[_selectedIndex].label,
-                style: const TextStyle(
-                  color: AdminColors.textPrimary,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
+              iconTheme: const IconThemeData(color: AdminWebColors.accent),
+              titleSpacing: 0,
             ),
             drawer: Drawer(
               child: AdminSidebar(

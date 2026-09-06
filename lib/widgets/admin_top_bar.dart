@@ -1,7 +1,14 @@
 import 'package:flutter/material.dart';
-import '../theme/admin_theme.dart';
+import '../pages/admin_web/admin_web_colors.dart';
 
-/// Persistent top bar for the desktop/wide Admin Web layout.
+/// DEPRECATED / UNUSED — no longer referenced anywhere in the app.
+///
+/// Was the persistent top bar for the desktop/wide Admin Web layout,
+/// but it duplicated the title/notification/profile row that each
+/// admin page (e.g. DashboardScreen) now renders itself, so it was
+/// removed from admin_web_shell.dart. Kept on disk only because this
+/// tool can't delete files on your machine — safe for you to delete
+/// this file yourself (right-click → Delete in Android Studio).
 ///
 /// Previously the wide layout had NO top bar at all — each page just
 /// started immediately with its own title text, so there was nowhere
@@ -29,8 +36,8 @@ class AdminTopBar extends StatelessWidget implements PreferredSizeWidget {
     return Container(
       height: _height,
       decoration: const BoxDecoration(
-        color: AdminColors.surface,
-        border: Border(bottom: BorderSide(color: AdminColors.border)),
+        color: AdminWebColors.background,
+        border: Border(bottom: BorderSide(color: AdminWebColors.border)),
       ),
       padding: const EdgeInsets.symmetric(horizontal: 24),
       child: Row(
@@ -43,7 +50,7 @@ class AdminTopBar extends StatelessWidget implements PreferredSizeWidget {
               style: const TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w700,
-                color: AdminColors.textPrimary,
+                color: AdminWebColors.textPrimary,
               ),
             ),
           ),
@@ -58,7 +65,7 @@ class AdminTopBar extends StatelessWidget implements PreferredSizeWidget {
                 value: 'logout',
                 child: Row(
                   children: [
-                    Icon(Icons.logout_rounded, size: 18, color: AdminColors.error),
+                    Icon(Icons.logout_rounded, size: 18, color: AdminWebColors.error),
                     SizedBox(width: 10),
                     Text('Log out'),
                   ],
@@ -68,13 +75,13 @@ class AdminTopBar extends StatelessWidget implements PreferredSizeWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const CircleAvatar(
+                CircleAvatar(
                   radius: 16,
-                  backgroundColor: AdminColors.primarySoft,
-                  child: Text(
+                  backgroundColor: AdminWebColors.accent.withValues(alpha: 0.15),
+                  child: const Text(
                     'O',
                     style: TextStyle(
-                      color: AdminColors.primary,
+                      color: AdminWebColors.accent,
                       fontWeight: FontWeight.w700,
                       fontSize: 13,
                     ),
@@ -86,11 +93,11 @@ class AdminTopBar extends StatelessWidget implements PreferredSizeWidget {
                   style: TextStyle(
                     fontSize: 13.5,
                     fontWeight: FontWeight.w600,
-                    color: AdminColors.textPrimary,
+                    color: AdminWebColors.textPrimary,
                   ),
                 ),
                 const Icon(Icons.keyboard_arrow_down_rounded,
-                    size: 18, color: AdminColors.textSecondary),
+                    size: 18, color: AdminWebColors.textSecondary),
               ],
             ),
           ),

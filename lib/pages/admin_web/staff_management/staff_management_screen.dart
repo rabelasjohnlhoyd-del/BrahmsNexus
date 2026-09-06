@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../models/staff_member.dart';
-import '../../../theme/admin_theme.dart';
+import '../admin_web_colors.dart';
 import 'add_staff_screen.dart';
 
 /// Admin-only screen for viewing and managing staff/employee accounts.
@@ -93,7 +93,7 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
           ),
           TextButton(
             onPressed: () => Navigator.of(context).pop(true),
-            style: TextButton.styleFrom(foregroundColor: AdminColors.error),
+            style: TextButton.styleFrom(foregroundColor: AdminWebColors.error),
             child: const Text('Remove'),
           ),
         ],
@@ -198,11 +198,11 @@ class _StaffTile extends StatelessWidget {
           children: [
             CircleAvatar(
               radius: 22,
-              backgroundColor: AdminColors.primarySoft,
+              backgroundColor: AdminWebColors.accent.withValues(alpha: 0.15),
               child: Text(
                 member.initials,
                 style: const TextStyle(
-                  color: AdminColors.primary,
+                  color: AdminWebColors.accent,
                   fontWeight: FontWeight.bold,
                 ),
               ),
@@ -219,7 +219,7 @@ class _StaffTile extends StatelessWidget {
                           member.fullName,
                           style: const TextStyle(
                             fontWeight: FontWeight.bold,
-                            color: AdminColors.textPrimary,
+                            color: AdminWebColors.textPrimary,
                           ),
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -232,7 +232,7 @@ class _StaffTile extends StatelessWidget {
                     '@${member.username}',
                     style: const TextStyle(
                       fontSize: 12,
-                      color: AdminColors.textSecondary,
+                      color: AdminWebColors.textSecondary,
                     ),
                   ),
                   const SizedBox(height: 6),
@@ -285,7 +285,7 @@ class _StatusChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = isActive ? AdminColors.success : AdminColors.textSecondary;
+    final color = isActive ? AdminWebColors.success : AdminWebColors.textSecondary;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
@@ -315,18 +315,18 @@ class _InfoPill extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: AdminColors.background,
+        color: AdminWebColors.background,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: AdminColors.border),
+        border: Border.all(color: AdminWebColors.border),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 13, color: AdminColors.textSecondary),
+          Icon(icon, size: 13, color: AdminWebColors.textSecondary),
           const SizedBox(width: 4),
           Text(
             label,
-            style: const TextStyle(fontSize: 11, color: AdminColors.textSecondary),
+            style: const TextStyle(fontSize: 11, color: AdminWebColors.textSecondary),
           ),
         ],
       ),
@@ -350,7 +350,7 @@ class _EmptyState extends StatelessWidget {
             Icon(
               hasQuery ? Icons.search_off_rounded : Icons.people_outline,
               size: 48,
-              color: AdminColors.textSecondary,
+              color: AdminWebColors.textSecondary,
             ),
             const SizedBox(height: 12),
             Text(
@@ -358,7 +358,7 @@ class _EmptyState extends StatelessWidget {
                   ? 'No staff match your search.'
                   : 'No staff accounts yet.\nTap "Add Staff" to create one.',
               textAlign: TextAlign.center,
-              style: const TextStyle(color: AdminColors.textSecondary),
+              style: const TextStyle(color: AdminWebColors.textSecondary),
             ),
           ],
         ),

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../models/staff_member.dart';
-import '../../../theme/admin_theme.dart';
+import '../admin_web_colors.dart';
 import '../../../widgets/primary_button.dart';
 
 /// Form used by the Administrator to create a new staff/employee account.
@@ -176,7 +176,7 @@ class _AddStaffScreenState extends State<AddStaffScreen> {
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
-                  color: AdminColors.textPrimary,
+                  color: AdminWebColors.textPrimary,
                 ),
               ),
               const SizedBox(height: 4),
@@ -184,7 +184,7 @@ class _AddStaffScreenState extends State<AddStaffScreen> {
                 'Create login credentials and profile details for a new '
                 'branch employee. The staff member will use the username '
                 'and password below to log in.',
-                style: TextStyle(fontSize: 13, color: AdminColors.textSecondary),
+                style: TextStyle(fontSize: 13, color: AdminWebColors.textSecondary),
               ),
               const SizedBox(height: 20),
 
@@ -242,7 +242,7 @@ class _AddStaffScreenState extends State<AddStaffScreen> {
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
-                  color: AdminColors.textPrimary,
+                  color: AdminWebColors.textPrimary,
                 ),
               ),
               const SizedBox(height: 12),
@@ -296,17 +296,17 @@ class _AddStaffScreenState extends State<AddStaffScreen> {
                 contentPadding: EdgeInsets.zero,
                 value: _isActive,
                 onChanged: (value) => setState(() => _isActive = value),
-                activeThumbColor: AdminColors.primary,
+                activeThumbColor: AdminWebColors.accent,
                 title: const Text(
                   'Active Account',
                   style: TextStyle(
                     fontWeight: FontWeight.w600,
-                    color: AdminColors.textPrimary,
+                    color: AdminWebColors.textPrimary,
                   ),
                 ),
                 subtitle: const Text(
                   'Inactive staff cannot log in until reactivated.',
-                  style: TextStyle(fontSize: 12, color: AdminColors.textSecondary),
+                  style: TextStyle(fontSize: 12, color: AdminWebColors.textSecondary),
                 ),
               ),
 
@@ -316,7 +316,7 @@ class _AddStaffScreenState extends State<AddStaffScreen> {
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
-                  color: AdminColors.textPrimary,
+                  color: AdminWebColors.textPrimary,
                 ),
               ),
               const SizedBox(height: 12),
