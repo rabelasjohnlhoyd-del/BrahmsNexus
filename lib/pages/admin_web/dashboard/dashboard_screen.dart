@@ -30,33 +30,44 @@ class DashboardScreen extends StatelessWidget {
           ),
           const SizedBox(height: 24),
           Expanded(
-            child: GridView.count(
-              crossAxisCount: 4,
-              mainAxisSpacing: 16,
-              crossAxisSpacing: 16,
-              childAspectRatio: 1.1,
-              children: [
-                FeatureCard(
-                  title: 'Order History',
-                  subtitle: 'Completed bilao orders',
-                  icon: Icons.history_rounded,
-                  onTap: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Order History — coming soon')),
-                    );
-                  },
-                ),
-                FeatureCard(
-                  title: 'Search Records',
-                  subtitle: 'Find orders, reports & more',
-                  icon: Icons.search_rounded,
-                  onTap: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Search Records — coming soon')),
-                    );
-                  },
-                ),
-              ],
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final crossAxisCount = constraints.maxWidth >= 700
+                    ? 4
+                    : constraints.maxWidth >= 420
+                        ? 2
+                        : 1;
+                return GridView.count(
+                  crossAxisCount: crossAxisCount,
+                  mainAxisSpacing: 16,
+                  crossAxisSpacing: 16,
+                  childAspectRatio: crossAxisCount == 1 ? 2.4 : 1.1,
+                  children: [
+                    FeatureCard(
+                      title: 'Order History',
+                      subtitle: 'Completed bilao orders',
+                      icon: Icons.history_rounded,
+                      onTap: () {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                              content: Text('Order History — coming soon')),
+                        );
+                      },
+                    ),
+                    FeatureCard(
+                      title: 'Search Records',
+                      subtitle: 'Find orders, reports & more',
+                      icon: Icons.search_rounded,
+                      onTap: () {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                              content: Text('Search Records — coming soon')),
+                        );
+                      },
+                    ),
+                  ],
+                );
+              },
             ),
           ),
         ],

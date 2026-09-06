@@ -81,9 +81,12 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(24),
-      child: Column(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isWide = constraints.maxWidth >= 700;
+        return Padding(
+          padding: EdgeInsets.all(isWide ? 24 : 16),
+          child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
@@ -200,6 +203,8 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
           ),
         ],
       ),
+    );
+      },
     );
   }
 }

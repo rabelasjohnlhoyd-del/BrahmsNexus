@@ -84,7 +84,7 @@ class _AdminWebShellState extends State<AdminWebShell> {
               Navigator.of(dialogContext).pop();
               Navigator.of(context).pushAndRemoveUntil(
                 MaterialPageRoute(builder: (_) => const LoginScreen()),
-                (route) => false,
+                    (route) => false,
               );
             },
             child: const Text('Log Out'),
@@ -99,6 +99,7 @@ class _AdminWebShellState extends State<AdminWebShell> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final isWide = constraints.maxWidth >= _wideBreakpoint;
+        final currentPage = _pages[_selectedIndex];
 
         if (isWide) {
           // --- DESKTOP / TABLET: always-visible side-nav ---
@@ -106,18 +107,18 @@ class _AdminWebShellState extends State<AdminWebShell> {
             backgroundColor: AppColors.background,
             body: Row(
               children: [
-                AdminSidebar(
-                  items: _items,
-                  selectedIndex: _selectedIndex,
-                  onSelect: (index) => setState(() => _selectedIndex = index),
-                  onLogout: _handleLogout,
+                SizedBox(
+                  width: 260,
+                  child: AdminSidebar(
+                    items: _items,
+                    selectedIndex: _selectedIndex,
+                    onSelect: (index) => setState(() => _selectedIndex = index),
+                    onLogout: _handleLogout,
+                  ),
                 ),
                 Expanded(
                   child: SafeArea(
-                    child: IndexedStack(
-                      index: _selectedIndex,
-                      children: _pages,
-                    ),
+                    child: currentPage,
                   ),
                 ),
               ],
@@ -155,10 +156,7 @@ class _AdminWebShellState extends State<AdminWebShell> {
             ),
           ),
           body: SafeArea(
-            child: IndexedStack(
-              index: _selectedIndex,
-              children: _pages,
-            ),
+            child: currentPage,
           ),
         );
       },

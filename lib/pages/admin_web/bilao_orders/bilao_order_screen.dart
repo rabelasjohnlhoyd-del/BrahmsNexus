@@ -130,7 +130,7 @@ class _BilaoOrderScreenState extends State<BilaoOrderScreen> {
                     ),
                     const SizedBox(height: 12),
                     DropdownButtonFormField<BilaoSize>(
-                      initialValue: selectedSize,
+                      value: selectedSize,
                       decoration: const InputDecoration(
                         labelText: 'Bilao Size',
                       ),
@@ -297,7 +297,7 @@ class _BilaoOrderScreenState extends State<BilaoOrderScreen> {
               const SizedBox(width: 16),
               Expanded(
                 child: DropdownButtonFormField<String>(
-                  initialValue: _statusFilter,
+                  value: _statusFilter,
                   decoration: const InputDecoration(
                     labelText: 'Filter by status',
                     isDense: true,
@@ -317,13 +317,13 @@ class _BilaoOrderScreenState extends State<BilaoOrderScreen> {
             child: _visibleOrders.isEmpty
                 ? const Center(
                     child: Text(
-                      'No matching orders.',
+                      'Walang order na tumutugma.',
                       style: TextStyle(color: AppColors.textSecondary),
                     ),
                   )
                 : ListView.separated(
                     itemCount: _visibleOrders.length,
-                    separatorBuilder: (_, _) => const SizedBox(height: 10),
+                    separatorBuilder: (_, __) => const SizedBox(height: 10),
                     itemBuilder: (context, index) {
                       final order = _visibleOrders[index];
                       return Card(
@@ -376,7 +376,7 @@ class _BilaoOrderScreenState extends State<BilaoOrderScreen> {
                               ),
                               Expanded(
                                 child: DropdownButtonFormField<PreparationStatus>(
-                                  initialValue: order.preparationStatus,
+                                  value: order.preparationStatus,
                                   decoration: InputDecoration(
                                     labelText: 'Preparation',
                                     isDense: true,
@@ -401,7 +401,7 @@ class _BilaoOrderScreenState extends State<BilaoOrderScreen> {
                               const SizedBox(width: 12),
                               Expanded(
                                 child: DropdownButtonFormField<DeliveryStatus>(
-                                  initialValue: order.deliveryStatus,
+                                  value: order.deliveryStatus,
                                   decoration: InputDecoration(
                                     labelText: 'Delivery',
                                     isDense: true,

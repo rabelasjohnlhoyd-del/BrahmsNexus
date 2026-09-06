@@ -1,8 +1,10 @@
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'firebase_options.dart';
+import 'pages/auth/login_screen.dart';
 import 'pages/auth/welcome_screen.dart';
 import 'theme/app_theme.dart';
 
@@ -73,7 +75,7 @@ class BrahmsNexusApp extends StatelessWidget {
           child: child!,
         );
       },
-      home: const WelcomeScreen(),
+      home: kIsWeb ? const LoginScreen() : const WelcomeScreen(),
     );
   }
 }

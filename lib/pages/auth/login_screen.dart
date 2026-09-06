@@ -1,6 +1,8 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import '../../models/user_role.dart';
 import '../../theme/app_theme.dart';
-import '../../widgets/auth_hero_header.dart';
+import '../../widgets/auth_brand_mark.dart';
 import '../../widgets/primary_button.dart';
 import '../../widgets/social_login_row.dart';
 import 'mock_accounts.dart';
@@ -100,7 +102,10 @@ class _LoginScreenState extends State<LoginScreen> {
     // instead of leaving Back looking broken.
     if (Navigator.of(context).canPop()) {
       Navigator.of(context).pop();
-    } else {
+    } else if (!kIsWeb) {
+      // WelcomeScreen isn't part of the web flow at all (see main.dart —
+      // web goes straight to LoginScreen), so there's nothing to fall
+      // back to here on web; only mobile has a WelcomeScreen to return to.
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (_) => const WelcomeScreen()),
       );
@@ -155,7 +160,13 @@ class _LoginScreenState extends State<LoginScreen> {
                 style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
               ),
               const SizedBox(height: 12),
-              ...kMockAccounts.entries.map(
+              // Web (Owner-only) only ever needs the owner demo account
+              // listed here — Staff/Driver accounts belong to the app.
+              ...(kIsWeb
+                      ? kMockAccounts.entries
+                          .where((e) => e.value.role == UserRole.owner)
+                      : kMockAccounts.entries)
+                  .map(
                 (e) => ListTile(
                   contentPadding: EdgeInsets.zero,
                   leading: const Icon(Icons.person_outline,
@@ -178,14 +189,12 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  static const double _heroHeight = 200;
-
   @override
   Widget build(BuildContext context) {
     return PopScope(
       // Always intercept system/hardware back (gesture or button) and
-      // route it through the same _handleBack logic as the header's
-      // back arrow, so both agree: pop if there's something to pop
+      // route it through the same _handleBack logic as the on-screen
+      // arrow above, so both agree: pop if there's something to pop
       // to, otherwise land on WelcomeScreen instead of doing nothing
       // (or closing the app, which is the default when canPop is
       // false and this is left unhandled).
@@ -195,164 +204,165 @@ class _LoginScreenState extends State<LoginScreen> {
         _handleBack();
       },
       child: Scaffold(
-        // Shows briefly behind the hero header on overscroll/bounce;
-        // matches the header instead of flashing the page background.
-        backgroundColor: AppColors.accent,
-        body: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              AuthHeroHeader(
-                title: 'Welcome back',
-                subtitle: 'Sign in to keep things running across every '
-                    'branch.',
-                icon: Icons.storefront_rounded,
-                onBack: _handleBack,
-                height: _heroHeight,
-              ),
-              Container(
-                constraints: BoxConstraints(
-                  minHeight: MediaQuery.of(context).size.height - _heroHeight,
-                ),
-                decoration: const BoxDecoration(
-                  color: AppColors.background,
-                  borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-                ),
-                padding: const EdgeInsets.fromLTRB(28, 28, 28, 24),
-                child: Center(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 420),
-                    child: Form(
-                      key: _formKey,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
+      backgroundColor: AppColors.background,
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(28, 4, 28, 28),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 420),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (!kIsWeb)
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: IconButton(
+                          icon: const Icon(Icons.arrow_back_ios_new_rounded,
+                              size: 20),
+                          color: AppColors.textPrimary,
+                          onPressed: _handleBack,
+                        ),
+                      ),
+                    const SizedBox(height: 8),
+                    const Center(
+                      child: AuthBrandMark(icon: Icons.storefront_rounded),
+                    ),
+                    const SizedBox(height: 24),
+                    const Text(
+                      'Welcome back',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 28,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.textPrimary,
+                        letterSpacing: -0.5,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Sign in to keep things running.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 14.5,
+                        color: AppColors.textSecondary,
+                        height: 1.4,
+                      ),
+                    ),
+                    const SizedBox(height: 36),
+                    TextFormField(
+                      controller: _usernameController,
+                      textInputAction: TextInputAction.next,
+                      autofillHints: const [AutofillHints.username],
+                      decoration: const InputDecoration(
+                        labelText: 'Username',
+                        prefixIcon: Icon(Icons.person_outline),
+                      ),
+                      validator: _validateUsername,
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _passwordController,
+                      obscureText: _obscurePassword,
+                      textInputAction: TextInputAction.done,
+                      autofillHints: const [AutofillHints.password],
+                      onFieldSubmitted: (_) => _handleLogin(),
+                      decoration: InputDecoration(
+                        labelText: 'Password',
+                        prefixIcon: const Icon(Icons.lock_outline),
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            _obscurePassword
+                                ? Icons.visibility_off_outlined
+                                : Icons.visibility_outlined,
+                          ),
+                          onPressed: () => setState(
+                            () => _obscurePassword = !_obscurePassword,
+                          ),
+                        ),
+                      ),
+                      validator: _validatePassword,
+                    ),
+                    if (_authError != null) ...[
+                      const SizedBox(height: 12),
+                      Text(
+                        _authError!,
+                        style: const TextStyle(
+                          color: AppColors.error,
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton(
+                        onPressed: _isLoading
+                            ? null
+                            : () => _showComingSoon('Password reset'),
+                        child: const Text('Forgot your password?'),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    PrimaryButton(
+                      label: 'Sign in',
+                      isLoading: _isLoading,
+                      onPressed: _handleLogin,
+                    ),
+                    if (!kIsWeb) ...[
+                      const SizedBox(height: 20),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           const Text(
-                            'Login',
-                            style: TextStyle(
-                              fontSize: 24,
-                              fontWeight: FontWeight.w800,
-                              color: AppColors.textPrimary,
-                              letterSpacing: -0.3,
-                            ),
+                            "Don't have an account? ",
+                            style: TextStyle(color: AppColors.textSecondary),
                           ),
-                          const SizedBox(height: 6),
-                          Row(
-                            children: [
-                              const Text(
-                                "Don't have an account? ",
-                                style: TextStyle(
-                                  color: AppColors.textSecondary,
-                                  fontSize: 13.5,
-                                ),
-                              ),
-                              GestureDetector(
-                                onTap: _isLoading
-                                    ? null
-                                    : () => Navigator.of(context).push(
-                                          MaterialPageRoute(
-                                            builder: (_) =>
-                                                const RegisterScreen(),
-                                          ),
-                                        ),
-                                child: const Text(
-                                  'Sign up',
-                                  style: TextStyle(
-                                    color: AppColors.accent,
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: 13.5,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 28),
-                          TextFormField(
-                            controller: _usernameController,
-                            textInputAction: TextInputAction.next,
-                            autofillHints: const [AutofillHints.username],
-                            decoration: const InputDecoration(
-                              labelText: 'Username',
-                              prefixIcon: Icon(Icons.person_outline),
-                            ),
-                            validator: _validateUsername,
-                          ),
-                          const SizedBox(height: 16),
-                          TextFormField(
-                            controller: _passwordController,
-                            obscureText: _obscurePassword,
-                            textInputAction: TextInputAction.done,
-                            autofillHints: const [AutofillHints.password],
-                            onFieldSubmitted: (_) => _handleLogin(),
-                            decoration: InputDecoration(
-                              labelText: 'Password',
-                              prefixIcon: const Icon(Icons.lock_outline),
-                              suffixIcon: IconButton(
-                                icon: Icon(
-                                  _obscurePassword
-                                      ? Icons.visibility_off_outlined
-                                      : Icons.visibility_outlined,
-                                ),
-                                onPressed: () => setState(
-                                  () => _obscurePassword = !_obscurePassword,
-                                ),
-                              ),
-                            ),
-                            validator: _validatePassword,
-                          ),
-                          if (_authError != null) ...[
-                            const SizedBox(height: 12),
-                            Text(
-                              _authError!,
-                              style: const TextStyle(
-                                color: AppColors.error,
-                                fontSize: 12.5,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                          Align(
-                            alignment: Alignment.centerRight,
-                            child: TextButton(
-                              onPressed: _isLoading
-                                  ? null
-                                  : () => _showComingSoon('Password reset'),
-                              child: const Text('Forgot Password?'),
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          PrimaryButton(
-                            label: 'Login',
-                            isLoading: _isLoading,
-                            onPressed: _handleLogin,
-                          ),
-                          const SizedBox(height: 28),
-                          const _OrDivider(),
-                          const SizedBox(height: 18),
-                          const SocialLoginRow(),
-                          const SizedBox(height: 24),
-                          Center(
-                            child: TextButton.icon(
-                              onPressed: _showDemoAccounts,
-                              icon:
-                                  const Icon(Icons.science_outlined, size: 16),
-                              label: const Text('Dev: demo accounts'),
-                              style: TextButton.styleFrom(
-                                foregroundColor: AppColors.textSecondary,
-                                textStyle: const TextStyle(fontSize: 12),
+                          GestureDetector(
+                            onTap: _isLoading
+                                ? null
+                                : () => Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                        builder: (_) => const RegisterScreen(),
+                                      ),
+                                    ),
+                            child: const Text(
+                              'Create new account',
+                              style: TextStyle(
+                                color: AppColors.accent,
+                                fontWeight: FontWeight.w700,
                               ),
                             ),
                           ),
                         ],
                       ),
+                    ],
+                    const SizedBox(height: 28),
+                    const _OrDivider(),
+                    const SizedBox(height: 18),
+                    const SocialLoginRow(),
+                    const SizedBox(height: 24),
+                    Center(
+                      child: TextButton.icon(
+                        onPressed: _showDemoAccounts,
+                        icon: const Icon(Icons.science_outlined, size: 16),
+                        label: const Text('Dev: demo accounts'),
+                        style: TextButton.styleFrom(
+                          foregroundColor: AppColors.textSecondary,
+                          textStyle: const TextStyle(fontSize: 12),
+                        ),
+                      ),
                     ),
-                  ),
+                  ],
                 ),
               ),
-            ],
+            ),
           ),
         ),
       ),
+    ),
     );
   }
 }
@@ -368,7 +378,7 @@ class _OrDivider extends StatelessWidget {
         Padding(
           padding: EdgeInsets.symmetric(horizontal: 12),
           child: Text(
-            'Or Continue With',
+            'Or continue with',
             style: TextStyle(color: AppColors.textSecondary, fontSize: 12.5),
           ),
         ),
