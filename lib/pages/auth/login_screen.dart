@@ -1,4 +1,6 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import '../../models/user_role.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/auth_brand_mark.dart';
 import '../../widgets/primary_button.dart';
@@ -100,7 +102,10 @@ class _LoginScreenState extends State<LoginScreen> {
     // instead of leaving Back looking broken.
     if (Navigator.of(context).canPop()) {
       Navigator.of(context).pop();
-    } else {
+    } else if (!kIsWeb) {
+      // WelcomeScreen isn't part of the web flow at all (see main.dart —
+      // web goes straight to LoginScreen), so there's nothing to fall
+      // back to here on web; only mobile has a WelcomeScreen to return to.
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (_) => const WelcomeScreen()),
       );
@@ -155,7 +160,13 @@ class _LoginScreenState extends State<LoginScreen> {
                 style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
               ),
               const SizedBox(height: 12),
-              ...kMockAccounts.entries.map(
+              // Web (Owner-only) only ever needs the owner demo account
+              // listed here — Staff/Driver accounts belong to the app.
+              ...(kIsWeb
+                      ? kMockAccounts.entries
+                          .where((e) => e.value.role == UserRole.owner)
+                      : kMockAccounts.entries)
+                  .map(
                 (e) => ListTile(
                   contentPadding: EdgeInsets.zero,
                   leading: const Icon(Icons.person_outline,
@@ -205,15 +216,16 @@ class _LoginScreenState extends State<LoginScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: IconButton(
-                        icon: const Icon(Icons.arrow_back_ios_new_rounded,
-                            size: 20),
-                        color: AppColors.textPrimary,
-                        onPressed: _handleBack,
+                    if (!kIsWeb)
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: IconButton(
+                          icon: const Icon(Icons.arrow_back_ios_new_rounded,
+                              size: 20),
+                          color: AppColors.textPrimary,
+                          onPressed: _handleBack,
+                        ),
                       ),
-                    ),
                     const SizedBox(height: 8),
                     const Center(
                       child: AuthBrandMark(icon: Icons.storefront_rounded),
@@ -299,32 +311,34 @@ class _LoginScreenState extends State<LoginScreen> {
                       isLoading: _isLoading,
                       onPressed: _handleLogin,
                     ),
-                    const SizedBox(height: 20),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Text(
-                          "Don't have an account? ",
-                          style: TextStyle(color: AppColors.textSecondary),
-                        ),
-                        GestureDetector(
-                          onTap: _isLoading
-                              ? null
-                              : () => Navigator.of(context).push(
-                                    MaterialPageRoute(
-                                      builder: (_) => const RegisterScreen(),
+                    if (!kIsWeb) ...[
+                      const SizedBox(height: 20),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Text(
+                            "Don't have an account? ",
+                            style: TextStyle(color: AppColors.textSecondary),
+                          ),
+                          GestureDetector(
+                            onTap: _isLoading
+                                ? null
+                                : () => Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                        builder: (_) => const RegisterScreen(),
+                                      ),
                                     ),
-                                  ),
-                          child: const Text(
-                            'Create new account',
-                            style: TextStyle(
-                              color: AppColors.accent,
-                              fontWeight: FontWeight.w700,
+                            child: const Text(
+                              'Create new account',
+                              style: TextStyle(
+                                color: AppColors.accent,
+                                fontWeight: FontWeight.w700,
+                              ),
                             ),
                           ),
-                        ),
-                      ],
-                    ),
+                        ],
+                      ),
+                    ],
                     const SizedBox(height: 28),
                     const _OrDivider(),
                     const SizedBox(height: 18),
