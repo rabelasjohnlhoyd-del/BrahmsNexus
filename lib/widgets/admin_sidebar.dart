@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../theme/app_theme.dart';
+import '../theme/admin_theme.dart';
 
 class AdminSidebarItem {
   const AdminSidebarItem({required this.icon, required this.label});
@@ -13,6 +13,10 @@ class AdminSidebarItem {
 /// Management, Account Approvals, Branch Assignments, Inventory,
 /// Sales & Payroll, Bilao Orders, Employee Reports, Announcements,
 /// Analytics).
+///
+/// Uses [AdminColors] — a light panel with a solid violet "pill" for
+/// the selected item — so it matches the rest of Admin Web instead of
+/// the warm-brown [AppColors] used by the mobile Driver/Staff apps.
 class AdminSidebar extends StatelessWidget {
   const AdminSidebar({
     super.key,
@@ -31,29 +35,28 @@ class AdminSidebar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: 240,
-      color: AppColors.surface,
+      color: AdminColors.sidebarBackground,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Container(
             padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 20),
-            decoration: BoxDecoration(
+            decoration: const BoxDecoration(
               border: Border(
-                bottom: BorderSide(
-                  color: AppColors.pastelBrown.withValues(alpha: 0.4),
-                ),
+                bottom: BorderSide(color: AdminColors.sidebarBorder),
               ),
             ),
             child: Row(
               children: [
-                const Icon(Icons.storefront_rounded, color: AppColors.accent),
+                const Icon(Icons.storefront_rounded,
+                    color: AdminColors.primary),
                 const SizedBox(width: 10),
                 const Expanded(
                   child: Text(
                     'BRAHMS NEXUS',
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
-                      color: AppColors.accent,
+                      color: AdminColors.primary,
                       letterSpacing: 0.5,
                     ),
                   ),
@@ -73,12 +76,13 @@ class AdminSidebar extends StatelessWidget {
                       const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
                   child: Material(
                     color: isSelected
-                        ? AppColors.pastelBrown.withValues(alpha: 0.3)
+                        ? AdminColors.sidebarActiveFill
                         : Colors.transparent,
                     borderRadius: BorderRadius.circular(10),
                     child: InkWell(
                       borderRadius: BorderRadius.circular(10),
                       onTap: () => onSelect(index),
+                      hoverColor: AdminColors.sidebarBackgroundElevated,
                       child: Padding(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 14,
@@ -90,8 +94,8 @@ class AdminSidebar extends StatelessWidget {
                               item.icon,
                               size: 20,
                               color: isSelected
-                                  ? AppColors.accent
-                                  : AppColors.textSecondary,
+                                  ? AdminColors.sidebarTextActive
+                                  : AdminColors.sidebarText,
                             ),
                             const SizedBox(width: 12),
                             Expanded(
@@ -103,8 +107,8 @@ class AdminSidebar extends StatelessWidget {
                                       ? FontWeight.w600
                                       : FontWeight.w400,
                                   color: isSelected
-                                      ? AppColors.accent
-                                      : AppColors.textPrimary,
+                                      ? AdminColors.sidebarTextActive
+                                      : AdminColors.sidebarText,
                                 ),
                               ),
                             ),
@@ -131,14 +135,14 @@ class AdminSidebar extends StatelessWidget {
                   child: Row(
                     children: [
                       Icon(Icons.logout_rounded,
-                          size: 20, color: AppColors.error),
+                          size: 20, color: AdminColors.error),
                       SizedBox(width: 12),
                       Text(
                         'Log out',
                         style: TextStyle(
                           fontSize: 13.5,
                           fontWeight: FontWeight.w600,
-                          color: AppColors.error,
+                          color: AdminColors.error,
                         ),
                       ),
                     ],

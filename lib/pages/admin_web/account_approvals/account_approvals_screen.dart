@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../models/account_status.dart';
 import '../../../models/registration_request.dart';
 import '../../../models/user_role.dart';
-import '../../../theme/app_theme.dart';
+import '../../../theme/admin_theme.dart';
 
 /// Owner reviews new Staff/Driver registrations here and Accepts or
 /// Rejects them. Only after Accept can that account log in.
@@ -71,13 +71,13 @@ class _AccountApprovalsScreenState extends State<AccountApprovalsScreen> {
             style: TextStyle(
               fontSize: 22,
               fontWeight: FontWeight.bold,
-              color: AppColors.textPrimary,
+              color: AdminColors.textPrimary,
             ),
           ),
           const SizedBox(height: 4),
           const Text(
             'Review new Staff/Driver registrations before they can log in.',
-            style: TextStyle(color: AppColors.textSecondary),
+            style: TextStyle(color: AdminColors.textSecondary),
           ),
           const SizedBox(height: 20),
           Expanded(
@@ -88,7 +88,7 @@ class _AccountApprovalsScreenState extends State<AccountApprovalsScreen> {
                     padding: EdgeInsets.symmetric(vertical: 24),
                     child: Text(
                       'No pending registrations right now.',
-                      style: TextStyle(color: AppColors.textSecondary),
+                      style: TextStyle(color: AdminColors.textSecondary),
                     ),
                   )
                 else
@@ -105,7 +105,7 @@ class _AccountApprovalsScreenState extends State<AccountApprovalsScreen> {
                     'Previously Decided',
                     style: TextStyle(
                       fontWeight: FontWeight.w600,
-                      color: AppColors.textPrimary,
+                      color: AdminColors.textPrimary,
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -134,11 +134,11 @@ class _RequestCard extends StatelessWidget {
   Color _statusColor() {
     switch (request.status) {
       case AccountStatus.pending:
-        return AppColors.warning;
+        return AdminColors.warning;
       case AccountStatus.approved:
-        return AppColors.success;
+        return AdminColors.success;
       case AccountStatus.rejected:
-        return AppColors.error;
+        return AdminColors.error;
     }
   }
 
@@ -151,7 +151,7 @@ class _RequestCard extends StatelessWidget {
         child: Row(
           children: [
             CircleAvatar(
-              backgroundColor: AppColors.pastelBrown,
+              backgroundColor: AdminColors.primary,
               child: Text(
                 request.fullName.substring(0, 1).toUpperCase(),
                 style: const TextStyle(color: Colors.white),
@@ -166,7 +166,7 @@ class _RequestCard extends StatelessWidget {
                     request.fullName,
                     style: const TextStyle(
                       fontWeight: FontWeight.w600,
-                      color: AppColors.textPrimary,
+                      color: AdminColors.textPrimary,
                     ),
                   ),
                   Text(
@@ -174,7 +174,7 @@ class _RequestCard extends StatelessWidget {
                     '${request.contactNumber}',
                     style: const TextStyle(
                       fontSize: 12.5,
-                      color: AppColors.textSecondary,
+                      color: AdminColors.textSecondary,
                     ),
                   ),
                 ],
@@ -182,12 +182,12 @@ class _RequestCard extends StatelessWidget {
             ),
             if (onAccept != null && onReject != null) ...[
               IconButton(
-                icon: const Icon(Icons.check_circle, color: AppColors.success),
+                icon: const Icon(Icons.check_circle, color: AdminColors.success),
                 tooltip: 'Accept',
                 onPressed: onAccept,
               ),
               IconButton(
-                icon: const Icon(Icons.cancel, color: AppColors.error),
+                icon: const Icon(Icons.cancel, color: AdminColors.error),
                 tooltip: 'Reject',
                 onPressed: onReject,
               ),

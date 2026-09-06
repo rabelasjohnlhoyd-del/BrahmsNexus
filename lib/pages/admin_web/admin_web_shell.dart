@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import '../../theme/app_theme.dart';
+import '../../theme/admin_theme.dart';
 import '../../widgets/admin_sidebar.dart';
+import '../../widgets/admin_top_bar.dart';
 import '../auth/login_screen.dart';
 import 'account_approvals/account_approvals_screen.dart';
 import 'analytics/analytics_screen.dart';
@@ -15,14 +16,19 @@ import 'staff_management/staff_management_screen.dart';
 
 /// Full Admin shell — WEB (also accessible via phone browser, hence
 /// responsive). On a wide screen (desktop/tablet), side navigation
-/// is used. On a narrow screen (phone browser), that same sidebar
-/// content becomes a Drawer (hamburger menu), with only an AppBar
-/// always visible at the top.
+/// plus a persistent top bar is used. On a narrow screen (phone
+/// browser), that same sidebar content becomes a Drawer (hamburger
+/// menu), with only an AppBar always visible at the top.
 ///
 /// A Drawer is used instead of a bottom nav on narrow screens because
 /// there are 10 sections — too many for a bottom bar (which
 /// comfortably fits only 3-5), while all of them fit in one
 /// scrollable Drawer.
+///
+/// Everything under this shell is wrapped in [AdminTheme], so Cards,
+/// buttons, inputs, chips, etc. on every admin page automatically
+/// pick up the indigo/violet Admin Web palette instead of the
+/// warm-brown palette used by the Driver/Staff mobile apps.
 class AdminWebShell extends StatefulWidget {
   const AdminWebShell({super.key});
 
@@ -34,7 +40,7 @@ class _AdminWebShellState extends State<AdminWebShell> {
   int _selectedIndex = 0;
 
   /// Breakpoint: below this (e.g. phone browser) = Drawer layout.
-  /// Above this (desktop/tablet) = always-visible side-nav.
+  /// Above this (desktop/tablet) = always-visible side-nav + top bar.
   static const double _wideBreakpoint = 700;
 
   static const _items = [
@@ -79,7 +85,7 @@ class _AdminWebShellState extends State<AdminWebShell> {
             child: const Text('Cancel'),
           ),
           TextButton(
-            style: TextButton.styleFrom(foregroundColor: AppColors.error),
+            style: TextButton.styleFrom(foregroundColor: AdminColors.error),
             onPressed: () {
               Navigator.of(dialogContext).pop();
               Navigator.of(context).pushAndRemoveUntil(
@@ -96,70 +102,85 @@ class _AdminWebShellState extends State<AdminWebShell> {
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final isWide = constraints.maxWidth >= _wideBreakpoint;
-        final currentPage = _pages[_selectedIndex];
+    return Theme(
+      data: AdminTheme.themeData,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isWide = constraints.maxWidth >= _wideBreakpoint;
+          final currentPage = _pages[_selectedIndex];
 
-        if (isWide) {
-          // --- DESKTOP / TABLET: always-visible side-nav ---
+          if (isWide) {
+            // --- DESKTOP / TABLET: side-nav + persistent top bar ---
+            return Scaffold(
+              backgroundColor: AdminColors.background,
+              body: Row(
+                children: [
+                  SizedBox(
+                    width: 260,
+                    child: AdminSidebar(
+                      items: _items,
+                      selectedIndex: _selectedIndex,
+                      onSelect: (index) =>
+                          setState(() => _selectedIndex = index),
+                      onLogout: _handleLogout,
+                    ),
+                  ),
+                  Expanded(
+                    child: Column(
+                      children: [
+                        AdminTopBar(
+                          currentLabel: _items[_selectedIndex].label,
+                          onLogout: _handleLogout,
+                        ),
+                        Expanded(
+                          child: SafeArea(
+                            top: false,
+                            child: currentPage,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }
+
+          // --- PHONE BROWSER: Drawer (hamburger menu) ---
           return Scaffold(
-            backgroundColor: AppColors.background,
-            body: Row(
-              children: [
-                SizedBox(
-                  width: 260,
-                  child: AdminSidebar(
-                    items: _items,
-                    selectedIndex: _selectedIndex,
-                    onSelect: (index) => setState(() => _selectedIndex = index),
-                    onLogout: _handleLogout,
-                  ),
+            backgroundColor: AdminColors.background,
+            appBar: AppBar(
+              backgroundColor: AdminColors.surface,
+              elevation: 1,
+              iconTheme: const IconThemeData(color: AdminColors.primary),
+              title: Text(
+                _items[_selectedIndex].label,
+                style: const TextStyle(
+                  color: AdminColors.textPrimary,
+                  fontWeight: FontWeight.w600,
                 ),
-                Expanded(
-                  child: SafeArea(
-                    child: currentPage,
-                  ),
-                ),
-              ],
-            ),
-          );
-        }
-
-        // --- PHONE BROWSER: Drawer (hamburger menu) ---
-        return Scaffold(
-          backgroundColor: AppColors.background,
-          appBar: AppBar(
-            backgroundColor: AppColors.surface,
-            elevation: 1,
-            iconTheme: const IconThemeData(color: AppColors.accent),
-            title: Text(
-              _items[_selectedIndex].label,
-              style: const TextStyle(
-                color: AppColors.textPrimary,
-                fontWeight: FontWeight.w600,
               ),
             ),
-          ),
-          drawer: Drawer(
-            child: AdminSidebar(
-              items: _items,
-              selectedIndex: _selectedIndex,
-              onSelect: (index) {
-                setState(() => _selectedIndex = index);
-                Navigator.of(context).pop(); // close the drawer
-              },
-              onLogout: () {
-                Navigator.of(context).pop(); // close the drawer first
-                _handleLogout();
-              },
+            drawer: Drawer(
+              child: AdminSidebar(
+                items: _items,
+                selectedIndex: _selectedIndex,
+                onSelect: (index) {
+                  setState(() => _selectedIndex = index);
+                  Navigator.of(context).pop(); // close the drawer
+                },
+                onLogout: () {
+                  Navigator.of(context).pop(); // close the drawer first
+                  _handleLogout();
+                },
+              ),
             ),
-          ),
-          body: SafeArea(
-            child: currentPage,
-          ),
-        );
-      },
+            body: SafeArea(
+              child: currentPage,
+            ),
+          );
+        },
+      ),
     );
   }
 }

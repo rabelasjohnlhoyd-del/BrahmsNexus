@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../models/bilao_order.dart';
-import '../../../theme/app_theme.dart';
+import '../../../theme/admin_theme.dart';
 import '../../../widgets/primary_button.dart';
 
 /// Admin records confirmed advance/special bilao orders here (received
@@ -17,6 +17,8 @@ class BilaoOrderScreen extends StatefulWidget {
 }
 
 class _BilaoOrderScreenState extends State<BilaoOrderScreen> {
+  static const double _wideBreakpoint = 700;
+
   final List<BilaoOrder> _orders = [
     BilaoOrder(
       id: 'ord1',
@@ -235,202 +237,299 @@ class _BilaoOrderScreenState extends State<BilaoOrderScreen> {
   Color _prepColor(PreparationStatus s) {
     switch (s) {
       case PreparationStatus.pending:
-        return AppColors.warning;
+        return AdminColors.warning;
       case PreparationStatus.preparing:
-        return AppColors.accent;
+        return AdminColors.primary;
       case PreparationStatus.ready:
-        return AppColors.success;
+        return AdminColors.success;
     }
   }
 
   Color _deliveryColor(DeliveryStatus s) {
     switch (s) {
       case DeliveryStatus.forDelivery:
-        return AppColors.warning;
+        return AdminColors.warning;
       case DeliveryStatus.delivered:
-        return AppColors.accent;
+        return AdminColors.primary;
       case DeliveryStatus.completed:
-        return AppColors.success;
+        return AdminColors.success;
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isWide = constraints.maxWidth >= _wideBreakpoint;
+
+        return Padding(
+          padding: EdgeInsets.all(isWide ? 24 : 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Expanded(
-                child: Text(
-                  'Bilao Orders',
-                  style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.textPrimary,
-                  ),
-                ),
-              ),
-              PrimaryButton(
-                label: 'RECORD NEW ORDER',
-                icon: Icons.add_rounded,
-                onPressed: _showAddOrderDialog,
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                flex: 2,
-                child: TextField(
-                  decoration: const InputDecoration(
-                    hintText: 'Search by customer name...',
-                    prefixIcon: Icon(Icons.search_rounded),
-                    isDense: true,
-                  ),
-                  onChanged: (v) => setState(() => _searchQuery = v),
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: DropdownButtonFormField<String>(
-                  value: _statusFilter,
-                  decoration: const InputDecoration(
-                    labelText: 'Filter by status',
-                    isDense: true,
-                  ),
-                  items: _statusFilters
-                      .map((s) => DropdownMenuItem(value: s, child: Text(s)))
-                      .toList(),
-                  onChanged: (v) {
-                    if (v != null) setState(() => _statusFilter = v);
-                  },
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Expanded(
-            child: _visibleOrders.isEmpty
-                ? const Center(
-                    child: Text(
-                      'Walang order na tumutugma.',
-                      style: TextStyle(color: AppColors.textSecondary),
-                    ),
-                  )
-                : ListView.separated(
-                    itemCount: _visibleOrders.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 10),
-                    itemBuilder: (context, index) {
-                      final order = _visibleOrders[index];
-                      return Card(
-                        child: Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                flex: 2,
-                                child: Column(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      order.customerName,
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.w600,
-                                        color: AppColors.textPrimary,
-                                      ),
-                                    ),
-                                    Text(
-                                      order.contactNumber,
-                                      style: const TextStyle(
-                                        fontSize: 12,
-                                        color: AppColors.textSecondary,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      '${order.size.label} × ${order.quantity} '
-                                      '· ₱${order.totalAmount.toStringAsFixed(0)}',
-                                      style: const TextStyle(
-                                        fontSize: 12.5,
-                                        color: AppColors.textPrimary,
-                                      ),
-                                    ),
-                                    Text(
-                                      '${order.scheduledDateTime.month}/'
-                                      '${order.scheduledDateTime.day}/'
-                                      '${order.scheduledDateTime.year} · '
-                                      '${order.scheduledDateTime.hour.toString().padLeft(2, '0')}:'
-                                      '${order.scheduledDateTime.minute.toString().padLeft(2, '0')}',
-                                      style: const TextStyle(
-                                        fontSize: 11.5,
-                                        color: AppColors.textSecondary,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              Expanded(
-                                child: DropdownButtonFormField<PreparationStatus>(
-                                  value: order.preparationStatus,
-                                  decoration: InputDecoration(
-                                    labelText: 'Preparation',
-                                    isDense: true,
-                                    labelStyle: TextStyle(
-                                      color: _prepColor(
-                                          order.preparationStatus),
-                                    ),
-                                  ),
-                                  items: PreparationStatus.values
-                                      .map((s) => DropdownMenuItem(
-                                            value: s,
-                                            child: Text(s.label),
-                                          ))
-                                      .toList(),
-                                  onChanged: (s) {
-                                    if (s != null) {
-                                      _updatePreparation(order.id, s);
-                                    }
-                                  },
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: DropdownButtonFormField<DeliveryStatus>(
-                                  value: order.deliveryStatus,
-                                  decoration: InputDecoration(
-                                    labelText: 'Delivery',
-                                    isDense: true,
-                                    labelStyle: TextStyle(
-                                      color:
-                                          _deliveryColor(order.deliveryStatus),
-                                    ),
-                                  ),
-                                  items: DeliveryStatus.values
-                                      .map((s) => DropdownMenuItem(
-                                            value: s,
-                                            child: Text(s.label),
-                                          ))
-                                      .toList(),
-                                  onChanged: (s) {
-                                    if (s != null) {
-                                      _updateDelivery(order.id, s);
-                                    }
-                                  },
-                                ),
-                              ),
-                            ],
+              isWide
+                  ? Row(
+                      children: [
+                        const Expanded(
+                          child: Text(
+                            'Bilao Orders',
+                            style: TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.bold,
+                              color: AdminColors.textPrimary,
+                            ),
                           ),
                         ),
-                      );
-                    },
-                  ),
+                        PrimaryButton(
+                          label: 'RECORD NEW ORDER',
+                          icon: Icons.add_rounded,
+                          onPressed: _showAddOrderDialog,
+                        ),
+                      ],
+                    )
+                  : Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Bilao Orders',
+                          style: TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                            color: AdminColors.textPrimary,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        SizedBox(
+                          width: double.infinity,
+                          child: PrimaryButton(
+                            label: 'RECORD NEW ORDER',
+                            icon: Icons.add_rounded,
+                            onPressed: _showAddOrderDialog,
+                          ),
+                        ),
+                      ],
+                    ),
+              const SizedBox(height: 16),
+              isWide
+                  ? Row(
+                      children: [
+                        Expanded(
+                          flex: 2,
+                          child: TextField(
+                            decoration: const InputDecoration(
+                              hintText: 'Search by customer name...',
+                              prefixIcon: Icon(Icons.search_rounded),
+                              isDense: true,
+                            ),
+                            onChanged: (v) =>
+                                setState(() => _searchQuery = v),
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: DropdownButtonFormField<String>(
+                            value: _statusFilter,
+                            decoration: const InputDecoration(
+                              labelText: 'Filter by status',
+                              isDense: true,
+                            ),
+                            items: _statusFilters
+                                .map((s) =>
+                                    DropdownMenuItem(value: s, child: Text(s)))
+                                .toList(),
+                            onChanged: (v) {
+                              if (v != null) setState(() => _statusFilter = v);
+                            },
+                          ),
+                        ),
+                      ],
+                    )
+                  : Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        TextField(
+                          decoration: const InputDecoration(
+                            hintText: 'Search by customer name...',
+                            prefixIcon: Icon(Icons.search_rounded),
+                            isDense: true,
+                          ),
+                          onChanged: (v) => setState(() => _searchQuery = v),
+                        ),
+                        const SizedBox(height: 10),
+                        DropdownButtonFormField<String>(
+                          value: _statusFilter,
+                          decoration: const InputDecoration(
+                            labelText: 'Filter by status',
+                            isDense: true,
+                          ),
+                          items: _statusFilters
+                              .map((s) =>
+                                  DropdownMenuItem(value: s, child: Text(s)))
+                              .toList(),
+                          onChanged: (v) {
+                            if (v != null) setState(() => _statusFilter = v);
+                          },
+                        ),
+                      ],
+                    ),
+              const SizedBox(height: 16),
+              Expanded(
+                child: _visibleOrders.isEmpty
+                    ? const Center(
+                        child: Text(
+                          'Walang order na tumutugma.',
+                          style: TextStyle(color: AdminColors.textSecondary),
+                        ),
+                      )
+                    : ListView.separated(
+                        itemCount: _visibleOrders.length,
+                        separatorBuilder: (_, __) => const SizedBox(height: 10),
+                        itemBuilder: (context, index) {
+                          final order = _visibleOrders[index];
+                          return _OrderCard(
+                            order: order,
+                            isWide: isWide,
+                            prepColor: _prepColor(order.preparationStatus),
+                            deliveryColor:
+                                _deliveryColor(order.deliveryStatus),
+                            onPreparationChanged: (s) =>
+                                _updatePreparation(order.id, s),
+                            onDeliveryChanged: (s) =>
+                                _updateDelivery(order.id, s),
+                          );
+                        },
+                      ),
+              ),
+            ],
           ),
-        ],
+        );
+      },
+    );
+  }
+}
+
+/// A single order row — Row (3-across: info / Preparation / Delivery)
+/// on a wide screen; Column (info on top, then the two status
+/// dropdowns side by side underneath) on a narrow/phone-browser
+/// screen, so the dropdowns always have enough width for their label
+/// and value text instead of being squeezed into a sliver and
+/// overflowing.
+class _OrderCard extends StatelessWidget {
+  const _OrderCard({
+    required this.order,
+    required this.isWide,
+    required this.prepColor,
+    required this.deliveryColor,
+    required this.onPreparationChanged,
+    required this.onDeliveryChanged,
+  });
+
+  final BilaoOrder order;
+  final bool isWide;
+  final Color prepColor;
+  final Color deliveryColor;
+  final ValueChanged<PreparationStatus> onPreparationChanged;
+  final ValueChanged<DeliveryStatus> onDeliveryChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final customerInfo = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          order.customerName,
+          style: const TextStyle(
+            fontWeight: FontWeight.w600,
+            color: AdminColors.textPrimary,
+          ),
+        ),
+        Text(
+          order.contactNumber,
+          style: const TextStyle(
+            fontSize: 12,
+            color: AdminColors.textSecondary,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          '${order.size.label} × ${order.quantity} '
+          '· ₱${order.totalAmount.toStringAsFixed(0)}',
+          style: const TextStyle(
+            fontSize: 12.5,
+            color: AdminColors.textPrimary,
+          ),
+        ),
+        Text(
+          '${order.scheduledDateTime.month}/'
+          '${order.scheduledDateTime.day}/'
+          '${order.scheduledDateTime.year} · '
+          '${order.scheduledDateTime.hour.toString().padLeft(2, '0')}:'
+          '${order.scheduledDateTime.minute.toString().padLeft(2, '0')}',
+          style: const TextStyle(
+            fontSize: 11.5,
+            color: AdminColors.textSecondary,
+          ),
+        ),
+      ],
+    );
+
+    final preparationDropdown = DropdownButtonFormField<PreparationStatus>(
+      value: order.preparationStatus,
+      decoration: InputDecoration(
+        labelText: 'Preparation',
+        isDense: true,
+        labelStyle: TextStyle(color: prepColor),
+      ),
+      items: PreparationStatus.values
+          .map((s) => DropdownMenuItem(value: s, child: Text(s.label)))
+          .toList(),
+      onChanged: (s) {
+        if (s != null) onPreparationChanged(s);
+      },
+    );
+
+    final deliveryDropdown = DropdownButtonFormField<DeliveryStatus>(
+      value: order.deliveryStatus,
+      decoration: InputDecoration(
+        labelText: 'Delivery',
+        isDense: true,
+        labelStyle: TextStyle(color: deliveryColor),
+      ),
+      items: DeliveryStatus.values
+          .map((s) => DropdownMenuItem(value: s, child: Text(s.label)))
+          .toList(),
+      onChanged: (s) {
+        if (s != null) onDeliveryChanged(s);
+      },
+    );
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: isWide
+            ? Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Expanded(flex: 2, child: customerInfo),
+                  Expanded(child: preparationDropdown),
+                  const SizedBox(width: 12),
+                  Expanded(child: deliveryDropdown),
+                ],
+              )
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  customerInfo,
+                  const SizedBox(height: 14),
+                  Row(
+                    children: [
+                      Expanded(child: preparationDropdown),
+                      const SizedBox(width: 12),
+                      Expanded(child: deliveryDropdown),
+                    ],
+                  ),
+                ],
+              ),
       ),
     );
   }

@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import '../theme/app_theme.dart';
+import '../theme/admin_theme.dart';
 
-/// Reusable placeholder layout for tabs/sections that don't have
-/// actual data/backend yet. Just swap out its contents once real
+/// Reusable placeholder layout for Admin Web tabs/sections that don't
+/// have actual data/backend yet. Just swap out its contents once real
 /// content is in place.
 class PagePlaceholder extends StatelessWidget {
   const PagePlaceholder({
@@ -19,7 +19,7 @@ class PagePlaceholder extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: AppColors.background,
+      color: AdminColors.background,
       child: Center(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 32),
@@ -29,10 +29,10 @@ class PagePlaceholder extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  color: AppColors.pastelBrown.withValues(alpha: 0.3),
+                  color: AdminColors.tint.withValues(alpha: 0.5),
                   shape: BoxShape.circle,
                 ),
-                child: Icon(icon, size: 44, color: AppColors.accent),
+                child: Icon(icon, size: 44, color: AdminColors.primary),
               ),
               const SizedBox(height: 20),
               Text(
@@ -40,7 +40,7 @@ class PagePlaceholder extends StatelessWidget {
                 style: const TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.w600,
-                  color: AppColors.textPrimary,
+                  color: AdminColors.textPrimary,
                 ),
               ),
               const SizedBox(height: 8),
@@ -49,7 +49,7 @@ class PagePlaceholder extends StatelessWidget {
                 textAlign: TextAlign.center,
                 style: const TextStyle(
                   fontSize: 13.5,
-                  color: AppColors.textSecondary,
+                  color: AdminColors.textSecondary,
                 ),
               ),
             ],

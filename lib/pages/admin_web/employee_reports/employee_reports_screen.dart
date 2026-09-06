@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../models/daily_report.dart';
-import '../../../theme/app_theme.dart';
+import '../../../theme/admin_theme.dart';
 
 /// Admin monitors all submitted daily reports here — filterable by
 /// branch, searchable by employee, sortable by date, with submission
@@ -70,11 +70,11 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
   Color _statusColor(ReportSubmissionStatus status) {
     switch (status) {
       case ReportSubmissionStatus.submitted:
-        return AppColors.success;
+        return AdminColors.success;
       case ReportSubmissionStatus.incomplete:
-        return AppColors.warning;
+        return AdminColors.warning;
       case ReportSubmissionStatus.missing:
-        return AppColors.error;
+        return AdminColors.error;
     }
   }
 
@@ -108,14 +108,14 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
             children: [
               Text(
                 '${report.branchName} · ${_formatDate(report.date)}',
-                style: const TextStyle(color: AppColors.textSecondary),
+                style: const TextStyle(color: AdminColors.textSecondary),
               ),
               const SizedBox(height: 12),
               Text(
                 report.content.isEmpty
                     ? 'Wala pang naisusumiteng report.'
                     : report.content,
-                style: const TextStyle(color: AppColors.textPrimary),
+                style: const TextStyle(color: AdminColors.textPrimary),
               ),
             ],
           ),
@@ -145,19 +145,19 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
           _statusCard(
             'Submitted',
             _countByStatus(ReportSubmissionStatus.submitted),
-            AppColors.success,
+            AdminColors.success,
             Icons.check_circle_rounded,
           ),
           _statusCard(
             'Incomplete',
             _countByStatus(ReportSubmissionStatus.incomplete),
-            AppColors.warning,
+            AdminColors.warning,
             Icons.error_rounded,
           ),
           _statusCard(
             'Missing',
             _countByStatus(ReportSubmissionStatus.missing),
-            AppColors.error,
+            AdminColors.error,
             Icons.cancel_rounded,
           ),
         ];
@@ -172,7 +172,7 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
                 style: TextStyle(
                   fontSize: 22,
                   fontWeight: FontWeight.bold,
-                  color: AppColors.textPrimary,
+                  color: AdminColors.textPrimary,
                 ),
               ),
               const SizedBox(height: 16),
@@ -265,7 +265,7 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
                     ? const Center(
                         child: Text(
                           'Walang report na tumutugma.',
-                          style: TextStyle(color: AppColors.textSecondary),
+                          style: TextStyle(color: AdminColors.textSecondary),
                         ),
                       )
                     : ListView.separated(
@@ -278,7 +278,7 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
                             child: ListTile(
                               onTap: () => _showReportDetail(r),
                               leading: CircleAvatar(
-                                backgroundColor: AppColors.pastelBrown,
+                                backgroundColor: AdminColors.primary,
                                 child: Text(
                                   r.employeeName.substring(0, 1),
                                   style:
@@ -370,7 +370,7 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                       fontSize: 11.5,
-                      color: AppColors.textSecondary,
+                      color: AdminColors.textSecondary,
                     ),
                   ),
                   Text(

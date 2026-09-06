@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../models/announcement.dart';
-import '../../../theme/app_theme.dart';
+import '../../../theme/admin_theme.dart';
 import '../../../widgets/primary_button.dart';
 
 /// Owner composes and posts announcements here — visible to Staff and
@@ -94,13 +94,13 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
             style: TextStyle(
               fontSize: 22,
               fontWeight: FontWeight.bold,
-              color: AppColors.textPrimary,
+              color: AdminColors.textPrimary,
             ),
           ),
           const SizedBox(height: 4),
           const Text(
             'Post instructions or reminders visible to Staff and Driver.',
-            style: TextStyle(color: AppColors.textSecondary),
+            style: TextStyle(color: AdminColors.textSecondary),
           ),
           const SizedBox(height: 16),
           Card(
@@ -140,7 +140,7 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
             'Posted Announcements',
             style: TextStyle(
               fontWeight: FontWeight.w600,
-              color: AppColors.textPrimary,
+              color: AdminColors.textPrimary,
             ),
           ),
           const SizedBox(height: 12),
@@ -149,7 +149,7 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
                 ? const Center(
                     child: Text(
                       'No announcements posted yet.',
-                      style: TextStyle(color: AppColors.textSecondary),
+                      style: TextStyle(color: AdminColors.textSecondary),
                     ),
                   )
                 : ListView.separated(
@@ -164,7 +164,7 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               const Icon(Icons.campaign_rounded,
-                                  color: AppColors.accent),
+                                  color: AdminColors.primary),
                               const SizedBox(width: 12),
                               Expanded(
                                 child: Column(
@@ -174,7 +174,7 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
                                     Text(
                                       a.messageContent,
                                       style: const TextStyle(
-                                        color: AppColors.textPrimary,
+                                        color: AdminColors.textPrimary,
                                       ),
                                     ),
                                     const SizedBox(height: 6),
@@ -182,7 +182,7 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
                                       _formatDate(a.datePosted),
                                       style: const TextStyle(
                                         fontSize: 11.5,
-                                        color: AppColors.textSecondary,
+                                        color: AdminColors.textSecondary,
                                       ),
                                     ),
                                   ],
@@ -190,7 +190,7 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
                               ),
                               IconButton(
                                 icon: const Icon(Icons.delete_outline_rounded,
-                                    color: AppColors.error, size: 20),
+                                    color: AdminColors.error, size: 20),
                                 tooltip: 'Delete',
                                 onPressed: () => _deleteAnnouncement(a.id),
                               ),

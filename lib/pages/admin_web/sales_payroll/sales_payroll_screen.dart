@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../models/sales_record.dart';
-import '../../../theme/app_theme.dart';
+import '../../../theme/admin_theme.dart';
 import '../../../widgets/primary_button.dart';
 
 /// Admin monitors daily sales per branch/employee here. Wage/commission
@@ -121,14 +121,12 @@ class _SalesPayrollScreenState extends State<SalesPayrollScreen> {
                   ? Row(
                       children: [
                         const Expanded(child: _TitleText()),
-                        SizedBox(
-                          width: 220,
-                          child: PrimaryButton(
-                            label:
-                                'COMMISSION RATE: ₱${_commissionRate.toStringAsFixed(2)}',
-                            icon: Icons.tune_rounded,
-                            onPressed: _showSetRateDialog,
-                          ),
+                        const SizedBox(width: 16),
+                        PrimaryButton(
+                          label:
+                              'COMMISSION RATE: ₱${_commissionRate.toStringAsFixed(2)}',
+                          icon: Icons.tune_rounded,
+                          onPressed: _showSetRateDialog,
                         ),
                       ],
                     )
@@ -225,7 +223,7 @@ class _SalesPayrollScreenState extends State<SalesPayrollScreen> {
                     ? const Center(
                         child: Text(
                           'Walang sales record na tumutugma.',
-                          style: TextStyle(color: AppColors.textSecondary),
+                          style: TextStyle(color: AdminColors.textSecondary),
                         ),
                       )
                     : ListView.separated(
@@ -254,11 +252,11 @@ class _SalesPayrollScreenState extends State<SalesPayrollScreen> {
           children: [
             Container(
               padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: AppColors.pastelBrown.withValues(alpha: 0.3),
+              decoration: const BoxDecoration(
+                color: AdminColors.primarySoft,
                 shape: BoxShape.circle,
               ),
-              child: Icon(icon, color: AppColors.accent),
+              child: Icon(icon, color: AdminColors.primary),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -269,7 +267,7 @@ class _SalesPayrollScreenState extends State<SalesPayrollScreen> {
                     label,
                     style: const TextStyle(
                       fontSize: 12,
-                      color: AppColors.textSecondary,
+                      color: AdminColors.textSecondary,
                     ),
                   ),
                   Text(
@@ -277,7 +275,7 @@ class _SalesPayrollScreenState extends State<SalesPayrollScreen> {
                     style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
-                      color: AppColors.textPrimary,
+                      color: AdminColors.textPrimary,
                     ),
                   ),
                 ],
@@ -300,7 +298,7 @@ class _TitleText extends StatelessWidget {
       style: TextStyle(
         fontSize: 22,
         fontWeight: FontWeight.bold,
-        color: AppColors.textPrimary,
+        color: AdminColors.textPrimary,
       ),
     );
   }
@@ -322,7 +320,7 @@ class _SalesRecordCard extends StatelessWidget {
     final avatarAndName = Row(
       children: [
         CircleAvatar(
-          backgroundColor: AppColors.pastelBrown,
+          backgroundColor: AdminColors.primary,
           child: Text(
             r.employeeName.substring(0, 1),
             style: const TextStyle(color: Colors.white),
@@ -337,7 +335,7 @@ class _SalesRecordCard extends StatelessWidget {
                 r.employeeName,
                 style: const TextStyle(
                   fontWeight: FontWeight.w600,
-                  color: AppColors.textPrimary,
+                  color: AdminColors.textPrimary,
                 ),
               ),
               Text(
@@ -345,7 +343,7 @@ class _SalesRecordCard extends StatelessWidget {
                 '${r.date.month}/${r.date.day}/${r.date.year}',
                 style: const TextStyle(
                   fontSize: 12,
-                  color: AppColors.textSecondary,
+                  color: AdminColors.textSecondary,
                 ),
               ),
             ],
@@ -405,13 +403,13 @@ class _SalesRecordCard extends StatelessWidget {
       children: [
         Text(
           label,
-          style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+          style: const TextStyle(fontSize: 11, color: AdminColors.textSecondary),
         ),
         Text(
           value,
           style: TextStyle(
             fontWeight: FontWeight.w600,
-            color: highlight ? AppColors.accent : AppColors.textPrimary,
+            color: highlight ? AdminColors.primary : AdminColors.textPrimary,
           ),
         ),
       ],

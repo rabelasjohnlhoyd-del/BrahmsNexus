@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../models/branch.dart';
 import '../../../models/branch_assignment.dart';
-import '../../../theme/app_theme.dart';
+import '../../../theme/admin_theme.dart';
 
 /// Owner assigns each employee to a branch for a chosen date, and
 /// marks them On Duty or on a Rest Day. This is what Staff read for
@@ -154,7 +154,7 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
               const Text(
                 'Assign each employee to a branch and set their work status '
                 'for the selected date.',
-                style: TextStyle(color: AppColors.textSecondary),
+                style: TextStyle(color: AdminColors.textSecondary),
               ),
               const SizedBox(height: 20),
               Expanded(
@@ -191,7 +191,7 @@ class _TitleText extends StatelessWidget {
       style: TextStyle(
         fontSize: 22,
         fontWeight: FontWeight.bold,
-        color: AppColors.textPrimary,
+        color: AdminColors.textPrimary,
       ),
     );
   }
@@ -257,7 +257,7 @@ class _AssignmentCard extends StatelessWidget {
     final avatarAndName = Row(
       children: [
         CircleAvatar(
-          backgroundColor: AppColors.pastelBrown,
+          backgroundColor: AdminColors.primary,
           child: Text(
             assignment.employeeName.substring(0, 1),
             style: const TextStyle(color: Colors.white),
@@ -269,7 +269,7 @@ class _AssignmentCard extends StatelessWidget {
             assignment.employeeName,
             style: const TextStyle(
               fontWeight: FontWeight.w600,
-              color: AppColors.textPrimary,
+              color: AdminColors.textPrimary,
             ),
           ),
         ),

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../models/branch.dart';
 import '../../../models/inventory_item.dart';
-import '../../../theme/app_theme.dart';
+import '../../../theme/admin_theme.dart';
 import '../../../widgets/primary_button.dart';
 
 /// Admin manages inventory here: main warehouse total stock, daily
@@ -259,16 +259,16 @@ class _InventoryScreenState extends State<InventoryScreen>
             style: TextStyle(
               fontSize: 22,
               fontWeight: FontWeight.bold,
-              color: AppColors.textPrimary,
+              color: AdminColors.textPrimary,
             ),
           ),
           const SizedBox(height: 12),
           TabBar(
             controller: _tabController,
             isScrollable: true,
-            labelColor: AppColors.accent,
-            unselectedLabelColor: AppColors.textSecondary,
-            indicatorColor: AppColors.accent,
+            labelColor: AdminColors.primary,
+            unselectedLabelColor: AdminColors.textSecondary,
+            indicatorColor: AdminColors.primary,
             tabs: const [
               Tab(text: 'Warehouse'),
               Tab(text: 'Branch Stock'),
@@ -304,7 +304,7 @@ class _InventoryScreenState extends State<InventoryScreen>
                 style: TextStyle(
                   fontWeight: FontWeight.w600,
                   fontSize: 16,
-                  color: AppColors.textPrimary,
+                  color: AdminColors.textPrimary,
                 ),
               ),
               const SizedBox(height: 16),
@@ -343,12 +343,12 @@ class _InventoryScreenState extends State<InventoryScreen>
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: const TextStyle(color: AppColors.textSecondary)),
+          Text(label, style: const TextStyle(color: AdminColors.textSecondary)),
           Text(
             value,
             style: const TextStyle(
               fontWeight: FontWeight.w600,
-              color: AppColors.textPrimary,
+              color: AdminColors.textPrimary,
             ),
           ),
         ],
@@ -376,7 +376,7 @@ class _InventoryScreenState extends State<InventoryScreen>
                   stock.branchName,
                   style: const TextStyle(
                     fontWeight: FontWeight.w600,
-                    color: AppColors.textPrimary,
+                    color: AdminColors.textPrimary,
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -390,13 +390,13 @@ class _InventoryScreenState extends State<InventoryScreen>
                         padding: const EdgeInsets.symmetric(
                             horizontal: 10, vertical: 4),
                         decoration: BoxDecoration(
-                          color: AppColors.error.withValues(alpha: 0.15),
+                          color: AdminColors.error.withValues(alpha: 0.15),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: const Text(
                           'Running Low',
                           style: TextStyle(
-                            color: AppColors.error,
+                            color: AdminColors.error,
                             fontWeight: FontWeight.w600,
                             fontSize: 11.5,
                           ),
@@ -415,10 +415,10 @@ class _InventoryScreenState extends State<InventoryScreen>
                   child: LinearProgressIndicator(
                     value: ratio.toDouble(),
                     minHeight: 8,
-                    backgroundColor: AppColors.pastelBrown.withValues(alpha: 0.25),
+                    backgroundColor: AdminColors.tint.withValues(alpha: 0.5),
                     color: stock.isRunningLow
-                        ? AppColors.error
-                        : AppColors.accent,
+                        ? AdminColors.error
+                        : AdminColors.primary,
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -427,7 +427,7 @@ class _InventoryScreenState extends State<InventoryScreen>
                   '${stock.allocatedKg.toStringAsFixed(1)} kg allocated',
                   style: const TextStyle(
                     fontSize: 12.5,
-                    color: AppColors.textSecondary,
+                    color: AdminColors.textSecondary,
                   ),
                 ),
               ],
@@ -455,7 +455,7 @@ class _InventoryScreenState extends State<InventoryScreen>
               ? const Center(
                   child: Text(
                     'No inter-branch transfers yet.',
-                    style: TextStyle(color: AppColors.textSecondary),
+                    style: TextStyle(color: AdminColors.textSecondary),
                   ),
                 )
               : ListView.separated(
@@ -466,7 +466,7 @@ class _InventoryScreenState extends State<InventoryScreen>
                     return Card(
                       child: ListTile(
                         leading: const Icon(Icons.local_shipping_outlined,
-                            color: AppColors.accent),
+                            color: AdminColors.primary),
                         title: Text(
                           '${log.sourceBranchName} → '
                           '${log.destinationBranchName}',
@@ -481,7 +481,7 @@ class _InventoryScreenState extends State<InventoryScreen>
                           '${log.quantityKg.toStringAsFixed(1)} kg',
                           style: const TextStyle(
                             fontWeight: FontWeight.w600,
-                            color: AppColors.textPrimary,
+                            color: AdminColors.textPrimary,
                           ),
                         ),
                       ),
