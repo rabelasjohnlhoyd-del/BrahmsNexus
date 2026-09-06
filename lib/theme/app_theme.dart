@@ -22,6 +22,10 @@ class AppColors {
   static const Color success = Color(0xFF2E7D32);
   static const Color warning = Color(0xFFE0932A);
   static const Color border = Color(0xFFE0D2C3);
+  static const Color chocolate = Color(0xFF2B1B12);      // = headerStart
+  static const Color chocolateLight = Color(0xFF7A4A2A); // = headerEnd
+  static const Color chocolateTint = Color(0xFFD9C3AE);  // pale tan, text on dark bg
+  static const Color cardCream = Color(0xFFFAF3EA);      // light cream, pills/buttons
 }
 
 class AppTheme {
