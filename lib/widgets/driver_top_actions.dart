@@ -9,7 +9,7 @@ import '../theme/app_theme.dart';
 /// avatar (right, Profile/Logout menu). Mirrors
 /// widgets/staff_top_actions.dart so both apps share the same header
 /// action styling — colors here are white/inverted because this sits
-/// on top of the solid accent-brown [DriverNavBar].
+/// on top of the solid gradient [DriverNavBar].
 class DriverTopActions extends StatelessWidget {
   const DriverTopActions({
     super.key,
@@ -124,7 +124,8 @@ class DriverTopActions extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: AppColors.warning,
                       shape: BoxShape.circle,
-                      border: Border.all(color: AppColors.accent, width: 1.5),
+                      border:
+                        Border.all(color: AppColors.headerStart, width: 1.5),
                     ),
                   ),
                 ),
@@ -135,17 +136,21 @@ class DriverTopActions extends StatelessWidget {
         GestureDetector(
           onTap: () => _showProfileMenu(context),
           child: Container(
-            width: 30,
-            height: 30,
+            width: 32,
+            height: 32,
             alignment: Alignment.center,
-            decoration: const BoxDecoration(
-              color: CupertinoColors.white,
+            decoration: BoxDecoration(
+              color: AppColors.pastelBrown,
               shape: BoxShape.circle,
+              border: Border.all(
+                color: CupertinoColors.white.withValues(alpha: 0.6),
+                width: 1.5,
+              ),
             ),
             child: Text(
               initials,
               style: const TextStyle(
-                color: AppColors.accent,
+                color: CupertinoColors.white,
                 fontSize: 12,
                 fontWeight: FontWeight.bold,
               ),

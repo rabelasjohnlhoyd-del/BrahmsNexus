@@ -108,25 +108,11 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            StaffCard(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: const [
-                  Text(
-                    'Quick Report',
-                    style: TextStyle(
-                      fontSize: 17,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
-                  SizedBox(height: 4),
-                  Text(
-                    'Select an issue below, or write your own message.',
-                    style: TextStyle(color: AppColors.textSecondary),
-                  ),
-                ],
-              ),
+            const StaffSectionHeader(
+              label: 'Quick Report',
+              icon: CupertinoIcons.exclamationmark_bubble_fill,
+              subtitle: 'Select an issue below, or write your own message',
+              large: true,
             ),
             const SizedBox(height: 18),
             _checklistTile(

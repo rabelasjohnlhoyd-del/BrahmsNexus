@@ -23,9 +23,9 @@ class DriverShell extends StatelessWidget {
   /// behave identically instead of being left to Android's defaults
   /// (which could auto-recolor the bars while scrolling).
   static const _systemBarStyle = SystemUiOverlayStyle(
-    // The Driver header (DriverNavBar) is solid accent brown and sits
-    // directly under the status bar, so status bar icons need to be
-    // light/white here to stay readable against it.
+    // The Driver header (DriverNavBar) is a solid dark-brown gradient
+    // and sits directly under the status bar, so status bar icons
+    // need to be light/white here to stay readable against it.
     statusBarColor: Color(0x00000000),
     statusBarIconBrightness: Brightness.light,
     statusBarBrightness: Brightness.dark,
@@ -43,10 +43,10 @@ class DriverShell extends StatelessWidget {
   /// automatic (and easy-to-miss) label coloring alone.
   static Widget _tabItem(IconData icon, String label, {required bool active}) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       decoration: BoxDecoration(
-        color: active ? AppColors.accent.withValues(alpha: 0.14) : null,
-        borderRadius: BorderRadius.circular(16),
+        color: active ? AppColors.textPrimary : null,
+        borderRadius: BorderRadius.circular(18),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -55,7 +55,7 @@ class DriverShell extends StatelessWidget {
           Icon(
             icon,
             size: 20,
-            color: active ? AppColors.accent : _inactiveTint,
+            color: active ? CupertinoColors.white : _inactiveTint,
           ),
           const SizedBox(height: 2),
           Text(
@@ -64,7 +64,7 @@ class DriverShell extends StatelessWidget {
               fontSize: 10,
               height: 1.0,
               fontWeight: active ? FontWeight.w700 : FontWeight.w500,
-              color: active ? AppColors.accent : _inactiveTint,
+              color: active ? CupertinoColors.white : _inactiveTint,
             ),
           ),
         ],

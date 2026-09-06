@@ -5,6 +5,7 @@ import '../../theme/app_theme.dart';
 import '../../widgets/staff_button.dart';
 import '../../widgets/staff_card.dart';
 import '../../widgets/staff_nav_bar.dart';
+import '../../widgets/staff_section_header.dart';
 import '../../widgets/staff_top_actions.dart';
 
 /// Timer tab — a normal countdown timer, with rule-based reminders
@@ -138,26 +139,21 @@ class _TimerScreenState extends State<TimerScreen> {
         trailing: StaffTopActions(initials: 'JD'),
       ),
       child: SafeArea(
-        child: Padding(
+        child: ListView(
           padding: const EdgeInsets.all(20),
-          child: Center(
-            child: Column(
+          children: [
+            const StaffSectionHeader(
+              label: 'Kitchen Timer',
+              icon: CupertinoIcons.timer_fill,
+              subtitle: 'Track cook time for your current batch',
+              large: true,
+            ),
+            const SizedBox(height: 28),
+            Center(
+              child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
               if (!_isRunning && _remainingSeconds == 0) ...[
-                const SizedBox(height: 12),
-                Container(
-                  width: 84,
-                  height: 84,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: AppColors.pastelBrown.withValues(alpha: 0.25),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(CupertinoIcons.timer,
-                      size: 38, color: AppColors.accent),
-                ),
-                const SizedBox(height: 20),
                 const Text(
                   'How many minutes until the Karne is cooked?',
                   textAlign: TextAlign.center,
@@ -268,8 +264,9 @@ class _TimerScreenState extends State<TimerScreen> {
                 ),
               ],
               ],
+              ),
             ),
-          ),
+          ],
         ),
       ),
     );

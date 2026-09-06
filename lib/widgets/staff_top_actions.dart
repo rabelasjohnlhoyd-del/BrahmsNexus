@@ -123,7 +123,7 @@ class StaffTopActions extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: AppColors.warning,
                       shape: BoxShape.circle,
-                      border: Border.all(color: AppColors.accent, width: 1.5),
+                      border: Border.all(color: AppColors.headerStart, width: 1.5),
                     ),
                   ),
                 ),
@@ -134,17 +134,21 @@ class StaffTopActions extends StatelessWidget {
         GestureDetector(
           onTap: () => _showProfileMenu(context),
           child: Container(
-            width: 30,
-            height: 30,
+            width: 32,
+            height: 32,
             alignment: Alignment.center,
-            decoration: const BoxDecoration(
-              color: CupertinoColors.white,
+            decoration: BoxDecoration(
+              color: AppColors.pastelBrown,
               shape: BoxShape.circle,
+              border: Border.all(
+                color: CupertinoColors.white.withValues(alpha: 0.6),
+                width: 1.5,
+              ),
             ),
             child: Text(
               initials,
               style: const TextStyle(
-                color: AppColors.accent,
+                color: CupertinoColors.white,
                 fontSize: 12,
                 fontWeight: FontWeight.bold,
               ),

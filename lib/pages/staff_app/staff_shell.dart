@@ -47,10 +47,10 @@ class StaffShell extends StatelessWidget {
   /// of a single subtle color shift that's easy to miss mid-scroll.
   static Widget _tabItem(IconData icon, String label, {required bool active}) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       decoration: BoxDecoration(
-        color: active ? AppColors.accent.withValues(alpha: 0.14) : null,
-        borderRadius: BorderRadius.circular(16),
+        color: active ? AppColors.textPrimary : null,
+        borderRadius: BorderRadius.circular(18),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -59,7 +59,7 @@ class StaffShell extends StatelessWidget {
           Icon(
             icon,
             size: 20,
-            color: active ? AppColors.accent : _inactiveTint,
+            color: active ? CupertinoColors.white : _inactiveTint,
           ),
           const SizedBox(height: 2),
           Text(
@@ -68,7 +68,7 @@ class StaffShell extends StatelessWidget {
               fontSize: 10,
               height: 1.0,
               fontWeight: active ? FontWeight.w700 : FontWeight.w500,
-              color: active ? AppColors.accent : _inactiveTint,
+              color: active ? CupertinoColors.white : _inactiveTint,
             ),
           ),
         ],

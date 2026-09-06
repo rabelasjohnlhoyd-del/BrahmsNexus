@@ -11,6 +11,11 @@ class AppColors {
   static const Color pastelBrown = Color(0xFFD2B48C); // 30% - Pastel brown (nav/drawer elements)
   static const Color accent = Color(0xFFA0522D); // 10% Accent (Sienna / Terracotta)
   static const Color accentDark = Color(0xFF8B4513); // Saddle brown
+
+  // Header gradient — the deep-brown-to-warm-brown wash used across
+  // every Staff screen's top bar, matching the reference design.
+  static const Color headerStart = Color(0xFF2B1B12);
+  static const Color headerEnd = Color(0xFF7A4A2A);
   static const Color textPrimary = Color(0xFF3B2418);
   static const Color textSecondary = Color(0xFF8B4513);
   static const Color error = Color(0xFFB3261E);

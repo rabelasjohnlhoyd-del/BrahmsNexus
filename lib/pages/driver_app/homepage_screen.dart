@@ -6,11 +6,18 @@ import '../../widgets/branch_inventory_sheet.dart';
 import '../../widgets/driver_card.dart';
 import '../../widgets/driver_nav_bar.dart';
 import '../../widgets/driver_section_header.dart';
+import '../../widgets/driver_stat_tile.dart';
 import '../../widgets/driver_top_actions.dart';
 
 /// Homepage tab of the Driver app — shows ALL branches and which cook
 /// is assigned to each one today. Tapping a branch shows how much
 /// meat/mayo/styrofoam/soy sauce needs to be brought there.
+///
+/// Uses the same greeting-style header as the Staff Home page (see
+/// widgets/driver_nav_bar.dart's DriverHeaderMode.greeting) plus a
+/// quick "Today at a Glance" summary, so both apps' home pages open
+/// the same way instead of the Driver side feeling like a plainer,
+/// unfinished screen.
 class DriverHomepageScreen extends StatelessWidget {
   const DriverHomepageScreen({super.key});
 
@@ -33,21 +40,88 @@ class DriverHomepageScreen extends StatelessWidget {
     'br6': InventoryCounts(karne: 22, mayo: 25, styro: 25, toyo: 5),
   };
 
+  static const List<String> _months = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December',
+  ];
+
+  Widget _dateChip() {
+    final now = DateTime.now();
+    final label = '${_months[now.month - 1]} ${now.day}, ${now.year}';
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: AppColors.pastelBrown.withValues(alpha: 0.2),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(CupertinoIcons.calendar, size: 12, color: AppColors.accentDark),
+          const SizedBox(width: 5),
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: AppColors.accentDark,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final totalBranches = kSampleBranches.length;
+    final staffedBranches = _assignedStaff.length;
+
     return CupertinoPageScaffold(
       backgroundColor: AppColors.background,
       navigationBar: const DriverNavBar(
         title: 'Homepage',
+        mode: DriverHeaderMode.greeting,
+        greetingName: 'Driver',
         trailing: DriverTopActions(initials: 'RS'),
       ),
       child: SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
+            // Quick "Today at a Glance" summary — gives the driver an
+            // at-a-glance sense of today's workload before they scroll
+            // into the full branch list below.
+            DriverSectionHeader(
+              label: "Today at a Glance",
+              icon: CupertinoIcons.speedometer,
+              trailing: _dateChip(),
+            ),
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                Expanded(
+                  child: DriverDisplayTile(
+                    icon: CupertinoIcons.building_2_fill,
+                    label: 'Branches Today',
+                    value: '$totalBranches',
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: DriverDisplayTile(
+                    icon: CupertinoIcons.person_2_fill,
+                    label: 'Staff Assigned',
+                    value: '$staffedBranches/$totalBranches',
+                    dark: true,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 26),
             const DriverSectionHeader(
               label: "Today's Branches",
-              icon: CupertinoIcons.building_2_fill,
+              icon: CupertinoIcons.list_bullet,
             ),
             const SizedBox(height: 10),
             ...kSampleBranches.map((branch) {

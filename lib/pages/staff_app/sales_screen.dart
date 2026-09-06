@@ -147,15 +147,17 @@ class _SalesScreenState extends State<SalesScreen> {
           padding: const EdgeInsets.all(16),
           children: [
             const StaffSectionHeader(
-              label: "Today's Inventory (from Homepage)",
+              label: "Today's Inventory",
               icon: CupertinoIcons.cube_box_fill,
+              subtitle: 'Reference only — confirmed back on Home',
+              large: true,
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 14),
             Row(
               children: [
                 Expanded(child: StaffDisplayTile(label: 'Karne', value: '${_allocated.karne}')),
                 const SizedBox(width: 12),
-                Expanded(child: StaffDisplayTile(label: 'Mayo', value: '${_allocated.mayo}')),
+                Expanded(child: StaffDisplayTile(label: 'Mayo', value: '${_allocated.mayo}', dark: true)),
               ],
             ),
             const SizedBox(height: 12),
@@ -163,15 +165,17 @@ class _SalesScreenState extends State<SalesScreen> {
               children: [
                 Expanded(child: StaffDisplayTile(label: 'Styro', value: '${_allocated.styro}')),
                 const SizedBox(width: 12),
-                Expanded(child: StaffDisplayTile(label: 'Toyo', value: '${_allocated.toyo}')),
+                Expanded(child: StaffDisplayTile(label: 'Toyo', value: '${_allocated.toyo}', dark: true)),
               ],
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 26),
             const StaffSectionHeader(
-              label: 'Remaining Stock (End of Day)',
+              label: 'Remaining Stock',
               icon: CupertinoIcons.archivebox_fill,
+              subtitle: 'What\'s left at the end of the day',
+              large: true,
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 14),
             Row(
               children: [
                 Expanded(

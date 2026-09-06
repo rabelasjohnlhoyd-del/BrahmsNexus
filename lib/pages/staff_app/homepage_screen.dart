@@ -184,6 +184,38 @@ class _HomepageScreenState extends State<HomepageScreen> {
     }
   }
 
+  static const List<String> _months = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December',
+  ];
+
+  Widget _dateChip() {
+    final now = DateTime.now();
+    final label = '${_months[now.month - 1]} ${now.day}, ${now.year}';
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: AppColors.pastelBrown.withValues(alpha: 0.2),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(CupertinoIcons.calendar, size: 12, color: AppColors.accentDark),
+          const SizedBox(width: 5),
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: AppColors.accentDark,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final a = _inventory.allocated;
@@ -194,64 +226,68 @@ class _HomepageScreenState extends State<HomepageScreen> {
       backgroundColor: AppColors.background,
       navigationBar: const StaffNavBar(
         title: 'Homepage',
+        mode: StaffHeaderMode.greeting,
+        greetingName: 'Staff',
         trailing: StaffTopActions(initials: 'JD'),
       ),
       child: SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            // Assigned branch
-            StaffCard(
-              child: Row(
-                children: [
-                  Container(
-                    width: 44,
-                    height: 44,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: AppColors.pastelBrown.withValues(alpha: 0.3),
-                      borderRadius: BorderRadius.circular(12),
+            // Branch selector pill
+            GestureDetector(
+              onTap: () {},
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                decoration: BoxDecoration(
+                  color: CupertinoColors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: AppColors.border),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.accentDark.withValues(alpha: 0.06),
+                      blurRadius: 10,
+                      offset: const Offset(0, 3),
                     ),
-                    child: const Icon(CupertinoIcons.building_2_fill,
-                        color: AppColors.accent),
-                  ),
-                  const SizedBox(width: 14),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Assigned Branch Today',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                      Text(
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    const Icon(CupertinoIcons.location_solid,
+                        size: 18, color: AppColors.accent),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
                         _inventory.branchName,
                         style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
                           color: AppColors.textPrimary,
                         ),
                       ),
-                    ],
-                  ),
-                ],
+                    ),
+                    const Icon(CupertinoIcons.chevron_right,
+                        size: 16, color: AppColors.textSecondary),
+                  ],
+                ),
               ),
             ),
             const SizedBox(height: 22),
 
             // Allocated inventory — 2x2 grid
-            const StaffSectionHeader(
+            StaffSectionHeader(
               label: "Today's Allocated Inventory",
               icon: CupertinoIcons.cube_box_fill,
+              subtitle: 'Quick overview of your assigned items',
+              large: true,
+              trailing: _dateChip(),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 14),
             Row(
               children: [
                 Expanded(child: StaffDisplayTile(label: 'Karne', value: '${a.karne}')),
                 const SizedBox(width: 12),
-                Expanded(child: StaffDisplayTile(label: 'Mayo', value: '${a.mayo}')),
+                Expanded(child: StaffDisplayTile(label: 'Mayo', value: '${a.mayo}', dark: true)),
               ],
             ),
             const SizedBox(height: 12),
@@ -259,17 +295,19 @@ class _HomepageScreenState extends State<HomepageScreen> {
               children: [
                 Expanded(child: StaffDisplayTile(label: 'Styro', value: '${a.styro}')),
                 const SizedBox(width: 12),
-                Expanded(child: StaffDisplayTile(label: 'Toyo', value: '${a.toyo}')),
+                Expanded(child: StaffDisplayTile(label: 'Toyo', value: '${a.toyo}', dark: true)),
               ],
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 26),
 
             // Recount — 2x2 grid of input fields
             const StaffSectionHeader(
               label: 'Verify: Count What You Actually Received',
               icon: CupertinoIcons.checkmark_seal_fill,
+              subtitle: 'Enter the actual count of items you received',
+              large: true,
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 14),
             Row(
               children: [
                 Expanded(

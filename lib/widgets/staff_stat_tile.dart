@@ -5,12 +5,22 @@ import '../theme/app_theme.dart';
 /// every stat tile. Pulled out of Homepage/Sales so both screens stay
 /// visually identical and only need to change in one place.
 class _TileHeader extends StatelessWidget {
-  const _TileHeader({required this.label});
+  const _TileHeader({required this.label, this.dark = false});
 
   final String label;
 
+  /// True on the alternating dark-brown tiles (see [StaffDisplayTile]).
+  final bool dark;
+
   @override
   Widget build(BuildContext context) {
+    final badgeColor = dark
+        ? CupertinoColors.white.withValues(alpha: 0.22)
+        : AppColors.pastelBrown.withValues(alpha: 0.3);
+    final badgeTextColor = dark ? CupertinoColors.white : AppColors.accent;
+    final labelColor =
+        dark ? CupertinoColors.white.withValues(alpha: 0.85) : AppColors.textSecondary;
+
     return Row(
       children: [
         Container(
@@ -18,15 +28,15 @@ class _TileHeader extends StatelessWidget {
           height: 24,
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: AppColors.pastelBrown.withValues(alpha: 0.3),
+            color: badgeColor,
             shape: BoxShape.circle,
           ),
           child: Text(
             label[0],
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.bold,
-              color: AppColors.accent,
+              color: badgeTextColor,
             ),
           ),
         ),
@@ -36,10 +46,10 @@ class _TileHeader extends StatelessWidget {
             label,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w600,
-              color: AppColors.textSecondary,
+              color: labelColor,
             ),
           ),
         ),
@@ -55,23 +65,40 @@ class _TileHeader extends StatelessWidget {
 /// color is what actually pulls the eye to the number first, which
 /// plain bold text on white wasn't doing strongly enough.
 class StaffDisplayTile extends StatelessWidget {
-  const StaffDisplayTile({super.key, required this.label, required this.value});
+  const StaffDisplayTile({
+    super.key,
+    required this.label,
+    required this.value,
+    this.dark = false,
+  });
 
   final String label;
   final String value;
+
+  /// Renders the tile in the solid dark-brown — white text style
+  /// instead of white-card style. Used to alternate tiles in a grid
+  /// for visual rhythm, matching the reference design.
+  final bool dark;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: CupertinoColors.white,
+        color: dark ? null : CupertinoColors.white,
+        gradient: dark
+            ? const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [AppColors.accentDark, AppColors.accent],
+              )
+            : null,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border),
+        border: dark ? null : Border.all(color: AppColors.border),
         boxShadow: [
           BoxShadow(
-            color: AppColors.accentDark.withValues(alpha: 0.06),
-            blurRadius: 10,
+            color: AppColors.accentDark.withValues(alpha: dark ? 0.16 : 0.06),
+            blurRadius: dark ? 14 : 10,
             offset: const Offset(0, 3),
           ),
         ],
@@ -79,22 +106,24 @@ class StaffDisplayTile extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _TileHeader(label: label),
+          _TileHeader(label: label, dark: dark),
           const SizedBox(height: 10),
           Container(
             width: double.infinity,
             padding: const EdgeInsets.symmetric(vertical: 12),
             alignment: Alignment.center,
             decoration: BoxDecoration(
-              color: AppColors.accent.withValues(alpha: 0.10),
+              color: dark
+                  ? CupertinoColors.white.withValues(alpha: 0.18)
+                  : AppColors.accent.withValues(alpha: 0.10),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Text(
               value,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 26,
                 fontWeight: FontWeight.w800,
-                color: AppColors.accentDark,
+                color: dark ? CupertinoColors.white : AppColors.accentDark,
               ),
             ),
           ),
@@ -117,6 +146,29 @@ class StaffInputTile extends StatelessWidget {
   final String label;
   final TextEditingController controller;
   final VoidCallback onChanged;
+
+  void _step(int delta) {
+    final current = int.tryParse(controller.text) ?? 0;
+    final next = (current + delta).clamp(0, 999999);
+    controller.text = '$next';
+    onChanged();
+  }
+
+  Widget _stepperButton(IconData icon, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 22,
+        height: 18,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: AppColors.background,
+          borderRadius: BorderRadius.circular(5),
+        ),
+        child: Icon(icon, size: 12, color: AppColors.accent),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -143,24 +195,39 @@ class StaffInputTile extends StatelessWidget {
         children: [
           _TileHeader(label: label),
           const SizedBox(height: 10),
-          CupertinoTextField(
-            controller: controller,
-            keyboardType: TextInputType.number,
-            placeholder: '0',
-            textAlign: TextAlign.center,
-            padding: const EdgeInsets.symmetric(vertical: 11),
-            decoration: BoxDecoration(
-              color: hasValue
-                  ? AppColors.accent.withValues(alpha: 0.08)
-                  : AppColors.background.withValues(alpha: 0.6),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            style: const TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
-              color: AppColors.textPrimary,
-            ),
-            onChanged: (_) => onChanged(),
+          Row(
+            children: [
+              Expanded(
+                child: CupertinoTextField(
+                  controller: controller,
+                  keyboardType: TextInputType.number,
+                  placeholder: '0',
+                  textAlign: TextAlign.center,
+                  padding: const EdgeInsets.symmetric(vertical: 11),
+                  decoration: BoxDecoration(
+                    color: hasValue
+                        ? AppColors.accent.withValues(alpha: 0.08)
+                        : AppColors.background.withValues(alpha: 0.6),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textPrimary,
+                  ),
+                  onChanged: (_) => onChanged(),
+                ),
+              ),
+              const SizedBox(width: 6),
+              Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _stepperButton(CupertinoIcons.chevron_up, () => _step(1)),
+                  const SizedBox(height: 4),
+                  _stepperButton(CupertinoIcons.chevron_down, () => _step(-1)),
+                ],
+              ),
+            ],
           ),
         ],
       ),

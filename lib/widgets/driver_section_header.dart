@@ -11,10 +11,15 @@ class DriverSectionHeader extends StatelessWidget {
     super.key,
     required this.label,
     this.icon,
+    this.trailing,
   });
 
   final String label;
   final IconData? icon;
+
+  /// Optional trailing widget (e.g. a date chip), shown at the end of
+  /// the row. Mirrors StaffSectionHeader's trailing slot.
+  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
@@ -44,6 +49,10 @@ class DriverSectionHeader extends StatelessWidget {
             ),
           ),
         ),
+        if (trailing != null) ...[
+          const SizedBox(width: 10),
+          trailing!,
+        ],
       ],
     );
   }
