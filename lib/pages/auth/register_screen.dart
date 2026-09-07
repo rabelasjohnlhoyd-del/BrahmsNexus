@@ -148,32 +148,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         height: 1.4,
                       ),
                     ),
-                    const SizedBox(height: 12),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Text(
-                          'Already have an account? ',
-                          style: TextStyle(
-                            color: AppColors.textSecondary,
-                            fontSize: 13.5,
-                          ),
-                        ),
-                        GestureDetector(
-                          onTap: _isSubmitting
-                              ? null
-                              : () => Navigator.of(context).maybePop(),
-                          child: const Text(
-                            'Login',
-                            style: TextStyle(
-                              color: AppColors.accent,
-                              fontWeight: FontWeight.w700,
-                              fontSize: 13.5,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
                     const SizedBox(height: 28),
 
                     // Elevated form card — matches AuthCard on
@@ -394,6 +368,32 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     ),
 
                     const SizedBox(height: 28),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Text(
+                          'Already have an account? ',
+                          style: TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 13.5,
+                          ),
+                        ),
+                        GestureDetector(
+                          onTap: _isSubmitting
+                              ? null
+                              : () => Navigator.of(context).maybePop(),
+                          child: const Text(
+                            'Login',
+                            style: TextStyle(
+                              color: AppColors.accent,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 13.5,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 18),
                     const _OrDivider(),
                     const SizedBox(height: 18),
                     const SocialLoginRow(),
