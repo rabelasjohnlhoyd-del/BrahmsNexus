@@ -1,3 +1,5 @@
+import 'branch.dart';
+
 /// Represents a staff/employee account managed by the Administrator.
 ///
 /// NOTE: This is a front-end-only model for now. Credentials (password)
@@ -28,16 +30,22 @@ class StaffMember {
   final DateTime dateAdded;
 
   StaffMember copyWith({
+    String? fullName,
+    String? username,
+    String? branch,
+    String? position,
+    String? email,
+    String? phone,
     bool? isActive,
   }) {
     return StaffMember(
       id: id,
-      fullName: fullName,
-      username: username,
-      branch: branch,
-      position: position,
-      email: email,
-      phone: phone,
+      fullName: fullName ?? this.fullName,
+      username: username ?? this.username,
+      branch: branch ?? this.branch,
+      position: position ?? this.position,
+      email: email ?? this.email,
+      phone: phone ?? this.phone,
       isActive: isActive ?? this.isActive,
       dateAdded: dateAdded,
     );
@@ -53,15 +61,47 @@ class StaffMember {
   }
 }
 
-/// Placeholder branch list — sourced from the Owner's actual branch
-/// list (barangay-level). Replace with a Firestore/Supabase-backed
-/// list once the backend is wired up (this should eventually read
-/// from `Branch` records — see models/branch.dart).
-const List<String> kBranchOptions = [
-  'Brgy. Gatid, Sta. Cruz',
-  'Brgy. Labuin, Pila',
-  'Brgy. Sta. Clara Sur, Pila',
-  'Brgy. Nanhaya, Victoria',
-  'Brgy. San Francisco, Victoria',
-  'Brgy. Dayap, Calauan',
+/// Branch names for pickers/dropdowns — derived from [kSampleBranches]
+/// (see models/branch.dart), which is also what the Driver app's Route
+/// tab and the Owner app's Assignments tab read. Previously this was a
+/// second, separately hardcoded list that could (and did) drift out of
+/// sync with the branch list used elsewhere.
+final List<String> kBranchOptions =
+    kSampleBranches.map((b) => b.fullName).toList();
+
+/// Shared mock staff directory — the single source of truth for staff
+/// accounts, used by both Staff Management (admin_web) and the Owner
+/// app's Assignments tab. Previously each screen had its own separate
+/// hardcoded employee list with names that didn't match.
+final List<StaffMember> kSampleStaff = [
+  StaffMember(
+    id: 'sample-1',
+    fullName: 'Maria Santos',
+    username: 'maria.santos',
+    branch: kBranchOptions[0],
+    position: 'Cashier',
+    email: 'maria.santos@example.com',
+  ),
+  StaffMember(
+    id: 'sample-2',
+    fullName: 'Juan Dela Cruz',
+    username: 'juan.delacruz',
+    branch: kBranchOptions[1],
+    position: 'Cook',
+    isActive: false,
+  ),
+  StaffMember(
+    id: 'sample-3',
+    fullName: 'Maria Reyes',
+    username: 'maria.reyes',
+    branch: kBranchOptions[2],
+    position: 'Cook',
+  ),
+  StaffMember(
+    id: 'sample-4',
+    fullName: 'Pedro Santos',
+    username: 'pedro.santos',
+    branch: kBranchOptions[3],
+    position: 'Cashier',
+  ),
 ];

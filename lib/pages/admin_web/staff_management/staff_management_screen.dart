@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../models/staff_member.dart';
 import '../admin_web_colors.dart';
 import 'add_staff_screen.dart';
+import 'edit_staff_screen.dart';
 
 /// Admin-only screen for viewing and managing staff/employee accounts.
 ///
@@ -16,24 +17,10 @@ class StaffManagementScreen extends StatefulWidget {
 }
 
 class _StaffManagementScreenState extends State<StaffManagementScreen> {
-  final List<StaffMember> _staff = [
-    StaffMember(
-      id: 'sample-1',
-      fullName: 'Maria Santos',
-      username: 'maria.santos',
-      branch: 'Main Branch',
-      position: 'Cashier',
-      email: 'maria.santos@example.com',
-    ),
-    StaffMember(
-      id: 'sample-2',
-      fullName: 'Juan Dela Cruz',
-      username: 'juan.delacruz',
-      branch: 'Branch 2',
-      position: 'Cook',
-      isActive: false,
-    ),
-  ];
+  // Seeded from the shared kSampleStaff directory (models/staff_member.dart)
+  // so this list stays in sync with the Owner app's Assignments tab —
+  // previously this had its own separate hardcoded entries.
+  final List<StaffMember> _staff = List<StaffMember>.from(kSampleStaff);
 
   final _searchController = TextEditingController();
   String _query = '';
@@ -75,6 +62,23 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
       if (index == -1) return;
       _staff[index] = member.copyWith(isActive: !member.isActive);
     });
+  }
+
+  Future<void> _openEditStaff(StaffMember member) async {
+    final result = await Navigator.of(context).push<StaffMember>(
+      MaterialPageRoute(builder: (_) => EditStaffScreen(member: member)),
+    );
+
+    if (result == null || !mounted) return;
+
+    setState(() {
+      final index = _staff.indexWhere((s) => s.id == member.id);
+      if (index != -1) _staff[index] = result;
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('${result.fullName} was updated.')),
+    );
   }
 
   Future<void> _confirmRemove(StaffMember member) async {
@@ -158,6 +162,7 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
                         final member = staff[index];
                         return _StaffTile(
                           member: member,
+                          onEdit: () => _openEditStaff(member),
                           onToggleStatus: () => _toggleStatus(member),
                           onRemove: () => _confirmRemove(member),
                         );
@@ -179,11 +184,13 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
 class _StaffTile extends StatelessWidget {
   const _StaffTile({
     required this.member,
+    required this.onEdit,
     required this.onToggleStatus,
     required this.onRemove,
   });
 
   final StaffMember member;
+  final VoidCallback onEdit;
   final VoidCallback onToggleStatus;
   final VoidCallback onRemove;
 
@@ -255,10 +262,15 @@ class _StaffTile extends StatelessWidget {
             ),
             PopupMenuButton<String>(
               onSelected: (value) {
+                if (value == 'edit') onEdit();
                 if (value == 'toggle') onToggleStatus();
                 if (value == 'remove') onRemove();
               },
               itemBuilder: (context) => [
+                const PopupMenuItem(
+                  value: 'edit',
+                  child: Text('Edit Details'),
+                ),
                 PopupMenuItem(
                   value: 'toggle',
                   child: Text(

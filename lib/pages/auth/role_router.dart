@@ -4,9 +4,9 @@ import '../../models/account_status.dart';
 import '../../models/user_role.dart';
 import '../admin_web/admin_web_shell.dart';
 import '../driver_app/driver_shell.dart';
+import '../owner_app/owner_shell.dart';
 import '../staff_app/staff_shell.dart';
 import 'account_status_screen.dart';
-import 'owner_web_only_screen.dart';
 
 /// Central place for the "where to go after login/register" logic.
 /// All decisions like this should live here, so they don't end up
@@ -17,11 +17,13 @@ import 'owner_web_only_screen.dart';
 ///    Rejected), go straight to [AccountStatusScreen] — they
 ///    shouldn't be able to enter the app yet.
 /// 2. If already approved:
-///    - Owner + running on Web (kIsWeb) -> [AdminWebShell]
-///    - Owner + running on the INSTALLED APP (not web) ->
-///      [OwnerWebOnlyScreen] — the Admin Dashboard must NEVER open
-///      inside the compiled app itself. Owner only ever reaches it by
-///      opening the website in a phone/desktop browser.
+///    - Owner + running on Web (kIsWeb) -> [AdminWebShell] (account/
+///      system management: Dashboard, Staff Management, Account
+///      Approvals, DSS Analytics)
+///    - Owner + running on the INSTALLED APP (not web) -> [OwnerShell]
+///      — day-to-day operations and staff monitoring (Assignments,
+///      Inventory, Sales & Payroll, Bilao Orders, Employee Reports,
+///      Announcements)
 ///    - Staff -> [StaffShell]
 ///    - Driver -> [DriverShell]
 class RoleRouter {
@@ -37,7 +39,7 @@ class RoleRouter {
 
     switch (role) {
       case UserRole.owner:
-        return kIsWeb ? const AdminWebShell() : const OwnerWebOnlyScreen();
+        return kIsWeb ? const AdminWebShell() : const OwnerShell();
       case UserRole.staff:
         return const StaffShell();
       case UserRole.driver:

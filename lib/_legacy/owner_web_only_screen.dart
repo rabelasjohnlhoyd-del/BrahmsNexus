@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import '../../theme/app_theme.dart';
-import 'login_screen.dart';
+import '../theme/app_theme.dart';
+import '../pages/auth/login_screen.dart';
 
 /// Lalabas kapag nag-login bilang Owner mula sa NAKA-INSTALL na app
 /// (hindi browser). Hindi dapat dito bumukas ang Admin Dashboard mismo
