@@ -6,8 +6,7 @@
 ///   bilao deliveries — Mobile)
 enum UserRole {
   owner,
-  staff,
-  driver;
+  staff;
 
   String get label {
     switch (this) {
@@ -15,8 +14,6 @@ enum UserRole {
         return 'Owner / Administrator';
       case UserRole.staff:
         return 'Staff';
-      case UserRole.driver:
-        return 'Driver';
     }
   }
 }

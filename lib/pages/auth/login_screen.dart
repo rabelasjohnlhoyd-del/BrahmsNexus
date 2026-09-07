@@ -89,6 +89,7 @@ class _LoginScreenState extends State<LoginScreen> {
         builder: (_) => RoleRouter.resolveDestination(
           role: account.role,
           status: account.status,
+          position: account.position,
         ),
       ),
     );

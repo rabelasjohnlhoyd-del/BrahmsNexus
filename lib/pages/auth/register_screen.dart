@@ -42,7 +42,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
 
-  UserRole _selectedRole = UserRole.staff;
+  String _selectedRoleString = 'Staff';
   String? _selectedSuffix;
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
@@ -194,23 +194,25 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               ),
                             ),
                           ),
+                          // In-app registration is for Staff roles only. Role is determined 
+                          // by Owner later. For now, this is just a role suggestion.
                           const SizedBox(height: 8),
-                          SegmentedButton<UserRole>(
+                          SegmentedButton<String>(
                             segments: const [
                               ButtonSegment(
-                                value: UserRole.staff,
+                                value: 'Staff',
                                 label: Text('Staff'),
                                 icon: Icon(Icons.badge_outlined),
                               ),
                               ButtonSegment(
-                                value: UserRole.driver,
+                                value: 'Driver',
                                 label: Text('Driver'),
                                 icon: Icon(Icons.local_shipping_outlined),
                               ),
                             ],
-                            selected: {_selectedRole},
+                            selected: {_selectedRoleString},
                             onSelectionChanged: (value) {
-                              setState(() => _selectedRole = value.first);
+                              setState(() => _selectedRoleString = value.first);
                             },
                             style: ButtonStyle(
                               backgroundColor:

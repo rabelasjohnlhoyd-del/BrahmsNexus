@@ -5,6 +5,7 @@ import '../../models/user_role.dart';
 import '../admin_web/admin_web_shell.dart';
 import '../driver_app/driver_shell.dart';
 import '../owner_app/owner_shell.dart';
+import '../production_app/production_shell.dart';
 import '../staff_app/staff_shell.dart';
 import 'account_status_screen.dart';
 
@@ -32,18 +33,26 @@ class RoleRouter {
   static Widget resolveDestination({
     required UserRole role,
     required AccountStatus status,
+    String position = '',
   }) {
     if (status != AccountStatus.approved) {
       return AccountStatusScreen(status: status);
     }
 
-    switch (role) {
-      case UserRole.owner:
-        return kIsWeb ? const AdminWebShell() : const OwnerShell();
-      case UserRole.staff:
-        return const StaffShell();
-      case UserRole.driver:
+    if (role == UserRole.owner) {
+      return kIsWeb ? const AdminWebShell() : const OwnerShell();
+    }
+
+    // Staff routing based on position
+    switch (position) {
+      case 'Driver':
         return const DriverShell();
+      case 'Production Area Cook':
+      case 'Production Area Meat Cutter':
+        return ProductionShell(position: position);
+      default:
+        // Default for Branch Cook or undefined positions
+        return const StaffShell();
     }
   }
 }

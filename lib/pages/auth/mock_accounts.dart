@@ -17,11 +17,13 @@ class MockAccount {
     required this.password,
     required this.role,
     required this.status,
+    this.position = '',
   });
 
   final String password;
   final UserRole role;
   final AccountStatus status;
+  final String position;
 }
 
 const Map<String, MockAccount> kMockAccounts = {
@@ -34,20 +36,36 @@ const Map<String, MockAccount> kMockAccounts = {
     password: 'staff123',
     role: UserRole.staff,
     status: AccountStatus.approved,
+    position: 'Branch Cook',
   ),
   'staff.pending': MockAccount(
     password: 'staff123',
     role: UserRole.staff,
     status: AccountStatus.pending,
+    position: 'Branch Cook',
   ),
   'driver': MockAccount(
     password: 'driver123',
-    role: UserRole.driver,
+    role: UserRole.staff,
     status: AccountStatus.approved,
+    position: 'Driver',
   ),
   'driver.rejected': MockAccount(
     password: 'driver123',
-    role: UserRole.driver,
+    role: UserRole.staff,
     status: AccountStatus.rejected,
+    position: 'Driver',
+  ),
+  'menes': MockAccount(
+    password: 'staff123',
+    role: UserRole.staff,
+    status: AccountStatus.approved,
+    position: 'Production Area Cook',
+  ),
+  'abby': MockAccount(
+    password: 'staff123',
+    role: UserRole.staff,
+    status: AccountStatus.approved,
+    position: 'Production Area Meat Cutter',
   ),
 };

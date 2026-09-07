@@ -33,7 +33,7 @@ class _AccountApprovalsScreenState extends State<AccountApprovalsScreen> {
       fullName: 'Pedro Santos',
       username: 'pedro.santos',
       contactNumber: '0917 987 6543',
-      role: UserRole.driver,
+      role: UserRole.staff,
     ),
   ];
 
