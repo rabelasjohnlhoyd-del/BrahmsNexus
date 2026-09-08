@@ -13,15 +13,22 @@ import 'edit_profile_screen.dart';
 /// NOTE: Mock data for now — once Supabase/Firebase Auth are wired up,
 /// this reads the actual logged-in user's profile record.
 class ProfileScreen extends StatelessWidget {
-  const ProfileScreen({super.key});
+  /// Whether this is being shown as a root tab (no back button) or
+  /// pushed from the top avatar (needs back button).
+  final bool isRootTab;
+
+  const ProfileScreen({
+    super.key,
+    this.isRootTab = false,
+  });
 
   @override
   Widget build(BuildContext context) {
     return CupertinoPageScaffold(
       backgroundColor: AppColors.background,
-      navigationBar: const StaffNavBar(
+      navigationBar: StaffNavBar(
         title: 'Profile',
-        showBackButton: true,
+        showBackButton: !isRootTab,
       ),
       child: SafeArea(
         child: ListView(
@@ -269,7 +276,7 @@ class ProfileScreen extends StatelessWidget {
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
               color: AppColors.accent.withValues(alpha: 0.06),
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(icon, size: 18, color: AppColors.accent.withValues(alpha: 0.8)),
           ),

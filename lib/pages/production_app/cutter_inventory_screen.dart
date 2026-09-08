@@ -81,7 +81,7 @@ class _CutterInventoryScreenState extends State<CutterInventoryScreen> {
       children: [
         const StaffNavBar(
           title: 'Inventory',
-          trailing: StaffTopActions(initials: 'AB'),
+          trailing: const StaffTopActions(),
         ),
         Expanded(
           child: ListView(

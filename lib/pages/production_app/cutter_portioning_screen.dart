@@ -69,7 +69,7 @@ class _CutterPortioningScreenState extends State<CutterPortioningScreen> {
           title: 'Portioning',
           mode: StaffHeaderMode.greeting,
           greetingName: 'Abby',
-          trailing: StaffTopActions(initials: 'AB'),
+          trailing: const StaffTopActions(),
         ),
         Expanded(
           child: ListView(

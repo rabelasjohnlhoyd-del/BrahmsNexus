@@ -22,7 +22,7 @@ class _CookTaskScreenState extends State<CookTaskScreen> {
           title: 'Cooking Tasks',
           mode: StaffHeaderMode.greeting,
           greetingName: 'Menes',
-          trailing: StaffTopActions(initials: 'MN'),
+          trailing: const StaffTopActions(),
         ),
         Expanded(
           child: ListView(

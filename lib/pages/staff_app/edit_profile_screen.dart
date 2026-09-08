@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/staff_button.dart';
 import '../../widgets/staff_card.dart';
+import '../../widgets/staff_nav_bar.dart';
 import '../../widgets/staff_section_header.dart';
 
 class EditProfileScreen extends StatefulWidget {
@@ -53,10 +54,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   Widget build(BuildContext context) {
     return CupertinoPageScaffold(
       backgroundColor: AppColors.background,
-      navigationBar: const CupertinoNavigationBar(
-        middle: Text('Edit Profile'),
-        backgroundColor: AppColors.background,
-        border: null,
+      navigationBar: StaffNavBar(
+        title: 'Edit Profile',
+        showBackButton: true,
       ),
       child: SafeArea(
         child: ListView(

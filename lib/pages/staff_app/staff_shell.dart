@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import '../../theme/app_theme.dart';
 import 'daily_report_screen.dart';
 import 'homepage_screen.dart';
+import 'profile_screen.dart';
 import 'sales_screen.dart';
 import 'timer_screen.dart';
 
@@ -47,10 +48,10 @@ class StaffShell extends StatelessWidget {
   /// of a single subtle color shift that's easy to miss mid-scroll.
   static Widget _tabItem(IconData icon, String label, {required bool active}) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
       decoration: BoxDecoration(
         color: active ? AppColors.textPrimary : null,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -58,15 +59,17 @@ class StaffShell extends StatelessWidget {
         children: [
           Icon(
             icon,
-            size: 20,
+            size: 18,
             color: active ? CupertinoColors.white : _inactiveTint,
           ),
           const SizedBox(height: 2),
           Text(
             label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              fontSize: 10,
-              height: 1.0,
+              fontSize: 9,
+              height: 1.1,
               fontWeight: active ? FontWeight.w700 : FontWeight.w500,
               color: active ? CupertinoColors.white : _inactiveTint,
             ),
@@ -105,12 +108,8 @@ class StaffShell extends StatelessWidget {
             child: CupertinoTabScaffold(
               tabBar: CupertinoTabBar(
                 backgroundColor: CupertinoColors.white,
-                // A little taller than the iOS default 50px so the
-                // icon+label pill has room to breathe without clipping.
-                height: 62,
-                // Explicit top hairline so the bar reads as a clearly
-                // separate, solid surface from whatever is scrolling
-                // behind it, instead of the default near-invisible one.
+                // Stabilized at 56px for visual balance (matches DriverNavBar)
+                height: 56,
                 border: const Border(
                   top: BorderSide(color: AppColors.border, width: 1),
                 ),
@@ -131,6 +130,10 @@ class StaffShell extends StatelessWidget {
                     icon: _tabItem(CupertinoIcons.timer_fill, 'Timer', active: false),
                     activeIcon: _tabItem(CupertinoIcons.timer_fill, 'Timer', active: true),
                   ),
+                  BottomNavigationBarItem(
+                    icon: _tabItem(CupertinoIcons.person_fill, 'Profile', active: false),
+                    activeIcon: _tabItem(CupertinoIcons.person_fill, 'Profile', active: true),
+                  ),
                 ],
               ),
               tabBuilder: (context, index) {
@@ -147,9 +150,13 @@ class StaffShell extends StatelessWidget {
                     return CupertinoTabView(
                       builder: (context) => const DailyReportScreen(),
                     );
-                  default:
+                  case 3:
                     return CupertinoTabView(
                       builder: (context) => const TimerScreen(),
+                    );
+                  default:
+                    return CupertinoTabView(
+                      builder: (context) => const ProfileScreen(isRootTab: true),
                     );
                 }
               },

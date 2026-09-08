@@ -53,8 +53,8 @@ class StaffNavBar extends StatelessWidget
   /// Only used when [mode] is [StaffHeaderMode.greeting].
   final String greetingName;
 
-  static const double _compactHeight = 44;
-  static const double _greetingHeight = 128;
+  static const double _compactHeight = 56;
+  static const double _greetingHeight = 56;
 
   @override
   Size get preferredSize => Size.fromHeight(
@@ -117,10 +117,11 @@ class StaffNavBar extends StatelessWidget
               bottom: -46,
               child: _decorCircle(90),
             ),
-            if (mode == StaffHeaderMode.greeting)
-              _buildGreeting(context)
-            else
-              _buildCompact(context),
+            Positioned.fill(
+              child: mode == StaffHeaderMode.greeting
+                  ? _buildGreeting(context)
+                  : _buildCompact(context),
+            ),
           ],
         ),
       ),
@@ -139,126 +140,71 @@ class StaffNavBar extends StatelessWidget
   }
 
   Widget _buildCompact(BuildContext context) {
-    // A plain three-slot Row (fixed-width leading/trailing, centered
-    // title in between) instead of a Stack with manually-nudged
-    // offsets — that previous approach positioned the back button
-    // and trailing actions with hand-tuned negative offsets that
-    // didn't line up with the greeting header's own padding, so the
-    // profile/bell position visibly jumped when moving from Home to
-    // any other tab.
-    //
-    // IMPORTANT: the two slots are NOT the same width. The leading
-    // slot only ever holds a single back-chevron icon (~26px), but
-    // the trailing slot holds [StaffTopActions] — a notification
-    // bell + a 32px avatar with a gap between them, which is much
-    // wider than 44px. Forcing that into a 44-wide box didn't stop
-    // it from rendering (Align doesn't clip overflow), it just meant
-    // the profile avatar silently spilled outside the slot's
-    // bounds — which is exactly what looked like "the profile
-    // appearing over by the back button" whenever a screen switched
-    // between having a back button and having trailing actions.
-    // Sizing the trailing slot to actually fit [StaffTopActions]
-    // fixes that at the root.
-    const leadingSlotWidth = 44.0;
-    const trailingSlotWidth = 84.0;
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8),
-      child: Row(
-        children: [
-          SizedBox(
-            width: leadingSlotWidth,
-            child: showBackButton
-                ? CupertinoButton(
-                    padding: EdgeInsets.zero,
-                    minimumSize: Size.zero,
-                    onPressed: () => Navigator.of(context).maybePop(),
-                    child: const Icon(
-                      CupertinoIcons.back,
-                      color: CupertinoColors.white,
-                      size: 26,
-                    ),
-                  )
-                : null,
-          ),
-          Expanded(
-            child: Text(
-              title,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: CupertinoColors.white,
-                fontWeight: FontWeight.bold,
-                fontSize: 17,
-              ),
-            ),
-          ),
-          SizedBox(
-            width: trailingSlotWidth,
-            child: trailing != null
-                ? Align(alignment: Alignment.centerRight, child: trailing)
-                : null,
-          ),
-        ],
-      ),
-    );
+    return _buildHeaderContent(context, title, showBack: showBackButton);
   }
 
   Widget _buildGreeting(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Row(
-            children: [
-              const Spacer(),
-              if (trailing != null) trailing!,
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            '${_greetingPrefix()},',
-            style: TextStyle(
-              color: CupertinoColors.white.withValues(alpha: 0.75),
-              fontSize: 13,
-            ),
-          ),
-          const SizedBox(height: 2),
-          Row(
-            children: [
-              Text(
-                greetingName,
+    // Home greeting header — now simplified to match the compact
+    // style, keeping everything clean and consistent.
+    final label = '${_greetingPrefix()}, $greetingName';
+    return _buildHeaderContent(context, label, showBack: false);
+  }
+
+  Widget _buildHeaderContent(
+    BuildContext context,
+    String label, {
+    required bool showBack,
+  }) {
+    // A Stack with Center ensures the title is ALWAYS mathematically
+    // centered relative to the screen width, completely independent
+    // of whatever icons are in the side slots.
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 44),
+              child: Text(
+                label,
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
                   color: CupertinoColors.white,
-                  fontSize: 24,
-                  fontWeight: FontWeight.w800,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 16,
+                  letterSpacing: -0.2,
                 ),
               ),
-              const SizedBox(width: 6),
-              const Text('👋', style: TextStyle(fontSize: 20)),
-            ],
+            ),
           ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              Icon(
-                CupertinoIcons.calendar,
-                size: 14,
-                color: CupertinoColors.white.withValues(alpha: 0.7),
-              ),
-              const SizedBox(width: 6),
-              Text(
-                _formattedToday(),
-                style: TextStyle(
-                  color: CupertinoColors.white.withValues(alpha: 0.7),
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w500,
+        ),
+        if (showBack)
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Padding(
+              padding: const EdgeInsets.only(left: 4),
+              child: CupertinoButton(
+                padding: const EdgeInsets.all(8),
+                minimumSize: Size.zero,
+                onPressed: () => Navigator.of(context).maybePop(),
+                child: const Icon(
+                  CupertinoIcons.back,
+                  color: CupertinoColors.white,
+                  size: 20,
                 ),
               ),
-            ],
+            ),
           ),
-        ],
-      ),
+        if (trailing != null)
+          Align(
+            alignment: Alignment.centerRight,
+            child: Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: trailing!,
+            ),
+          ),
+      ],
     );
   }
 }

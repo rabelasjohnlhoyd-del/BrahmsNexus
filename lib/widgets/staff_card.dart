@@ -34,7 +34,7 @@ class StaffCard extends StatelessWidget {
       padding: padding,
       decoration: BoxDecoration(
         color: CupertinoColors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: highlighted ? AppColors.accent : (borderColor ?? AppColors.border),
           width: highlighted ? 1.4 : 1,

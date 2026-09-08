@@ -93,7 +93,7 @@ class StaffDisplayTile extends StatelessWidget {
                 colors: [AppColors.accentDark, AppColors.accent],
               )
             : null,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(12),
         border: dark ? null : Border.all(color: AppColors.border),
         boxShadow: [
           BoxShadow(
@@ -177,7 +177,7 @@ class StaffInputTile extends StatelessWidget {
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: CupertinoColors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: hasValue ? AppColors.accent.withValues(alpha: 0.5) : AppColors.border,
           width: hasValue ? 1.3 : 1,
@@ -208,7 +208,7 @@ class StaffInputTile extends StatelessWidget {
                     color: hasValue
                         ? AppColors.accent.withValues(alpha: 0.08)
                         : AppColors.background.withValues(alpha: 0.6),
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: BorderRadius.circular(12),
                   ),
                   style: const TextStyle(
                     fontSize: 18,

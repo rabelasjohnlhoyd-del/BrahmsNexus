@@ -82,7 +82,7 @@ class StaffHeader extends StatelessWidget {
                   Row(
                     children: [
                       const Spacer(),
-                      const StaffTopActions(initials: 'JD'),
+                      const StaffTopActions(),
                     ],
                   ),
                   const SizedBox(height: 18),

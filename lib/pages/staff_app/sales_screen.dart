@@ -115,19 +115,21 @@ class _SalesScreenState extends State<SalesScreen> {
 
   void _submit() {
     setState(() => _submitted = true);
-    showCupertinoModalPopup<void>(
+    showCupertinoDialog<void>(
       context: context,
-      builder: (context) => CupertinoActionSheet(
-        message: Text(
+      builder: (context) => CupertinoAlertDialog(
+        content: Text(
           _computation!.hasDiscrepancy
               ? 'Submitted, but a discrepancy was flagged — the Owner '
                   'will be notified.'
               : 'Sales submitted!',
         ),
-        cancelButton: CupertinoActionSheetAction(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('OK'),
-        ),
+        actions: [
+          CupertinoDialogAction(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('OK'),
+          ),
+        ],
       ),
     );
   }
@@ -140,7 +142,7 @@ class _SalesScreenState extends State<SalesScreen> {
       backgroundColor: AppColors.background,
       navigationBar: const StaffNavBar(
         title: 'Sales',
-        trailing: StaffTopActions(initials: 'JD'),
+        trailing: const StaffTopActions(),
       ),
       child: SafeArea(
         child: ListView(
@@ -222,10 +224,10 @@ class _SalesScreenState extends State<SalesScreen> {
                   margin: const EdgeInsets.only(bottom: 16),
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
-                    color: AppColors.error.withValues(alpha: 0.10),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: AppColors.error.withValues(alpha: 0.3)),
-                  ),
+                  color: AppColors.error.withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.error.withValues(alpha: 0.3)),
+                ),
                   child: Row(
                     children: [
                       const Icon(CupertinoIcons.exclamationmark_triangle_fill,

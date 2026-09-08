@@ -136,7 +136,7 @@ class _TimerScreenState extends State<TimerScreen> {
       backgroundColor: AppColors.background,
       navigationBar: const StaffNavBar(
         title: 'Timer',
-        trailing: StaffTopActions(initials: 'JD'),
+        trailing: const StaffTopActions(),
       ),
       child: SafeArea(
         child: ListView(
@@ -161,13 +161,13 @@ class _TimerScreenState extends State<TimerScreen> {
                 ),
                 const SizedBox(height: 16),
                 StaffCard(
-                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                   child: CupertinoTextField(
                     controller: _minutesController,
                     keyboardType: TextInputType.number,
                     textAlign: TextAlign.center,
                     placeholder: 'Minutes',
-                    decoration: const BoxDecoration(color: CupertinoColors.white),
+                    decoration: null,
                     style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,

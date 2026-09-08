@@ -84,17 +84,19 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
       _messageController.clear();
     });
 
-    showCupertinoModalPopup<void>(
+    showCupertinoDialog<void>(
       context: context,
-      builder: (context) => CupertinoActionSheet(
-        message: const Text(
+      builder: (context) => CupertinoAlertDialog(
+        content: const Text(
           "Your report has been sent — the Owner's phone will be "
           'alerted right away.',
         ),
-        cancelButton: CupertinoActionSheetAction(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('OK'),
-        ),
+        actions: [
+          CupertinoDialogAction(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('OK'),
+          ),
+        ],
       ),
     );
   }
@@ -105,7 +107,7 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
       backgroundColor: AppColors.background,
       navigationBar: const StaffNavBar(
         title: 'Daily Report',
-        trailing: StaffTopActions(initials: 'JD'),
+        trailing: const StaffTopActions(),
       ),
       child: SafeArea(
         child: ListView(
@@ -195,7 +197,7 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
                 color: value
                     ? AppColors.accent.withValues(alpha: 0.12)
                     : AppColors.pastelBrown.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(12),
               ),
               child: Icon(icon, size: 18, color: AppColors.accent),
             ),

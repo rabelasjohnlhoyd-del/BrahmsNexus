@@ -46,7 +46,7 @@ class StaffSectionHeader extends StatelessWidget {
               alignment: Alignment.center,
               decoration: BoxDecoration(
                 color: AppColors.accent.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(7),
+                borderRadius: BorderRadius.circular(12),
               ),
               child: Icon(icon, size: 13, color: AppColors.accent),
             ),

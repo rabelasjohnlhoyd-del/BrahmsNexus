@@ -51,7 +51,7 @@ class _CookOutputScreenState extends State<CookOutputScreen> {
       children: [
         const StaffNavBar(
           title: 'Daily Output',
-          trailing: StaffTopActions(initials: 'MN'),
+          trailing: const StaffTopActions(),
         ),
         Expanded(
           child: ListView(

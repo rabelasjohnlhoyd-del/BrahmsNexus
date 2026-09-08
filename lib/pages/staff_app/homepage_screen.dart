@@ -27,6 +27,219 @@ class HomepageScreen extends StatefulWidget {
 }
 
 class _HomepageScreenState extends State<HomepageScreen> {
+  bool _isRefreshing = false;
+  bool _isCelsius = true;
+
+  // Mock data for functional simulation
+  int _tempC = 28;
+  int _humidity = 81;
+  double _windSpeed = 12.5;
+  int _feelsLikeC = 30;
+
+  void _refreshWeather() async {
+    if (_isRefreshing) return;
+    setState(() => _isRefreshing = true);
+    
+    // Simulate network delay
+    await Future.delayed(const Duration(milliseconds: 800));
+    
+    if (mounted) {
+      setState(() {
+        _isRefreshing = false;
+        // Slightly randomize values to show it "worked"
+        _tempC = 27 + (DateTime.now().second % 3); 
+        _humidity = 80 + (DateTime.now().second % 5);
+        _windSpeed = 10.0 + (DateTime.now().second % 10);
+        _feelsLikeC = _tempC + 2;
+      });
+    }
+  }
+
+  void _toggleUnit() {
+    setState(() => _isCelsius = !_isCelsius);
+  }
+
+  int _convertTemp(int celsius) {
+    return _isCelsius ? celsius : ((celsius * 9 / 5) + 32).round();
+  }
+
+  String _formattedTime() {
+    final now = DateTime.now();
+    final day = _weekdays[now.weekday % 7];
+    final hour = now.hour % 12 == 0 ? 12 : now.hour % 12;
+    final minute = now.minute.toString().padLeft(2, '0');
+    final period = now.hour >= 12 ? 'PM' : 'AM';
+    return '$day $hour:$minute $period';
+  }
+
+  static const List<String> _weekdays = [
+    'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'
+  ];
+
+  Widget _weatherWidget() {
+    final displayTemp = _convertTemp(_tempC);
+    final feelsLike = _convertTemp(_feelsLikeC);
+    final unitLabel = _isCelsius ? '°C' : '°F';
+    final windUnit = _isCelsius ? 'km/h' : 'mph';
+    final displayWind =
+        _isCelsius ? _windSpeed : (_windSpeed * 0.621371).roundToDouble();
+
+    return StaffCard(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFF4285F4),
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  const Text(
+                    'San Francisco, Victoria',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                ],
+              ),
+              GestureDetector(
+                onTap: _refreshWeather,
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: AppColors.accent.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    children: [
+                      const Text(
+                        'Update',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.accent,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      _isRefreshing
+                          ? const CupertinoActivityIndicator(radius: 5)
+                          : const Icon(CupertinoIcons.refresh,
+                              size: 10, color: AppColors.accent),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              const Icon(CupertinoIcons.cloud_fill,
+                  size: 48, color: AppColors.pastelBrown),
+              const SizedBox(width: 12),
+              Expanded(
+                child: GestureDetector(
+                  onTap: _toggleUnit,
+                  behavior: HitTestBehavior.opaque,
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '$displayTemp',
+                        style: const TextStyle(
+                          fontSize: 48,
+                          fontWeight: FontWeight.w400,
+                          color: AppColors.textPrimary,
+                          letterSpacing: -2,
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8, left: 2),
+                        child: Text(
+                          unitLabel,
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  const Text(
+                    'Cloudy',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  Text(
+                    _formattedTime(),
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              _weatherInfoItem(
+                  CupertinoIcons.thermometer, 'Feels like', '$feelsLike$unitLabel'),
+              _weatherInfoItem(CupertinoIcons.drop, 'Humidity', '$_humidity%'),
+              _weatherInfoItem(CupertinoIcons.wind, 'Wind',
+                  '${displayWind.toStringAsFixed(1)} $windUnit'),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _weatherInfoItem(IconData icon, String label, String value) {
+    return Row(
+      children: [
+        Icon(icon, size: 14, color: AppColors.accent.withValues(alpha: 0.7)),
+        const SizedBox(width: 6),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(label,
+                style: const TextStyle(
+                    fontSize: 10, color: AppColors.textSecondary)),
+            Text(value,
+                style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textPrimary)),
+          ],
+        ),
+      ],
+    );
+  }
+
   BranchDailyInventory _inventory = BranchDailyInventory(
     branchId: 'br2',
     branchName: 'Sta. Cruz',
@@ -103,7 +316,7 @@ class _HomepageScreenState extends State<HomepageScreen> {
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
               color: AppColors.background,
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(12),
               border: Border.all(color: AppColors.border),
             ),
             placeholderStyle: const TextStyle(color: AppColors.textSecondary),
@@ -135,15 +348,16 @@ class _HomepageScreenState extends State<HomepageScreen> {
   }
 
   void _showToast(String message) {
-    showCupertinoModalPopup<void>(
+    showCupertinoDialog<void>(
       context: context,
-      barrierDismissible: true,
-      builder: (context) => CupertinoActionSheet(
-        message: Text(message),
-        cancelButton: CupertinoActionSheetAction(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('OK'),
-        ),
+      builder: (context) => CupertinoAlertDialog(
+        content: Text(message),
+        actions: [
+          CupertinoDialogAction(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('OK'),
+          ),
+        ],
       ),
     );
   }
@@ -196,7 +410,7 @@ class _HomepageScreenState extends State<HomepageScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
         color: AppColors.pastelBrown.withValues(alpha: 0.2),
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -228,12 +442,14 @@ class _HomepageScreenState extends State<HomepageScreen> {
         title: 'Homepage',
         mode: StaffHeaderMode.greeting,
         greetingName: 'Staff',
-        trailing: StaffTopActions(initials: 'JD'),
+        trailing: const StaffTopActions(),
       ),
       child: SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
+            _weatherWidget(),
+            const SizedBox(height: 20),
             // Branch selector pill
             GestureDetector(
               onTap: () {},
@@ -241,7 +457,7 @@ class _HomepageScreenState extends State<HomepageScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                 decoration: BoxDecoration(
                   color: CupertinoColors.white,
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: AppColors.border),
                   boxShadow: [
                     BoxShadow(
@@ -355,7 +571,7 @@ class _HomepageScreenState extends State<HomepageScreen> {
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
                 color: statusColor.withValues(alpha: 0.10),
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: statusColor.withValues(alpha: 0.35)),
               ),
               child: Row(
@@ -470,7 +686,7 @@ class _HomepageScreenState extends State<HomepageScreen> {
                             horizontal: 10, vertical: 4),
                         decoration: BoxDecoration(
                           color: AppColors.pastelBrown.withValues(alpha: 0.18),
-                          borderRadius: BorderRadius.circular(20),
+                          borderRadius: BorderRadius.circular(12),
                         ),
                         child: Text(
                           c['branch']!,
