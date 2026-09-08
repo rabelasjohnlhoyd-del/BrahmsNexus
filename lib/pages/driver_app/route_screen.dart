@@ -1,21 +1,23 @@
 import 'package:flutter/cupertino.dart';
 import '../../models/branch.dart';
-import '../../models/branch_daily_inventory.dart';
 import '../../theme/app_theme.dart';
-import '../../widgets/branch_inventory_sheet.dart';
 import '../../widgets/driver_card.dart';
 import '../../widgets/driver_nav_bar.dart';
 import '../../widgets/driver_top_actions.dart';
 import '../../widgets/driver_undo_toast.dart';
+import '../../widgets/driver_section_header.dart';
 
-/// Route tab — the actual stop-by-stop order for today's route, with
-/// each stop showing what needs to be brought and letting the driver
-/// mark it as visited once they've dropped off / picked up there.
+/// The Transport Mode for the Route — either Deployment (morning pickup)
+/// or Retrieval (evening pickup).
+enum RouteMode { deployment, retrieval }
+
+/// Route tab — manages the transport of staff to and from their branches.
 ///
-/// NOTE: This stop order (dailyRouteSequence) is currently a
-/// static/mock default order. The real "best route" suggestion, based
-/// on the addresses of staff assigned that day, will be computed by
-/// the DSS backend (deferred — pure frontend for now, as planned).
+/// Handles two primary workflows:
+/// 1. Deployment: Picking up staff from their homes/meeting points and
+///    dropping them off at branches before opening.
+/// 2. Retrieval: Picking up staff from branches after closing and
+///    returning them to their drop-off points.
 class RouteScreen extends StatefulWidget {
   const RouteScreen({super.key});
 
@@ -24,275 +26,464 @@ class RouteScreen extends StatefulWidget {
 }
 
 class _RouteScreenState extends State<RouteScreen> {
-  static const Map<String, InventoryCounts> _requiredGoods = {
-    'br1': InventoryCounts(karne: 35, mayo: 40, styro: 40, toyo: 7),
-    'br2': InventoryCounts(karne: 25, mayo: 28, styro: 28, toyo: 5),
-    'br3': InventoryCounts(karne: 20, mayo: 22, styro: 22, toyo: 4),
-    'br4': InventoryCounts(karne: 15, mayo: 18, styro: 18, toyo: 3),
-    'br5': InventoryCounts(karne: 15, mayo: 18, styro: 18, toyo: 3),
-    'br6': InventoryCounts(karne: 22, mayo: 25, styro: 25, toyo: 5),
+  RouteMode _activeMode = RouteMode.deployment;
+
+  // Track completed stops for each mode
+  final Set<String> _completedDeploymentIds = {};
+  final Set<String> _completedRetrievalIds = {};
+
+  // Track who has been notified in the current session
+  final Set<String> _notifiedStaffIds = {};
+
+  static const Map<String, String> _assignedStaff = {
+    'br1': 'Juan Dela Cruz',
+    'br2': 'Pedro Santos',
+    'br3': 'Maria Reyes',
+    'br4': 'Liza Gomez',
+    'br5': 'Ricardo Dalisay',
+    'br6': 'Elena Adarna',
   };
 
-  final Set<String> _visitedBranchIds = {};
-  final Map<String, DateTime> _visitedAt = {};
+  static const Map<String, String> _branchHours = {
+    'br1': '8:00 AM - 8:00 PM',
+    'br2': '8:30 AM - 8:30 PM',
+    'br3': '8:00 AM - 8:00 PM',
+    'br4': '9:00 AM - 9:00 PM',
+    'br5': '8:00 AM - 8:00 PM',
+    'br6': '8:30 AM - 8:30 PM',
+  };
 
-  /// Total items to bring for a branch — used in the stop's subtitle
-  /// so the driver sees "4 items" at a glance instead of having to
-  /// open the sheet just to know there's anything to bring at all.
-  int _itemCount(InventoryCounts c) {
-    var count = 0;
-    if (c.karne > 0) count++;
-    if (c.mayo > 0) count++;
-    if (c.styro > 0) count++;
-    if (c.toyo > 0) count++;
-    return count;
+  Set<String> get _currentCompletedSet =>
+      _activeMode == RouteMode.deployment ? _completedDeploymentIds : _completedRetrievalIds;
+
+  void _toggleMode(RouteMode? mode) {
+    if (mode != null) {
+      setState(() {
+        _activeMode = mode;
+        _notifiedStaffIds.clear(); // Clear notifications when switching modes
+      });
+    }
   }
 
-  void _markVisited(String branchId) {
+  void _notifyStaff(String branchId) {
+    final staffName = _assignedStaff[branchId] ?? 'Staff';
     setState(() {
-      _visitedBranchIds.add(branchId);
-      _visitedAt[branchId] = DateTime.now();
+      _notifiedStaffIds.add(branchId);
     });
 
-    // Undo needs to survive the sheet already having closed, so it's
-    // shown from the Route screen's own context, not the sheet's.
     showDriverUndoToast(
       context,
-      message: 'Marked as visited',
-      onUndo: () => _undoVisited(branchId),
+      message: 'Notified $staffName: "Driver is on the way"',
+      onUndo: () {
+        setState(() {
+          _notifiedStaffIds.remove(branchId);
+        });
+      },
     );
   }
 
-  /// Reverts a stop back to "not visited" — reachable either from the
-  /// toast right after marking it, or from the "Undo" action inside
-  /// the sheet itself for a stop visited earlier in the day.
-  void _undoVisited(String branchId) {
+  void _markCompleted(String branchId) {
     setState(() {
-      _visitedBranchIds.remove(branchId);
-      _visitedAt.remove(branchId);
+      _currentCompletedSet.add(branchId);
     });
+
+    final action = _activeMode == RouteMode.deployment ? 'Dropped off' : 'Picked up';
+
+    showDriverUndoToast(
+      context,
+      message: '$action staff at ${kSampleBranches.firstWhere((b) => b.id == branchId).name}',
+      onUndo: () {
+        setState(() {
+          _currentCompletedSet.remove(branchId);
+        });
+      },
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final branches = [...kSampleBranches]
       ..sort((a, b) => a.dailyRouteSequence.compareTo(b.dailyRouteSequence));
-    final visitedCount = _visitedBranchIds.length;
-    final allDone = visitedCount == branches.length;
+
+    final completedCount = _currentCompletedSet.length;
+    final allDone = completedCount == branches.length;
 
     return CupertinoPageScaffold(
       backgroundColor: AppColors.background,
       navigationBar: const DriverNavBar(
         title: 'Route',
-        trailing: DriverTopActions(initials: 'RS'),
+        trailing: DriverTopActions(),
       ),
       child: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.all(16),
+        child: Column(
           children: [
-            // Progress summary — replaces any ad-hoc status color with
-            // a single, calm, on-brand banner instead.
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: allDone
-                    ? AppColors.success.withValues(alpha: 0.10)
-                    : AppColors.accent.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(
-                  color: allDone
-                      ? AppColors.success.withValues(alpha: 0.3)
-                      : AppColors.accent.withValues(alpha: 0.2),
+            // --- MODE SELECTOR ---
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+              child: SizedBox(
+                width: double.infinity,
+                child: CupertinoSegmentedControl<RouteMode>(
+                  groupValue: _activeMode,
+                  selectedColor: AppColors.accent,
+                  borderColor: AppColors.accent,
+                  unselectedColor: CupertinoColors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  onValueChanged: _toggleMode,
+                  children: const {
+                    RouteMode.deployment: Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                      child: Text('Deployment', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                    ),
+                    RouteMode.retrieval: Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                      child: Text('Retrieval', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                    ),
+                  },
                 ),
               ),
-              child: Row(
-                children: [
-                  Icon(
-                    allDone
-                        ? CupertinoIcons.check_mark_circled_solid
-                        : CupertinoIcons.map_fill,
-                    color: allDone ? AppColors.success : AppColors.accent,
-                    size: 22,
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          allDone
-                              ? 'All stops completed for today!'
-                              : "Today's Route",
-                          style: TextStyle(
-                            fontWeight: FontWeight.w700,
-                            fontSize: 14.5,
-                            color: allDone
-                                ? AppColors.success
-                                : AppColors.textPrimary,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          '$visitedCount of ${branches.length} stops visited',
-                          style: const TextStyle(
-                            fontSize: 12.5,
-                            color: AppColors.textSecondary,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
             ),
-            const SizedBox(height: 16),
-            ...List.generate(branches.length, (index) {
-              final branch = branches[index];
-              final isLast = index == branches.length - 1;
-              final required = _requiredGoods[branch.id]!;
-              final visited = _visitedBranchIds.contains(branch.id);
-              final itemCount = _itemCount(required);
 
-              return IntrinsicHeight(
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Column(
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.all(16),
+                children: [
+                  // --- PROGRESS SUMMARY ---
+                  DriverCard(
+                    padding: const EdgeInsets.all(16),
+                    borderColor: allDone
+                        ? AppColors.success.withValues(alpha: 0.3)
+                        : AppColors.accent.withValues(alpha: 0.2),
+                    child: Row(
                       children: [
                         Container(
-                          width: 28,
-                          height: 28,
-                          alignment: Alignment.center,
+                          width: 44,
+                          height: 44,
                           decoration: BoxDecoration(
-                            color: visited
-                                ? AppColors.success
-                                : AppColors.accent,
+                            color: allDone
+                                ? AppColors.success.withValues(alpha: 0.10)
+                                : AppColors.accent.withValues(alpha: 0.08),
                             shape: BoxShape.circle,
                           ),
-                          child: visited
-                              ? const Icon(
-                                  CupertinoIcons.check_mark,
-                                  color: CupertinoColors.white,
-                                  size: 14,
-                                )
-                              : Text(
-                                  '${branch.dailyRouteSequence}',
-                                  style: const TextStyle(
-                                    color: CupertinoColors.white,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                        ),
-                        // Subtle accent-tinted connector instead of the
-                        // washed-out tan line that clashed with the
-                        // rest of the app's brown/white palette.
-                        if (!isLast)
-                          Expanded(
-                            child: Container(
-                              width: 2,
-                              color: visited
-                                  ? AppColors.success.withValues(alpha: 0.35)
-                                  : AppColors.accent.withValues(alpha: 0.2),
-                            ),
+                          child: Icon(
+                            allDone
+                                ? CupertinoIcons.checkmark_seal_fill
+                                : (_activeMode == RouteMode.deployment
+                                    ? CupertinoIcons.sunrise_fill
+                                    : CupertinoIcons.moon_stars_fill),
+                            color: allDone ? AppColors.success : AppColors.accent,
+                            size: 24,
                           ),
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                allDone
+                                    ? 'Route Completed'
+                                    : (_activeMode == RouteMode.deployment
+                                        ? 'Staff Deployment'
+                                        : 'Staff Retrieval'),
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w900,
+                                  fontSize: 16,
+                                  color: allDone ? AppColors.success : AppColors.textPrimary,
+                                  letterSpacing: -0.4,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                allDone
+                                    ? 'All ${_activeMode == RouteMode.deployment ? "drop-offs" : "pickups"} finished'
+                                    : '$completedCount of ${branches.length} staff stops reached',
+                                style: const TextStyle(
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ],
                     ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Padding(
-                        padding: const EdgeInsets.only(bottom: 18),
-                        child: GestureDetector(
-                          onTap: () => showBranchInventorySheet(
-                            context,
-                            branch: branch,
-                            required: required,
-                            alreadyVisited: visited,
-                            visitedAt: _visitedAt[branch.id],
-                            onMarkVisited: () => _markVisited(branch.id),
-                            onUndoVisit: visited
-                                ? () => _undoVisited(branch.id)
-                                : null,
-                          ),
-                          child: DriverCard(
-                            highlighted: visited,
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        branch.fullName,
+                  ),
+
+                  const SizedBox(height: 24),
+
+                  DriverSectionHeader(
+                    label: _activeMode == RouteMode.deployment 
+                        ? 'Staff Deployment Sequence' 
+                        : 'Staff Retrieval Sequence',
+                    icon: CupertinoIcons.list_number,
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  ...List.generate(branches.length, (index) {
+                    final branch = branches[index];
+                    final isLast = index == branches.length - 1;
+                    final completed = _currentCompletedSet.contains(branch.id);
+                    final notified = _notifiedStaffIds.contains(branch.id);
+                    final staffName = _assignedStaff[branch.id] ?? 'Unassigned';
+                    final hours = _branchHours[branch.id] ?? 'TBA';
+
+                    return IntrinsicHeight(
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // --- TIMELINE VISUAL ---
+                          Column(
+                            children: [
+                              Container(
+                                width: 28,
+                                height: 28,
+                                alignment: Alignment.center,
+                                decoration: BoxDecoration(
+                                  color: completed ? AppColors.success : AppColors.accent,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: completed
+                                    ? const Icon(CupertinoIcons.check_mark, color: CupertinoColors.white, size: 14)
+                                    : Text(
+                                        '${index + 1}',
                                         style: const TextStyle(
-                                          fontSize: 14.5,
-                                          fontWeight: FontWeight.w600,
-                                          color: AppColors.textPrimary,
+                                          color: CupertinoColors.white,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.bold,
                                         ),
                                       ),
-                                      const SizedBox(height: 4),
-                                      Row(
-                                        children: [
-                                          Icon(
-                                            CupertinoIcons.cube_box_fill,
-                                            size: 13,
-                                            color: AppColors.textSecondary,
-                                          ),
-                                          const SizedBox(width: 5),
-                                          Flexible(
-                                            child: Text(
-                                              itemCount == 0
-                                                  ? 'Nothing to bring'
-                                                  : '$itemCount item'
-                                                      '${itemCount == 1 ? '' : 's'} to bring',
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                              style: const TextStyle(
-                                                fontSize: 12,
-                                                color: AppColors.textSecondary,
+                              ),
+                              if (!isLast)
+                                Expanded(
+                                  child: Container(
+                                    width: 2,
+                                    margin: const EdgeInsets.symmetric(vertical: 4),
+                                    color: completed
+                                        ? AppColors.success.withValues(alpha: 0.3)
+                                        : AppColors.accent.withValues(alpha: 0.15),
+                                  ),
+                                ),
+                            ],
+                          ),
+                          const SizedBox(width: 14),
+                          
+                          // --- STOP CARD ---
+                          Expanded(
+                            child: Padding(
+                              padding: const EdgeInsets.only(bottom: 20),
+                              child: DriverCard(
+                                padding: const EdgeInsets.all(16),
+                                highlighted: !completed && notified,
+                                borderColor: completed ? AppColors.success.withValues(alpha: 0.2) : null,
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                branch.fullName,
+                                                style: const TextStyle(
+                                                  fontSize: 15,
+                                                  fontWeight: FontWeight.w700,
+                                                  color: AppColors.textPrimary,
+                                                ),
                                               ),
-                                            ),
+                                              const SizedBox(height: 4),
+                                              Row(
+                                                children: [
+                                                  const Icon(CupertinoIcons.time, size: 12, color: AppColors.textSecondary),
+                                                  const SizedBox(width: 4),
+                                                  Text(
+                                                    'Hours: $hours',
+                                                    style: const TextStyle(
+                                                      fontSize: 12,
+                                                      color: AppColors.textSecondary,
+                                                      fontWeight: FontWeight.w500,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ],
                                           ),
-                                          if (visited) ...[
-                                            const SizedBox(width: 8),
-                                            const Icon(
-                                              CupertinoIcons
-                                                  .check_mark_circled_solid,
-                                              size: 13,
-                                              color: AppColors.success,
+                                        ),
+                                        if (completed)
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                            decoration: BoxDecoration(
+                                              color: AppColors.success.withValues(alpha: 0.1),
+                                              borderRadius: BorderRadius.circular(6),
                                             ),
-                                            const SizedBox(width: 3),
-                                            const Text(
-                                              'Visited',
+                                            child: const Text(
+                                              'DONE',
                                               style: TextStyle(
-                                                fontSize: 12,
-                                                fontWeight: FontWeight.w600,
+                                                fontSize: 10,
+                                                fontWeight: FontWeight.w800,
                                                 color: AppColors.success,
                                               ),
                                             ),
-                                          ],
+                                          )
+                                        else
+                                          const Icon(CupertinoIcons.location_north_fill, 
+                                                     size: 16, color: AppColors.accent),
+                                      ],
+                                    ),
+                                    
+                                    const SizedBox(height: 16),
+                                    
+                                    // Staff Info Section
+                                    Container(
+                                      padding: const EdgeInsets.all(10),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.background,
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          Container(
+                                            width: 32,
+                                            height: 32,
+                                            decoration: const BoxDecoration(
+                                              color: AppColors.accentDark,
+                                              shape: BoxShape.circle,
+                                            ),
+                                            alignment: Alignment.center,
+                                            child: Text(
+                                              staffName.substring(0, 1),
+                                              style: const TextStyle(
+                                                color: CupertinoColors.white,
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 10),
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
+                                                const Text(
+                                                  'Assigned Staff',
+                                                  style: TextStyle(
+                                                    fontSize: 10,
+                                                    color: AppColors.textSecondary,
+                                                  ),
+                                                ),
+                                                Text(
+                                                  staffName,
+                                                  style: const TextStyle(
+                                                    fontSize: 13,
+                                                    fontWeight: FontWeight.w700,
+                                                    color: AppColors.textPrimary,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          CupertinoButton(
+                                            padding: EdgeInsets.zero,
+                                            minSize: 32,
+                                            child: const Icon(CupertinoIcons.phone_fill, 
+                                                              size: 18, color: AppColors.success),
+                                            onPressed: () {}, // Mock call
+                                          ),
                                         ],
                                       ),
+                                    ),
+
+                                    if (!completed) ...[
+                                      const SizedBox(height: 16),
+                                      Row(
+                                        children: [
+                                          Expanded(
+                                            child: CupertinoButton(
+                                              padding: EdgeInsets.zero,
+                                              minSize: 38,
+                                              color: notified 
+                                                ? AppColors.background 
+                                                : AppColors.accent.withValues(alpha: 0.1),
+                                              borderRadius: BorderRadius.circular(8),
+                                              onPressed: () => _notifyStaff(branch.id),
+                                              child: Row(
+                                                mainAxisAlignment: MainAxisAlignment.center,
+                                                children: [
+                                                  Icon(
+                                                    notified ? CupertinoIcons.bell_fill : CupertinoIcons.bell,
+                                                    size: 14,
+                                                    color: notified ? AppColors.textSecondary : AppColors.accent,
+                                                  ),
+                                                  const SizedBox(width: 6),
+                                                  Text(
+                                                    notified ? 'Notified' : 'On the way',
+                                                    style: TextStyle(
+                                                      fontSize: 12,
+                                                      fontWeight: FontWeight.w700,
+                                                      color: notified ? AppColors.textSecondary : AppColors.accent,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 10),
+                                          Expanded(
+                                            child: CupertinoButton(
+                                              padding: EdgeInsets.zero,
+                                              minSize: 38,
+                                              color: AppColors.accent,
+                                              borderRadius: BorderRadius.circular(8),
+                                              onPressed: () => _markCompleted(branch.id),
+                                              child: Text(
+                                                _activeMode == RouteMode.deployment ? 'Dropped Off' : 'Picked Up',
+                                                style: const TextStyle(
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.w700,
+                                                  color: CupertinoColors.white,
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ] else ...[
+                                      const SizedBox(height: 12),
+                                      GestureDetector(
+                                        onTap: () => setState(() => _currentCompletedSet.remove(branch.id)),
+                                        child: const Row(
+                                          children: [
+                                            Icon(CupertinoIcons.arrow_counterclockwise, size: 10, color: AppColors.textSecondary),
+                                            SizedBox(width: 4),
+                                            Text(
+                                              'Undo Completion',
+                                              style: TextStyle(
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.w600,
+                                                color: AppColors.textSecondary,
+                                                decoration: TextDecoration.underline,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
                                     ],
-                                  ),
+                                  ],
                                 ),
-                                const SizedBox(width: 8),
-                                Icon(
-                                  CupertinoIcons.chevron_right,
-                                  size: 18,
-                                  color: AppColors.accent.withValues(alpha: 0.6),
-                                ),
-                              ],
+                              ),
                             ),
                           ),
-                        ),
+                        ],
                       ),
-                    ),
-                  ],
-                ),
-              );
-            }),
+                    );
+                  }),
+                ],
+              ),
+            ),
           ],
         ),
       ),

@@ -6,12 +6,11 @@ import '../theme/app_theme.dart';
 /// the exact same header language — every screen uses the same
 /// gradient fill either way, only the content inside changes.
 enum DriverHeaderMode {
-  /// Simple centered title, used by every screen except Home
-  /// (Route, Stock Transfer, Bilao Deliveries, Notifications,
-  /// Profile, and detail screens).
+  /// Simple centered title, used by every screen.
   compact,
 
-  /// The bigger "Good Evening, Driver" greeting block — Home only.
+  /// A slightly more prominent title for the Home screen, 
+  /// but still compact and consistent with other headers.
   greeting,
 }
 
@@ -52,8 +51,8 @@ class DriverNavBar extends StatelessWidget
   /// Only used when [mode] is [DriverHeaderMode.greeting].
   final String greetingName;
 
-  static const double _compactHeight = 44;
-  static const double _greetingHeight = 128;
+  static const double _compactHeight = 52;
+  static const double _greetingHeight = 52;
 
   @override
   Size get preferredSize => Size.fromHeight(
@@ -62,16 +61,6 @@ class DriverNavBar extends StatelessWidget
 
   @override
   bool shouldFullyObstruct(BuildContext context) => true;
-
-  static const List<String> _months = [
-    'January', 'February', 'March', 'April', 'May', 'June',
-    'July', 'August', 'September', 'October', 'November', 'December',
-  ];
-
-  String _formattedToday() {
-    final now = DateTime.now();
-    return '${_months[now.month - 1]} ${now.day}, ${now.year}';
-  }
 
   String _greetingPrefix() {
     final hour = DateTime.now().hour;
@@ -116,10 +105,11 @@ class DriverNavBar extends StatelessWidget
               bottom: -46,
               child: _decorCircle(90),
             ),
-            if (mode == DriverHeaderMode.greeting)
-              _buildGreeting(context)
-            else
-              _buildCompact(context),
+            Positioned.fill(
+              child: mode == DriverHeaderMode.greeting
+                  ? _buildGreeting(context)
+                  : _buildCompact(context),
+            ),
           ],
         ),
       ),
@@ -138,124 +128,71 @@ class DriverNavBar extends StatelessWidget
   }
 
   Widget _buildCompact(BuildContext context) {
-    // A plain three-slot Row (fixed-width leading/trailing, centered
-    // title in between) instead of a Stack with Positioned back
-    // button/trailing over a centered title — that previous approach
-    // let the title run full-width behind the icons, so a longer
-    // title (or the trailing bell + avatar) could visually collide
-    // with the back button. A Row with fixed-width side slots is
-    // deterministic: both slots always reserve their own space, so
-    // nothing can shift or overlap between screens.
-    //
-    // IMPORTANT: the two slots are NOT the same width. The leading
-    // slot only ever holds a single back-chevron icon (~26px), but
-    // the trailing slot holds [DriverTopActions] — a notification
-    // bell + a 32px avatar with a gap between them, which needs much
-    // more room than that. Sizing the trailing slot to actually fit
-    // [DriverTopActions] keeps it from ever spilling toward the title
-    // or the back button.
-    const leadingSlotWidth = 44.0;
-    const trailingSlotWidth = 84.0;
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8),
-      child: Row(
-        children: [
-          SizedBox(
-            width: leadingSlotWidth,
-            child: showBackButton
-                ? CupertinoButton(
-                    padding: EdgeInsets.zero,
-                    minimumSize: Size.zero,
-                    onPressed: () => Navigator.of(context).maybePop(),
-                    child: const Icon(
-                      CupertinoIcons.back,
-                      color: CupertinoColors.white,
-                      size: 26,
-                    ),
-                  )
-                : null,
-          ),
-          Expanded(
-            child: Text(
-              title,
-              textAlign: TextAlign.center,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: CupertinoColors.white,
-                fontWeight: FontWeight.bold,
-                fontSize: 17,
-              ),
-            ),
-          ),
-          SizedBox(
-            width: trailingSlotWidth,
-            child: trailing != null
-                ? Align(alignment: Alignment.centerRight, child: trailing)
-                : null,
-          ),
-        ],
-      ),
-    );
+    return _buildHeaderContent(context, title, showBack: showBackButton);
   }
 
   Widget _buildGreeting(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Row(
-            children: [
-              const Spacer(),
-              if (trailing != null) trailing!,
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            '${_greetingPrefix()},',
-            style: TextStyle(
-              color: CupertinoColors.white.withValues(alpha: 0.75),
-              fontSize: 13,
-            ),
-          ),
-          const SizedBox(height: 2),
-          Row(
-            children: [
-              Text(
-                greetingName,
+    // Home greeting header — now simplified to match the compact
+    // style, keeping everything clean and consistent.
+    final label = '${_greetingPrefix()}, $greetingName';
+    return _buildHeaderContent(context, label, showBack: false);
+  }
+
+  Widget _buildHeaderContent(
+    BuildContext context,
+    String label, {
+    required bool showBack,
+  }) {
+    // A Stack with Center ensures the title is ALWAYS mathematically
+    // centered relative to the screen width, completely independent
+    // of whatever icons are in the side slots.
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 44),
+              child: Text(
+                label,
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
                   color: CupertinoColors.white,
-                  fontSize: 24,
-                  fontWeight: FontWeight.w800,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 16,
+                  letterSpacing: -0.2,
                 ),
               ),
-              const SizedBox(width: 6),
-              const Text('🚚', style: TextStyle(fontSize: 20)),
-            ],
+            ),
           ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              Icon(
-                CupertinoIcons.calendar,
-                size: 14,
-                color: CupertinoColors.white.withValues(alpha: 0.7),
-              ),
-              const SizedBox(width: 6),
-              Text(
-                _formattedToday(),
-                style: TextStyle(
-                  color: CupertinoColors.white.withValues(alpha: 0.7),
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w500,
+        ),
+        if (showBack)
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Padding(
+              padding: const EdgeInsets.only(left: 4),
+              child: CupertinoButton(
+                padding: const EdgeInsets.all(8),
+                minimumSize: Size.zero,
+                onPressed: () => Navigator.of(context).maybePop(),
+                child: const Icon(
+                  CupertinoIcons.back,
+                  color: CupertinoColors.white,
+                  size: 20,
                 ),
               ),
-            ],
+            ),
           ),
-        ],
-      ),
+        if (trailing != null)
+          Align(
+            alignment: Alignment.centerRight,
+            child: Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: trailing!,
+            ),
+          ),
+      ],
     );
   }
 }

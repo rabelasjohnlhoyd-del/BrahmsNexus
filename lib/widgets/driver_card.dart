@@ -12,7 +12,7 @@ class DriverCard extends StatelessWidget {
   const DriverCard({
     super.key,
     required this.child,
-    this.padding = const EdgeInsets.all(14),
+    this.padding = const EdgeInsets.all(16),
     this.borderColor,
     this.highlighted = false,
   });

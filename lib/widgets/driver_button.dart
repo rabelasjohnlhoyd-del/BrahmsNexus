@@ -17,12 +17,16 @@ class DriverButton extends StatelessWidget {
     required this.label,
     required this.onPressed,
     this.color = AppColors.accent,
+    this.textColor,
     this.icon,
+    this.padding = const EdgeInsets.symmetric(vertical: 14),
   });
 
   final String label;
   final VoidCallback? onPressed;
   final Color color;
+  final Color? textColor;
+  final EdgeInsetsGeometry padding;
 
   /// Optional leading icon so the intent reads at a glance instead of
   /// relying on label text alone.
@@ -31,9 +35,19 @@ class DriverButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final enabled = onPressed != null;
-    final textColor = enabled ? CupertinoColors.white : AppColors.textSecondary;
+
+    // When a custom textColor is provided (e.g. for "Log Out" red text),
+    // the disabled state should be a faded version of that color
+    // instead of the default brown, ensuring the button still looks
+    // "red-themed" even when inactive.
+    final displayTextColor = enabled
+        ? (textColor ?? CupertinoColors.white)
+        : (textColor != null
+            ? textColor!.withValues(alpha: 0.4)
+            : AppColors.textSecondary);
+
     return CupertinoButton(
-      padding: const EdgeInsets.symmetric(vertical: 14),
+      padding: padding,
       borderRadius: BorderRadius.circular(12),
       color: enabled ? color : null,
       disabledColor: color.withValues(alpha: 0.16),
@@ -43,7 +57,7 @@ class DriverButton extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           if (icon != null) ...[
-            Icon(icon, size: 18, color: textColor),
+            Icon(icon, size: 18, color: displayTextColor),
             const SizedBox(width: 8),
           ],
           Flexible(
@@ -53,7 +67,7 @@ class DriverButton extends StatelessWidget {
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w600,
-                color: textColor,
+                color: displayTextColor,
               ),
             ),
           ),

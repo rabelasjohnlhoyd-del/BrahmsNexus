@@ -3,7 +3,9 @@ import '../../theme/app_theme.dart';
 import '../../widgets/staff_button.dart';
 import '../../widgets/staff_card.dart';
 import '../../widgets/staff_nav_bar.dart';
+import '../../widgets/staff_section_header.dart';
 import '../auth/login_screen.dart';
+import 'edit_profile_screen.dart';
 
 /// Opened from the profile avatar at the top of every tab. Shows
 /// the logged-in cook's account details.
@@ -25,61 +27,49 @@ class ProfileScreen extends StatelessWidget {
         child: ListView(
           padding: const EdgeInsets.all(20),
           children: [
-            Center(
-              child: Container(
-                width: 84,
-                height: 84,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: AppColors.accent,
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppColors.accentDark.withValues(alpha: 0.3),
-                      blurRadius: 14,
-                      offset: const Offset(0, 6),
-                    ),
-                  ],
-                  border: Border.all(color: CupertinoColors.white, width: 3),
-                ),
-                child: const Text(
-                  'JD',
-                  style: TextStyle(
-                    color: CupertinoColors.white,
-                    fontSize: 26,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            const Center(
-              child: Text(
-                'Juan Dela Cruz',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.textPrimary,
-                ),
-              ),
-            ),
-            const Center(
-              child: Text(
-                'Staff · Cook',
-                style: TextStyle(color: AppColors.textSecondary),
-              ),
-            ),
+            _buildProfileHeader(context),
+            
             const SizedBox(height: 24),
-            _infoTile(CupertinoIcons.person, 'Username', 'juan.delacruz'),
-            _infoTile(CupertinoIcons.phone, 'Contact Number', '0917 123 4567'),
-            _infoTile(
-                CupertinoIcons.building_2_fill, 'Current Branch', 'Sta. Cruz'),
-            _infoTile(
-                CupertinoIcons.calendar, 'Member Since', 'January 2024'),
-            const SizedBox(height: 28),
+
+            const StaffSectionHeader(label: 'Account Details'),
+            const SizedBox(height: 8),
+            StaffCard(
+              padding: EdgeInsets.zero,
+              child: Column(
+                children: [
+                  _infoTile(CupertinoIcons.person, 'Username', 'juan.delacruz'),
+                  _divider(),
+                  _infoTile(CupertinoIcons.phone, 'Contact Number', '0917 123 4567'),
+                  _divider(),
+                  _infoTile(CupertinoIcons.building_2_fill, 'Current Branch', 'Sta. Cruz'),
+                  _divider(),
+                  _infoTile(CupertinoIcons.calendar, 'Member Since', 'January 2024'),
+                ],
+              ),
+            ),
+            
+            const SizedBox(height: 24),
+
+            const StaffSectionHeader(label: 'Preferences'),
+            const SizedBox(height: 12),
+            StaffCard(
+              padding: EdgeInsets.zero,
+              child: Column(
+                children: [
+                  _settingsTile(CupertinoIcons.bell, 'Notifications', 'Enabled'),
+                  _divider(),
+                  _settingsTile(CupertinoIcons.lock_shield, 'Security'),
+                  _divider(),
+                  _settingsTile(CupertinoIcons.question_circle, 'Support'),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 32),
             StaffButton(
               label: 'Log Out',
-              color: AppColors.error,
+              color: AppColors.error.withValues(alpha: 0.1),
+              textColor: AppColors.error,
               onPressed: () => _confirmLogout(context),
             ),
           ],
@@ -87,6 +77,153 @@ class ProfileScreen extends StatelessWidget {
       ),
     );
   }
+
+  Widget _buildProfileHeader(BuildContext context) {
+    return StaffCard(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              GestureDetector(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    CupertinoPageRoute(builder: (_) => const EditProfileScreen()),
+                  );
+                },
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    Container(
+                      width: 80,
+                      height: 80,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: AppColors.accent,
+                        border: Border.all(color: AppColors.background, width: 3),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.accentDark.withValues(alpha: 0.1),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      alignment: Alignment.center,
+                      child: const Text(
+                        'JD',
+                        style: TextStyle(
+                          color: CupertinoColors.white,
+                          fontSize: 28,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      right: 0,
+                      bottom: 0,
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: const BoxDecoration(
+                          color: AppColors.accentDark,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          CupertinoIcons.pencil,
+                          size: 12,
+                          color: CupertinoColors.white,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 20),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Juan Dela Cruz',
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w900,
+                        color: AppColors.textPrimary,
+                        letterSpacing: -0.6,
+                      ),
+                    ),
+                    Text(
+                      'Branch Cook',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: AppColors.textSecondary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Icon(CupertinoIcons.checkmark_seal_fill, size: 14, color: AppColors.success),
+                        SizedBox(width: 4),
+                        Text(
+                          'Verified Staff',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.success,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _settingsTile(IconData icon, String label, [String? value]) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      child: Row(
+        children: [
+          Icon(icon, size: 20, color: AppColors.accent),
+          const SizedBox(width: 12),
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textPrimary,
+            ),
+          ),
+          const Spacer(),
+          if (value != null)
+            Text(
+              value,
+              style: const TextStyle(
+                fontSize: 14,
+                color: AppColors.textSecondary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          const SizedBox(width: 4),
+          const Icon(CupertinoIcons.chevron_forward, size: 16, color: AppColors.border),
+        ],
+      ),
+    );
+  }
+
+  Widget _divider() => Container(
+    margin: const EdgeInsets.only(left: 48),
+    height: 0.5,
+    color: AppColors.border.withValues(alpha: 0.4),
+  );
+
 
   /// Explicit confirmation before actually logging out — logout is
   /// destructive (clears the whole Staff shell + tab stack), so a
@@ -125,45 +262,40 @@ class ProfileScreen extends StatelessWidget {
 
   Widget _infoTile(IconData icon, String label, String value) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: StaffCard(
-        padding: const EdgeInsets.all(14),
-        child: Row(
-          children: [
-            Container(
-              width: 36,
-              height: 36,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: AppColors.pastelBrown.withValues(alpha: 0.25),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(icon, size: 18, color: AppColors.accent),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: AppColors.accent.withValues(alpha: 0.06),
+              borderRadius: BorderRadius.circular(10),
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    label,
-                    style: const TextStyle(
-                      fontSize: 11.5,
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
-                  Text(
-                    value,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
-                ],
+            child: Icon(icon, size: 18, color: AppColors.accent.withValues(alpha: 0.8)),
+          ),
+          const SizedBox(width: 14),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textSecondary,
+                ),
               ),
-            ),
-          ],
-        ),
+              Text(
+                value,
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }

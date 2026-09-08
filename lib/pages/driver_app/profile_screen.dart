@@ -3,82 +3,96 @@ import '../../theme/app_theme.dart';
 import '../../widgets/driver_button.dart';
 import '../../widgets/driver_card.dart';
 import '../../widgets/driver_nav_bar.dart';
+import '../../widgets/driver_section_header.dart';
+import '../../widgets/driver_top_actions.dart';
 import '../auth/login_screen.dart';
+import 'edit_profile_screen.dart';
 
-/// Driver Profile screen — opened from the profile avatar at the
-/// top of every tab.
-///
-/// NOTE: Mock data for now — once Supabase/Firebase Auth are wired up,
-/// this reads the actual logged-in driver's profile record.
-class DriverProfileScreen extends StatelessWidget {
+/// Refined Driver Profile — immersive, feature-rich, and visually balanced.
+class DriverProfileScreen extends StatefulWidget {
   const DriverProfileScreen({super.key});
 
+  @override
+  State<DriverProfileScreen> createState() => _DriverProfileScreenState();
+}
+
+class _DriverProfileScreenState extends State<DriverProfileScreen> {
   @override
   Widget build(BuildContext context) {
     return CupertinoPageScaffold(
       backgroundColor: AppColors.background,
       navigationBar: const DriverNavBar(
         title: 'Profile',
-        showBackButton: true,
+        trailing: DriverTopActions(),
       ),
       child: SafeArea(
+        bottom: false,
         child: ListView(
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
           children: [
-            Center(
-              child: Container(
-                width: 84,
-                height: 84,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: AppColors.accent,
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppColors.accentDark.withValues(alpha: 0.3),
-                      blurRadius: 14,
-                      offset: const Offset(0, 6),
-                    ),
-                  ],
-                  border: Border.all(color: CupertinoColors.white, width: 3),
-                ),
-                child: const Text(
-                  'RS',
-                  style: TextStyle(
-                    color: CupertinoColors.white,
-                    fontSize: 26,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
+            // --- PREMIUM HEADER ---
+            _buildProfileHeader(),
+            
+            const SizedBox(height: 20),
+
+            // --- PERSONAL DETAILS ---
+            const DriverSectionHeader(label: 'Account Information'),
+            const SizedBox(height: 8),
+            DriverCard(
+              padding: EdgeInsets.zero,
+              child: Column(
+                children: [
+                  _listTile(CupertinoIcons.person, 'Full Name', 'Ramon Santos'),
+                  _divider(),
+                  _listTile(CupertinoIcons.phone, 'Contact Number', '+63 917 555 8899'),
+                  _divider(),
+                  _listTile(CupertinoIcons.mail, 'Work Email', 'ramon.santos@brahms.ph'),
+                ],
               ),
             ),
-            const SizedBox(height: 12),
-            const Center(
-              child: Text(
-                'Ramon Santos',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.textPrimary,
-                ),
+
+            const SizedBox(height: 20),
+
+            // --- VEHICLE ---
+            const DriverSectionHeader(label: 'Vehicle & Documents'),
+            const SizedBox(height: 8),
+            DriverCard(
+              padding: EdgeInsets.zero,
+              child: Column(
+                children: [
+                  _listTile(CupertinoIcons.car_detailed, 'Vehicle Type', 'Multicab (L300)'),
+                  _divider(),
+                  _listTile(CupertinoIcons.number, 'Plate Number', 'ABC 1234'),
+                ],
               ),
             ),
-            const Center(
-              child: Text(
-                'Driver',
-                style: TextStyle(color: AppColors.textSecondary),
+
+            const SizedBox(height: 20),
+
+            // --- SETTINGS ---
+            const DriverSectionHeader(label: 'Preferences'),
+            const SizedBox(height: 8),
+            DriverCard(
+              padding: EdgeInsets.zero,
+              child: Column(
+                children: [
+                  _listTile(CupertinoIcons.bell, 'Notifications', 'Enabled', showChevron: true),
+                  _divider(),
+                  _listTile(CupertinoIcons.lock_shield, 'Security & Privacy', null, showChevron: true),
+                  _divider(),
+                  _listTile(CupertinoIcons.question_circle, 'Help & Support', null, showChevron: true),
+                  _divider(),
+                  _listTile(CupertinoIcons.info_circle, 'About Brahms Nexus', null, showChevron: true),
+                ],
               ),
             ),
-            const SizedBox(height: 24),
-            _infoTile(CupertinoIcons.person, 'Username', 'ramon.santos'),
-            _infoTile(CupertinoIcons.phone, 'Contact Number', '0917 555 8899'),
-            _infoTile(CupertinoIcons.car_detailed, 'Vehicle', 'Multicab'),
-            _infoTile(
-                CupertinoIcons.calendar, 'Member Since', 'March 2024'),
-            const SizedBox(height: 28),
+
+            const SizedBox(height: 8),
+
             DriverButton(
               label: 'Log Out',
-              color: AppColors.error,
+              color: AppColors.error.withValues(alpha: 0.1),
+              textColor: AppColors.error,
               onPressed: () => _confirmLogout(context),
             ),
           ],
@@ -87,29 +101,178 @@ class DriverProfileScreen extends StatelessWidget {
     );
   }
 
-  /// Explicit confirmation before actually logging out — logout is
-  /// destructive (clears the whole Driver shell + tab stack), so a
-  /// single accidental tap shouldn't be enough to trigger it.
+  Widget _buildProfileHeader() {
+    return DriverCard(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              GestureDetector(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    CupertinoPageRoute(builder: (_) => const EditProfileScreen()),
+                  );
+                },
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    Container(
+                      width: 80,
+                      height: 80,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: AppColors.accent,
+                        border: Border.all(color: AppColors.background, width: 3),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.accentDark.withValues(alpha: 0.1),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      alignment: Alignment.center,
+                      child: const Text(
+                        'RS',
+                        style: TextStyle(
+                          color: CupertinoColors.white,
+                          fontSize: 28,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      right: 0,
+                      bottom: 0,
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: const BoxDecoration(
+                          color: AppColors.accentDark,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          CupertinoIcons.pencil,
+                          size: 12,
+                          color: CupertinoColors.white,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 20),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Ramon Santos',
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w900,
+                        color: AppColors.textPrimary,
+                        letterSpacing: -0.6,
+                      ),
+                    ),
+                    const Text(
+                      'Senior Delivery Partner',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: AppColors.textSecondary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    const Row(
+                      children: [
+                        Icon(CupertinoIcons.checkmark_seal_fill, size: 14, color: AppColors.success),
+                        SizedBox(width: 4),
+                        Text(
+                          'Verified Partner',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.success,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+
+  Widget _listTile(IconData icon, String label, String? value, {bool showChevron = false, Color? color}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: AppColors.accent.withValues(alpha: 0.06),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, size: 18, color: AppColors.accent.withValues(alpha: 0.8)),
+          ),
+          const SizedBox(width: 14),
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textPrimary,
+            ),
+          ),
+          const Spacer(),
+          if (value != null)
+            Text(
+              value,
+              style: TextStyle(
+                fontSize: 14,
+                color: color ?? AppColors.textSecondary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          if (showChevron)
+            const Padding(
+              padding: EdgeInsets.only(left: 8),
+              child: Icon(CupertinoIcons.chevron_forward, size: 16, color: AppColors.border),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _divider() => Container(
+    margin: const EdgeInsets.only(left: 56),
+    height: 0.5,
+    color: AppColors.border.withValues(alpha: 0.4),
+  );
+
   void _confirmLogout(BuildContext context) {
     showCupertinoDialog<void>(
       context: context,
-      builder: (dialogContext) => CupertinoAlertDialog(
+      builder: (ctx) => CupertinoAlertDialog(
         title: const Text('Log Out'),
-        content: const Text('Are you sure you want to log out?'),
+        content: const Text('Are you sure you want to end your session?'),
         actions: [
           CupertinoDialogAction(
-            onPressed: () => Navigator.of(dialogContext).pop(),
+            onPressed: () => Navigator.pop(ctx),
             child: const Text('Cancel'),
           ),
           CupertinoDialogAction(
             isDestructiveAction: true,
             onPressed: () {
-              Navigator.of(dialogContext).pop();
-              // rootNavigator: true is essential here — DriverProfileScreen
-              // is pushed inside one tab's own nested Navigator
-              // (CupertinoTabView), so a plain Navigator.of(context)
-              // would only replace that tab's stack, leaving the outer
-              // DriverShell (and its bottom tab bar) still on screen.
+              Navigator.pop(ctx);
               Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
                 CupertinoPageRoute(builder: (_) => const LoginScreen()),
                 (route) => false,
@@ -118,50 +281,6 @@ class DriverProfileScreen extends StatelessWidget {
             child: const Text('Log Out'),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _infoTile(IconData icon, String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: DriverCard(
-        child: Row(
-          children: [
-            Container(
-              width: 36,
-              height: 36,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: AppColors.pastelBrown.withValues(alpha: 0.25),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(icon, size: 18, color: AppColors.accent),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    label,
-                    style: const TextStyle(
-                      fontSize: 11.5,
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
-                  Text(
-                    value,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }

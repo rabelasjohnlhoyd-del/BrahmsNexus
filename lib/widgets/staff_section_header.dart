@@ -63,6 +63,10 @@ class StaffSectionHeader extends StatelessWidget {
               ),
             ),
           ),
+          if (trailing != null) ...[
+            const SizedBox(width: 10),
+            trailing!,
+          ],
         ],
       );
     }

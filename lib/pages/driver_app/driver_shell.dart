@@ -5,9 +5,10 @@ import 'bilao_deliveries_screen.dart';
 import 'homepage_screen.dart';
 import 'route_screen.dart';
 import 'stock_transfer_screen.dart';
+import 'profile_screen.dart';
 
-/// Main shell of the Driver app — a CupertinoTabScaffold with 4 tabs
-/// (Homepage, Route, Stock Transfer, Bilao Deliveries), following iOS
+/// Main shell of the Driver app — a CupertinoTabScaffold with 5 tabs
+/// (Home, Route, Transfer, Deliveries, Profile), following iOS
 /// Human Interface Guidelines with real Cupertino widgets (same
 /// pattern as the Staff/Cook app shell — see staff_shell.dart).
 class DriverShell extends StatelessWidget {
@@ -127,6 +128,10 @@ class DriverShell extends StatelessWidget {
                     icon: _tabItem(CupertinoIcons.bag_fill, 'Deliveries', active: false),
                     activeIcon: _tabItem(CupertinoIcons.bag_fill, 'Deliveries', active: true),
                   ),
+                  BottomNavigationBarItem(
+                    icon: _tabItem(CupertinoIcons.person_fill, 'Profile', active: false),
+                    activeIcon: _tabItem(CupertinoIcons.person_fill, 'Profile', active: true),
+                  ),
                 ],
               ),
               tabBuilder: (context, index) {
@@ -143,9 +148,13 @@ class DriverShell extends StatelessWidget {
                     return CupertinoTabView(
                       builder: (context) => const StockTransferScreen(),
                     );
-                  default:
+                  case 3:
                     return CupertinoTabView(
                       builder: (context) => const BilaoDeliveriesScreen(),
+                    );
+                  default:
+                    return CupertinoTabView(
+                      builder: (context) => const DriverProfileScreen(),
                     );
                 }
               },

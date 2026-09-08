@@ -24,6 +24,7 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
   bool _mayoTorn = false;
   bool _gasEmpty = false;
   bool _needMoreMeat = false;
+  bool _isBranchClosed = false;
   final _messageController = TextEditingController();
   bool _isSubmitting = false;
 
@@ -37,6 +38,7 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
       _mayoTorn ||
       _gasEmpty ||
       _needMoreMeat ||
+      _isBranchClosed ||
       _messageController.text.trim().isNotEmpty;
 
   /// Confirms before sending — the report immediately alerts the
@@ -78,6 +80,7 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
       _mayoTorn = false;
       _gasEmpty = false;
       _needMoreMeat = false;
+      _isBranchClosed = false;
       _messageController.clear();
     });
 
@@ -132,6 +135,12 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
               label: 'Need additional Karne (meat)',
               value: _needMoreMeat,
               onChanged: (v) => setState(() => _needMoreMeat = v),
+            ),
+            _checklistTile(
+              icon: CupertinoIcons.moon_zzz_fill,
+              label: 'Branch is now CLOSED',
+              value: _isBranchClosed,
+              onChanged: (v) => setState(() => _isBranchClosed = v),
             ),
             const SizedBox(height: 18),
             const StaffSectionHeader(

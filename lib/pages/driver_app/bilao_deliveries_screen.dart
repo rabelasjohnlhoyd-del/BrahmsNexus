@@ -63,31 +63,48 @@ class _BilaoDeliveriesScreenState extends State<BilaoDeliveriesScreen> {
       backgroundColor: AppColors.background,
       navigationBar: const DriverNavBar(
         title: 'Bilao Deliveries',
-        trailing: DriverTopActions(initials: 'RS'),
+        trailing: DriverTopActions(),
       ),
       child: SafeArea(
         child: pending.isEmpty && done.isEmpty
             ? Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      width: 64,
-                      height: 64,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: AppColors.pastelBrown.withValues(alpha: 0.25),
-                        shape: BoxShape.circle,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 32),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 80,
+                        height: 80,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: AppColors.pastelBrown.withValues(alpha: 0.15),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(CupertinoIcons.bag_fill,
+                            size: 32, color: AppColors.accent),
                       ),
-                      child: const Icon(CupertinoIcons.bag_fill,
-                          size: 28, color: AppColors.accent),
-                    ),
-                    const SizedBox(height: 14),
-                    const Text(
-                      'No deliveries scheduled for today.',
-                      style: TextStyle(color: AppColors.textSecondary),
-                    ),
-                  ],
+                      const SizedBox(height: 20),
+                      const Text(
+                        'No Deliveries',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'No bilao orders are scheduled for delivery today.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: AppColors.textSecondary,
+                          height: 1.4,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               )
             : ListView(
