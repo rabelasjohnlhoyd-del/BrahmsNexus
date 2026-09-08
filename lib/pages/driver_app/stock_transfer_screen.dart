@@ -146,7 +146,7 @@ class _StockTransferScreenState extends State<StockTransferScreen> {
                                 alignment: Alignment.center,
                                 decoration: BoxDecoration(
                                   color: AppColors.pastelBrown.withValues(alpha: 0.3),
-                                  borderRadius: BorderRadius.circular(10),
+                                  borderRadius: BorderRadius.circular(12),
                                 ),
                                 child: Icon(icon, color: AppColors.accent),
                               ),
@@ -181,7 +181,7 @@ class _StockTransferScreenState extends State<StockTransferScreen> {
                                 decoration: BoxDecoration(
                                   color: _statusColor(request.status)
                                       .withValues(alpha: 0.15),
-                                  borderRadius: BorderRadius.circular(8),
+                                  borderRadius: BorderRadius.circular(12),
                                 ),
                                 child: Text(
                                   request.status.label,

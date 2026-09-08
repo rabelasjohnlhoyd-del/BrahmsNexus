@@ -44,10 +44,10 @@ class DriverShell extends StatelessWidget {
   /// automatic (and easy-to-miss) label coloring alone.
   static Widget _tabItem(IconData icon, String label, {required bool active}) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
       decoration: BoxDecoration(
         color: active ? AppColors.textPrimary : null,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -55,15 +55,17 @@ class DriverShell extends StatelessWidget {
         children: [
           Icon(
             icon,
-            size: 20,
+            size: 18,
             color: active ? CupertinoColors.white : _inactiveTint,
           ),
           const SizedBox(height: 2),
           Text(
             label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              fontSize: 10,
-              height: 1.0,
+              fontSize: 9,
+              height: 1.1,
               fontWeight: active ? FontWeight.w700 : FontWeight.w500,
               color: active ? CupertinoColors.white : _inactiveTint,
             ),

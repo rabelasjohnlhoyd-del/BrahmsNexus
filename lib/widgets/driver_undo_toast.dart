@@ -32,7 +32,7 @@ void showDriverUndoToast(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           decoration: BoxDecoration(
             color: AppColors.textPrimary,
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(12),
             boxShadow: [
               BoxShadow(
                 color: CupertinoColors.black.withValues(alpha: 0.2),

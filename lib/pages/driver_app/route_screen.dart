@@ -82,6 +82,102 @@ class _RouteScreenState extends State<RouteScreen> {
     );
   }
 
+  void _showMapModal() {
+    showCupertinoModalPopup(
+      context: context,
+      barrierDismissible: true,
+      builder: (context) => Container(
+        height: MediaQuery.of(context).size.height * 0.85,
+        width: double.infinity,
+        decoration: const BoxDecoration(
+          color: CupertinoColors.systemBackground,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: Column(
+          children: [
+            // Modal handle
+            Center(
+              child: Container(
+                margin: const EdgeInsets.symmetric(vertical: 12),
+                width: 40,
+                height: 5,
+                decoration: BoxDecoration(
+                  color: AppColors.border,
+                  borderRadius: BorderRadius.circular(2.5),
+                ),
+              ),
+            ),
+            // Header
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Live Route Navigation',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.textPrimary,
+                          decoration: TextDecoration.none,
+                        ),
+                      ),
+                      Text(
+                        'Visualizing stops and sequence',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                          color: AppColors.textSecondary,
+                          decoration: TextDecoration.none,
+                        ),
+                      ),
+                    ],
+                  ),
+                  CupertinoButton(
+                    padding: EdgeInsets.zero,
+                    onPressed: () => Navigator.pop(context),
+                    child: const Icon(CupertinoIcons.xmark_circle_fill, size: 28, color: AppColors.border),
+                  ),
+                ],
+              ),
+            ),
+            // Map
+            Expanded(
+              child: Stack(
+                children: [
+                  CustomPaint(
+                    painter: _MapPainter(),
+                    size: Size.infinite,
+                  ),
+                  const Positioned(
+                    bottom: 24,
+                    right: 20,
+                    child: Column(
+                      children: [
+                        _MapControlButton(
+                          icon: CupertinoIcons.location_fill, 
+                          size: 44,
+                        ),
+                        SizedBox(height: 12),
+                        _MapControlButton(
+                          icon: CupertinoIcons.layers_fill, 
+                          size: 44,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   void _markCompleted(String branchId) {
     setState(() {
       _currentCompletedSet.add(branchId);
@@ -120,25 +216,59 @@ class _RouteScreenState extends State<RouteScreen> {
             // --- MODE SELECTOR ---
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-              child: SizedBox(
+              child: Container(
                 width: double.infinity,
-                child: CupertinoSegmentedControl<RouteMode>(
-                  groupValue: _activeMode,
-                  selectedColor: AppColors.accent,
-                  borderColor: AppColors.accent,
-                  unselectedColor: CupertinoColors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 4),
-                  onValueChanged: _toggleMode,
-                  children: const {
-                    RouteMode.deployment: Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                      child: Text('Deployment', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                decoration: BoxDecoration(
+                  color: CupertinoColors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.accent, width: 1),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () => _toggleMode(RouteMode.deployment),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          decoration: BoxDecoration(
+                            color: _activeMode == RouteMode.deployment ? AppColors.accent : CupertinoColors.transparent,
+                            borderRadius: const BorderRadius.horizontal(left: Radius.circular(11)),
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(
+                            'Deployment',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: _activeMode == RouteMode.deployment ? CupertinoColors.white : AppColors.accent,
+                            ),
+                          ),
+                        ),
+                      ),
                     ),
-                    RouteMode.retrieval: Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                      child: Text('Retrieval', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                    Container(width: 1, height: 20, color: AppColors.accent),
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () => _toggleMode(RouteMode.retrieval),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          decoration: BoxDecoration(
+                            color: _activeMode == RouteMode.retrieval ? AppColors.accent : CupertinoColors.transparent,
+                            borderRadius: const BorderRadius.horizontal(right: Radius.circular(11)),
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(
+                            'Retrieval',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: _activeMode == RouteMode.retrieval ? CupertinoColors.white : AppColors.accent,
+                            ),
+                          ),
+                        ),
+                      ),
                     ),
-                  },
+                  ],
                 ),
               ),
             ),
@@ -147,63 +277,142 @@ class _RouteScreenState extends State<RouteScreen> {
               child: ListView(
                 padding: const EdgeInsets.all(16),
                 children: [
-                  // --- PROGRESS SUMMARY ---
+                  // --- ROUTE PROGRESS SUMMARY ---
                   DriverCard(
                     padding: const EdgeInsets.all(16),
-                    borderColor: allDone
-                        ? AppColors.success.withValues(alpha: 0.3)
-                        : AppColors.accent.withValues(alpha: 0.2),
-                    child: Row(
+                    child: Column(
                       children: [
-                        Container(
-                          width: 44,
-                          height: 44,
-                          decoration: BoxDecoration(
-                            color: allDone
-                                ? AppColors.success.withValues(alpha: 0.10)
-                                : AppColors.accent.withValues(alpha: 0.08),
-                            shape: BoxShape.circle,
-                          ),
-                          child: Icon(
-                            allDone
-                                ? CupertinoIcons.checkmark_seal_fill
-                                : (_activeMode == RouteMode.deployment
-                                    ? CupertinoIcons.sunrise_fill
-                                    : CupertinoIcons.moon_stars_fill),
-                            color: allDone ? AppColors.success : AppColors.accent,
-                            size: 24,
-                          ),
+                        Row(
+                          children: [
+                            Container(
+                              width: 44,
+                              height: 44,
+                              decoration: BoxDecoration(
+                                color: allDone
+                                    ? AppColors.success.withValues(alpha: 0.10)
+                                    : AppColors.accent.withValues(alpha: 0.08),
+                                shape: BoxShape.circle,
+                              ),
+                              child: Icon(
+                                allDone ? CupertinoIcons.checkmark_alt : CupertinoIcons.arrow_branch,
+                                color: allDone ? AppColors.success : AppColors.accent,
+                                size: 22,
+                              ),
+                            ),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    allDone ? 'Route Finished' : 'Active Route Progress',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 15,
+                                      color: AppColors.textPrimary,
+                                    ),
+                                  ),
+                                  Text(
+                                    '$completedCount of ${branches.length} stops reached',
+                                    style: const TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w500,
+                                      color: AppColors.textSecondary,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            if (!allDone)
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                decoration: BoxDecoration(
+                                  color: AppColors.background,
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: const Row(
+                                  children: [
+                                    Icon(CupertinoIcons.location_north_fill, size: 10, color: AppColors.accent),
+                                    SizedBox(width: 4),
+                                    Text(
+                                      'NAVIGATING',
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w800,
+                                        color: AppColors.textSecondary,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                          ],
                         ),
-                        const SizedBox(width: 14),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                allDone
-                                    ? 'Route Completed'
-                                    : (_activeMode == RouteMode.deployment
-                                        ? 'Staff Deployment'
-                                        : 'Staff Retrieval'),
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w900,
-                                  fontSize: 16,
-                                  color: allDone ? AppColors.success : AppColors.textPrimary,
-                                  letterSpacing: -0.4,
+                        const SizedBox(height: 16),
+                        // Mini Map Preview (clickable)
+                        GestureDetector(
+                          onTap: _showMapModal,
+                          child: Container(
+                            height: 100,
+                            width: double.infinity,
+                            decoration: BoxDecoration(
+                              color: AppColors.accent.withValues(alpha: 0.05),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: AppColors.border),
+                            ),
+                            child: Stack(
+                              children: [
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(12),
+                                  child: CustomPaint(
+                                    painter: _MapPainter(),
+                                    size: Size.infinite,
+                                  ),
                                 ),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                allDone
-                                    ? 'All ${_activeMode == RouteMode.deployment ? "drop-offs" : "pickups"} finished'
-                                    : '$completedCount of ${branches.length} staff stops reached',
-                                style: const TextStyle(
-                                  fontSize: 12.5,
-                                  fontWeight: FontWeight.w600,
-                                  color: AppColors.textSecondary,
+                                Container(
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(12),
+                                    gradient: LinearGradient(
+                                      begin: Alignment.topCenter,
+                                      end: Alignment.bottomCenter,
+                                      colors: [
+                                        CupertinoColors.black.withValues(alpha: 0.0),
+                                        CupertinoColors.black.withValues(alpha: 0.3),
+                                      ],
+                                    ),
+                                  ),
                                 ),
-                              ),
-                            ],
+                                Center(
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                                    decoration: BoxDecoration(
+                                      color: CupertinoColors.white,
+                                      borderRadius: BorderRadius.circular(20),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: CupertinoColors.black.withValues(alpha: 0.1),
+                                          blurRadius: 8,
+                                        ),
+                                      ],
+                                    ),
+                                    child: const Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(CupertinoIcons.map_fill, size: 14, color: AppColors.accent),
+                                        SizedBox(width: 8),
+                                        Text(
+                                          'Open Live Route Map',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w800,
+                                            color: AppColors.accent,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       ],
@@ -318,7 +527,7 @@ class _RouteScreenState extends State<RouteScreen> {
                                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                             decoration: BoxDecoration(
                                               color: AppColors.success.withValues(alpha: 0.1),
-                                              borderRadius: BorderRadius.circular(6),
+                                              borderRadius: BorderRadius.circular(8),
                                             ),
                                             child: const Text(
                                               'DONE',
@@ -342,7 +551,7 @@ class _RouteScreenState extends State<RouteScreen> {
                                       padding: const EdgeInsets.all(10),
                                       decoration: BoxDecoration(
                                         color: AppColors.background,
-                                        borderRadius: BorderRadius.circular(10),
+                                        borderRadius: BorderRadius.circular(12),
                                       ),
                                       child: Row(
                                         children: [
@@ -408,7 +617,7 @@ class _RouteScreenState extends State<RouteScreen> {
                                               color: notified 
                                                 ? AppColors.background 
                                                 : AppColors.accent.withValues(alpha: 0.1),
-                                              borderRadius: BorderRadius.circular(8),
+                                              borderRadius: BorderRadius.circular(12),
                                               onPressed: () => _notifyStaff(branch.id),
                                               child: Row(
                                                 mainAxisAlignment: MainAxisAlignment.center,
@@ -437,7 +646,7 @@ class _RouteScreenState extends State<RouteScreen> {
                                               padding: EdgeInsets.zero,
                                               minSize: 38,
                                               color: AppColors.accent,
-                                              borderRadius: BorderRadius.circular(8),
+                                              borderRadius: BorderRadius.circular(12),
                                               onPressed: () => _markCompleted(branch.id),
                                               child: Text(
                                                 _activeMode == RouteMode.deployment ? 'Dropped Off' : 'Picked Up',
@@ -486,6 +695,109 @@ class _RouteScreenState extends State<RouteScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// A custom painter to create a "clean" looking map mockup without external assets.
+class _MapPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    // Draw "City Grid" background
+    final gridPaint = Paint()
+      ..color = AppColors.accent.withValues(alpha: 0.05)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5;
+
+    for (var i = 0.0; i < size.width; i += 40) {
+      canvas.drawLine(Offset(i, 0), Offset(i, size.height), gridPaint);
+    }
+    for (var i = 0.0; i < size.height; i += 40) {
+      canvas.drawLine(Offset(0, i), Offset(size.width, i), gridPaint);
+    }
+
+    // Draw stylized roads
+    final roadPaint = Paint()
+      ..color = AppColors.accent.withValues(alpha: 0.15)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 8
+      ..strokeCap = StrokeCap.round;
+
+    final roadPath = Path();
+    roadPath.moveTo(0, size.height * 0.4);
+    roadPath.lineTo(size.width * 0.3, size.height * 0.4);
+    roadPath.lineTo(size.width * 0.3, size.height * 0.7);
+    roadPath.lineTo(size.width * 0.8, size.height * 0.7);
+    roadPath.lineTo(size.width * 0.8, size.height * 0.2);
+    roadPath.lineTo(size.width, size.height * 0.2);
+    canvas.drawPath(roadPath, roadPaint);
+
+    // Draw active route highlight
+    final activeRoutePaint = Paint()
+      ..color = AppColors.accent.withValues(alpha: 0.6)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 4
+      ..strokeCap = StrokeCap.round;
+
+    final activePath = Path();
+    activePath.moveTo(size.width * 0.3, size.height * 0.55);
+    activePath.lineTo(size.width * 0.3, size.height * 0.7);
+    activePath.lineTo(size.width * 0.6, size.height * 0.7);
+    canvas.drawPath(activePath, activeRoutePaint);
+
+    // Draw stop markers
+    final stopPaint = Paint()..color = AppColors.accent;
+    canvas.drawCircle(Offset(size.width * 0.3, size.height * 0.4), 5, stopPaint);
+    canvas.drawCircle(Offset(size.width * 0.8, size.height * 0.7), 5, stopPaint);
+    
+    // Draw current location (Car icon representation)
+    final currentPosPaint = Paint()..color = const Color(0xFF4285F4);
+    final shadowPaint = Paint()
+      ..color = const Color(0xFF4285F4).withValues(alpha: 0.2)
+      ..style = PaintingStyle.fill;
+      
+    canvas.drawCircle(Offset(size.width * 0.5, size.height * 0.7), 14, shadowPaint);
+    canvas.drawCircle(Offset(size.width * 0.5, size.height * 0.7), 6, currentPosPaint);
+    
+    // Directional arrow
+    final arrowPath = Path();
+    arrowPath.moveTo(size.width * 0.5, size.height * 0.7 - 10);
+    arrowPath.lineTo(size.width * 0.5 - 4, size.height * 0.7 - 6);
+    arrowPath.lineTo(size.width * 0.5 + 4, size.height * 0.7 - 6);
+    arrowPath.close();
+    canvas.drawPath(arrowPath, currentPosPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+class _MapControlButton extends StatelessWidget {
+  final IconData icon;
+  final double size;
+  const _MapControlButton({required this.icon, this.size = 36});
+
+  @override
+  Widget build(BuildContext context) {
+    return CupertinoButton(
+      padding: EdgeInsets.zero,
+      onPressed: () {}, // Interactive map controls placeholder
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          color: CupertinoColors.white,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: CupertinoColors.black.withValues(alpha: 0.15),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Icon(icon, size: size * 0.55, color: AppColors.textPrimary),
       ),
     );
   }

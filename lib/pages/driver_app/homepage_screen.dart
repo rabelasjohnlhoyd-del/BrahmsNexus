@@ -122,7 +122,7 @@ class _DriverHomepageScreenState extends State<DriverHomepageScreen> {
                       const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
                     color: AppColors.accent.withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(12),
                   ),
                   child: Row(
                     children: [
@@ -335,7 +335,7 @@ class _DriverHomepageScreenState extends State<DriverHomepageScreen> {
                         alignment: Alignment.center,
                         decoration: BoxDecoration(
                           color: AppColors.pastelBrown.withValues(alpha: 0.3),
-                          borderRadius: BorderRadius.circular(10),
+                          borderRadius: BorderRadius.circular(12),
                         ),
                         child: const Icon(CupertinoIcons.building_2_fill,
                             color: AppColors.accent),

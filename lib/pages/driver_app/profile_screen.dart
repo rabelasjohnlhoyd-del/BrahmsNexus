@@ -219,7 +219,7 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
               color: AppColors.accent.withValues(alpha: 0.06),
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(icon, size: 18, color: AppColors.accent.withValues(alpha: 0.8)),
           ),

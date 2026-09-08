@@ -101,7 +101,7 @@ class DriverNotificationsScreen extends StatelessWidget {
                               alignment: Alignment.center,
                               decoration: BoxDecoration(
                                 color: AppColors.pastelBrown.withValues(alpha: 0.25),
-                                borderRadius: BorderRadius.circular(10),
+                                borderRadius: BorderRadius.circular(12),
                               ),
                               child: const Icon(
                                 CupertinoIcons.bell_fill,

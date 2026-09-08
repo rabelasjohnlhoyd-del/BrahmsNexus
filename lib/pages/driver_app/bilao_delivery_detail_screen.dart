@@ -141,7 +141,7 @@ class _BilaoDeliveryDetailScreenState
                         ),
                       )
                     : ClipRRect(
-                        borderRadius: BorderRadius.circular(14),
+                        borderRadius: BorderRadius.circular(12),
                         child: Image.file(
                           File(_photo!.path),
                           fit: BoxFit.cover,

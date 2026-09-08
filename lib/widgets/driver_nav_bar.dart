@@ -51,8 +51,8 @@ class DriverNavBar extends StatelessWidget
   /// Only used when [mode] is [DriverHeaderMode.greeting].
   final String greetingName;
 
-  static const double _compactHeight = 52;
-  static const double _greetingHeight = 52;
+  static const double _compactHeight = 56;
+  static const double _greetingHeight = 56;
 
   @override
   Size get preferredSize => Size.fromHeight(
