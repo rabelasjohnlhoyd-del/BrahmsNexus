@@ -597,7 +597,7 @@ class _RouteScreenState extends State<RouteScreen> {
                                           ),
                                           CupertinoButton(
                                             padding: EdgeInsets.zero,
-                                            minSize: 32,
+                                            minimumSize: const Size(32, 32),
                                             child: const Icon(CupertinoIcons.phone_fill, 
                                                               size: 18, color: AppColors.success),
                                             onPressed: () {}, // Mock call
@@ -613,7 +613,7 @@ class _RouteScreenState extends State<RouteScreen> {
                                           Expanded(
                                             child: CupertinoButton(
                                               padding: EdgeInsets.zero,
-                                              minSize: 38,
+                                              minimumSize: const Size(0, 38),
                                               color: notified 
                                                 ? AppColors.background 
                                                 : AppColors.accent.withValues(alpha: 0.1),
@@ -644,7 +644,7 @@ class _RouteScreenState extends State<RouteScreen> {
                                           Expanded(
                                             child: CupertinoButton(
                                               padding: EdgeInsets.zero,
-                                              minSize: 38,
+                                              minimumSize: const Size(0, 38),
                                               color: AppColors.accent,
                                               borderRadius: BorderRadius.circular(12),
                                               onPressed: () => _markCompleted(branch.id),

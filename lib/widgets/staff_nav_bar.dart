@@ -69,11 +69,6 @@ class StaffNavBar extends StatelessWidget
     'July', 'August', 'September', 'October', 'November', 'December',
   ];
 
-  String _formattedToday() {
-    final now = DateTime.now();
-    return '${_months[now.month - 1]} ${now.day}, ${now.year}';
-  }
-
   String _greetingPrefix() {
     final hour = DateTime.now().hour;
     if (hour < 12) return 'Good Morning';

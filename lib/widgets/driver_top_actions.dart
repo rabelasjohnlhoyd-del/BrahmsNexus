@@ -1,7 +1,7 @@
 import 'package:flutter/cupertino.dart';
-import '../pages/auth/login_screen.dart';
+
 import '../pages/driver_app/notifications_screen.dart';
-import '../pages/driver_app/profile_screen.dart';
+
 import '../theme/app_theme.dart';
 
 /// Shared trailing actions for every tab of the Driver app:

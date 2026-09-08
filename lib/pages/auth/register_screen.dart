@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../../models/account_status.dart';
-import '../../models/user_role.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/auth_brand_mark.dart';
 import '../../widgets/auth_card.dart';

@@ -142,7 +142,7 @@ class _SalesScreenState extends State<SalesScreen> {
       backgroundColor: AppColors.background,
       navigationBar: const StaffNavBar(
         title: 'Sales',
-        trailing: const StaffTopActions(),
+        trailing: StaffTopActions(),
       ),
       child: SafeArea(
         child: ListView(

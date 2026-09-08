@@ -442,7 +442,7 @@ class _HomepageScreenState extends State<HomepageScreen> {
         title: 'Homepage',
         mode: StaffHeaderMode.greeting,
         greetingName: 'Staff',
-        trailing: const StaffTopActions(),
+        trailing: StaffTopActions(),
       ),
       child: SafeArea(
         child: ListView(

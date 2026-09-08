@@ -270,7 +270,7 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
                       )
                     : ListView.separated(
                         itemCount: _visibleReports.length,
-                        separatorBuilder: (_, __) =>
+                        separatorBuilder: (context, index) =>
                             const SizedBox(height: 10),
                         itemBuilder: (context, index) {
                           final r = _visibleReports[index];

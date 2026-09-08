@@ -107,7 +107,7 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
       backgroundColor: AppColors.background,
       navigationBar: const StaffNavBar(
         title: 'Daily Report',
-        trailing: const StaffTopActions(),
+        trailing: StaffTopActions(),
       ),
       child: SafeArea(
         child: ListView(

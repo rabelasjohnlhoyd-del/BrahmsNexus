@@ -132,7 +132,7 @@ class _BilaoOrderScreenState extends State<BilaoOrderScreen> {
                     ),
                     const SizedBox(height: 12),
                     DropdownButtonFormField<BilaoSize>(
-                      value: selectedSize,
+                      initialValue: selectedSize,
                       decoration: const InputDecoration(
                         labelText: 'Bilao Size',
                       ),
@@ -357,7 +357,7 @@ class _BilaoOrderScreenState extends State<BilaoOrderScreen> {
                         ),
                         const SizedBox(height: 10),
                         DropdownButtonFormField<String>(
-                          value: _statusFilter,
+                          initialValue: _statusFilter,
                           decoration: const InputDecoration(
                             labelText: 'Filter by status',
                             isDense: true,
@@ -383,7 +383,7 @@ class _BilaoOrderScreenState extends State<BilaoOrderScreen> {
                       )
                     : ListView.separated(
                         itemCount: _visibleOrders.length,
-                        separatorBuilder: (_, __) => const SizedBox(height: 10),
+                        separatorBuilder: (_, index) => const SizedBox(height: 10),
                         itemBuilder: (context, index) {
                           final order = _visibleOrders[index];
                           return _OrderCard(
@@ -474,7 +474,7 @@ class _OrderCard extends StatelessWidget {
     );
 
     final preparationDropdown = DropdownButtonFormField<PreparationStatus>(
-      value: order.preparationStatus,
+      initialValue: order.preparationStatus,
       decoration: InputDecoration(
         labelText: 'Preparation',
         isDense: true,
@@ -489,7 +489,7 @@ class _OrderCard extends StatelessWidget {
     );
 
     final deliveryDropdown = DropdownButtonFormField<DeliveryStatus>(
-      value: order.deliveryStatus,
+      initialValue: order.deliveryStatus,
       decoration: InputDecoration(
         labelText: 'Delivery',
         isDense: true,

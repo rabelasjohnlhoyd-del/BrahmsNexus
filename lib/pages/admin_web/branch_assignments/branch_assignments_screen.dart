@@ -160,7 +160,7 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
               Expanded(
                 child: ListView.separated(
                   itemCount: _assignments.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 10),
+                  separatorBuilder: (context, index) => const SizedBox(height: 10),
                   itemBuilder: (context, index) {
                     final a = _assignments[index];
                     return _AssignmentCard(
@@ -277,7 +277,7 @@ class _AssignmentCard extends StatelessWidget {
     );
 
     final branchDropdown = DropdownButtonFormField<String>(
-      value: assignment.branchId,
+      initialValue: assignment.branchId,
       decoration: const InputDecoration(
         labelText: 'Branch',
         isDense: true,

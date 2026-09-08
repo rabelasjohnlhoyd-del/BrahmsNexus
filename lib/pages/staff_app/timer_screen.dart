@@ -136,7 +136,7 @@ class _TimerScreenState extends State<TimerScreen> {
       backgroundColor: AppColors.background,
       navigationBar: const StaffNavBar(
         title: 'Timer',
-        trailing: const StaffTopActions(),
+        trailing: StaffTopActions(),
       ),
       child: SafeArea(
         child: ListView(

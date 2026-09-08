@@ -228,7 +228,7 @@ class _SalesPayrollScreenState extends State<SalesPayrollScreen> {
                       )
                     : ListView.separated(
                         itemCount: _visibleRecords.length,
-                        separatorBuilder: (_, __) => const SizedBox(height: 10),
+                        separatorBuilder: (context, index) => const SizedBox(height: 10),
                         itemBuilder: (context, index) {
                           return _SalesRecordCard(
                             record: _visibleRecords[index],
