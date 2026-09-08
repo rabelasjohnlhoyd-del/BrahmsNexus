@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'admin_web_colors.dart';
 import '../../widgets/admin_sidebar.dart';
+import '../../widgets/admin_top_bar.dart';
 import '../auth/login_screen.dart';
 import 'account_approvals/account_approvals_screen.dart';
 import 'analytics/analytics_screen.dart';
@@ -137,19 +138,27 @@ class _AdminWebShellState extends State<AdminWebShell> {
               backgroundColor: AdminWebColors.background,
               body: Row(
                 children: [
-                  SizedBox(
-                    width: 260,
-                    child: AdminSidebar(
-                      items: _items,
-                      selectedIndex: _selectedIndex,
-                      onSelect: (index) =>
-                          setState(() => _selectedIndex = index),
-                      onLogout: _handleLogout,
-                    ),
+                  AdminSidebar(
+                    items: _items,
+                    selectedIndex: _selectedIndex,
+                    onSelect: (index) =>
+                        setState(() => _selectedIndex = index),
+                    onLogout: _handleLogout,
                   ),
                   Expanded(
-                    child: SafeArea(
-                      child: currentPage,
+                    child: Column(
+                      children: [
+                        AdminTopBar(
+                          title: _items[_selectedIndex].label,
+                          subtitle: 'Brahms Nexus Management System',
+                          onLogout: _handleLogout,
+                        ),
+                        Expanded(
+                          child: SafeArea(
+                            child: currentPage,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
