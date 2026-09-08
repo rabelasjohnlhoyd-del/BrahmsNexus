@@ -4,6 +4,7 @@ import '../../widgets/staff_button.dart';
 import '../../widgets/staff_card.dart';
 import '../../widgets/staff_nav_bar.dart';
 import '../../widgets/staff_section_header.dart';
+import '../../widgets/staff_top_actions.dart';
 import '../auth/login_screen.dart';
 import 'edit_profile_screen.dart';
 
@@ -29,6 +30,7 @@ class ProfileScreen extends StatelessWidget {
       navigationBar: StaffNavBar(
         title: 'Profile',
         showBackButton: !isRootTab,
+        trailing: const StaffTopActions(),
       ),
       child: SafeArea(
         child: ListView(
