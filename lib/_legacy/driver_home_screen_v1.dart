@@ -3,9 +3,9 @@ import '../theme/app_theme.dart';
 import '../widgets/feature_card.dart';
 import '../pages/auth/login_screen.dart';
 import 'driver_attendance_scan_screen.dart';
-import 'driver_delivery_screen.dart';
-import 'driver_route_screen.dart';
-import 'driver_stock_transfer_screen.dart';
+import '../pages/driver_app/route_screen.dart';
+import '../pages/driver_app/stock_transfer_screen.dart';
+import '../pages/driver_app/bilao_deliveries_screen.dart';
 
 /// Driver — MOBILE. Nakikita dito: announcements ni owner, ruta base
 /// sa branch assignment ng mga tagaluto, RFID attendance collection
@@ -66,7 +66,7 @@ class DriverHomeScreen extends StatelessWidget {
         title: 'Bilao Deliveries',
         subtitle: 'Orders for delivery today',
         icon: Icons.shopping_bag_outlined,
-        builder: (_) => const DeliveryScreen(),
+        builder: (_) => const BilaoDeliveriesScreen(),
       ),
     ];
 
