@@ -29,13 +29,7 @@ class AdminSidebar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: 240,
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [AdminWebColors.headerStart, AdminWebColors.headerEnd],
-        ),
-      ),
+      color: AdminWebColors.sidebarBackground,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -44,7 +38,7 @@ class AdminSidebar extends StatelessWidget {
             decoration: BoxDecoration(
               border: Border(
                 bottom: BorderSide(
-                  color: Colors.white.withValues(alpha: 0.1),
+                  color: AdminWebColors.border,
                 ),
               ),
             ),
@@ -55,11 +49,11 @@ class AdminSidebar extends StatelessWidget {
                   height: 30,
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.15),
+                    color: AdminWebColors.accent.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(9),
                   ),
                   child: const Icon(Icons.storefront_rounded,
-                      color: Colors.white, size: 17),
+                      color: AdminWebColors.accent, size: 17),
                 ),
                 const SizedBox(width: 10),
                 const Expanded(
@@ -67,7 +61,7 @@ class AdminSidebar extends StatelessWidget {
                     'BRAHMS NEXUS',
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
-                      color: Colors.white,
+                      color: AdminWebColors.accentDark,
                       letterSpacing: 0.5,
                       fontSize: 13,
                     ),
@@ -88,7 +82,7 @@ class AdminSidebar extends StatelessWidget {
                       const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
                   child: Material(
                     color: isSelected
-                        ? Colors.white.withValues(alpha: 0.15)
+                        ? AdminWebColors.accent
                         : Colors.transparent,
                     borderRadius: BorderRadius.circular(10),
                     child: InkWell(
@@ -104,7 +98,9 @@ class AdminSidebar extends StatelessWidget {
                             Icon(
                               item.icon,
                               size: 19,
-                              color: Colors.white,
+                              color: isSelected
+                                  ? Colors.white
+                                  : AdminWebColors.accentDark,
                             ),
                             const SizedBox(width: 12),
                             Expanded(
@@ -115,7 +111,9 @@ class AdminSidebar extends StatelessWidget {
                                   fontWeight: isSelected
                                       ? FontWeight.w600
                                       : FontWeight.w500,
-                                  color: Colors.white,
+                                  color: isSelected
+                                      ? Colors.white
+                                      : AdminWebColors.textPrimary,
                                 ),
                               ),
                             ),
@@ -142,14 +140,14 @@ class AdminSidebar extends StatelessWidget {
                   child: Row(
                     children: [
                       Icon(Icons.logout_rounded,
-                          size: 19, color: Colors.white70),
+                          size: 19, color: AdminWebColors.error),
                       SizedBox(width: 12),
                       Text(
                         'Log out',
                         style: TextStyle(
                           fontSize: 13.5,
                           fontWeight: FontWeight.w600,
-                          color: Colors.white70,
+                          color: AdminWebColors.error,
                         ),
                       ),
                     ],

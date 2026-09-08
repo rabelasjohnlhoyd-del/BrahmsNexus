@@ -12,39 +12,34 @@ import 'package:flutter/material.dart';
 class AdminWebColors {
   AdminWebColors._();
 
-  // 60% — main background
+  // 60% — main background (Linen)
   static const Color background = Color(0xFFFAF0E6);
 
-  // 30% — sidebar / secondary surfaces / borders
+  // 30% — sidebar / secondary surfaces / borders (Pastel Brown)
   static const Color sidebarBackground = Color(0xFFD2B48C);
-  static const Color surfaceTint = Color(0xFFF7EFE4);
+  static const Color surfaceTint = Color(0xFFFAF3EA);
   static const Color border = Color(0xFFE0D2C3);
 
-  // 10% — warm medium brown accent
+  // 10% — warm medium brown accent (Sienna / Terracotta)
   static const Color accent = Color(0xFFA0522D);
   static const Color accentDark = Color(0xFF8B4513);
-
-  // Header gradient (matches Staff/Driver app)
-  static const Color headerStart = Color(0xFF2B1B12);
-  static const Color headerEnd = Color(0xFF7A4A2A);
 
   // Text
   static const Color textPrimary = Color(0xFF3B2418);
   static const Color textSecondary = Color(0xFF8B4513);
 
-  // Status (kept muted/earthy, no saturated colors per brief)
-  static const Color success = Color(0xFF6E8F5C);
-  static const Color warning = Color(0xFFC98A3B);
-  static const Color error = Color(0xFFB3554A);
+  // Status (Matches mobile app theme)
+  static const Color success = Color(0xFF2E7D32);
+  static const Color warning = Color(0xFFE0932A);
+  static const Color error = Color(0xFFB3261E);
 
-  // Chart bars — two closely related pastel brown shades
-  static const Color chartBarPrimary = Color(0xFFB08968);
-  static const Color chartBarSecondary = Color(0xFFDCC3A6);
+  // Chart bars — adapted for the new palette
+  static const Color chartBarPrimary = Color(0xFFA0522D); // Sienna
+  static const Color chartBarSecondary = Color(0xFFD2B48C); // Pastel Brown
 
-  /// Semi-transparent white/beige for glass cards — pair with
-  /// [glassBorder] and a BackdropFilter blur.
-  static Color glassFill = Colors.white.withValues(alpha: 0.55);
-  static Color glassBorder = border.withValues(alpha: 0.7);
+  /// Semi-transparent white/cream for glass cards — adjusted for linen background
+  static Color glassFill = Colors.white.withValues(alpha: 0.65);
+  static Color glassBorder = border.withValues(alpha: 0.8);
 }
 
 /// Full Material [ThemeData] for Admin Web — wrapped around the whole
@@ -75,27 +70,28 @@ class AdminWebTheme {
 
     return base.copyWith(
       appBarTheme: const AppBarTheme(
-        backgroundColor: AdminWebColors.background,
-        foregroundColor: AdminWebColors.textPrimary,
-        elevation: 1,
+        backgroundColor: AdminWebColors.accent,
+        foregroundColor: Colors.white,
+        elevation: 0,
         surfaceTintColor: Colors.transparent,
         titleTextStyle: TextStyle(
-          color: AdminWebColors.textPrimary,
+          color: Colors.white,
           fontSize: 18,
           fontWeight: FontWeight.w700,
         ),
-        iconTheme: IconThemeData(color: AdminWebColors.accent),
+        iconTheme: IconThemeData(color: Colors.white),
       ),
       cardTheme: CardThemeData(
         color: Colors.white,
-        elevation: 0,
+        elevation: 2,
         margin: EdgeInsets.zero,
+        shadowColor: AdminWebColors.textPrimary.withValues(alpha: 0.1),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(16),
           side: const BorderSide(color: AdminWebColors.border),
         ),
       ),
-      dividerTheme: DividerThemeData(
+      dividerTheme: const DividerThemeData(
         color: AdminWebColors.border,
         thickness: 1,
         space: 1,
@@ -104,21 +100,21 @@ class AdminWebTheme {
         filled: true,
         fillColor: Colors.white,
         contentPadding:
-            const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: BorderSide(color: AdminWebColors.border),
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: AdminWebColors.border),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: BorderSide(color: AdminWebColors.border),
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: AdminWebColors.border),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(color: AdminWebColors.accent, width: 1.6),
         ),
         errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(color: AdminWebColors.error),
         ),
         labelStyle: const TextStyle(color: AdminWebColors.textSecondary),
@@ -131,23 +127,23 @@ class AdminWebTheme {
           disabledBackgroundColor:
               AdminWebColors.accent.withValues(alpha: 0.35),
           elevation: 0,
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(12),
           ),
           textStyle: const TextStyle(
-            fontWeight: FontWeight.w600,
-            fontSize: 13.5,
+            fontWeight: FontWeight.bold,
+            fontSize: 14,
           ),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
           foregroundColor: AdminWebColors.textPrimary,
-          side: BorderSide(color: AdminWebColors.border),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+          side: const BorderSide(color: AdminWebColors.border),
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 15),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(12),
           ),
         ),
       ),
@@ -155,14 +151,15 @@ class AdminWebTheme {
         style: TextButton.styleFrom(
           foregroundColor: AdminWebColors.accent,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(10),
           ),
+          textStyle: const TextStyle(fontWeight: FontWeight.bold),
         ),
       ),
       floatingActionButtonTheme: const FloatingActionButtonThemeData(
         backgroundColor: AdminWebColors.accent,
         foregroundColor: Colors.white,
-        elevation: 2,
+        elevation: 4,
       ),
       tabBarTheme: TabBarThemeData(
         labelColor: AdminWebColors.accent,
@@ -171,11 +168,11 @@ class AdminWebTheme {
         dividerColor: AdminWebColors.border,
       ),
       chipTheme: ChipThemeData(
-        backgroundColor: Colors.white,
+        backgroundColor: AdminWebColors.surfaceTint,
         selectedColor: AdminWebColors.accent,
         labelStyle: const TextStyle(color: AdminWebColors.textPrimary),
         secondaryLabelStyle: const TextStyle(color: Colors.white),
-        side: const BorderSide(color: AdminWebColors.border),
+        side: BorderSide(color: AdminWebColors.border),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       ),
       progressIndicatorTheme: const ProgressIndicatorThemeData(

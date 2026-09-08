@@ -1,32 +1,21 @@
 import 'package:flutter/material.dart';
 import '../pages/admin_web/admin_web_colors.dart';
 
-/// DEPRECATED / UNUSED — no longer referenced anywhere in the app.
-///
-/// Was the persistent top bar for the desktop/wide Admin Web layout,
-/// but it duplicated the title/notification/profile row that each
-/// admin page (e.g. DashboardScreen) now renders itself, so it was
-/// removed from admin_web_shell.dart. Kept on disk only because this
-/// tool can't delete files on your machine — safe for you to delete
-/// this file yourself (right-click → Delete in Android Studio).
-///
-/// Previously the wide layout had NO top bar at all — each page just
-/// started immediately with its own title text, so there was nowhere
-/// consistent for a page label, and no way to log out without
-/// scrolling all the way down the sidebar. This adds that missing
-/// chrome once, above every page, without needing a hamburger menu
-/// (which is reserved for the narrow/mobile-browser layout).
+/// Standardized top bar for Admin Web pages. Provides consistent
+/// page labeling and access to notifications/profile.
 class AdminTopBar extends StatelessWidget implements PreferredSizeWidget {
   const AdminTopBar({
     super.key,
-    required this.currentLabel,
-    required this.onLogout,
+    required this.title,
+    this.subtitle,
+    this.onLogout,
   });
 
-  final String currentLabel;
-  final VoidCallback onLogout;
+  final String title;
+  final String? subtitle;
+  final VoidCallback? onLogout;
 
-  static const double _height = 64;
+  static const double _height = 80;
 
   @override
   Size get preferredSize => const Size.fromHeight(_height);
@@ -36,29 +25,59 @@ class AdminTopBar extends StatelessWidget implements PreferredSizeWidget {
     return Container(
       height: _height,
       decoration: const BoxDecoration(
-        color: AdminWebColors.background,
+        color: Colors.white,
         border: Border(bottom: BorderSide(color: AdminWebColors.border)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black12,
+            blurRadius: 10,
+            offset: Offset(0, 2),
+          ),
+        ],
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 24),
+      padding: const EdgeInsets.symmetric(horizontal: 32),
       child: Row(
         children: [
           Expanded(
-            child: Text(
-              currentLabel,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-                color: AdminWebColors.textPrimary,
-              ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w900,
+                    color: AdminWebColors.textPrimary,
+                    letterSpacing: -0.5,
+                  ),
+                ),
+                if (subtitle != null)
+                  Text(
+                    subtitle!,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: AdminWebColors.textSecondary,
+                    ),
+                  ),
+              ],
             ),
           ),
           const SizedBox(width: 16),
+          // Notification Bell
+          IconButton(
+            onPressed: () {},
+            icon: Badge(
+              label: const Text('2'),
+              child: Icon(Icons.notifications_outlined, color: AdminWebColors.accent),
+            ),
+          ),
+          const SizedBox(width: 8),
+          // Profile Section
           PopupMenuButton<String>(
-            offset: const Offset(0, 44),
+            offset: const Offset(0, 50),
             onSelected: (value) {
-              if (value == 'logout') onLogout();
+              if (value == 'logout') onLogout?.call();
             },
             itemBuilder: (context) => const [
               PopupMenuItem(
@@ -72,33 +91,40 @@ class AdminTopBar extends StatelessWidget implements PreferredSizeWidget {
                 ),
               ),
             ],
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                CircleAvatar(
-                  radius: 16,
-                  backgroundColor: AdminWebColors.accent.withValues(alpha: 0.15),
-                  child: const Text(
-                    'O',
-                    style: TextStyle(
-                      color: AdminWebColors.accent,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 13,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: AdminWebColors.surfaceTint,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CircleAvatar(
+                    radius: 16,
+                    backgroundColor: AdminWebColors.accent,
+                    child: const Text(
+                      'O',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 14,
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(width: 8),
-                const Text(
-                  'Owner',
-                  style: TextStyle(
-                    fontSize: 13.5,
-                    fontWeight: FontWeight.w600,
-                    color: AdminWebColors.textPrimary,
+                  const SizedBox(width: 10),
+                  const Text(
+                    'Administrator',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: AdminWebColors.textPrimary,
+                    ),
                   ),
-                ),
-                const Icon(Icons.keyboard_arrow_down_rounded,
-                    size: 18, color: AdminWebColors.textSecondary),
-              ],
+                  const Icon(Icons.keyboard_arrow_down_rounded,
+                      size: 20, color: AdminWebColors.textSecondary),
+                ],
+              ),
             ),
           ),
         ],

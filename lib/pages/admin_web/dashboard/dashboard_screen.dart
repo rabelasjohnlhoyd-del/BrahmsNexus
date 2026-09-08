@@ -5,10 +5,7 @@ import '../admin_web_widgets/kpi_card.dart';
 import '../admin_web_widgets/quick_link_card.dart';
 import '../admin_web_widgets/simple_bar_chart.dart';
 
-/// Admin Web dashboard — glassmorphism redesign per the 60-30-10 brief:
-/// 60% white background, 30% pastel brown/beige surfaces, 10% warm
-/// medium brown accent. Mock numbers for now — once Supabase/Firebase
-/// are wired up, the KPIs and chart data come from real queries.
+/// Admin Web dashboard — glassmorphism redesign following standard page layout.
 class DashboardScreen extends StatelessWidget {
   const DashboardScreen({super.key, this.onLogout});
 
@@ -31,9 +28,9 @@ class DashboardScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final today = _formattedToday();
 
-    return Container(
-      color: AdminWebColors.background,
-      child: LayoutBuilder(
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      body: LayoutBuilder(
         builder: (context, constraints) {
           final isWide = constraints.maxWidth >= 900;
           final isMedium = constraints.maxWidth >= 600;
@@ -43,12 +40,10 @@ class DashboardScreen extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _Header(today: today, isWide: isWide, onLogout: onLogout),
-                const SizedBox(height: 20),
                 _WelcomeBanner(today: today, isWide: isWide),
-                const SizedBox(height: 20),
+                const SizedBox(height: 24),
                 _KpiGrid(crossAxisCount: isWide ? 4 : (isMedium ? 2 : 1)),
-                const SizedBox(height: 20),
+                const SizedBox(height: 24),
                 isWide
                     ? const Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -65,238 +60,25 @@ class DashboardScreen extends StatelessWidget {
                           _SalesReportCard(),
                         ],
                       ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 32),
                 const Text(
                   'Quick Links',
                   style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w900,
                     color: AdminWebColors.textPrimary,
+                    letterSpacing: -0.5,
                   ),
                 ),
                 const SizedBox(height: 12),
                 _QuickLinksGrid(
                     crossAxisCount: isWide ? 4 : (isMedium ? 2 : 1)),
+                const SizedBox(height: 40),
               ],
             ),
           );
         },
       ),
-    );
-  }
-}
-
-class _Header extends StatelessWidget {
-  const _Header({required this.today, required this.isWide, this.onLogout});
-
-  final String today;
-  final bool isWide;
-  final VoidCallback? onLogout;
-
-  void _showNotifications(BuildContext context, Offset position) {
-    showMenu<void>(
-      context: context,
-      position: RelativeRect.fromLTRB(
-          position.dx, position.dy, position.dx, position.dy),
-      color: Colors.white,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: const BorderSide(color: AdminWebColors.border),
-      ),
-      constraints: const BoxConstraints(minWidth: 280, maxWidth: 320),
-      items: const [
-        PopupMenuItem<void>(
-          enabled: false,
-          child: Text(
-            'Notifications',
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              color: AdminWebColors.textPrimary,
-            ),
-          ),
-        ),
-        PopupMenuDivider(),
-        PopupMenuItem<void>(
-          enabled: false,
-          child: _NotificationRow(
-            icon: Icons.warning_amber_rounded,
-            title: 'Low stock alert',
-            subtitle: '3 items need attention',
-          ),
-        ),
-        PopupMenuItem<void>(
-          enabled: false,
-          child: _NotificationRow(
-            icon: Icons.shopping_bag_outlined,
-            title: "Today's orders",
-            subtitle: '128 orders so far, +8% vs yesterday',
-          ),
-        ),
-        PopupMenuItem<void>(
-          enabled: false,
-          child: _NotificationRow(
-            icon: Icons.how_to_reg_rounded,
-            title: 'Pending approval',
-            subtitle: 'A new staff registration is awaiting review',
-          ),
-        ),
-      ],
-    );
-  }
-
-  void _showOwnerMenu(BuildContext context, Offset position) {
-    showMenu<String>(
-      context: context,
-      position: RelativeRect.fromLTRB(
-          position.dx, position.dy, position.dx, position.dy),
-      color: Colors.white,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: const BorderSide(color: AdminWebColors.border),
-      ),
-      items: const [
-        PopupMenuItem<String>(
-          value: 'logout',
-          child: Row(
-            children: [
-              Icon(Icons.logout_rounded,
-                  size: 18, color: AdminWebColors.error),
-              SizedBox(width: 10),
-              Text('Log out'),
-            ],
-          ),
-        ),
-      ],
-    ).then((value) {
-      if (value == 'logout') onLogout?.call();
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final titleBlock = Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Dashboard',
-          style: TextStyle(
-            fontSize: 24,
-            fontWeight: FontWeight.bold,
-            color: AdminWebColors.textPrimary,
-          ),
-        ),
-        const SizedBox(height: 2),
-        Text(
-          "Here's an overview of your operations for $today.",
-          style: const TextStyle(
-            fontSize: 13,
-            color: AdminWebColors.textSecondary,
-          ),
-        ),
-      ],
-    );
-
-    final actions = Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Builder(
-          builder: (context) => InkWell(
-            customBorder: const CircleBorder(),
-            onTapDown: (details) =>
-                _showNotifications(context, details.globalPosition),
-            child: Stack(
-              clipBehavior: Clip.none,
-              children: [
-                Container(
-                  width: 38,
-                  height: 38,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    shape: BoxShape.circle,
-                    border: Border.all(color: AdminWebColors.border),
-                  ),
-                  child: const Icon(Icons.notifications_none_rounded,
-                      size: 19, color: AdminWebColors.accent),
-                ),
-                Positioned(
-                  top: 6,
-                  right: 6,
-                  child: Container(
-                    width: 8,
-                    height: 8,
-                    decoration: const BoxDecoration(
-                      color: AdminWebColors.error,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(width: 14),
-        Builder(
-          builder: (context) => InkWell(
-            borderRadius: BorderRadius.circular(20),
-            onTapDown: (details) =>
-                _showOwnerMenu(context, details.globalPosition),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 34,
-                    height: 34,
-                    alignment: Alignment.center,
-                    decoration: const BoxDecoration(
-                      color: AdminWebColors.accent,
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Text(
-                      'O',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  const Text(
-                    'Owner',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      color: AdminWebColors.textPrimary,
-                    ),
-                  ),
-                  const Icon(Icons.keyboard_arrow_down_rounded,
-                      color: AdminWebColors.textSecondary),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-
-    if (!isWide) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          titleBlock,
-          const SizedBox(height: 12),
-          actions,
-        ],
-      );
-    }
-
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Expanded(child: titleBlock),
-        actions,
-      ],
     );
   }
 }
@@ -312,34 +94,35 @@ class _WelcomeBanner extends StatelessWidget {
     final greeting = Row(
       children: [
         Container(
-          width: 46,
-          height: 46,
+          width: 52,
+          height: 52,
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: AdminWebColors.accent.withValues(alpha: 0.14),
+            color: AdminWebColors.accent.withValues(alpha: 0.12),
             shape: BoxShape.circle,
           ),
-          child: const Text('☀️', style: TextStyle(fontSize: 20)),
+          child: const Text('☀️', style: TextStyle(fontSize: 24)),
         ),
-        const SizedBox(width: 14),
+        const SizedBox(width: 16),
         Flexible(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
               const Text(
-                'Welcome back, Owner 👋',
+                'Welcome back, Admin 👋',
                 style: TextStyle(
-                  fontSize: 17,
-                  fontWeight: FontWeight.bold,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w900,
                   color: AdminWebColors.textPrimary,
+                  letterSpacing: -0.5,
                 ),
               ),
               const SizedBox(height: 2),
               Text(
-                "Here's an overview of your operations for $today.",
+                "Today is $today. All systems are operational.",
                 style: const TextStyle(
-                  fontSize: 12.5,
+                  fontSize: 13,
                   color: AdminWebColors.textSecondary,
                 ),
               ),
@@ -350,47 +133,44 @@ class _WelcomeBanner extends StatelessWidget {
     );
 
     final salesBox = Container(
-      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AdminWebColors.border),
         boxShadow: [
           BoxShadow(
-            color: AdminWebColors.accent.withValues(alpha: 0.08),
+            color: Colors.black.withValues(alpha: 0.03),
             blurRadius: 8,
-            offset: const Offset(0, 3),
+            offset: const Offset(0, 4),
           ),
         ],
       ),
       child: Column(
-        crossAxisAlignment: isWide ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.end,
         mainAxisSize: MainAxisSize.min,
         children: [
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               const Icon(Icons.trending_up_rounded,
-                  size: 16, color: AdminWebColors.success),
-              const SizedBox(width: 6),
+                  size: 18, color: AdminWebColors.success),
+              const SizedBox(width: 8),
               const Text(
-                '₱18,240.00',
+                '₱18,240',
                 style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w800,
-                  color: AdminWebColors.accent,
+                  fontSize: 22,
+                  fontWeight: FontWeight.w900,
+                  color: AdminWebColors.textPrimary,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 2),
           const Text(
-            "Today's Gross Sales",
+            "Today's total revenue",
             style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
+              fontSize: 12,
               color: AdminWebColors.textSecondary,
-              letterSpacing: 0.3,
             ),
           ),
         ],
@@ -398,12 +178,12 @@ class _WelcomeBanner extends StatelessWidget {
     );
 
     return GlassCard(
-      borderRadius: 20,
+      borderRadius: 24,
       child: isWide
           ? Row(
               children: [
                 Expanded(child: greeting),
-                const SizedBox(width: 16),
+                const SizedBox(width: 24),
                 salesBox,
               ],
             )
@@ -411,7 +191,7 @@ class _WelcomeBanner extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 greeting,
-                const SizedBox(height: 16),
+                const SizedBox(height: 24),
                 salesBox,
               ],
             ),
@@ -457,9 +237,9 @@ class _KpiGrid extends StatelessWidget {
       crossAxisCount: crossAxisCount,
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      mainAxisSpacing: 16,
-      crossAxisSpacing: 16,
-      childAspectRatio: crossAxisCount == 1 ? 2.6 : 1.5,
+      mainAxisSpacing: 20,
+      crossAxisSpacing: 20,
+      childAspectRatio: crossAxisCount == 1 ? 2.6 : 1.6,
       children: cards,
     );
   }
@@ -477,45 +257,45 @@ class _OrderDetailsCard extends StatelessWidget {
           Row(
             children: [
               Container(
-                width: 34,
-                height: 34,
+                width: 36,
+                height: 36,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
                   color: AdminWebColors.accent.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(12),
                 ),
                 child: const Icon(Icons.bar_chart_rounded,
-                    size: 18, color: AdminWebColors.accent),
+                    size: 20, color: AdminWebColors.accent),
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: 12),
               const Expanded(
                 child: Text(
-                  'Order Details',
+                  'Order Analytics',
                   style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 15,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 16,
                     color: AdminWebColors.textPrimary,
                   ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 6),
           const Text(
-            'A quick look at bilao order volume for the last 7 days.',
+            'Weekly order volume distribution across all channels.',
             style: TextStyle(fontSize: 12, color: AdminWebColors.textSecondary),
           ),
-          const SizedBox(height: 18),
+          const SizedBox(height: 24),
           const Row(
             children: [
-              _StatBlock(value: '₱642', label: 'Avg. order value'),
-              SizedBox(width: 24),
+              _StatBlock(value: '₱642', label: 'Avg. value'),
+              SizedBox(width: 32),
               _StatBlock(value: '170', label: 'Orders (7d)'),
-              SizedBox(width: 24),
-              _StatBlock(value: '94%', label: 'Fulfilled on time'),
+              SizedBox(width: 32),
+              _StatBlock(value: '94%', label: 'Efficiency'),
             ],
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 24),
           SimpleBarChart(
             labels: const ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
             series: [
@@ -543,63 +323,44 @@ class _SalesReportCard extends StatelessWidget {
           Row(
             children: [
               Container(
-                width: 34,
-                height: 34,
+                width: 36,
+                height: 36,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
                   color: AdminWebColors.accent.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(12),
                 ),
                 child: const Icon(Icons.show_chart_rounded,
-                    size: 18, color: AdminWebColors.accent),
+                    size: 20, color: AdminWebColors.accent),
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: 12),
               const Expanded(
                 child: Text(
-                  'Sales Report',
+                  'Sales Distribution',
                   style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 15,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 16,
                     color: AdminWebColors.textPrimary,
                   ),
                 ),
               ),
-              TextButton(
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text(
-                          'Full sales report — coming once reporting is wired up.'),
-                    ),
-                  );
-                },
-                child: const Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text('View all',
-                        style: TextStyle(color: AdminWebColors.accent)),
-                    SizedBox(width: 2),
-                    Icon(Icons.arrow_forward_rounded,
-                        size: 14, color: AdminWebColors.accent),
-                  ],
-                ),
-              ),
+              const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: AdminWebColors.textSecondary),
             ],
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 6),
           const Text(
-            'Offline vs. online orders across the branches this week.',
+            'Comparison of offline and online sales performance.',
             style: TextStyle(fontSize: 12, color: AdminWebColors.textSecondary),
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 20),
           Row(
             children: [
-              _LegendDot(color: AdminWebColors.chartBarPrimary, label: 'Offline sales'),
-              const SizedBox(width: 16),
-              _LegendDot(color: AdminWebColors.chartBarSecondary, label: 'Online sales'),
+              _LegendDot(color: AdminWebColors.chartBarPrimary, label: 'Store Sales'),
+              const SizedBox(width: 20),
+              _LegendDot(color: AdminWebColors.chartBarSecondary, label: 'Online Deliveries'),
             ],
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 20),
           SimpleBarChart(
             labels: const ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
             series: [
@@ -632,8 +393,8 @@ class _StatBlock extends StatelessWidget {
         Text(
           value,
           style: const TextStyle(
-            fontSize: 17,
-            fontWeight: FontWeight.bold,
+            fontSize: 18,
+            fontWeight: FontWeight.w900,
             color: AdminWebColors.textPrimary,
           ),
         ),
@@ -641,6 +402,7 @@ class _StatBlock extends StatelessWidget {
           label,
           style: const TextStyle(
             fontSize: 11,
+            fontWeight: FontWeight.bold,
             color: AdminWebColors.textSecondary,
           ),
         ),
@@ -664,69 +426,13 @@ class _LegendDot extends StatelessWidget {
           height: 10,
           decoration: BoxDecoration(color: color, shape: BoxShape.circle),
         ),
-        const SizedBox(width: 6),
+        const SizedBox(width: 8),
         Text(
           label,
           style: const TextStyle(
             fontSize: 12,
+            fontWeight: FontWeight.w600,
             color: AdminWebColors.textSecondary,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _NotificationRow extends StatelessWidget {
-  const _NotificationRow({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-  });
-
-  final IconData icon;
-  final String title;
-  final String subtitle;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          width: 30,
-          height: 30,
-          margin: const EdgeInsets.only(top: 2),
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: AdminWebColors.accent.withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(9),
-          ),
-          child: Icon(icon, size: 15, color: AdminWebColors.accent),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: AdminWebColors.textPrimary,
-                ),
-              ),
-              Text(
-                subtitle,
-                style: const TextStyle(
-                  fontSize: 11.5,
-                  color: AdminWebColors.textSecondary,
-                ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
           ),
         ),
       ],
@@ -741,36 +447,26 @@ class _QuickLinksGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    void notReady(String feature) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('$feature — coming soon.')),
-      );
-    }
-
     final links = [
-      QuickLinkCard(
+      const QuickLinkCard(
         icon: Icons.history_rounded,
-        title: 'Order History',
-        subtitle: 'Review all transactions',
-        onTap: () => notReady('Order History'),
+        title: 'Activity Logs',
+        subtitle: 'Audit admin actions',
       ),
-      QuickLinkCard(
-        icon: Icons.inventory_2_outlined,
-        title: 'Inventory Status',
-        subtitle: 'Check stock levels',
-        onTap: () => notReady('Inventory'),
+      const QuickLinkCard(
+        icon: Icons.search_rounded,
+        title: 'Global Search',
+        subtitle: 'Find cross-data',
       ),
-      QuickLinkCard(
-        icon: Icons.analytics_outlined,
-        title: 'Sales Analysis',
-        subtitle: 'View performance data',
-        onTap: () => notReady('Sales Analysis'),
+      const QuickLinkCard(
+        icon: Icons.description_outlined,
+        title: 'Data Exports',
+        subtitle: 'Generate reports',
       ),
-      QuickLinkCard(
-        icon: Icons.people_outline_rounded,
-        title: 'Staff Management',
-        subtitle: 'Manage team access',
-        onTap: () => notReady('Staff Management'),
+      const QuickLinkCard(
+        icon: Icons.settings_outlined,
+        title: 'System Settings',
+        subtitle: 'Configurations',
       ),
     ];
 
@@ -778,8 +474,8 @@ class _QuickLinksGrid extends StatelessWidget {
       crossAxisCount: crossAxisCount,
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      mainAxisSpacing: 14,
-      crossAxisSpacing: 14,
+      mainAxisSpacing: 16,
+      crossAxisSpacing: 16,
       childAspectRatio: crossAxisCount == 1 ? 3.2 : 2.6,
       children: links,
     );
