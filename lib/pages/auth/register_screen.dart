@@ -159,64 +159,62 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           const Align(
                             alignment: Alignment.centerLeft,
                             child: Text(
-                              'Applying as',
+                              'APPLYING AS',
                               style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 1.0,
                                 color: AppColors.textSecondary,
                               ),
                             ),
                           ),
                           // In-app registration is for Staff roles only. Role is determined 
                           // by Owner later. For now, this is just a role suggestion.
-                          const SizedBox(height: 8),
+                          const SizedBox(height: 12),
                           SegmentedButton<String>(
                             segments: const [
                               ButtonSegment(
                                 value: 'Staff',
-                                label: Text('Staff'),
-                                icon: Icon(Icons.badge_outlined),
+                                label: Text('STAFF'),
+                                icon: Icon(Icons.badge_outlined, size: 18),
                               ),
                               ButtonSegment(
                                 value: 'Driver',
-                                label: Text('Driver'),
-                                icon: Icon(Icons.local_shipping_outlined),
+                                label: Text('DRIVER'),
+                                icon: Icon(Icons.local_shipping_outlined, size: 18),
                               ),
                             ],
                             selected: {_selectedRoleString},
                             onSelectionChanged: (value) {
                               setState(() => _selectedRoleString = value.first);
                             },
-                            style: ButtonStyle(
-                              backgroundColor:
-                                  WidgetStateProperty.resolveWith(
-                                (states) =>
-                                    states.contains(WidgetState.selected)
-                                        ? AppColors.accent
-                                        : AppColors.background,
-                              ),
-                              foregroundColor:
-                                  WidgetStateProperty.resolveWith(
-                                (states) =>
-                                    states.contains(WidgetState.selected)
-                                        ? Colors.white
-                                        : AppColors.textPrimary,
+                            style: SegmentedButton.styleFrom(
+                              selectedBackgroundColor: AppColors.accent,
+                              selectedForegroundColor: Colors.white,
+                              backgroundColor: Colors.white,
+                              foregroundColor: AppColors.textPrimary,
+                              side: const BorderSide(color: AppColors.border),
+                              textStyle: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 0.5,
                               ),
                             ),
                           ),
-                          const SizedBox(height: 22),
+                          const SizedBox(height: 24),
                           const Align(
                             alignment: Alignment.centerLeft,
                             child: Text(
-                              'Full Name',
+                              'FULL NAME',
                               style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 1.0,
                                 color: AppColors.textSecondary,
                               ),
                             ),
                           ),
-                          const SizedBox(height: 8),
+                          const SizedBox(height: 12),
                           Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
@@ -225,8 +223,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                   controller: _firstNameController,
                                   textInputAction: TextInputAction.next,
                                   decoration: const InputDecoration(
-                                    labelText: 'First Name',
-                                    prefixIcon: Icon(Icons.person_outline),
+                                    labelText: 'FIRST NAME',
+                                    isDense: true,
+                                    prefixIcon: Icon(Icons.person_outline, size: 20),
                                   ),
                                   validator: (v) => _required(v, 'First name'),
                                 ),
@@ -237,7 +236,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                   controller: _lastNameController,
                                   textInputAction: TextInputAction.next,
                                   decoration: const InputDecoration(
-                                    labelText: 'Last Name',
+                                    labelText: 'LAST NAME',
+                                    isDense: true,
                                   ),
                                   validator: (v) => _required(v, 'Last name'),
                                 ),
@@ -254,8 +254,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                   controller: _middleNameController,
                                   textInputAction: TextInputAction.next,
                                   decoration: const InputDecoration(
-                                    labelText: 'Middle Name (optional)',
-                                    prefixIcon: Icon(Icons.person_outline),
+                                    labelText: 'MIDDLE NAME (OPTIONAL)',
+                                    isDense: true,
+                                    prefixIcon: Icon(Icons.person_outline, size: 20),
                                   ),
                                 ),
                               ),
@@ -265,16 +266,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 child: DropdownButtonFormField<String?>(
                                   initialValue: _selectedSuffix,
                                   decoration: const InputDecoration(
-                                    labelText: 'Suffix',
+                                    labelText: 'SUFFIX',
+                                    isDense: true,
                                   ),
                                   isExpanded: true,
                                   items: const [
                                     DropdownMenuItem(
                                         value: null, child: Text('—')),
                                     DropdownMenuItem(
-                                        value: 'Jr.', child: Text('Jr.')),
+                                        value: 'Jr.', child: Text('JR.')),
                                     DropdownMenuItem(
-                                        value: 'Sr.', child: Text('Sr.')),
+                                        value: 'Sr.', child: Text('SR.')),
                                     DropdownMenuItem(
                                         value: 'II', child: Text('II')),
                                     DropdownMenuItem(
@@ -296,8 +298,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             controller: _usernameController,
                             textInputAction: TextInputAction.next,
                             decoration: const InputDecoration(
-                              labelText: 'Username',
-                              prefixIcon: Icon(Icons.alternate_email_rounded),
+                              labelText: 'USERNAME',
+                              isDense: true,
+                              prefixIcon: Icon(Icons.alternate_email_rounded, size: 20),
                             ),
                             validator: (v) => _required(v, 'Username'),
                           ),
@@ -307,8 +310,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             keyboardType: TextInputType.phone,
                             textInputAction: TextInputAction.next,
                             decoration: const InputDecoration(
-                              labelText: 'Contact Number',
-                              prefixIcon: Icon(Icons.phone_outlined),
+                              labelText: 'CONTACT NUMBER',
+                              isDense: true,
+                              prefixIcon: Icon(Icons.phone_outlined, size: 20),
                             ),
                             validator: (v) => _required(v, 'Contact number'),
                           ),
@@ -318,13 +322,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             obscureText: _obscurePassword,
                             textInputAction: TextInputAction.next,
                             decoration: InputDecoration(
-                              labelText: 'Password',
-                              prefixIcon: const Icon(Icons.lock_outline),
+                              labelText: 'PASSWORD',
+                              isDense: true,
+                              prefixIcon: const Icon(Icons.lock_outline, size: 20),
                               suffixIcon: IconButton(
                                 icon: Icon(
                                   _obscurePassword
                                       ? Icons.visibility_off_outlined
                                       : Icons.visibility_outlined,
+                                  size: 20,
                                 ),
                                 onPressed: () => setState(
                                   () => _obscurePassword = !_obscurePassword,
@@ -340,13 +346,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             textInputAction: TextInputAction.done,
                             onFieldSubmitted: (_) => _handleRegister(),
                             decoration: InputDecoration(
-                              labelText: 'Confirm Password',
-                              prefixIcon: const Icon(Icons.lock_outline),
+                              labelText: 'CONFIRM PASSWORD',
+                              isDense: true,
+                              prefixIcon: const Icon(Icons.lock_outline, size: 20),
                               suffixIcon: IconButton(
                                 icon: Icon(
                                   _obscureConfirmPassword
                                       ? Icons.visibility_off_outlined
                                       : Icons.visibility_outlined,
+                                  size: 20,
                                 ),
                                 onPressed: () => setState(
                                   () => _obscureConfirmPassword =
@@ -356,9 +364,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             ),
                             validator: _validateConfirmPassword,
                           ),
-                          const SizedBox(height: 22),
+                          const SizedBox(height: 28),
                           PrimaryButton(
-                            label: 'Sign up',
+                            label: 'SIGN UP',
                             isLoading: _isSubmitting,
                             onPressed: _handleRegister,
                           ),
@@ -418,8 +426,13 @@ class _OrDivider extends StatelessWidget {
         Padding(
           padding: EdgeInsets.symmetric(horizontal: 12),
           child: Text(
-            'Or Continue With',
-            style: TextStyle(color: AppColors.textSecondary, fontSize: 12.5),
+            'OR CONTINUE WITH',
+            style: TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 1.0,
+            ),
           ),
         ),
         Expanded(child: Divider(color: AppColors.border)),

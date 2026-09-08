@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../../models/announcement.dart';
-import '../../../theme/admin_theme.dart';
+import '../admin_web_colors.dart';
+import '../admin_web_widgets/glass_card.dart';
 import '../../../widgets/primary_button.dart';
+import '../../../widgets/admin_page_header.dart';
 
 /// Owner composes and posts announcements here — visible to Staff and
 /// Driver on their respective apps (see staff_app/announcements_screen
@@ -81,130 +83,133 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final isWide = constraints.maxWidth >= 700;
-        return Padding(
-          padding: EdgeInsets.all(isWide ? 24 : 16),
-          child: Column(
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Announcements',
-            style: TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
-              color: AdminColors.textPrimary,
+          const AdminPageHeader(
+            title: 'Announcements',
+            subtitle: 'Post instructions or reminders visible to Staff and Driver.',
+          ),
+          const SizedBox(height: 32),
+          GlassCard(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                TextField(
+                  controller: _messageController,
+                  maxLines: 3,
+                  decoration: const InputDecoration(
+                    labelText: 'NEW ANNOUNCEMENT',
+                    hintText: 'Type your announcement here...',
+                    alignLabelWithHint: true,
+                    labelStyle: TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 11,
+                      letterSpacing: 1.0,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: SizedBox(
+                    width: 160,
+                    child: PrimaryButton(
+                      label: 'POST',
+                      icon: Icons.send_rounded,
+                      isLoading: _isPosting,
+                      onPressed: _postAnnouncement,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 32),
           const Text(
-            'Post instructions or reminders visible to Staff and Driver.',
-            style: TextStyle(color: AdminColors.textSecondary),
+            'POSTED ANNOUNCEMENTS',
+            style: TextStyle(
+              fontWeight: FontWeight.w800,
+              fontSize: 11,
+              letterSpacing: 1.0,
+              color: AdminWebColors.textSecondary,
+            ),
           ),
           const SizedBox(height: 16),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  TextField(
-                    controller: _messageController,
-                    maxLines: 3,
-                    decoration: const InputDecoration(
-                      labelText: 'New Announcement',
-                      hintText: 'Type your announcement here...',
-                      alignLabelWithHint: true,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: SizedBox(
-                      width: 160,
-                      child: PrimaryButton(
-                        label: 'POST',
-                        icon: Icons.send_rounded,
-                        isLoading: _isPosting,
-                        onPressed: _postAnnouncement,
-                      ),
-                    ),
-                  ),
-                ],
+          if (_announcements.isEmpty)
+            const Center(
+              child: Padding(
+                padding: EdgeInsets.symmetric(vertical: 40),
+                child: Text(
+                  'No announcements posted yet.',
+                  style: TextStyle(color: AdminWebColors.textSecondary),
+                ),
               ),
-            ),
-          ),
-          const SizedBox(height: 20),
-          const Text(
-            'Posted Announcements',
-            style: TextStyle(
-              fontWeight: FontWeight.w600,
-              color: AdminColors.textPrimary,
-            ),
-          ),
-          const SizedBox(height: 12),
-          Expanded(
-            child: _announcements.isEmpty
-                ? const Center(
-                    child: Text(
-                      'No announcements posted yet.',
-                      style: TextStyle(color: AdminColors.textSecondary),
-                    ),
-                  )
-                : ListView.separated(
-                    itemCount: _announcements.length,
-                    separatorBuilder: (_, _) => const SizedBox(height: 10),
-                    itemBuilder: (context, index) {
-                      final a = _announcements[index];
-                      return Card(
-                        child: Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Icon(Icons.campaign_rounded,
-                                  color: AdminColors.primary),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      a.messageContent,
-                                      style: const TextStyle(
-                                        color: AdminColors.textPrimary,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 6),
-                                    Text(
-                                      _formatDate(a.datePosted),
-                                      style: const TextStyle(
-                                        fontSize: 11.5,
-                                        color: AdminColors.textSecondary,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              IconButton(
-                                icon: const Icon(Icons.delete_outline_rounded,
-                                    color: AdminColors.error, size: 20),
-                                tooltip: 'Delete',
-                                onPressed: () => _deleteAnnouncement(a.id),
-                              ),
-                            ],
-                          ),
+            )
+          else
+            ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: _announcements.length,
+              separatorBuilder: (_, _) => const SizedBox(height: 12),
+              itemBuilder: (context, index) {
+                final a = _announcements[index];
+                return GlassCard(
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: AdminWebColors.accent.withValues(alpha: 0.1),
+                          shape: BoxShape.circle,
                         ),
-                      );
-                    },
+                        child: const Icon(Icons.campaign_rounded,
+                            color: AdminWebColors.accent, size: 20),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              a.messageContent,
+                              style: const TextStyle(
+                                color: AdminWebColors.textPrimary,
+                                fontSize: 15,
+                                height: 1.4,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              _formatDate(a.datePosted),
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: AdminWebColors.textSecondary,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.delete_outline_rounded,
+                            color: AdminWebColors.error, size: 20),
+                        tooltip: 'Delete',
+                        onPressed: () => _deleteAnnouncement(a.id),
+                      ),
+                    ],
                   ),
-          ),
+                );
+              },
+            ),
+          const SizedBox(height: 40),
         ],
       ),
-    );
-      },
     );
   }
 }

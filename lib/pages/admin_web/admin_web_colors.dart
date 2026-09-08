@@ -13,20 +13,24 @@ class AdminWebColors {
   AdminWebColors._();
 
   // 60% — main background
-  static const Color background = Color(0xFFFFFFFF);
+  static const Color background = Color(0xFFFAF0E6);
 
   // 30% — sidebar / secondary surfaces / borders
-  static const Color sidebarBackground = Color(0xFFF3E9DC);
+  static const Color sidebarBackground = Color(0xFFD2B48C);
   static const Color surfaceTint = Color(0xFFF7EFE4);
-  static const Color border = Color(0xFFE8D9C5);
+  static const Color border = Color(0xFFE0D2C3);
 
   // 10% — warm medium brown accent
-  static const Color accent = Color(0xFF9A6F4F);
-  static const Color accentDark = Color(0xFF7C5A3F);
+  static const Color accent = Color(0xFFA0522D);
+  static const Color accentDark = Color(0xFF8B4513);
+
+  // Header gradient (matches Staff/Driver app)
+  static const Color headerStart = Color(0xFF2B1B12);
+  static const Color headerEnd = Color(0xFF7A4A2A);
 
   // Text
-  static const Color textPrimary = Color(0xFF3B2E24);
-  static const Color textSecondary = Color(0xFF8A7863);
+  static const Color textPrimary = Color(0xFF3B2418);
+  static const Color textSecondary = Color(0xFF8B4513);
 
   // Status (kept muted/earthy, no saturated colors per brief)
   static const Color success = Color(0xFF6E8F5C);
@@ -83,12 +87,12 @@ class AdminWebTheme {
         iconTheme: IconThemeData(color: AdminWebColors.accent),
       ),
       cardTheme: CardThemeData(
-        color: AdminWebColors.background,
+        color: Colors.white,
         elevation: 0,
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(14),
-          side: BorderSide(color: AdminWebColors.border),
+          borderRadius: BorderRadius.circular(12),
+          side: const BorderSide(color: AdminWebColors.border),
         ),
       ),
       dividerTheme: DividerThemeData(
@@ -167,11 +171,11 @@ class AdminWebTheme {
         dividerColor: AdminWebColors.border,
       ),
       chipTheme: ChipThemeData(
-        backgroundColor: AdminWebColors.surfaceTint,
+        backgroundColor: Colors.white,
         selectedColor: AdminWebColors.accent,
         labelStyle: const TextStyle(color: AdminWebColors.textPrimary),
         secondaryLabelStyle: const TextStyle(color: Colors.white),
-        side: BorderSide(color: AdminWebColors.border),
+        side: const BorderSide(color: AdminWebColors.border),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       ),
       progressIndicatorTheme: const ProgressIndicatorThemeData(

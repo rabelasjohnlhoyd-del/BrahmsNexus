@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import '../../../models/branch.dart';
 import '../../../models/inventory_item.dart';
-import '../../../theme/admin_theme.dart';
+import '../admin_web_colors.dart';
+import '../admin_web_widgets/glass_card.dart';
 import '../../../widgets/primary_button.dart';
+import '../../../widgets/admin_page_header.dart';
 
 /// Admin manages inventory here: main warehouse total stock, daily
 /// per-branch allocation, remaining stock per branch, and inter-branch
@@ -89,7 +91,10 @@ class _InventoryScreenState extends State<InventoryScreen>
         content: TextField(
           controller: controller,
           keyboardType: TextInputType.number,
-          decoration: const InputDecoration(labelText: 'Total Stock (kg)'),
+          decoration: const InputDecoration(
+            labelText: 'TOTAL STOCK (KG)',
+            isDense: true,
+          ),
         ),
         actions: [
           TextButton(
@@ -127,7 +132,10 @@ class _InventoryScreenState extends State<InventoryScreen>
         content: TextField(
           controller: controller,
           keyboardType: TextInputType.number,
-          decoration: const InputDecoration(labelText: 'Allocated (kg)'),
+          decoration: const InputDecoration(
+            labelText: 'ALLOCATED (KG)',
+            isDense: true,
+          ),
         ),
         actions: [
           TextButton(
@@ -180,8 +188,16 @@ class _InventoryScreenState extends State<InventoryScreen>
             mainAxisSize: MainAxisSize.min,
             children: [
               DropdownButtonFormField<String>(
-                initialValue: sourceId,
-                decoration: const InputDecoration(labelText: 'From Branch'),
+                value: sourceId,
+                decoration: const InputDecoration(
+                  labelText: 'FROM BRANCH',
+                  isDense: true,
+                  labelStyle: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 10,
+                    letterSpacing: 1.0,
+                  ),
+                ),
                 items: kSampleBranches
                     .map((b) =>
                         DropdownMenuItem(value: b.id, child: Text(b.fullName)))
@@ -190,10 +206,18 @@ class _InventoryScreenState extends State<InventoryScreen>
                   if (v != null) setDialogState(() => sourceId = v);
                 },
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 16),
               DropdownButtonFormField<String>(
-                initialValue: destId,
-                decoration: const InputDecoration(labelText: 'To Branch'),
+                value: destId,
+                decoration: const InputDecoration(
+                  labelText: 'TO BRANCH',
+                  isDense: true,
+                  labelStyle: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 10,
+                    letterSpacing: 1.0,
+                  ),
+                ),
                 items: kSampleBranches
                     .map((b) =>
                         DropdownMenuItem(value: b.id, child: Text(b.fullName)))
@@ -206,7 +230,10 @@ class _InventoryScreenState extends State<InventoryScreen>
               TextField(
                 controller: qtyController,
                 keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: 'Quantity (kg)'),
+                decoration: const InputDecoration(
+                  labelText: 'QUANTITY (KG)',
+                  isDense: true,
+                ),
               ),
             ],
           ),
@@ -254,28 +281,33 @@ class _InventoryScreenState extends State<InventoryScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Inventory',
-            style: TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
-              color: AdminColors.textPrimary,
-            ),
+          AdminPageHeader(
+            title: 'Inventory',
+            subtitle:
+                'Manage main warehouse stock, daily branch allocations, and inter-branch transfers.',
+            actions: [
+              if (_tabController.index == 2)
+                PrimaryButton(
+                  label: 'RECORD TRANSFER',
+                  icon: Icons.add_rounded,
+                  onPressed: _showAddTransferDialog,
+                ),
+            ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 24),
           TabBar(
             controller: _tabController,
             isScrollable: true,
-            labelColor: AdminColors.primary,
-            unselectedLabelColor: AdminColors.textSecondary,
-            indicatorColor: AdminColors.primary,
+            tabAlignment: TabAlignment.start,
+            labelStyle: const TextStyle(fontWeight: FontWeight.bold),
+            onTap: (index) => setState(() {}),
             tabs: const [
-              Tab(text: 'Warehouse'),
-              Tab(text: 'Branch Stock'),
+              Tab(text: 'Main Warehouse'),
+              Tab(text: 'Branch Allocation'),
               Tab(text: 'Transfer Logs'),
             ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 24),
           Expanded(
             child: TabBarView(
               controller: _tabController,
@@ -293,45 +325,36 @@ class _InventoryScreenState extends State<InventoryScreen>
 
   Widget _buildWarehouseTab() {
     return SingleChildScrollView(
-      child: Card(
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Main Warehouse Stock',
-                style: TextStyle(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 16,
-                  color: AdminColors.textPrimary,
-                ),
+      child: GlassCard(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Stock Summary',
+              style: TextStyle(
+                fontWeight: FontWeight.w700,
+                fontSize: 17,
+                color: AdminWebColors.textPrimary,
+                letterSpacing: -0.2,
               ),
-              const SizedBox(height: 16),
-              _statRow('Total Stock', '${_warehouse.totalKg.toStringAsFixed(0)} kg'),
-              _statRow(
-                  'Allocated to Branches',
-                  '${_warehouse.allocatedKg.toStringAsFixed(0)} kg'),
-              _statRow(
-                  'Unallocated',
-                  '${_warehouse.unallocatedKg.toStringAsFixed(0)} kg'),
-              const SizedBox(height: 20),
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  return SizedBox(
-                    width: constraints.maxWidth < 240
-                        ? double.infinity
-                        : 240,
-                    child: PrimaryButton(
-                      label: 'SET TOTAL STOCK',
-                      icon: Icons.edit_rounded,
-                      onPressed: _showSetTotalStockDialog,
-                    ),
-                  );
-                },
+            ),
+            const SizedBox(height: 20),
+            _statRow('Total Inventory Stock',
+                '${_warehouse.totalKg.toStringAsFixed(0)} kg'),
+            _statRow('Currently Allocated',
+                '${_warehouse.allocatedKg.toStringAsFixed(0)} kg'),
+            _statRow('Remaining Unallocated',
+                '${_warehouse.unallocatedKg.toStringAsFixed(0)} kg'),
+            const SizedBox(height: 24),
+            SizedBox(
+              width: 240,
+              child: PrimaryButton(
+                label: 'UPDATE TOTAL STOCK',
+                icon: Icons.edit_rounded,
+                onPressed: _showSetTotalStockDialog,
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -343,12 +366,13 @@ class _InventoryScreenState extends State<InventoryScreen>
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: const TextStyle(color: AdminColors.textSecondary)),
+          Text(label,
+              style: const TextStyle(color: AdminWebColors.textSecondary)),
           Text(
             value,
             style: const TextStyle(
               fontWeight: FontWeight.w600,
-              color: AdminColors.textPrimary,
+              color: AdminWebColors.textPrimary,
             ),
           ),
         ],
@@ -359,79 +383,103 @@ class _InventoryScreenState extends State<InventoryScreen>
   Widget _buildBranchStockTab() {
     return ListView.separated(
       itemCount: _branchStocks.length,
-      separatorBuilder: (_, _) => const SizedBox(height: 10),
+      separatorBuilder: (_, _) => const SizedBox(height: 12),
       itemBuilder: (context, index) {
         final stock = _branchStocks[index];
         final ratio = stock.allocatedKg == 0
             ? 0.0
             : (stock.remainingKg / stock.allocatedKg).clamp(0, 1);
 
-        return Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  stock.branchName,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                    color: AdminColors.textPrimary,
+        return GlassCard(
+          padding: const EdgeInsets.all(18),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Text(
+                      stock.branchName,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 15,
+                        color: AdminWebColors.textPrimary,
+                      ),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 8),
-                Wrap(
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  spacing: 8,
-                  runSpacing: 6,
-                  children: [
-                    if (stock.isRunningLow)
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: AdminColors.error.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: const Text(
-                          'Running Low',
-                          style: TextStyle(
-                            color: AdminColors.error,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 11.5,
-                          ),
+                  if (stock.isRunningLow)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: AdminWebColors.error.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: AdminWebColors.error.withValues(alpha: 0.2),
                         ),
                       ),
-                    TextButton.icon(
-                      onPressed: () => _showAllocateDialog(stock),
-                      icon: const Icon(Icons.edit_rounded, size: 16),
-                      label: const Text('Allocate'),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.warning_amber_rounded,
+                              size: 14, color: AdminWebColors.error),
+                          SizedBox(width: 4),
+                          Text(
+                            'LOW STOCK',
+                            style: TextStyle(
+                              color: AdminWebColors.error,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 10,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ],
+                ],
+              ),
+              const SizedBox(height: 16),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: LinearProgressIndicator(
+                  value: ratio.toDouble(),
+                  minHeight: 10,
+                  backgroundColor: AdminWebColors.border.withValues(alpha: 0.5),
+                  color: stock.isRunningLow
+                      ? AdminWebColors.error
+                      : AdminWebColors.accent,
                 ),
-                const SizedBox(height: 6),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(6),
-                  child: LinearProgressIndicator(
-                    value: ratio.toDouble(),
-                    minHeight: 8,
-                    backgroundColor: AdminColors.tint.withValues(alpha: 0.5),
-                    color: stock.isRunningLow
-                        ? AdminColors.error
-                        : AdminColors.primary,
+              ),
+              const SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    '${stock.remainingKg.toStringAsFixed(1)} kg remaining / ${stock.allocatedKg.toStringAsFixed(1)} kg total',
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: AdminWebColors.textSecondary,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  '${stock.remainingKg.toStringAsFixed(1)} kg left of '
-                  '${stock.allocatedKg.toStringAsFixed(1)} kg allocated',
-                  style: const TextStyle(
-                    fontSize: 12.5,
-                    color: AdminColors.textSecondary,
+                  OutlinedButton.icon(
+                    onPressed: () => _showAllocateDialog(stock),
+                    icon: const Icon(Icons.add_chart_rounded, size: 16),
+                    label: const Text('ADJUST ALLOCATION'),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 8),
+                      textStyle: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
                   ),
-                ),
-              ],
-            ),
+                ],
+              ),
+            ],
           ),
         );
       },
@@ -439,57 +487,71 @@ class _InventoryScreenState extends State<InventoryScreen>
   }
 
   Widget _buildTransferLogsTab() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Align(
-          alignment: Alignment.centerRight,
-          child: TextButton.icon(
-            onPressed: _showAddTransferDialog,
-            icon: const Icon(Icons.add_rounded),
-            label: const Text('Record Transfer'),
-          ),
+    if (_transferLogs.isEmpty) {
+      return const Center(
+        child: Text(
+          'No inter-branch transfers recorded yet.',
+          style: TextStyle(color: AdminWebColors.textSecondary),
         ),
-        Expanded(
-          child: _transferLogs.isEmpty
-              ? const Center(
-                  child: Text(
-                    'No inter-branch transfers yet.',
-                    style: TextStyle(color: AdminColors.textSecondary),
-                  ),
-                )
-              : ListView.separated(
-                  itemCount: _transferLogs.length,
-                  separatorBuilder: (_, _) => const SizedBox(height: 8),
-                  itemBuilder: (context, index) {
-                    final log = _transferLogs[index];
-                    return Card(
-                      child: ListTile(
-                        leading: const Icon(Icons.local_shipping_outlined,
-                            color: AdminColors.primary),
-                        title: Text(
-                          '${log.sourceBranchName} → '
-                          '${log.destinationBranchName}',
-                        ),
-                        subtitle: Text(
-                          '${log.dateTime.month}/${log.dateTime.day}/'
-                          '${log.dateTime.year} · '
-                          '${log.dateTime.hour.toString().padLeft(2, '0')}:'
-                          '${log.dateTime.minute.toString().padLeft(2, '0')}',
-                        ),
-                        trailing: Text(
-                          '${log.quantityKg.toStringAsFixed(1)} kg',
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w600,
-                            color: AdminColors.textPrimary,
-                          ),
-                        ),
-                      ),
-                    );
-                  },
+      );
+    }
+
+    return ListView.separated(
+      itemCount: _transferLogs.length,
+      separatorBuilder: (_, _) => const SizedBox(height: 10),
+      itemBuilder: (context, index) {
+        final log = _transferLogs[index];
+        return GlassCard(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: AdminWebColors.accent.withValues(alpha: 0.1),
+                  shape: BoxShape.circle,
                 ),
-        ),
-      ],
+                child: const Icon(
+                  Icons.local_shipping_rounded,
+                  color: AdminWebColors.accent,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${log.sourceBranchName} → ${log.destinationBranchName}',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: AdminWebColors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '${log.dateTime.month}/${log.dateTime.day}/${log.dateTime.year} at ${log.dateTime.hour.toString().padLeft(2, '0')}:${log.dateTime.minute.toString().padLeft(2, '0')}',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AdminWebColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Text(
+                '${log.quantityKg.toStringAsFixed(1)} kg',
+                style: const TextStyle(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 16,
+                  color: AdminWebColors.accent,
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }

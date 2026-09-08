@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../../models/branch.dart';
 import '../admin_web_colors.dart';
+import '../admin_web_widgets/glass_card.dart';
+import '../../../widgets/admin_page_header.dart';
+import '../../../widgets/primary_button.dart';
 
 class BranchManagementScreen extends StatefulWidget {
   const BranchManagementScreen({super.key});
@@ -89,54 +92,103 @@ class _BranchManagementScreenState extends State<BranchManagementScreen> {
   @override
   Widget build(BuildContext context) {
     final branches = _filteredBranches;
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Branch Management'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.add_location_alt_rounded),
-            onPressed: () => _showBranchDialog(),
-          ),
-        ],
-      ),
-      body: Column(
+    return Padding(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Padding(
-            padding: const EdgeInsets.all(16),
+          AdminPageHeader(
+            title: 'Branch Management',
+            subtitle: 'Add, edit, or remove store locations and their route sequences.',
+            actions: [
+              PrimaryButton(
+                label: 'NEW BRANCH',
+                icon: Icons.add_location_alt_rounded,
+                onPressed: () => _showBranchDialog(),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          GlassCard(
+            padding: EdgeInsets.zero,
             child: TextField(
               controller: _searchController,
               onChanged: (v) => setState(() => _query = v),
               decoration: InputDecoration(
-                hintText: 'Search branches...',
-                prefixIcon: const Icon(Icons.search),
-                suffixIcon: _query.isNotEmpty ? IconButton(icon: const Icon(Icons.clear), onPressed: () { _searchController.clear(); setState(() => _query = ''); }) : null,
+                hintText: 'Search branches by name or municipality...',
+                prefixIcon: const Icon(Icons.search_rounded, color: AdminWebColors.accent),
+                suffixIcon: _query.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear_rounded),
+                        onPressed: () {
+                          _searchController.clear();
+                          setState(() => _query = '');
+                        },
+                      )
+                    : null,
+                filled: true,
+                fillColor: Colors.transparent,
+                border: InputBorder.none,
+                enabledBorder: InputBorder.none,
+                focusedBorder: InputBorder.none,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
               ),
             ),
           ),
+          const SizedBox(height: 20),
           Expanded(
             child: ListView.separated(
-              padding: const EdgeInsets.all(16),
               itemCount: branches.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 10),
+              separatorBuilder: (_, __) => const SizedBox(height: 12),
               itemBuilder: (context, index) {
                 final b = branches[index];
-                return Card(
+                return GlassCard(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   child: ListTile(
-                    leading: CircleAvatar(
-                      backgroundColor: AdminWebColors.accent.withValues(alpha: 0.1),
-                      child: const Icon(Icons.storefront, color: AdminWebColors.accent),
+                    contentPadding: EdgeInsets.zero,
+                    leading: Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: AdminWebColors.accent.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      alignment: Alignment.center,
+                      child: const Icon(Icons.storefront_rounded,
+                          color: AdminWebColors.accent),
                     ),
-                    title: Text(b.fullName, style: const TextStyle(fontWeight: FontWeight.bold)),
-                    subtitle: Text('Route Priority: ${b.dailyRouteSequence}'),
+                    title: Text(
+                      b.fullName,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        color: AdminWebColors.textPrimary,
+                        fontSize: 15,
+                      ),
+                    ),
+                    subtitle: Text(
+                      'Daily Route Priority: ${b.dailyRouteSequence}',
+                      style: const TextStyle(
+                        fontSize: 12.5,
+                        color: AdminWebColors.textSecondary,
+                      ),
+                    ),
                     trailing: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        IconButton(icon: const Icon(Icons.edit_outlined), onPressed: () => _showBranchDialog(b)),
                         IconButton(
-                          icon: const Icon(Icons.delete_outline, color: AdminWebColors.error),
+                          icon: const Icon(Icons.edit_note_rounded,
+                              color: AdminWebColors.accent),
+                          onPressed: () => _showBranchDialog(b),
+                          tooltip: 'Edit Branch',
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.delete_outline_rounded,
+                              color: AdminWebColors.error),
                           onPressed: () {
-                            setState(() => _branches.removeWhere((item) => item.id == b.id));
+                            setState(
+                                () => _branches.removeWhere((item) => item.id == b.id));
                           },
+                          tooltip: 'Delete Branch',
                         ),
                       ],
                     ),
@@ -146,11 +198,6 @@ class _BranchManagementScreenState extends State<BranchManagementScreen> {
             ),
           ),
         ],
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _showBranchDialog(),
-        label: const Text('Add Branch'),
-        icon: const Icon(Icons.add),
       ),
     );
   }

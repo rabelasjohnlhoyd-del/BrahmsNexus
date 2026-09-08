@@ -98,10 +98,10 @@ class _Header extends StatelessWidget {
       context: context,
       position: RelativeRect.fromLTRB(
           position.dx, position.dy, position.dx, position.dy),
-      color: AdminWebColors.surfaceTint,
+      color: Colors.white,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(14),
-        side: BorderSide(color: AdminWebColors.border),
+        borderRadius: BorderRadius.circular(12),
+        side: const BorderSide(color: AdminWebColors.border),
       ),
       constraints: const BoxConstraints(minWidth: 280, maxWidth: 320),
       items: const [
@@ -149,10 +149,10 @@ class _Header extends StatelessWidget {
       context: context,
       position: RelativeRect.fromLTRB(
           position.dx, position.dy, position.dx, position.dy),
-      color: AdminWebColors.surfaceTint,
+      color: Colors.white,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(14),
-        side: BorderSide(color: AdminWebColors.border),
+        borderRadius: BorderRadius.circular(12),
+        side: const BorderSide(color: AdminWebColors.border),
       ),
       items: const [
         PopupMenuItem<String>(
@@ -212,7 +212,7 @@ class _Header extends StatelessWidget {
                   height: 38,
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
-                    color: AdminWebColors.surfaceTint,
+                    color: Colors.white,
                     shape: BoxShape.circle,
                     border: Border.all(color: AdminWebColors.border),
                   ),
@@ -350,37 +350,47 @@ class _WelcomeBanner extends StatelessWidget {
     );
 
     final salesBox = Container(
-      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.7),
-        borderRadius: BorderRadius.circular(14),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(color: AdminWebColors.border),
+        boxShadow: [
+          BoxShadow(
+            color: AdminWebColors.accent.withValues(alpha: 0.08),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
+          ),
+        ],
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.end,
+        crossAxisAlignment: isWide ? CrossAxisAlignment.end : CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               const Icon(Icons.trending_up_rounded,
-                  size: 16, color: AdminWebColors.accent),
+                  size: 16, color: AdminWebColors.success),
               const SizedBox(width: 6),
               const Text(
-                '₱18,240',
+                '₱18,240.00',
                 style: TextStyle(
                   fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: AdminWebColors.accentDark,
+                  fontWeight: FontWeight.w800,
+                  color: AdminWebColors.accent,
                 ),
               ),
             ],
           ),
+          const SizedBox(height: 2),
           const Text(
-            "Today's sales",
+            "Today's Gross Sales",
             style: TextStyle(
-              fontSize: 11.5,
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
               color: AdminWebColors.textSecondary,
+              letterSpacing: 0.3,
             ),
           ),
         ],
@@ -741,26 +751,26 @@ class _QuickLinksGrid extends StatelessWidget {
       QuickLinkCard(
         icon: Icons.history_rounded,
         title: 'Order History',
-        subtitle: 'View past orders',
+        subtitle: 'Review all transactions',
         onTap: () => notReady('Order History'),
       ),
       QuickLinkCard(
-        icon: Icons.search_rounded,
-        title: 'Search Records',
-        subtitle: 'Find specific data',
-        onTap: () => notReady('Search Records'),
+        icon: Icons.inventory_2_outlined,
+        title: 'Inventory Status',
+        subtitle: 'Check stock levels',
+        onTap: () => notReady('Inventory'),
       ),
       QuickLinkCard(
-        icon: Icons.description_outlined,
-        title: 'Generate Reports',
-        subtitle: 'Download reports',
-        onTap: () => notReady('Generate Reports'),
+        icon: Icons.analytics_outlined,
+        title: 'Sales Analysis',
+        subtitle: 'View performance data',
+        onTap: () => notReady('Sales Analysis'),
       ),
       QuickLinkCard(
-        icon: Icons.settings_outlined,
-        title: 'System Settings',
-        subtitle: 'Manage preferences',
-        onTap: () => notReady('System Settings'),
+        icon: Icons.people_outline_rounded,
+        title: 'Staff Management',
+        subtitle: 'Manage team access',
+        onTap: () => notReady('Staff Management'),
       ),
     ];
 

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../admin_web_colors.dart';
 import '../admin_web_widgets/glass_card.dart';
+import '../../../widgets/primary_button.dart';
+import '../../../widgets/admin_page_header.dart';
 
 class ReportExportScreen extends StatefulWidget {
   const ReportExportScreen({super.key});
@@ -20,13 +22,16 @@ class _ReportExportScreenState extends State<ReportExportScreen> {
         title: const Text('Exporting Report'),
         content: Text('Generating $_selectedType report for the selected period...'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-          ElevatedButton(
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('CANCEL'),
+          ),
+          PrimaryButton(
+            label: 'DOWNLOAD',
             onPressed: () {
               Navigator.pop(context);
               ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Report exported as CSV successfully.')));
             },
-            child: const Text('Download'),
           ),
         ],
       ),
@@ -35,48 +40,89 @@ class _ReportExportScreenState extends State<ReportExportScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Report Export')),
-      body: Center(
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 500),
-          child: ListView(
-            padding: const EdgeInsets.all(24),
+          constraints: const BoxConstraints(maxWidth: 600),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Configure and generate data exports.', style: TextStyle(color: AdminWebColors.textSecondary)),
-              const SizedBox(height: 24),
+              const AdminPageHeader(
+                title: 'Data Export',
+                subtitle: 'Configure and generate CSV reports for accounting and auditing.',
+              ),
+              const SizedBox(height: 32),
               GlassCard(
+                padding: const EdgeInsets.all(24),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Report Type', style: TextStyle(fontWeight: FontWeight.bold)),
+                    const Text(
+                      'REPORT TYPE',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 11,
+                        letterSpacing: 1.0,
+                        color: AdminWebColors.textSecondary,
+                      ),
+                    ),
                     const SizedBox(height: 12),
                     DropdownButtonFormField<String>(
                       value: _selectedType,
-                      items: ['Sales', 'Inventory', 'Payroll', 'Audit Log'].map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
+                      items: ['Sales', 'Inventory', 'Payroll', 'Audit Log']
+                          .map((t) => DropdownMenuItem(value: t, child: Text(t.toUpperCase())))
+                          .toList(),
                       onChanged: (v) => setState(() => _selectedType = v!),
-                      decoration: const InputDecoration(border: OutlineInputBorder()),
+                      decoration: const InputDecoration(
+                        isDense: true,
+                        prefixIcon: Icon(Icons.description_rounded, size: 20),
+                      ),
                     ),
-                    const SizedBox(height: 20),
-                    const Text('Date Range', style: TextStyle(fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 24),
+                    const Text(
+                      'DATE RANGE',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 11,
+                        letterSpacing: 1.0,
+                        color: AdminWebColors.textSecondary,
+                      ),
+                    ),
                     const SizedBox(height: 12),
                     OutlinedButton.icon(
                       onPressed: () async {
-                        final picked = await showDateRangePicker(context: context, firstDate: DateTime(2020), lastDate: DateTime.now());
+                        final picked = await showDateRangePicker(
+                          context: context,
+                          firstDate: DateTime(2020),
+                          lastDate: DateTime.now(),
+                        );
                         if (picked != null) setState(() => _dateRange = picked);
                       },
-                      icon: const Icon(Icons.date_range),
-                      label: Text(_dateRange == null ? 'Select Date Range' : '${_dateRange!.start.month}/${_dateRange!.start.day} - ${_dateRange!.end.month}/${_dateRange!.end.day}'),
+                      icon: const Icon(Icons.date_range_rounded, size: 20),
+                      label: Text(
+                        _dateRange == null
+                            ? 'SELECT DATE RANGE'
+                            : '${_dateRange!.start.month}/${_dateRange!.start.day} - ${_dateRange!.end.month}/${_dateRange!.end.day}',
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
                     ),
                   ],
                 ),
               ),
               const SizedBox(height: 32),
-              ElevatedButton.icon(
-                onPressed: _export,
-                icon: const Icon(Icons.download_rounded),
-                label: const Text('GENERATE REPORT'),
+              Align(
+                alignment: Alignment.centerRight,
+                child: SizedBox(
+                  width: 200,
+                  child: PrimaryButton(
+                    onPressed: _export,
+                    icon: Icons.download_rounded,
+                    label: 'GENERATE CSV',
+                  ),
+                ),
               ),
+              const SizedBox(height: 40),
             ],
           ),
         ),

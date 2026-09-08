@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../admin_web_colors.dart';
+import '../admin_web_widgets/glass_card.dart';
+import '../../../widgets/admin_page_header.dart';
 
 class ActivityEntry {
   final String actor;
@@ -7,7 +9,12 @@ class ActivityEntry {
   final DateTime timestamp;
   final String type; // 'User', 'System', 'Inventory'
 
-  const ActivityEntry({required this.actor, required this.action, required this.timestamp, required this.type});
+  const ActivityEntry({
+    required this.actor,
+    required this.action,
+    required this.timestamp,
+    required this.type,
+  });
 }
 
 class ActivityLogScreen extends StatefulWidget {
@@ -19,61 +26,162 @@ class ActivityLogScreen extends StatefulWidget {
 
 class _ActivityLogScreenState extends State<ActivityLogScreen> {
   final List<ActivityEntry> _allEntries = [
-    ActivityEntry(actor: 'Owner', action: 'Approved registration for Maria Santos', timestamp: DateTime.now().subtract(const Duration(hours: 2)), type: 'User'),
-    ActivityEntry(actor: 'System', action: 'Low stock alert triggered for Sta. Cruz branch', timestamp: DateTime.now().subtract(const Duration(hours: 5)), type: 'Inventory'),
-    ActivityEntry(actor: 'Owner', action: 'Updated pricing for Medium Bilao', timestamp: DateTime.now().subtract(const Duration(days: 1)), type: 'System'),
-    ActivityEntry(actor: 'Owner', action: 'Assigned Juan Dela Cruz to Dayap branch', timestamp: DateTime.now().subtract(const Duration(days: 1, hours: 3)), type: 'User'),
-    ActivityEntry(actor: 'System', action: 'Daily sales summary generated', timestamp: DateTime.now().subtract(const Duration(days: 2)), type: 'System'),
+    ActivityEntry(
+      actor: 'Owner',
+      action: 'Approved registration for Maria Santos',
+      timestamp: DateTime.now().subtract(const Duration(hours: 2)),
+      type: 'User',
+    ),
+    ActivityEntry(
+      actor: 'System',
+      action: 'Low stock alert triggered for Sta. Cruz branch',
+      timestamp: DateTime.now().subtract(const Duration(hours: 5)),
+      type: 'Inventory',
+    ),
+    ActivityEntry(
+      actor: 'Owner',
+      action: 'Updated pricing for Medium Bilao',
+      timestamp: DateTime.now().subtract(const Duration(days: 1)),
+      type: 'System',
+    ),
+    ActivityEntry(
+      actor: 'Owner',
+      action: 'Assigned Juan Dela Cruz to Dayap branch',
+      timestamp: DateTime.now().subtract(const Duration(days: 1, hours: 3)),
+      type: 'User',
+    ),
+    ActivityEntry(
+      actor: 'System',
+      action: 'Daily sales summary generated',
+      timestamp: DateTime.now().subtract(const Duration(days: 2)),
+      type: 'System',
+    ),
   ];
 
   String? _selectedType;
 
   @override
   Widget build(BuildContext context) {
-    final filtered = _allEntries.where((e) => _selectedType == null || e.type == _selectedType).toList();
+    final filtered = _allEntries
+        .where((e) => _selectedType == null || e.type == _selectedType)
+        .toList();
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Activity Log')),
-      body: Column(
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Padding(
-            padding: const EdgeInsets.all(16),
+          const AdminPageHeader(
+            title: 'Activity Log',
+            subtitle: 'Track system changes, user actions, and inventory alerts.',
+          ),
+          const SizedBox(height: 32),
+          const Text(
+            'FILTER BY TYPE',
+            style: TextStyle(
+              fontWeight: FontWeight.w800,
+              fontSize: 11,
+              letterSpacing: 1.0,
+              color: AdminWebColors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 12),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
             child: Row(
               children: [
-                const Text('Filter:', style: TextStyle(fontWeight: FontWeight.bold)),
-                const SizedBox(width: 12),
-                Wrap(
-                  spacing: 8,
-                  children: ['User', 'System', 'Inventory'].map((type) {
-                    final isSelected = _selectedType == type;
-                    return ChoiceChip(
-                      label: Text(type),
-                      selected: isSelected,
-                      onSelected: (v) => setState(() => _selectedType = v ? type : null),
-                    );
-                  }).toList(),
+                ChoiceChip(
+                  label: const Text('ALL ACTIVITIES'),
+                  selected: _selectedType == null,
+                  onSelected: (v) => setState(() => _selectedType = null),
                 ),
+                const SizedBox(width: 8),
+                ...['User', 'System', 'Inventory'].map((type) {
+                  final isSelected = _selectedType == type;
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: ChoiceChip(
+                      label: Text(type.toUpperCase()),
+                      selected: isSelected,
+                      onSelected: (v) =>
+                          setState(() => _selectedType = v ? type : null),
+                    ),
+                  );
+                }),
               ],
             ),
           ),
-          Expanded(
-            child: ListView.separated(
-              padding: const EdgeInsets.all(16),
+          const SizedBox(height: 32),
+          if (filtered.isEmpty)
+            const Center(
+              child: Padding(
+                padding: EdgeInsets.symmetric(vertical: 40),
+                child: Text(
+                  'No activity logs found for the selected filter.',
+                  style: TextStyle(color: AdminWebColors.textSecondary),
+                ),
+              ),
+            )
+          else
+            ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
               itemCount: filtered.length,
-              separatorBuilder: (_, __) => const Divider(),
+              separatorBuilder: (_, __) => const SizedBox(height: 10),
               itemBuilder: (context, index) {
                 final e = filtered[index];
-                return ListTile(
-                  leading: Icon(
-                    e.type == 'User' ? Icons.person : e.type == 'Inventory' ? Icons.inventory : Icons.settings,
-                    color: AdminWebColors.accent,
+                return GlassCard(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: AdminWebColors.accent.withValues(alpha: 0.1),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          e.type == 'User'
+                              ? Icons.person_rounded
+                              : e.type == 'Inventory'
+                                  ? Icons.inventory_2_rounded
+                                  : Icons.settings_suggest_rounded,
+                          color: AdminWebColors.accent,
+                          size: 20,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              e.action,
+                              style: const TextStyle(
+                                fontSize: 14.5,
+                                fontWeight: FontWeight.w600,
+                                color: AdminWebColors.textPrimary,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              '${e.actor.toUpperCase()} • ${_formatDate(e.timestamp)}',
+                              style: const TextStyle(
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w500,
+                                color: AdminWebColors.textSecondary,
+                                letterSpacing: 0.3,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
-                  title: Text(e.action, style: const TextStyle(fontSize: 14)),
-                  subtitle: Text('${e.actor} \u2022 ${_formatDate(e.timestamp)}', style: const TextStyle(fontSize: 12)),
                 );
               },
             ),
-          ),
+          const SizedBox(height: 40),
         ],
       ),
     );

@@ -269,7 +269,8 @@ class _LoginScreenState extends State<LoginScreen> {
                               textInputAction: TextInputAction.next,
                               autofillHints: const [AutofillHints.username],
                               decoration: const InputDecoration(
-                                labelText: 'Username',
+                                labelText: 'USERNAME',
+                                isDense: true,
                                 prefixIcon: Icon(Icons.person_outline),
                               ),
                               validator: _validateUsername,
@@ -282,7 +283,8 @@ class _LoginScreenState extends State<LoginScreen> {
                               autofillHints: const [AutofillHints.password],
                               onFieldSubmitted: (_) => _handleLogin(),
                               decoration: InputDecoration(
-                                labelText: 'Password',
+                                labelText: 'PASSWORD',
+                                isDense: true,
                                 prefixIcon: const Icon(Icons.lock_outline),
                                 suffixIcon: IconButton(
                                   icon: Icon(
@@ -319,7 +321,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                             const SizedBox(height: 4),
                             PrimaryButton(
-                              label: 'Sign in',
+                              label: 'SIGN IN',
                               isLoading: _isLoading,
                               onPressed: _handleLogin,
                             ),
@@ -395,8 +397,13 @@ class _OrDivider extends StatelessWidget {
         Padding(
           padding: EdgeInsets.symmetric(horizontal: 12),
           child: Text(
-            'Or continue with',
-            style: TextStyle(color: AppColors.textSecondary, fontSize: 12.5),
+            'OR CONTINUE WITH',
+            style: TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 1.0,
+            ),
           ),
         ),
         Expanded(child: Divider(color: AppColors.border)),

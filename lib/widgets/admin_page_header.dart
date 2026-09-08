@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../theme/admin_theme.dart';
+import '../pages/admin_web/admin_web_colors.dart';
 
 /// Standardized title + subtitle + optional trailing actions block
 /// used at the top of every Admin Web page.
@@ -34,7 +34,7 @@ class AdminPageHeader extends StatelessWidget {
               style: const TextStyle(
                 fontSize: 22,
                 fontWeight: FontWeight.w700,
-                color: AdminColors.textPrimary,
+                color: AdminWebColors.textPrimary,
                 letterSpacing: -0.3,
               ),
             ),
@@ -44,7 +44,7 @@ class AdminPageHeader extends StatelessWidget {
                 subtitle!,
                 style: const TextStyle(
                   fontSize: 13.5,
-                  color: AdminColors.textSecondary,
+                  color: AdminWebColors.textSecondary,
                 ),
               ),
             ],

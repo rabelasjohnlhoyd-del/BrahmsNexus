@@ -49,50 +49,63 @@ class SimpleBarChart extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Y-axis labels
+          // Y-axis labels: precisely aligned with the gridlines
           SizedBox(
-            width: 32,
-            height: height - 20,
+            width: 36,
             child: Column(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: List.generate(steps + 1, (i) {
-                final value = (maxValue * (steps - i) / steps).round();
-                return Text(
-                  '$value',
-                  style: const TextStyle(
-                    fontSize: 10,
-                    color: AdminWebColors.textSecondary,
+              children: [
+                Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: List.generate(steps + 1, (i) {
+                      final value = (maxValue * (steps - i) / steps).round();
+                      return Text(
+                        '$value',
+                        style: const TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w500,
+                          color: AdminWebColors.textSecondary,
+                        ),
+                      );
+                    }),
                   ),
-                );
-              }),
+                ),
+                const SizedBox(height: 22), // Space for X-axis labels (8 + 14)
+              ],
             ),
           ),
-          const SizedBox(width: 8),
-          // Plot area: gridlines behind, bars on top, day labels below.
+          const SizedBox(width: 10),
+          // Plot area: gridlines + bars + day labels below.
           Expanded(
             child: Column(
               children: [
-                SizedBox(
-                  height: height - 20,
+                Expanded(
                   child: Stack(
                     children: [
-                      CustomPaint(
-                        size: Size.infinite,
-                        painter: _GridPainter(steps: steps),
+                      // Gridlines
+                      Positioned.fill(
+                        child: CustomPaint(
+                          painter: _GridPainter(steps: steps),
+                        ),
                       ),
+                      // Bars
                       Padding(
                         padding: const EdgeInsets.only(bottom: 1),
                         child: Row(
                           crossAxisAlignment: CrossAxisAlignment.end,
-                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                           children: List.generate(labels.length, (dayIndex) {
-                            return _BarGroup(
-                              values: [
-                                for (final s in series) s.values[dayIndex]
-                              ],
-                              colors: [for (final s in series) s.color],
-                              maxValue: maxValue,
+                            return Expanded(
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 4),
+                                child: _BarGroup(
+                                  values: [
+                                    for (final s in series) s.values[dayIndex]
+                                  ],
+                                  colors: [for (final s in series) s.color],
+                                  maxValue: maxValue,
+                                ),
+                              ),
                             );
                           }),
                         ),
@@ -100,18 +113,25 @@ class SimpleBarChart extends StatelessWidget {
                     ],
                   ),
                 ),
-                const SizedBox(height: 6),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: labels
-                      .map((l) => Text(
-                            l,
-                            style: const TextStyle(
-                              fontSize: 11,
-                              color: AdminWebColors.textSecondary,
-                            ),
-                          ))
-                      .toList(),
+                const SizedBox(height: 8),
+                // X-axis labels
+                SizedBox(
+                  height: 14,
+                  child: Row(
+                    children: labels
+                        .map((l) => Expanded(
+                              child: Text(
+                                l,
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w500,
+                                  color: AdminWebColors.textSecondary,
+                                ),
+                              ),
+                            ))
+                        .toList(),
+                  ),
                 ),
               ],
             ),
@@ -122,9 +142,7 @@ class SimpleBarChart extends StatelessWidget {
   }
 }
 
-/// One day's group of bars (one bar per series), sized relative to
-/// [maxValue] via [FractionallySizedBox] so it lays out correctly no
-/// matter the available height.
+/// One day's group of bars (one bar per series).
 class _BarGroup extends StatelessWidget {
   const _BarGroup({
     required this.values,
@@ -138,31 +156,29 @@ class _BarGroup extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: 28,
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          for (var i = 0; i < values.length; i++) ...[
-            if (i > 0) const SizedBox(width: 3),
-            Expanded(
-              child: FractionallySizedBox(
-                heightFactor: (values[i] / maxValue).clamp(0.0, 1.0),
-                alignment: Alignment.bottomCenter,
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: colors[i],
-                    borderRadius: const BorderRadius.vertical(
-                      top: Radius.circular(4),
-                    ),
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        for (var i = 0; i < values.length; i++) ...[
+          if (i > 0) const SizedBox(width: 2),
+          Flexible(
+            child: FractionallySizedBox(
+              heightFactor: (values[i] / maxValue).clamp(0.01, 1.0),
+              alignment: Alignment.bottomCenter,
+              child: Container(
+                constraints: const BoxConstraints(maxWidth: 18),
+                decoration: BoxDecoration(
+                  color: colors[i],
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(4),
                   ),
                 ),
               ),
             ),
-          ],
+          ),
         ],
-      ),
+      ],
     );
   }
 }

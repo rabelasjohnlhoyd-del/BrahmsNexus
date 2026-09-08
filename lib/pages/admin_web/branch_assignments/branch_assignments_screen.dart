@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../../models/branch.dart';
 import '../../../models/branch_assignment.dart';
-import '../../../theme/admin_theme.dart';
+import '../admin_web_colors.dart';
+import '../admin_web_widgets/glass_card.dart';
+import '../../../widgets/admin_page_header.dart';
 
 /// Owner assigns each employee to a branch for a chosen date, and
 /// marks them On Duty or on a Rest Day. This is what Staff read for
@@ -104,135 +106,53 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final isWide = constraints.maxWidth >= _wideBreakpoint;
-
-        return Padding(
-          padding: EdgeInsets.all(isWide ? 24 : 16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              isWide
-                  ? Row(
-                      children: [
-                        const Expanded(child: _TitleText()),
-                        _DateButton(
-                          date: _selectedDate,
-                          onPressed: _pickDate,
-                        ),
-                        const SizedBox(width: 12),
-                        _SaveButton(onPressed: _saveAll),
-                      ],
-                    )
-                  : Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const _TitleText(),
-                        const SizedBox(height: 10),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: _DateButton(
-                                date: _selectedDate,
-                                onPressed: _pickDate,
-                                fullWidth: true,
-                              ),
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: _SaveButton(
-                                onPressed: _saveAll,
-                                fullWidth: true,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-              const SizedBox(height: 4),
-              const Text(
-                'Assign each employee to a branch and set their work status '
-                'for the selected date.',
-                style: TextStyle(color: AdminColors.textSecondary),
+    return Padding(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          AdminPageHeader(
+            title: 'Branch Assignments',
+            subtitle:
+                'Assign each employee to a branch and set their work status for the day.',
+            actions: [
+              OutlinedButton.icon(
+                onPressed: _pickDate,
+                icon: const Icon(Icons.calendar_today_rounded, size: 18),
+                label: Text(
+                    '${_selectedDate.month}/${_selectedDate.day}/${_selectedDate.year}'),
               ),
-              const SizedBox(height: 20),
-              Expanded(
-                child: ListView.separated(
-                  itemCount: _assignments.length,
-                  separatorBuilder: (context, index) => const SizedBox(height: 10),
-                  itemBuilder: (context, index) {
-                    final a = _assignments[index];
+              ElevatedButton.icon(
+                onPressed: _saveAll,
+                icon: const Icon(Icons.save_rounded, size: 18),
+                label: const Text('SAVE ASSIGNMENTS'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          Expanded(
+            child: ListView.separated(
+              itemCount: _assignments.length,
+              separatorBuilder: (context, index) => const SizedBox(height: 12),
+              itemBuilder: (context, index) {
+                final a = _assignments[index];
+                return LayoutBuilder(
+                  builder: (context, constraints) {
+                    final isWide = constraints.maxWidth >= 700;
                     return _AssignmentCard(
                       assignment: a,
                       isWide: isWide,
                       onBranchChanged: (branch) => _updateBranch(index, branch),
-                      onStatusChanged: (status) =>
-                          _updateStatus(index, status),
+                      onStatusChanged: (status) => _updateStatus(index, status),
                     );
                   },
-                ),
-              ),
-            ],
+                );
+              },
+            ),
           ),
-        );
-      },
-    );
-  }
-}
-
-class _TitleText extends StatelessWidget {
-  const _TitleText();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Text(
-      'Branch Assignments',
-      style: TextStyle(
-        fontSize: 22,
-        fontWeight: FontWeight.bold,
-        color: AdminColors.textPrimary,
+        ],
       ),
     );
-  }
-}
-
-class _DateButton extends StatelessWidget {
-  const _DateButton({
-    required this.date,
-    required this.onPressed,
-    this.fullWidth = false,
-  });
-
-  final DateTime date;
-  final VoidCallback onPressed;
-  final bool fullWidth;
-
-  @override
-  Widget build(BuildContext context) {
-    final button = OutlinedButton.icon(
-      onPressed: onPressed,
-      icon: const Icon(Icons.calendar_today_rounded, size: 18),
-      label: Text('${date.month}/${date.day}/${date.year}'),
-    );
-    return fullWidth ? SizedBox(width: double.infinity, child: button) : button;
-  }
-}
-
-class _SaveButton extends StatelessWidget {
-  const _SaveButton({required this.onPressed, this.fullWidth = false});
-
-  final VoidCallback onPressed;
-  final bool fullWidth;
-
-  @override
-  Widget build(BuildContext context) {
-    final button = ElevatedButton.icon(
-      onPressed: onPressed,
-      icon: const Icon(Icons.save_rounded, size: 18),
-      label: const Text('Save All'),
-    );
-    return fullWidth ? SizedBox(width: double.infinity, child: button) : button;
   }
 }
 
@@ -256,11 +176,24 @@ class _AssignmentCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final avatarAndName = Row(
       children: [
-        CircleAvatar(
-          backgroundColor: AdminColors.primary,
+        Container(
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            color: AdminWebColors.accent.withValues(alpha: 0.1),
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: AdminWebColors.accent.withValues(alpha: 0.2),
+            ),
+          ),
+          alignment: Alignment.center,
           child: Text(
             assignment.employeeName.substring(0, 1),
-            style: const TextStyle(color: Colors.white),
+            style: const TextStyle(
+              color: AdminWebColors.accent,
+              fontWeight: FontWeight.bold,
+              fontSize: 18,
+            ),
           ),
         ),
         const SizedBox(width: 14),
@@ -268,8 +201,9 @@ class _AssignmentCard extends StatelessWidget {
           child: Text(
             assignment.employeeName,
             style: const TextStyle(
-              fontWeight: FontWeight.w600,
-              color: AdminColors.textPrimary,
+              fontWeight: FontWeight.w700,
+              fontSize: 15,
+              color: AdminWebColors.textPrimary,
             ),
           ),
         ),
@@ -277,13 +211,27 @@ class _AssignmentCard extends StatelessWidget {
     );
 
     final branchDropdown = DropdownButtonFormField<String>(
-      initialValue: assignment.branchId,
+      value: assignment.branchId,
       decoration: const InputDecoration(
-        labelText: 'Branch',
+        labelText: 'BRANCH',
         isDense: true,
+        labelStyle: TextStyle(
+          fontWeight: FontWeight.w800,
+          fontSize: 11,
+          letterSpacing: 1.0,
+          color: AdminWebColors.textSecondary,
+        ),
+        prefixIcon:
+            Icon(Icons.storefront_rounded, size: 20, color: AdminWebColors.accent),
       ),
       items: kSampleBranches
-          .map((b) => DropdownMenuItem(value: b.id, child: Text(b.fullName)))
+          .map((b) => DropdownMenuItem(
+                value: b.id,
+                child: Text(
+                  b.fullName.toUpperCase(),
+                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                ),
+              ))
           .toList(),
       onChanged: (branchId) {
         final branch = kSampleBranches.firstWhere((b) => b.id == branchId);
@@ -292,37 +240,48 @@ class _AssignmentCard extends StatelessWidget {
     );
 
     final statusSelector = SegmentedButton<WorkStatus>(
+      showSelectedIcon: false,
+      style: SegmentedButton.styleFrom(
+        selectedBackgroundColor: AdminWebColors.accent,
+        selectedForegroundColor: Colors.white,
+        side: const BorderSide(color: AdminWebColors.border),
+      ),
       segments: const [
-        ButtonSegment(value: WorkStatus.onDuty, label: Text('On Duty')),
-        ButtonSegment(value: WorkStatus.restDay, label: Text('Rest Day')),
+        ButtonSegment(
+          value: WorkStatus.onDuty,
+          label: Text('ON DUTY'),
+        ),
+        ButtonSegment(
+          value: WorkStatus.restDay,
+          label: Text('REST DAY'),
+        ),
       ],
       selected: {assignment.workStatus},
       onSelectionChanged: (value) => onStatusChanged(value.first),
     );
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: isWide
-            ? Row(
-                children: [
-                  Expanded(flex: 2, child: avatarAndName),
-                  Expanded(flex: 2, child: branchDropdown),
-                  const SizedBox(width: 16),
-                  statusSelector,
-                ],
-              )
-            : Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  avatarAndName,
-                  const SizedBox(height: 12),
-                  branchDropdown,
-                  const SizedBox(height: 12),
-                  Center(child: statusSelector),
-                ],
-              ),
-      ),
+    return GlassCard(
+      padding: const EdgeInsets.all(16),
+      child: isWide
+          ? Row(
+              children: [
+                Expanded(flex: 3, child: avatarAndName),
+                const SizedBox(width: 24),
+                Expanded(flex: 4, child: branchDropdown),
+                const SizedBox(width: 24),
+                statusSelector,
+              ],
+            )
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                avatarAndName,
+                const SizedBox(height: 16),
+                branchDropdown,
+                const SizedBox(height: 12),
+                Center(child: statusSelector),
+              ],
+            ),
     );
   }
 }

@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../../models/bilao_order.dart';
 import '../admin_web_colors.dart';
+import '../admin_web_widgets/glass_card.dart';
+import '../../../widgets/primary_button.dart';
+import '../../../widgets/admin_page_header.dart';
 
 class BilaoPricingScreen extends StatefulWidget {
   const BilaoPricingScreen({super.key});
@@ -22,15 +25,27 @@ class _BilaoPricingScreenState extends State<BilaoPricingScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Edit Price: ${size.label}'),
+        title: Text('Edit Price: ${size.label.toUpperCase()}'),
         content: TextField(
           controller: controller,
           keyboardType: TextInputType.number,
-          decoration: const InputDecoration(labelText: 'Price (₱)', prefixText: '₱ '),
+          decoration: const InputDecoration(
+            labelText: 'PRICE (₱)',
+            prefixText: '₱ ',
+            labelStyle: TextStyle(
+              fontWeight: FontWeight.w800,
+              fontSize: 11,
+              letterSpacing: 1.0,
+            ),
+          ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-          ElevatedButton(
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('CANCEL'),
+          ),
+          PrimaryButton(
+            label: 'UPDATE',
             onPressed: () {
               final newPrice = double.tryParse(controller.text);
               if (newPrice != null) {
@@ -38,7 +53,6 @@ class _BilaoPricingScreenState extends State<BilaoPricingScreen> {
               }
               Navigator.pop(context);
             },
-            child: const Text('Update'),
           ),
         ],
       ),
@@ -47,56 +61,88 @@ class _BilaoPricingScreenState extends State<BilaoPricingScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Bilao Pricing Management')),
-      body: Center(
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 600),
-          child: ListView(
-            padding: const EdgeInsets.all(24),
+          constraints: const BoxConstraints(maxWidth: 800),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'Configure base prices for bilao packages.',
-                style: TextStyle(color: AdminWebColors.textSecondary),
+              const AdminPageHeader(
+                title: 'Bilao Pricing',
+                subtitle: 'Configure base prices for bilao packages across all branches.',
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 32),
               for (final size in BilaoSize.values)
                 Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: Card(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  child: GlassCard(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                     child: ListTile(
+                      contentPadding: EdgeInsets.zero,
                       leading: Container(
-                        width: 40,
-                        height: 40,
+                        width: 44,
+                        height: 44,
                         decoration: BoxDecoration(
                           color: AdminWebColors.accent.withValues(alpha: 0.1),
                           shape: BoxShape.circle,
                         ),
                         child: const Icon(Icons.shopping_bag_outlined, color: AdminWebColors.accent),
                       ),
-                      title: Text('${size.label} Bilao', style: const TextStyle(fontWeight: FontWeight.bold)),
-                      subtitle: Text('Base price for a single unit'),
+                      title: Text(
+                        '${size.label.toUpperCase()} BILAO',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 13,
+                          letterSpacing: 0.5,
+                          color: AdminWebColors.textPrimary,
+                        ),
+                      ),
+                      subtitle: const Text(
+                        'Base price for a single unit',
+                        style: TextStyle(fontSize: 12, color: AdminWebColors.textSecondary),
+                      ),
                       trailing: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Text('₱${_prices[size]?.toStringAsFixed(0)}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: AdminWebColors.accent)),
-                          const SizedBox(width: 12),
-                          IconButton(icon: const Icon(Icons.edit_outlined), onPressed: () => _editPrice(size)),
+                          Text(
+                            '₱${_prices[size]?.toStringAsFixed(0)}',
+                            style: const TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.w900,
+                              color: AdminWebColors.accent,
+                              letterSpacing: -0.5,
+                            ),
+                          ),
+                          const SizedBox(width: 20),
+                          IconButton(
+                            icon: const Icon(Icons.edit_outlined, color: AdminWebColors.textSecondary),
+                            onPressed: () => _editPrice(size),
+                            splashRadius: 24,
+                          ),
                         ],
                       ),
                     ),
                   ),
                 ),
               const SizedBox(height: 32),
-              ElevatedButton.icon(
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Pricing defaults updated for current session.')),
-                  );
-                },
-                icon: const Icon(Icons.save_rounded),
-                label: const Text('Save Global Defaults'),
+              Align(
+                alignment: Alignment.centerRight,
+                child: SizedBox(
+                  width: 220,
+                  child: PrimaryButton(
+                    onPressed: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Pricing defaults updated for current session.')),
+                      );
+                    },
+                    icon: Icons.save_rounded,
+                    label: 'SAVE GLOBAL DEFAULTS',
+                  ),
+                ),
               ),
+              const SizedBox(height: 40),
             ],
           ),
         ),

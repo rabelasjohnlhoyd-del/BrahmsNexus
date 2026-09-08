@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../../models/staff_member.dart';
-import '../admin_web_colors.dart';
+import '../admin_web_widgets/glass_card.dart';
+import '../../../widgets/admin_page_header.dart';
 import '../../../widgets/primary_button.dart';
+import '../admin_web_colors.dart';
 
 /// Form used by the Administrator to create a new staff/employee account.
 ///
@@ -162,232 +164,306 @@ class _AddStaffScreenState extends State<AddStaffScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Add Staff Account'),
-      ),
+      backgroundColor: AdminWebColors.background,
       body: SafeArea(
-        child: Form(
-          key: _formKey,
-          child: ListView(
-            padding: const EdgeInsets.all(20),
-            children: [
-              const Text(
-                'Account Information',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: AdminWebColors.textPrimary,
-                ),
-              ),
-              const SizedBox(height: 4),
-              const Text(
-                'Create login credentials and profile details for a new '
-                'branch employee. The staff member will use the username '
-                'and password below to log in.',
-                style: TextStyle(fontSize: 13, color: AdminWebColors.textSecondary),
-              ),
-              const SizedBox(height: 20),
-
-              TextFormField(
-                controller: _fullNameController,
-                textCapitalization: TextCapitalization.words,
-                textInputAction: TextInputAction.next,
-                decoration: const InputDecoration(
-                  labelText: 'Full Name',
-                  prefixIcon: Icon(Icons.badge_outlined),
-                ),
-                validator: _validateFullName,
-              ),
-              const SizedBox(height: 16),
-
-              TextFormField(
-                controller: _usernameController,
-                textInputAction: TextInputAction.next,
-                autocorrect: false,
-                decoration: const InputDecoration(
-                  labelText: 'Username',
-                  helperText: 'Used for logging in. No spaces.',
-                  prefixIcon: Icon(Icons.person_outline),
-                ),
-                validator: _validateUsername,
-              ),
-              const SizedBox(height: 16),
-
-              TextFormField(
-                controller: _emailController,
-                keyboardType: TextInputType.emailAddress,
-                textInputAction: TextInputAction.next,
-                decoration: const InputDecoration(
-                  labelText: 'Email (optional)',
-                  prefixIcon: Icon(Icons.email_outlined),
-                ),
-                validator: _validateEmail,
-              ),
-              const SizedBox(height: 16),
-
-              TextFormField(
-                controller: _phoneController,
-                keyboardType: TextInputType.phone,
-                textInputAction: TextInputAction.next,
-                decoration: const InputDecoration(
-                  labelText: 'Phone Number (optional)',
-                  prefixIcon: Icon(Icons.phone_outlined),
-                ),
-                validator: _validatePhone,
-              ),
-
-              const SizedBox(height: 24),
-              const Text(
-                'Assignment',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: AdminWebColors.textPrimary,
-                ),
-              ),
-              const SizedBox(height: 12),
-
-              DropdownButtonFormField<String>(
-                initialValue: _selectedBranch,
-                decoration: const InputDecoration(
-                  labelText: 'Branch',
-                  prefixIcon: Icon(Icons.store_mall_directory_outlined),
-                ),
-                items: kBranchOptions
-                    .map((branch) => DropdownMenuItem(
-                          value: branch,
-                          child: Text(branch),
-                        ))
-                    .toList(),
-                onChanged: (value) {
-                  setState(() => _selectedBranch = value);
-                },
-                validator: _validateBranch,
-              ),
-
-              if (_selectedBranch == 'Other') ...[
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: _otherBranchController,
-                  textCapitalization: TextCapitalization.words,
-                  decoration: const InputDecoration(
-                    labelText: 'Specify Branch Name',
-                    prefixIcon: Icon(Icons.edit_location_alt_outlined),
-                  ),
-                  validator: _validateOtherBranch,
-                ),
-              ],
-              const SizedBox(height: 16),
-
-              TextFormField(
-                controller: _positionController,
-                textCapitalization: TextCapitalization.words,
-                textInputAction: TextInputAction.next,
-                decoration: const InputDecoration(
-                  labelText: 'Position',
-                  hintText: 'e.g., Cashier, Cook, Delivery Staff',
-                  prefixIcon: Icon(Icons.work_outline),
-                ),
-                validator: _validatePosition,
-              ),
-              const SizedBox(height: 12),
-
-              SwitchListTile.adaptive(
-                contentPadding: EdgeInsets.zero,
-                value: _isActive,
-                onChanged: (value) => setState(() => _isActive = value),
-                activeThumbColor: AdminWebColors.accent,
-                title: const Text(
-                  'Active Account',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    color: AdminWebColors.textPrimary,
-                  ),
-                ),
-                subtitle: const Text(
-                  'Inactive staff cannot log in until reactivated.',
-                  style: TextStyle(fontSize: 12, color: AdminWebColors.textSecondary),
-                ),
-              ),
-
-              const SizedBox(height: 24),
-              const Text(
-                'Login Credentials',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: AdminWebColors.textPrimary,
-                ),
-              ),
-              const SizedBox(height: 12),
-
-              TextFormField(
-                controller: _passwordController,
-                obscureText: _obscurePassword,
-                textInputAction: TextInputAction.next,
-                decoration: InputDecoration(
-                  labelText: 'Initial Password',
-                  prefixIcon: const Icon(Icons.lock_outline),
-                  suffixIcon: IconButton(
-                    icon: Icon(
-                      _obscurePassword
-                          ? Icons.visibility_off_outlined
-                          : Icons.visibility_outlined,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 800),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    AdminPageHeader(
+                      title: 'Add Staff Account',
+                      subtitle: 'Create login credentials and profile details for a new branch employee.',
+                      actions: [
+                        TextButton(
+                          onPressed: _isSaving ? null : () => Navigator.of(context).pop(),
+                          child: const Text('CANCEL'),
+                        ),
+                        const SizedBox(width: 8),
+                        SizedBox(
+                          width: 180,
+                          child: PrimaryButton(
+                            label: 'CREATE ACCOUNT',
+                            icon: Icons.person_add_alt_1,
+                            isLoading: _isSaving,
+                            onPressed: _handleSave,
+                          ),
+                        ),
+                      ],
                     ),
-                    onPressed: () {
-                      setState(() => _obscurePassword = !_obscurePassword);
-                    },
-                  ),
-                ),
-                validator: _validatePassword,
-                onChanged: (_) {
-                  // Re-validate confirm field live once the user edits password.
-                  if (_confirmPasswordController.text.isNotEmpty) {
-                    _formKey.currentState?.validate();
-                  }
-                },
-              ),
-              const SizedBox(height: 16),
-
-              TextFormField(
-                controller: _confirmPasswordController,
-                obscureText: _obscureConfirmPassword,
-                textInputAction: TextInputAction.done,
-                decoration: InputDecoration(
-                  labelText: 'Confirm Password',
-                  prefixIcon: const Icon(Icons.lock_outline),
-                  suffixIcon: IconButton(
-                    icon: Icon(
-                      _obscureConfirmPassword
-                          ? Icons.visibility_off_outlined
-                          : Icons.visibility_outlined,
+                    const SizedBox(height: 32),
+                    
+                    GlassCard(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'ACCOUNT INFORMATION',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 1.0,
+                              color: AdminWebColors.textSecondary,
+                            ),
+                          ),
+                          const SizedBox(height: 20),
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                child: TextFormField(
+                                  controller: _fullNameController,
+                                  textCapitalization: TextCapitalization.words,
+                                  textInputAction: TextInputAction.next,
+                                  decoration: const InputDecoration(
+                                    labelText: 'FULL NAME',
+                                    isDense: true,
+                                    prefixIcon: Icon(Icons.badge_outlined, size: 20),
+                                  ),
+                                  validator: _validateFullName,
+                                ),
+                              ),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: TextFormField(
+                                  controller: _usernameController,
+                                  textInputAction: TextInputAction.next,
+                                  autocorrect: false,
+                                  decoration: const InputDecoration(
+                                    labelText: 'USERNAME',
+                                    isDense: true,
+                                    helperText: 'Used for logging in. No spaces.',
+                                    prefixIcon: Icon(Icons.person_outline, size: 20),
+                                  ),
+                                  validator: _validateUsername,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 20),
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                child: TextFormField(
+                                  controller: _emailController,
+                                  keyboardType: TextInputType.emailAddress,
+                                  textInputAction: TextInputAction.next,
+                                  decoration: const InputDecoration(
+                                    labelText: 'EMAIL (OPTIONAL)',
+                                    isDense: true,
+                                    prefixIcon: Icon(Icons.email_outlined, size: 20),
+                                  ),
+                                  validator: _validateEmail,
+                                ),
+                              ),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: TextFormField(
+                                  controller: _phoneController,
+                                  keyboardType: TextInputType.phone,
+                                  textInputAction: TextInputAction.next,
+                                  decoration: const InputDecoration(
+                                    labelText: 'PHONE NUMBER (OPTIONAL)',
+                                    isDense: true,
+                                    prefixIcon: Icon(Icons.phone_outlined, size: 20),
+                                  ),
+                                  validator: _validatePhone,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
-                    onPressed: () {
-                      setState(() =>
-                          _obscureConfirmPassword = !_obscureConfirmPassword);
-                    },
-                  ),
-                ),
-                validator: _validateConfirmPassword,
-                onFieldSubmitted: (_) => _handleSave(),
-              ),
+                    
+                    const SizedBox(height: 24),
+                    GlassCard(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'ASSIGNMENT',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 1.0,
+                              color: AdminWebColors.textSecondary,
+                            ),
+                          ),
+                          const SizedBox(height: 20),
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                child: DropdownButtonFormField<String>(
+                                  value: _selectedBranch,
+                                  decoration: const InputDecoration(
+                                    labelText: 'BRANCH',
+                                    isDense: true,
+                                    prefixIcon: Icon(Icons.store_mall_directory_outlined, size: 20),
+                                  ),
+                                  items: kBranchOptions
+                                      .map((branch) => DropdownMenuItem(
+                                            value: branch,
+                                            child: Text(branch.toUpperCase()),
+                                          ))
+                                      .toList(),
+                                  onChanged: (value) {
+                                    setState(() => _selectedBranch = value);
+                                  },
+                                  validator: _validateBranch,
+                                ),
+                              ),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: TextFormField(
+                                  controller: _positionController,
+                                  textCapitalization: TextCapitalization.words,
+                                  textInputAction: TextInputAction.next,
+                                  decoration: const InputDecoration(
+                                    labelText: 'POSITION',
+                                    isDense: true,
+                                    hintText: 'e.g., Cashier, Cook',
+                                    prefixIcon: Icon(Icons.work_outline, size: 20),
+                                  ),
+                                  validator: _validatePosition,
+                                ),
+                              ),
+                            ],
+                          ),
+                          if (_selectedBranch == 'Other') ...[
+                            const SizedBox(height: 20),
+                            TextFormField(
+                              controller: _otherBranchController,
+                              textCapitalization: TextCapitalization.words,
+                              decoration: const InputDecoration(
+                                labelText: 'SPECIFY BRANCH NAME',
+                                isDense: true,
+                                prefixIcon: Icon(Icons.edit_location_alt_outlined, size: 20),
+                              ),
+                              validator: _validateOtherBranch,
+                            ),
+                          ],
+                          const SizedBox(height: 12),
+                          SwitchListTile.adaptive(
+                            contentPadding: EdgeInsets.zero,
+                            value: _isActive,
+                            onChanged: (value) => setState(() => _isActive = value),
+                            activeColor: AdminWebColors.accent,
+                            title: const Text(
+                              'ACTIVE ACCOUNT',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 13,
+                                color: AdminWebColors.textPrimary,
+                              ),
+                            ),
+                            subtitle: Text(
+                              'Inactive staff cannot log in until reactivated.',
+                              style: TextStyle(fontSize: 12, color: AdminWebColors.textSecondary),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
 
-              const SizedBox(height: 28),
-              PrimaryButton(
-                label: 'CREATE ACCOUNT',
-                icon: Icons.person_add_alt_1,
-                isLoading: _isSaving,
-                onPressed: _handleSave,
+                    const SizedBox(height: 24),
+                    GlassCard(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'LOGIN CREDENTIALS',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 1.0,
+                              color: AdminWebColors.textSecondary,
+                            ),
+                          ),
+                          const SizedBox(height: 20),
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                child: TextFormField(
+                                  controller: _passwordController,
+                                  obscureText: _obscurePassword,
+                                  textInputAction: TextInputAction.next,
+                                  decoration: InputDecoration(
+                                    labelText: 'INITIAL PASSWORD',
+                                    isDense: true,
+                                    prefixIcon: const Icon(Icons.lock_outline, size: 20),
+                                    suffixIcon: IconButton(
+                                      icon: Icon(
+                                        _obscurePassword
+                                            ? Icons.visibility_off_outlined
+                                            : Icons.visibility_outlined,
+                                        size: 20,
+                                      ),
+                                      onPressed: () {
+                                        setState(() => _obscurePassword = !_obscurePassword);
+                                      },
+                                    ),
+                                  ),
+                                  validator: _validatePassword,
+                                  onChanged: (_) {
+                                    if (_confirmPasswordController.text.isNotEmpty) {
+                                      _formKey.currentState?.validate();
+                                    }
+                                  },
+                                ),
+                              ),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: TextFormField(
+                                  controller: _confirmPasswordController,
+                                  obscureText: _obscureConfirmPassword,
+                                  textInputAction: TextInputAction.done,
+                                  decoration: InputDecoration(
+                                    labelText: 'CONFIRM PASSWORD',
+                                    isDense: true,
+                                    prefixIcon: const Icon(Icons.lock_outline, size: 20),
+                                    suffixIcon: IconButton(
+                                      icon: Icon(
+                                        _obscureConfirmPassword
+                                            ? Icons.visibility_off_outlined
+                                            : Icons.visibility_outlined,
+                                        size: 20,
+                                      ),
+                                      onPressed: () {
+                                        setState(() =>
+                                            _obscureConfirmPassword = !_obscureConfirmPassword);
+                                      },
+                                    ),
+                                  ),
+                                  validator: _validateConfirmPassword,
+                                  onFieldSubmitted: (_) => _handleSave(),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 40),
+                  ],
+                ),
               ),
-              const SizedBox(height: 12),
-              TextButton(
-                onPressed: _isSaving ? null : () => Navigator.of(context).pop(),
-                child: const Text('Cancel'),
-              ),
-            ],
+            ),
           ),
         ),
       ),
     );
   }
+
 }

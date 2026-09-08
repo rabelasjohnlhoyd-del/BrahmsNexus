@@ -166,9 +166,17 @@ class _AdminWebShellState extends State<AdminWebShell> {
           return Scaffold(
             backgroundColor: AdminWebColors.background,
             appBar: AppBar(
-              backgroundColor: AdminWebColors.background,
-              elevation: 1,
-              iconTheme: const IconThemeData(color: AdminWebColors.accent),
+              flexibleSpace: Container(
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [AdminWebColors.headerStart, AdminWebColors.headerEnd],
+                  ),
+                ),
+              ),
+              elevation: 0,
+              iconTheme: const IconThemeData(color: Colors.white),
               titleSpacing: 0,
             ),
             drawer: Drawer(

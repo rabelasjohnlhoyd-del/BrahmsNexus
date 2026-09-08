@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../theme/admin_theme.dart';
+import '../pages/admin_web/admin_web_colors.dart';
 
 /// Reusable placeholder layout for Admin Web tabs/sections that don't
 /// have actual data/backend yet. Just swap out its contents once real
@@ -19,7 +19,7 @@ class PagePlaceholder extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: AdminColors.background,
+      color: AdminWebColors.background,
       child: Center(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 32),
@@ -29,10 +29,10 @@ class PagePlaceholder extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  color: AdminColors.tint.withValues(alpha: 0.5),
+                  color: AdminWebColors.surfaceTint.withValues(alpha: 0.5),
                   shape: BoxShape.circle,
                 ),
-                child: Icon(icon, size: 44, color: AdminColors.primary),
+                child: Icon(icon, size: 44, color: AdminWebColors.accent),
               ),
               const SizedBox(height: 20),
               Text(
@@ -40,7 +40,7 @@ class PagePlaceholder extends StatelessWidget {
                 style: const TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.w600,
-                  color: AdminColors.textPrimary,
+                  color: AdminWebColors.textPrimary,
                 ),
               ),
               const SizedBox(height: 8),
@@ -49,7 +49,7 @@ class PagePlaceholder extends StatelessWidget {
                 textAlign: TextAlign.center,
                 style: const TextStyle(
                   fontSize: 13.5,
-                  color: AdminColors.textSecondary,
+                  color: AdminWebColors.textSecondary,
                 ),
               ),
             ],

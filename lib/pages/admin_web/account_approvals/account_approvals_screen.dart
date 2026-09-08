@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import '../../../models/account_status.dart';
 import '../../../models/registration_request.dart';
 import '../../../models/user_role.dart';
-import '../../../theme/admin_theme.dart';
+import '../../../widgets/admin_page_header.dart';
+import '../admin_web_colors.dart';
+import '../admin_web_widgets/glass_card.dart';
 
 /// Owner reviews new Staff/Driver registrations here and Accepts or
 /// Rejects them. Only after Accept can that account log in.
@@ -61,37 +63,49 @@ class _AccountApprovalsScreenState extends State<AccountApprovalsScreen> {
     final decided =
         _requests.where((r) => r.status != AccountStatus.pending).toList();
 
-    return Padding(
-      padding: const EdgeInsets.all(24),
+    return Container(
+      color: AdminWebColors.background,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Account Approvals',
-            style: TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
-              color: AdminColors.textPrimary,
+          const Padding(
+            padding: EdgeInsets.fromLTRB(24, 24, 24, 0),
+            child: AdminPageHeader(
+              title: 'Account Approvals',
+              subtitle: 'Review new Staff/Driver registrations before they can log in.',
             ),
-          ),
-          const SizedBox(height: 4),
-          const Text(
-            'Review new Staff/Driver registrations before they can log in.',
-            style: TextStyle(color: AdminColors.textSecondary),
           ),
           const SizedBox(height: 20),
           Expanded(
             child: ListView(
+              padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
               children: [
                 if (pending.isEmpty)
                   const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 24),
-                    child: Text(
-                      'No pending registrations right now.',
-                      style: TextStyle(color: AdminColors.textSecondary),
+                    padding: EdgeInsets.symmetric(vertical: 40),
+                    child: Center(
+                      child: Column(
+                        children: [
+                          Icon(Icons.how_to_reg_rounded, size: 48, color: AdminWebColors.border),
+                          SizedBox(height: 12),
+                          Text(
+                            'No pending registrations right now.',
+                            style: TextStyle(color: AdminWebColors.textSecondary),
+                          ),
+                        ],
+                      ),
                     ),
                   )
-                else
+                else ...[
+                  const Text(
+                    'Pending Review',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: AdminWebColors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
                   ...pending.map(
                     (r) => _RequestCard(
                       request: r,
@@ -99,16 +113,18 @@ class _AccountApprovalsScreenState extends State<AccountApprovalsScreen> {
                       onReject: () => _decide(r, AccountStatus.rejected),
                     ),
                   ),
+                ],
                 if (decided.isNotEmpty) ...[
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 32),
                   const Text(
-                    'Previously Decided',
+                    'Recently Decided',
                     style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      color: AdminColors.textPrimary,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: AdminWebColors.textPrimary,
                     ),
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 12),
                   ...decided.map((r) => _RequestCard(request: r)),
                 ],
               ],
@@ -134,82 +150,94 @@ class _RequestCard extends StatelessWidget {
   Color _statusColor() {
     switch (request.status) {
       case AccountStatus.pending:
-        return AdminColors.warning;
+        return AdminWebColors.warning;
       case AccountStatus.approved:
-        return AdminColors.success;
+        return AdminWebColors.success;
       case AccountStatus.rejected:
-        return AdminColors.error;
+        return AdminWebColors.error;
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            CircleAvatar(
-              backgroundColor: AdminColors.primary,
-              child: Text(
-                request.fullName.substring(0, 1).toUpperCase(),
-                style: const TextStyle(color: Colors.white),
+    final statusColor = _statusColor();
+
+    return GlassCard(
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 22,
+            backgroundColor: AdminWebColors.accent.withValues(alpha: 0.1),
+            child: Text(
+              request.fullName.substring(0, 1).toUpperCase(),
+              style: const TextStyle(
+                color: AdminWebColors.accent,
+                fontWeight: FontWeight.bold,
               ),
             ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    request.fullName,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w600,
-                      color: AdminColors.textPrimary,
-                    ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  request.fullName,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 15,
+                    color: AdminWebColors.textPrimary,
                   ),
-                  Text(
-                    '@${request.username} · ${request.role.label} · '
-                    '${request.contactNumber}',
-                    style: const TextStyle(
-                      fontSize: 12.5,
-                      color: AdminColors.textSecondary,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            if (onAccept != null && onReject != null) ...[
-              IconButton(
-                icon: const Icon(Icons.check_circle, color: AdminColors.success),
-                tooltip: 'Accept',
-                onPressed: onAccept,
-              ),
-              IconButton(
-                icon: const Icon(Icons.cancel, color: AdminColors.error),
-                tooltip: 'Reject',
-                onPressed: onReject,
-              ),
-            ] else
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: _statusColor().withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(8),
                 ),
-                child: Text(
-                  request.status.label,
-                  style: TextStyle(
-                    color: _statusColor(),
-                    fontWeight: FontWeight.w600,
+                const SizedBox(height: 2),
+                Text(
+                  '@${request.username} · ${request.role.label} · ${request.contactNumber}',
+                  style: const TextStyle(
                     fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: AdminWebColors.textSecondary,
                   ),
                 ),
+              ],
+            ),
+          ),
+          if (onAccept != null && onReject != null) ...[
+            TextButton.icon(
+              onPressed: onReject,
+              icon: const Icon(Icons.close_rounded, size: 18),
+              label: const Text('REJECT'),
+              style: TextButton.styleFrom(foregroundColor: AdminWebColors.error),
+            ),
+            const SizedBox(width: 8),
+            ElevatedButton.icon(
+              onPressed: onAccept,
+              icon: const Icon(Icons.check_rounded, size: 18),
+              label: const Text('APPROVE'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AdminWebColors.success,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               ),
-          ],
-        ),
+            ),
+          ] else
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: statusColor.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: statusColor.withValues(alpha: 0.2)),
+              ),
+              child: Text(
+                request.status.label.toUpperCase(),
+                style: TextStyle(
+                  color: statusColor,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 11,
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }
