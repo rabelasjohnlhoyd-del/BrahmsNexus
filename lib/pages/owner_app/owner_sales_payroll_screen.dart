@@ -33,6 +33,7 @@ class OwnerSalesPayrollScreen extends StatefulWidget {
 class _OwnerSalesPayrollScreenState extends State<OwnerSalesPayrollScreen> {
   double _commissionRate = 5;
   String? _branchFilter; // branch id, null = all branches
+  int _dateRangeFilter = 0; // 0 = Today, 1 = Yesterday, 2 = This Week
 
   static String _branchName(String id) =>
       kSampleBranches.firstWhere((b) => b.id == id).fullName;
@@ -74,8 +75,27 @@ class _OwnerSalesPayrollScreenState extends State<OwnerSalesPayrollScreen> {
   ];
 
   List<SalesRecord> get _visibleRecords {
-    if (_branchFilter == null) return _records;
-    return _records.where((r) => r.branchId == _branchFilter).toList();
+    final now = DateTime.now();
+    return _records.where((r) {
+      // Branch filter
+      if (_branchFilter != null && r.branchId != _branchFilter) return false;
+
+      // Date range filter
+      final recordDate = DateTime(r.date.year, r.date.month, r.date.day);
+      final today = DateTime(now.year, now.month, now.day);
+
+      if (_dateRangeFilter == 0) {
+        return recordDate.isAtSameMomentAs(today);
+      } else if (_dateRangeFilter == 1) {
+        final yesterday = today.subtract(const Duration(days: 1));
+        return recordDate.isAtSameMomentAs(yesterday);
+      } else if (_dateRangeFilter == 2) {
+        final startOfWeek = today.subtract(Duration(days: today.weekday - 1));
+        return recordDate.isAfter(startOfWeek.subtract(const Duration(days: 1))) &&
+            recordDate.isBefore(today.add(const Duration(days: 1)));
+      }
+      return true;
+    }).toList();
   }
 
   double get _totalSales =>
@@ -176,6 +196,34 @@ class _OwnerSalesPayrollScreenState extends State<OwnerSalesPayrollScreen> {
                 'Expected Remittance',
                 '₱${_totalRemittance.toStringAsFixed(0)}',
                 CupertinoIcons.archivebox_fill),
+            const SizedBox(height: 20),
+            const StaffSectionHeader(
+              label: 'Historical View',
+              icon: CupertinoIcons.calendar,
+            ),
+            const SizedBox(height: 12),
+            CupertinoSlidingSegmentedControl<int>(
+              groupValue: _dateRangeFilter,
+              backgroundColor: AppColors.border.withValues(alpha: 0.1),
+              thumbColor: CupertinoColors.white,
+              children: const {
+                0: Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  child: Text('Today', style: TextStyle(fontSize: 13)),
+                ),
+                1: Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  child: Text('Yesterday', style: TextStyle(fontSize: 13)),
+                ),
+                2: Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  child: Text('This Week', style: TextStyle(fontSize: 13)),
+                ),
+              },
+              onValueChanged: (v) {
+                if (v != null) setState(() => _dateRangeFilter = v);
+              },
+            ),
             const SizedBox(height: 20),
             const StaffSectionHeader(
               label: 'Sales Records',

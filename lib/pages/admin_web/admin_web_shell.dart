@@ -12,6 +12,11 @@ import 'employee_reports/employee_reports_screen.dart';
 import 'inventory/inventory_screen.dart';
 import 'sales_payroll/sales_payroll_screen.dart';
 import 'staff_management/staff_management_screen.dart';
+import 'branch_management/branch_management_screen.dart';
+import 'bilao_management/bilao_pricing_screen.dart';
+import 'activity_log/activity_log_screen.dart';
+import 'report_export/report_export_screen.dart';
+import 'settings/system_settings_screen.dart';
 
 /// Full Admin shell — WEB (also accessible via phone browser, hence
 /// responsive). On a wide screen (desktop/tablet), just the side
@@ -62,6 +67,11 @@ class _AdminWebShellState extends State<AdminWebShell> {
         icon: Icons.fact_check_rounded, label: 'Employee Reports'),
     AdminSidebarItem(icon: Icons.campaign_rounded, label: 'Announcements'),
     AdminSidebarItem(icon: Icons.insights_rounded, label: 'DSS Analytics'),
+    AdminSidebarItem(icon: Icons.location_on_rounded, label: 'Branch Management'),
+    AdminSidebarItem(icon: Icons.sell_rounded, label: 'Bilao Pricing'),
+    AdminSidebarItem(icon: Icons.list_alt_rounded, label: 'Activity Log'),
+    AdminSidebarItem(icon: Icons.download_rounded, label: 'Report Export'),
+    AdminSidebarItem(icon: Icons.settings_rounded, label: 'System Settings'),
   ];
 
   List<Widget> get _pages => [
@@ -75,6 +85,11 @@ class _AdminWebShellState extends State<AdminWebShell> {
     const EmployeeReportsScreen(),
     const AnnouncementsScreen(),
     const AnalyticsScreen(),
+    const BranchManagementScreen(),
+    const BilaoPricingScreen(),
+    const ActivityLogScreen(),
+    const ReportExportScreen(),
+    const SystemSettingsScreen(),
   ];
 
   void _handleLogout() {

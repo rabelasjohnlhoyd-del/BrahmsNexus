@@ -6,17 +6,24 @@ import 'owner_assignments_screen.dart';
 import 'owner_inventory_screen.dart';
 import 'owner_sales_payroll_screen.dart';
 import 'owner_more_screen.dart';
+import 'owner_lock_screen.dart';
 
-/// Main shell of the Owner mobile app — a CupertinoTabScaffold with 5
-/// tabs (Home, Assignments, Inventory, Sales & Payroll, More),
-/// mirroring the same pattern used by staff_shell.dart and
-/// driver_shell.dart so all three mobile apps behave identically.
-///
-/// Unlike Staff/Driver, Owner keeps Announcements reachable (inside
-/// More) rather than moving it to a notification bell — Owner is the
-/// one COMPOSING announcements here, not just receiving them.
-class OwnerShell extends StatelessWidget {
+/// Main shell for the Owner mobile app — matches the 4-tab structure
+/// of the Staff app but with 5 tabs (Home, Assign, Inventory, Sales,
+/// More) and Owner-specific data views.
+class OwnerShell extends StatefulWidget {
   const OwnerShell({super.key});
+
+  @override
+  State<OwnerShell> createState() => _OwnerShellState();
+}
+
+class _OwnerShellState extends State<OwnerShell> {
+  bool _isUnlocked = false;
+
+  void _handleUnlock() {
+    setState(() => _isUnlocked = true);
+  }
 
   static const _inactiveTint = Color(0xFFB8A99A);
 
@@ -26,14 +33,11 @@ class OwnerShell extends StatelessWidget {
     statusBarBrightness: Brightness.dark,
     systemNavigationBarColor: CupertinoColors.white,
     systemNavigationBarIconBrightness: Brightness.dark,
-    systemNavigationBarDividerColor: Color(0x00000000),
-    systemNavigationBarContrastEnforced: false,
-    systemStatusBarContrastEnforced: false,
   );
 
-  static Widget _tabItem(IconData icon, String label, {required bool active}) {
+  Widget _tabItem(IconData icon, String label, {required bool active}) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
       decoration: BoxDecoration(
         color: active ? AppColors.textPrimary : null,
         borderRadius: BorderRadius.circular(18),
@@ -44,14 +48,14 @@ class OwnerShell extends StatelessWidget {
         children: [
           Icon(
             icon,
-            size: 20,
+            size: 18,
             color: active ? CupertinoColors.white : _inactiveTint,
           ),
           const SizedBox(height: 2),
           Text(
             label,
             style: TextStyle(
-              fontSize: 10,
+              fontSize: 9,
               height: 1.0,
               fontWeight: active ? FontWeight.w700 : FontWeight.w500,
               color: active ? CupertinoColors.white : _inactiveTint,
@@ -64,6 +68,10 @@ class OwnerShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (!_isUnlocked) {
+      return OwnerLockScreen(onUnlocked: _handleUnlock);
+    }
+
     const cupertinoThemeData = CupertinoThemeData(
       brightness: Brightness.light,
       primaryColor: AppColors.accent,
@@ -109,28 +117,18 @@ class OwnerShell extends StatelessWidget {
                 ],
               ),
               tabBuilder: (context, index) {
-                switch (index) {
-                  case 0:
-                    return CupertinoTabView(
-                      builder: (context) => const OwnerHomepageScreen(),
-                    );
-                  case 1:
-                    return CupertinoTabView(
-                      builder: (context) => const OwnerAssignmentsScreen(),
-                    );
-                  case 2:
-                    return CupertinoTabView(
-                      builder: (context) => const OwnerInventoryScreen(),
-                    );
-                  case 3:
-                    return CupertinoTabView(
-                      builder: (context) => const OwnerSalesPayrollScreen(),
-                    );
-                  default:
-                    return CupertinoTabView(
-                      builder: (context) => const OwnerMoreScreen(),
-                    );
-                }
+                return CupertinoTabView(
+                  builder: (context) {
+                    switch (index) {
+                      case 0: return const OwnerHomepageScreen();
+                      case 1: return const OwnerAssignmentsScreen();
+                      case 2: return const OwnerInventoryScreen();
+                      case 3: return const OwnerSalesPayrollScreen();
+                      case 4: return const OwnerMoreScreen();
+                      default: return const OwnerHomepageScreen();
+                    }
+                  },
+                );
               },
             ),
           ),

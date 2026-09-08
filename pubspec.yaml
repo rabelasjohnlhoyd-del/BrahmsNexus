@@ -43,6 +43,8 @@ dependencies:
   # Camera capture — ginagamit sa Driver App (Stock Transfer at Bilao
   # Deliveries) para sa "take a picture" na confirmation proof.
   image_picker: ^1.1.2
+  share_plus: ^13.3.0
+  local_auth: ^3.0.2
 
 dev_dependencies:
   flutter_test:

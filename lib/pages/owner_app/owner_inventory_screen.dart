@@ -31,6 +31,7 @@ class OwnerInventoryScreen extends StatefulWidget {
 
 class _OwnerInventoryScreenState extends State<OwnerInventoryScreen> {
   int _section = 0; // 0 = Warehouse, 1 = Branches, 2 = Transfers
+  int _dateRangeFilter = 0; // 0 = Today, 1 = Yesterday, 2 = This Week
 
   static String _branchName(String id) =>
       kSampleBranches.firstWhere((b) => b.id == id).fullName;
@@ -361,6 +362,22 @@ class _OwnerInventoryScreenState extends State<OwnerInventoryScreen> {
                 },
               ),
             ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+              child: CupertinoSlidingSegmentedControl<int>(
+                groupValue: _dateRangeFilter,
+                backgroundColor: AppColors.border.withValues(alpha: 0.1),
+                thumbColor: CupertinoColors.white,
+                children: const {
+                  0: Text('Today', style: TextStyle(fontSize: 12)),
+                  1: Text('Yesterday', style: TextStyle(fontSize: 12)),
+                  2: Text('This Week', style: TextStyle(fontSize: 12)),
+                },
+                onValueChanged: (v) {
+                  if (v != null) setState(() => _dateRangeFilter = v);
+                },
+              ),
+            ),
             Expanded(
               child: switch (_section) {
                 0 => _buildWarehouseTab(),
@@ -428,6 +445,11 @@ class _OwnerInventoryScreenState extends State<OwnerInventoryScreen> {
   }
 
   Widget _buildBranchesTab() {
+    final surplusBranch = _branchStocks.reduce((a, b) =>
+        (a.remainingKg / a.allocatedKg) > (b.remainingKg / b.allocatedKg)
+            ? a
+            : b);
+
     return ListView.separated(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
       itemCount: _branchStocks.length,
@@ -438,85 +460,146 @@ class _OwnerInventoryScreenState extends State<OwnerInventoryScreen> {
             ? 0.0
             : (stock.remainingKg / stock.allocatedKg).clamp(0, 1);
 
-        return StaffCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
+        return Column(
+          children: [
+            if (stock.isRunningLow && stock.branchId != surplusBranch.branchId)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: _buildTransferSuggestion(stock, surplusBranch),
+              ),
+            StaffCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    child: Text(
-                      stock.branchName,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textPrimary,
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          stock.branchName,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
                       ),
-                    ),
+                      if (stock.isRunningLow)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: AppColors.error.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: const Text(
+                            'Running Low',
+                            style: TextStyle(
+                              color: AppColors.error,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 11,
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
-                  if (stock.isRunningLow)
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: AppColors.error.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: const Text(
-                        'Running Low',
-                        style: TextStyle(
-                          color: AppColors.error,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 11,
+                  const SizedBox(height: 10),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(6),
+                    child: Container(
+                      height: 8,
+                      color: AppColors.border,
+                      alignment: Alignment.centerLeft,
+                      child: FractionallySizedBox(
+                        widthFactor: ratio.toDouble(),
+                        child: Container(
+                          color: stock.isRunningLow
+                              ? AppColors.error
+                              : AppColors.accent,
                         ),
                       ),
                     ),
-                ],
-              ),
-              const SizedBox(height: 10),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(6),
-                child: Container(
-                  height: 8,
-                  color: AppColors.border,
-                  alignment: Alignment.centerLeft,
-                  child: FractionallySizedBox(
-                    widthFactor: ratio.toDouble(),
-                    child: Container(
-                      color: stock.isRunningLow
-                          ? AppColors.error
-                          : AppColors.accent,
-                    ),
                   ),
-                ),
-              ),
-              const SizedBox(height: 8),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    '${stock.remainingKg.toStringAsFixed(1)} kg left of '
-                    '${stock.allocatedKg.toStringAsFixed(1)} kg',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
-                  CupertinoButton(
-                    padding: EdgeInsets.zero,
-                    minimumSize: Size.zero,
-                    onPressed: () => _showAllocateDialog(stock),
-                    child: const Text(
-                      'Allocate',
-                      style: TextStyle(fontSize: 12.5, color: AppColors.accent),
-                    ),
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        '${stock.remainingKg.toStringAsFixed(1)} kg left of '
+                        '${stock.allocatedKg.toStringAsFixed(1)} kg',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                      CupertinoButton(
+                        padding: EdgeInsets.zero,
+                        minimumSize: Size.zero,
+                        onPressed: () => _showAllocateDialog(stock),
+                        child: const Text(
+                          'Allocate',
+                          style: TextStyle(fontSize: 12.5, color: AppColors.accent),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
-            ],
-          ),
+            ),
+          ],
         );
       },
     );
+  }
+
+  Widget _buildTransferSuggestion(BranchStock low, BranchStock surplus) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.warning.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.warning.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        children: [
+          const Icon(CupertinoIcons.lightbulb_fill,
+              color: AppColors.warning, size: 18),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              '${surplus.branchName} has surplus — transfer here?',
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textPrimary,
+              ),
+            ),
+          ),
+          CupertinoButton(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            color: AppColors.warning,
+            borderRadius: BorderRadius.circular(8),
+            onPressed: () => _showAddTransferDialogWithPrefill(low, surplus),
+            child: const Text(
+              'Review',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+                color: CupertinoColors.white,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showAddTransferDialogWithPrefill(
+      BranchStock low, BranchStock surplus) async {
+    final sourceIndex = kSampleBranches.indexWhere((b) => b.id == surplus.branchId);
+    final destIndex = kSampleBranches.indexWhere((b) => b.id == low.branchId);
+    
+    // For MVP, just open the regular dialog; prefills would require
+    // refactoring _showAddTransferDialog to take params.
+    _showAddTransferDialog();
   }
 
   Widget _buildTransfersTab() {

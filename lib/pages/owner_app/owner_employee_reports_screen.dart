@@ -32,6 +32,9 @@ class _OwnerEmployeeReportsScreenState
   static String _branchName(String id) =>
       kSampleBranches.firstWhere((b) => b.id == id).fullName;
 
+  // Store replies in memory during the session
+  final Map<String, String> _ownerReplies = {};
+
   final List<DailyReport> _reports = [
     DailyReport(
       id: 'r1',
@@ -110,35 +113,109 @@ class _OwnerEmployeeReportsScreenState
       '${date.month}/${date.day}/${date.year}';
 
   void _showReportDetail(DailyReport report) {
+    final existingReply = _ownerReplies[report.id];
+    
     showCupertinoDialog(
       context: context,
-      builder: (dialogContext) => CupertinoAlertDialog(
-        title: Text(report.employeeName),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 6),
-            Text(
-              '${report.branchName} \u00b7 ${_formatDate(report.date)}',
-              style: const TextStyle(
-                  fontSize: 12, color: AppColors.textSecondary),
-            ),
-            const SizedBox(height: 10),
-            Text(
-              report.content.isEmpty
-                  ? 'Wala pang naisusumiteng report.'
-                  : report.content,
-              style: const TextStyle(fontSize: 13.5),
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) => CupertinoAlertDialog(
+          title: Text(report.employeeName),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: 6),
+              Text(
+                '${report.branchName} \u00b7 ${_formatDate(report.date)}',
+                style: const TextStyle(
+                    fontSize: 12, color: AppColors.textSecondary),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                report.content.isEmpty
+                    ? 'Wala pang naisusumiteng report.'
+                    : report.content,
+                style: const TextStyle(fontSize: 13.5),
+              ),
+              const SizedBox(height: 20),
+              const Text(
+                'OWNER RESPONSE',
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.5,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+              const SizedBox(height: 8),
+              if (_ownerReplies[report.id] != null)
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: AppColors.accent.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: AppColors.accent.withValues(alpha: 0.2)),
+                  ),
+                  child: Text(
+                    _ownerReplies[report.id]!,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                )
+              else
+                const Text(
+                  'No response yet.',
+                  style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic, color: AppColors.textSecondary),
+                ),
+              const SizedBox(height: 16),
+              const Text('Quick Reply:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  _replyChip('Noted', report.id, setDialogState),
+                  _replyChip('Linawin natin', report.id, setDialogState),
+                ],
+              ),
+            ],
+          ),
+          actions: [
+            CupertinoDialogAction(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Close'),
             ),
           ],
         ),
-        actions: [
-          CupertinoDialogAction(
-            onPressed: () => Navigator.of(dialogContext).pop(),
-            child: const Text('Close'),
+      ),
+    );
+  }
+
+  Widget _replyChip(String label, String reportId, StateSetter setDialogState) {
+    final isSelected = _ownerReplies[reportId] == label;
+    return GestureDetector(
+      onTap: () {
+        setState(() => _ownerReplies[reportId] = label);
+        setDialogState(() {});
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: isSelected ? AppColors.accent : CupertinoColors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: isSelected ? AppColors.accent : AppColors.border),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.bold,
+            color: isSelected ? CupertinoColors.white : AppColors.textPrimary,
           ),
-        ],
+        ),
       ),
     );
   }

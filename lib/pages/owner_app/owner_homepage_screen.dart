@@ -4,6 +4,9 @@ import '../../models/daily_report.dart';
 import '../../models/inventory_item.dart';
 import '../../models/sales_record.dart';
 import '../../theme/app_theme.dart';
+import 'package:share_plus/share_plus.dart';
+import '../../widgets/owner_sales_trend_chart.dart';
+import '../../widgets/staff_button.dart';
 import '../../widgets/staff_card.dart';
 import '../../widgets/staff_nav_bar.dart';
 import '../../widgets/staff_section_header.dart';
@@ -136,6 +139,16 @@ class OwnerHomepageScreen extends StatelessWidget {
       .where((r) => r.status != ReportSubmissionStatus.submitted)
       .length;
 
+  void _shareSummary() {
+    final summary = "Brahms Nexus - Today's Summary (${DateTime.now().month}/${DateTime.now().day}/${DateTime.now().year})\n\n"
+        "💰 Total Sales: ₱${_todaysSales.toStringAsFixed(0)}\n"
+        "👨‍🍳 On Duty: $_onDutyCount/${_assignments.length}\n"
+        "📦 Low Stock Branches: $_lowStockCount\n"
+        "📝 Pending Reports: $_pendingReportsCount\n\n"
+        "Keep up the good work!";
+    Share.share(summary);
+  }
+
   @override
   Widget build(BuildContext context) {
     return CupertinoPageScaffold(
@@ -149,6 +162,15 @@ class OwnerHomepageScreen extends StatelessWidget {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
+            const StaffSectionHeader(
+              label: "Sales Trend",
+              icon: CupertinoIcons.graph_square_fill,
+            ),
+            const SizedBox(height: 12),
+            const StaffCard(
+              child: OwnerSalesTrendChart(),
+            ),
+            const SizedBox(height: 24),
             const StaffSectionHeader(
               label: "Today's Overview",
               icon: CupertinoIcons.chart_bar_alt_fill,
@@ -191,6 +213,12 @@ class OwnerHomepageScreen extends StatelessWidget {
                 ),
               ],
             ),
+            const SizedBox(height: 16),
+            StaffButton(
+              label: "Share Today's Summary",
+              icon: CupertinoIcons.share,
+              onPressed: _shareSummary,
+            ),
             const SizedBox(height: 24),
             const StaffSectionHeader(
               label: 'Quick Links',
@@ -227,9 +255,111 @@ class OwnerHomepageScreen extends StatelessWidget {
                 ],
               ),
             ),
+            const SizedBox(height: 24),
+            const StaffSectionHeader(
+              label: 'Top Performers',
+              icon: CupertinoIcons.star_fill,
+            ),
+            const SizedBox(height: 12),
+            StaffCard(
+              child: Column(
+                children: [
+                  for (final r in (_salesRecords..sort((a, b) => b.portionsSold.compareTo(a.portionsSold))).take(3)) ...[
+                    _TopPerformerRow(
+                      name: r.employeeName,
+                      branch: r.branchName,
+                      portions: r.portionsSold,
+                    ),
+                    if (r != _salesRecords.last) Container(height: 1, color: AppColors.border, margin: const EdgeInsets.symmetric(vertical: 12)),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
           ],
         ),
       ),
+    );
+  }
+}
+
+class _TopPerformerRow extends StatelessWidget {
+  const _TopPerformerRow({
+    required this.name,
+    required this.branch,
+    required this.portions,
+  });
+
+  final String name;
+  final String branch;
+  final int portions;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Container(
+          width: 32,
+          height: 32,
+          alignment: Alignment.center,
+          decoration: const BoxDecoration(
+            color: AppColors.accent,
+            shape: BoxShape.circle,
+          ),
+          child: Text(
+            name.substring(0, 1),
+            style: const TextStyle(
+              color: CupertinoColors.white,
+              fontWeight: FontWeight.bold,
+              fontSize: 12,
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                name,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 14,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              Text(
+                branch,
+                style: const TextStyle(
+                  fontSize: 11,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ],
+          ),
+        ),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Text(
+              '$portions',
+              style: const TextStyle(
+                fontWeight: FontWeight.w800,
+                fontSize: 16,
+                color: AppColors.accent,
+              ),
+            ),
+            const Text(
+              'portions',
+              style: TextStyle(
+                fontSize: 9,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 }
