@@ -1,4 +1,5 @@
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/staff_button.dart';
 import '../../widgets/staff_card.dart';
@@ -6,13 +7,6 @@ import '../../widgets/staff_nav_bar.dart';
 import '../../widgets/staff_section_header.dart';
 import '../../widgets/staff_top_actions.dart';
 
-/// Daily Report tab — a quick way to report common issues (torn mayo
-/// bag, out of gas, need more karne) to Owner, plus an optional
-/// free-text message.
-///
-/// NOTE: In the backend phase, this should trigger a HIGH-PRIORITY
-/// push notification (Firebase Cloud Messaging) to Owner's phone, even
-/// if their screen is locked or the app is backgrounded.
 class DailyReportScreen extends StatefulWidget {
   const DailyReportScreen({super.key});
 
@@ -24,7 +18,6 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
   bool _mayoTorn = false;
   bool _gasEmpty = false;
   bool _needMoreMeat = false;
-  bool _isBranchClosed = false;
   final _messageController = TextEditingController();
   bool _isSubmitting = false;
 
@@ -38,21 +31,14 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
       _mayoTorn ||
       _gasEmpty ||
       _needMoreMeat ||
-      _isBranchClosed ||
       _messageController.text.trim().isNotEmpty;
 
-  /// Confirms before sending — the report immediately alerts the
-  /// Owner's phone, so it's worth a quick double-check instead of
-  /// firing the moment the button is tapped.
   Future<void> _confirmSubmit() async {
     final confirmed = await showCupertinoDialog<bool>(
       context: context,
       builder: (dialogContext) => CupertinoAlertDialog(
         title: const Text('Send This Report?'),
-        content: const Text(
-          "The Owner's phone will be alerted right away once you send "
-          'this.',
-        ),
+        content: const Text("The Owner's phone will be alerted right away once you send this."),
         actions: [
           CupertinoDialogAction(
             onPressed: () => Navigator.of(dialogContext).pop(false),
@@ -80,17 +66,13 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
       _mayoTorn = false;
       _gasEmpty = false;
       _needMoreMeat = false;
-      _isBranchClosed = false;
       _messageController.clear();
     });
 
     showCupertinoDialog<void>(
       context: context,
       builder: (context) => CupertinoAlertDialog(
-        content: const Text(
-          "Your report has been sent — the Owner's phone will be "
-          'alerted right away.',
-        ),
+        content: const Text("Your report has been sent — the Owner's phone will be alerted right away."),
         actions: [
           CupertinoDialogAction(
             onPressed: () => Navigator.of(context).pop(),
@@ -138,12 +120,6 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
               value: _needMoreMeat,
               onChanged: (v) => setState(() => _needMoreMeat = v),
             ),
-            _checklistTile(
-              icon: CupertinoIcons.moon_zzz_fill,
-              label: 'Branch is now CLOSED',
-              value: _isBranchClosed,
-              onChanged: (v) => setState(() => _isBranchClosed = v),
-            ),
             const SizedBox(height: 18),
             const StaffSectionHeader(
               label: 'Additional Message (optional)',
@@ -165,10 +141,13 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
               onChanged: (_) => setState(() {}),
             ),
             const SizedBox(height: 22),
+            
+            // DYNAMIC BUTTON LOGIC
             if (_canSubmit)
               SizedBox(
                 width: double.infinity,
                 child: StaffButton(
+                  key: const ValueKey('send_report_btn'),
                   label: _isSubmitting ? 'Sending...' : 'Send to Owner',
                   icon: _isSubmitting ? null : CupertinoIcons.paperplane_fill,
                   onPressed: _isSubmitting ? null : _confirmSubmit,
