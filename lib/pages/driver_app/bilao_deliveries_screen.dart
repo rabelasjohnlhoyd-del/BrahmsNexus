@@ -150,6 +150,8 @@ class _BilaoDeliveriesScreenState extends State<BilaoDeliveriesScreen> {
                 }
               },
         child: DriverCard(
+          highlighted: isDone,
+          borderColor: isDone ? AppColors.accent : null,
           child: Row(
             children: [
               Container(
@@ -201,3 +203,4 @@ class _BilaoDeliveriesScreenState extends State<BilaoDeliveriesScreen> {
     );
   }
 }
+

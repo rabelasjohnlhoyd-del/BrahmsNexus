@@ -1,10 +1,10 @@
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart';
 import '../../models/branch.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/driver_card.dart';
 import '../../widgets/driver_nav_bar.dart';
 import '../../widgets/driver_top_actions.dart';
-import '../../widgets/driver_undo_toast.dart';
 import '../../widgets/driver_section_header.dart';
 
 /// The Transport Mode for the Route — either Deployment (morning pickup)
@@ -12,12 +12,6 @@ import '../../widgets/driver_section_header.dart';
 enum RouteMode { deployment, retrieval }
 
 /// Route tab — manages the transport of staff to and from their branches.
-///
-/// Handles two primary workflows:
-/// 1. Deployment: Picking up staff from their homes/meeting points and
-///    dropping them off at branches before opening.
-/// 2. Retrieval: Picking up staff from branches after closing and
-///    returning them to their drop-off points.
 class RouteScreen extends StatefulWidget {
   const RouteScreen({super.key});
 
@@ -60,25 +54,97 @@ class _RouteScreenState extends State<RouteScreen> {
     if (mode != null) {
       setState(() {
         _activeMode = mode;
-        _notifiedStaffIds.clear(); // Clear notifications when switching modes
+        _notifiedStaffIds.clear();
       });
     }
   }
 
-  void _notifyStaff(String branchId) {
-    final staffName = _assignedStaff[branchId] ?? 'Staff';
-    setState(() {
-      _notifiedStaffIds.add(branchId);
-    });
+  void _confirmPhoneCall(String name) {
+    showCupertinoDialog(
+      context: context,
+      builder: (context) => CupertinoAlertDialog(
+        title: const Text('Tawagan ang Staff'),
+        content: Text('Gusto mo bang tawagan si $name?'),
+        actions: [
+          CupertinoDialogAction(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          CupertinoDialogAction(
+            isDefaultAction: true,
+            onPressed: () {
+              Navigator.pop(context);
+              // Mock call logic
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Calling $name...')),
+              );
+            },
+            child: const Text('Yes'),
+          ),
+        ],
+      ),
+    );
+  }
 
-    showDriverUndoToast(
-      context,
-      message: 'Notified $staffName: "Driver is on the way"',
-      onUndo: () {
-        setState(() {
-          _notifiedStaffIds.remove(branchId);
-        });
-      },
+  void _confirmNotifyStaff(String branchId) {
+    final staffName = _assignedStaff[branchId] ?? 'Staff';
+    showCupertinoDialog(
+      context: context,
+      builder: (context) => CupertinoAlertDialog(
+        title: const Text('Magpadala ng Notification'),
+        content: Text('I-notify si $staffName na "On the way" ka na?'),
+        actions: [
+          CupertinoDialogAction(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          CupertinoDialogAction(
+            isDefaultAction: true,
+            onPressed: () {
+              Navigator.pop(context);
+              setState(() {
+                _notifiedStaffIds.add(branchId);
+              });
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Notified $staffName: "Driver is on the way"')),
+              );
+            },
+            child: const Text('Yes'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmMarkCompleted(String branchId) {
+    final action = _activeMode == RouteMode.deployment ? 'Dropped Off' : 'Picked Up';
+    final branchName = kSampleBranches.firstWhere((b) => b.id == branchId).name;
+
+    showCupertinoDialog(
+      context: context,
+      builder: (context) => CupertinoAlertDialog(
+        title: const Text('Status Update'),
+        content: Text('I-confirm na $action na ang staff sa $branchName?'),
+        actions: [
+          CupertinoDialogAction(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          CupertinoDialogAction(
+            isDestructiveAction: true,
+            onPressed: () {
+              Navigator.pop(context);
+              setState(() {
+                _currentCompletedSet.add(branchId);
+              });
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('$action staff at $branchName recorded.')),
+              );
+            },
+            child: const Text('Yes'),
+          ),
+        ],
+      ),
     );
   }
 
@@ -95,7 +161,6 @@ class _RouteScreenState extends State<RouteScreen> {
         ),
         child: Column(
           children: [
-            // Modal handle
             Center(
               child: Container(
                 margin: const EdgeInsets.symmetric(vertical: 12),
@@ -107,7 +172,6 @@ class _RouteScreenState extends State<RouteScreen> {
                 ),
               ),
             ),
-            // Header
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
               child: Row(
@@ -144,7 +208,6 @@ class _RouteScreenState extends State<RouteScreen> {
                 ],
               ),
             ),
-            // Map
             Expanded(
               child: Stack(
                 children: [
@@ -152,47 +215,12 @@ class _RouteScreenState extends State<RouteScreen> {
                     painter: _MapPainter(),
                     size: Size.infinite,
                   ),
-                  const Positioned(
-                    bottom: 24,
-                    right: 20,
-                    child: Column(
-                      children: [
-                        _MapControlButton(
-                          icon: CupertinoIcons.location_fill, 
-                          size: 44,
-                        ),
-                        SizedBox(height: 12),
-                        _MapControlButton(
-                          icon: CupertinoIcons.layers_fill, 
-                          size: 44,
-                        ),
-                      ],
-                    ),
-                  ),
                 ],
               ),
             ),
           ],
         ),
       ),
-    );
-  }
-
-  void _markCompleted(String branchId) {
-    setState(() {
-      _currentCompletedSet.add(branchId);
-    });
-
-    final action = _activeMode == RouteMode.deployment ? 'Dropped off' : 'Picked up';
-
-    showDriverUndoToast(
-      context,
-      message: '$action staff at ${kSampleBranches.firstWhere((b) => b.id == branchId).name}',
-      onUndo: () {
-        setState(() {
-          _currentCompletedSet.remove(branchId);
-        });
-      },
     );
   }
 
@@ -213,7 +241,6 @@ class _RouteScreenState extends State<RouteScreen> {
       child: SafeArea(
         child: Column(
           children: [
-            // --- MODE SELECTOR ---
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
               child: Container(
@@ -277,7 +304,6 @@ class _RouteScreenState extends State<RouteScreen> {
               child: ListView(
                 padding: const EdgeInsets.all(16),
                 children: [
-                  // --- ROUTE PROGRESS SUMMARY ---
                   DriverCard(
                     padding: const EdgeInsets.all(16),
                     child: Column(
@@ -323,32 +349,9 @@ class _RouteScreenState extends State<RouteScreen> {
                                 ],
                               ),
                             ),
-                            if (!allDone)
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                                decoration: BoxDecoration(
-                                  color: AppColors.background,
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: const Row(
-                                  children: [
-                                    Icon(CupertinoIcons.location_north_fill, size: 10, color: AppColors.accent),
-                                    SizedBox(width: 4),
-                                    Text(
-                                      'NAVIGATING',
-                                      style: TextStyle(
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.w800,
-                                        color: AppColors.textSecondary,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
                           ],
                         ),
                         const SizedBox(height: 16),
-                        // Mini Map Preview (clickable)
                         GestureDetector(
                           onTap: _showMapModal,
                           child: Container(
@@ -387,19 +390,13 @@ class _RouteScreenState extends State<RouteScreen> {
                                     decoration: BoxDecoration(
                                       color: CupertinoColors.white,
                                       borderRadius: BorderRadius.circular(20),
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: CupertinoColors.black.withValues(alpha: 0.1),
-                                          blurRadius: 8,
-                                        ),
-                                      ],
                                     ),
                                     child: const Row(
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
                                         Icon(CupertinoIcons.map_fill, size: 14, color: AppColors.accent),
                                         SizedBox(width: 8),
-                                        Text(
+                                        const Text(
                                           'Open Live Route Map',
                                           style: TextStyle(
                                             fontSize: 12,
@@ -442,7 +439,6 @@ class _RouteScreenState extends State<RouteScreen> {
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // --- TIMELINE VISUAL ---
                           Column(
                             children: [
                               Container(
@@ -478,7 +474,6 @@ class _RouteScreenState extends State<RouteScreen> {
                           ),
                           const SizedBox(width: 14),
                           
-                          // --- STOP CARD ---
                           Expanded(
                             child: Padding(
                               padding: const EdgeInsets.only(bottom: 20),
@@ -546,7 +541,6 @@ class _RouteScreenState extends State<RouteScreen> {
                                     
                                     const SizedBox(height: 16),
                                     
-                                    // Staff Info Section
                                     Container(
                                       padding: const EdgeInsets.all(10),
                                       decoration: BoxDecoration(
@@ -600,7 +594,7 @@ class _RouteScreenState extends State<RouteScreen> {
                                             minimumSize: const Size(32, 32),
                                             child: const Icon(CupertinoIcons.phone_fill, 
                                                               size: 18, color: AppColors.success),
-                                            onPressed: () {}, // Mock call
+                                            onPressed: () => _confirmPhoneCall(staffName),
                                           ),
                                         ],
                                       ),
@@ -618,7 +612,7 @@ class _RouteScreenState extends State<RouteScreen> {
                                                 ? AppColors.background 
                                                 : AppColors.accent.withValues(alpha: 0.1),
                                               borderRadius: BorderRadius.circular(12),
-                                              onPressed: () => _notifyStaff(branch.id),
+                                              onPressed: () => _confirmNotifyStaff(branch.id),
                                               child: Row(
                                                 mainAxisAlignment: MainAxisAlignment.center,
                                                 children: [
@@ -647,7 +641,7 @@ class _RouteScreenState extends State<RouteScreen> {
                                               minimumSize: const Size(0, 38),
                                               color: AppColors.accent,
                                               borderRadius: BorderRadius.circular(12),
-                                              onPressed: () => _markCompleted(branch.id),
+                                              onPressed: () => _confirmMarkCompleted(branch.id),
                                               child: Text(
                                                 _activeMode == RouteMode.deployment ? 'Dropped Off' : 'Picked Up',
                                                 style: const TextStyle(
@@ -659,26 +653,6 @@ class _RouteScreenState extends State<RouteScreen> {
                                             ),
                                           ),
                                         ],
-                                      ),
-                                    ] else ...[
-                                      const SizedBox(height: 12),
-                                      GestureDetector(
-                                        onTap: () => setState(() => _currentCompletedSet.remove(branch.id)),
-                                        child: const Row(
-                                          children: [
-                                            Icon(CupertinoIcons.arrow_counterclockwise, size: 10, color: AppColors.textSecondary),
-                                            SizedBox(width: 4),
-                                            Text(
-                                              'Undo Completion',
-                                              style: TextStyle(
-                                                fontSize: 11,
-                                                fontWeight: FontWeight.w600,
-                                                color: AppColors.textSecondary,
-                                                decoration: TextDecoration.underline,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
                                       ),
                                     ],
                                   ],
@@ -700,11 +674,9 @@ class _RouteScreenState extends State<RouteScreen> {
   }
 }
 
-/// A custom painter to create a "clean" looking map mockup without external assets.
 class _MapPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
-    // Draw "City Grid" background
     final gridPaint = Paint()
       ..color = AppColors.accent.withValues(alpha: 0.05)
       ..style = PaintingStyle.stroke
@@ -717,7 +689,6 @@ class _MapPainter extends CustomPainter {
       canvas.drawLine(Offset(0, i), Offset(size.width, i), gridPaint);
     }
 
-    // Draw stylized roads
     final roadPaint = Paint()
       ..color = AppColors.accent.withValues(alpha: 0.15)
       ..style = PaintingStyle.stroke
@@ -733,72 +704,15 @@ class _MapPainter extends CustomPainter {
     roadPath.lineTo(size.width, size.height * 0.2);
     canvas.drawPath(roadPath, roadPaint);
 
-    // Draw active route highlight
-    final activeRoutePaint = Paint()
-      ..color = AppColors.accent.withValues(alpha: 0.6)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 4
-      ..strokeCap = StrokeCap.round;
-
-    final activePath = Path();
-    activePath.moveTo(size.width * 0.3, size.height * 0.55);
-    activePath.lineTo(size.width * 0.3, size.height * 0.7);
-    activePath.lineTo(size.width * 0.6, size.height * 0.7);
-    canvas.drawPath(activePath, activeRoutePaint);
-
-    // Draw stop markers
     final stopPaint = Paint()..color = AppColors.accent;
     canvas.drawCircle(Offset(size.width * 0.3, size.height * 0.4), 5, stopPaint);
     canvas.drawCircle(Offset(size.width * 0.8, size.height * 0.7), 5, stopPaint);
     
-    // Draw current location (Car icon representation)
     final currentPosPaint = Paint()..color = const Color(0xFF4285F4);
-    final shadowPaint = Paint()
-      ..color = const Color(0xFF4285F4).withValues(alpha: 0.2)
-      ..style = PaintingStyle.fill;
-      
-    canvas.drawCircle(Offset(size.width * 0.5, size.height * 0.7), 14, shadowPaint);
     canvas.drawCircle(Offset(size.width * 0.5, size.height * 0.7), 6, currentPosPaint);
-    
-    // Directional arrow
-    final arrowPath = Path();
-    arrowPath.moveTo(size.width * 0.5, size.height * 0.7 - 10);
-    arrowPath.lineTo(size.width * 0.5 - 4, size.height * 0.7 - 6);
-    arrowPath.lineTo(size.width * 0.5 + 4, size.height * 0.7 - 6);
-    arrowPath.close();
-    canvas.drawPath(arrowPath, currentPosPaint);
   }
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
-class _MapControlButton extends StatelessWidget {
-  final IconData icon;
-  final double size;
-  const _MapControlButton({required this.icon, this.size = 36});
-
-  @override
-  Widget build(BuildContext context) {
-    return CupertinoButton(
-      padding: EdgeInsets.zero,
-      onPressed: () {}, // Interactive map controls placeholder
-      child: Container(
-        width: size,
-        height: size,
-        decoration: BoxDecoration(
-          color: CupertinoColors.white,
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: [
-            BoxShadow(
-              color: CupertinoColors.black.withValues(alpha: 0.15),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Icon(icon, size: size * 0.55, color: AppColors.textPrimary),
-      ),
-    );
-  }
-}

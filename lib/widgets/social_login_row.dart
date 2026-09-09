@@ -1,12 +1,8 @@
 import 'package:flutter/material.dart';
+import 'dart:math' as math;
 import '../theme/app_theme.dart';
 
 /// Row of "continue with ___" social buttons for Login/Register.
-///
-/// Purely presentational for now — wiring up real Google/Facebook/Apple
-/// sign-in is a backend-phase task, so tapping just shows a "not
-/// available yet" message, consistent with the other not-yet-wired
-/// actions on these screens (e.g. Forgot Password).
 class SocialLoginRow extends StatelessWidget {
   const SocialLoginRow({super.key});
 
@@ -22,8 +18,7 @@ class SocialLoginRow extends StatelessWidget {
       children: [
         Expanded(
           child: _SocialPill(
-            icon: Icons.g_mobiledata_rounded,
-            iconColor: const Color(0xFFDB4437),
+            customIcon: const _GoogleActualLogo(),
             label: 'Google',
             onTap: () => _notReady(context, 'Google sign-in'),
           ),
@@ -37,15 +32,6 @@ class SocialLoginRow extends StatelessWidget {
             onTap: () => _notReady(context, 'Facebook sign-in'),
           ),
         ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _SocialPill(
-            icon: Icons.apple_rounded,
-            iconColor: AppColors.textPrimary,
-            label: 'Apple',
-            onTap: () => _notReady(context, 'Apple sign-in'),
-          ),
-        ),
       ],
     );
   }
@@ -53,14 +39,16 @@ class SocialLoginRow extends StatelessWidget {
 
 class _SocialPill extends StatelessWidget {
   const _SocialPill({
-    required this.icon,
-    required this.iconColor,
+    this.icon,
+    this.iconColor,
+    this.customIcon,
     required this.label,
     required this.onTap,
   });
 
-  final IconData icon;
-  final Color iconColor;
+  final IconData? icon;
+  final Color? iconColor;
+  final Widget? customIcon;
   final String label;
   final VoidCallback onTap;
 
@@ -82,16 +70,19 @@ class _SocialPill extends StatelessWidget {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, color: iconColor, size: 22),
-              const SizedBox(width: 6),
+              if (customIcon != null)
+                SizedBox(width: 18, height: 18, child: customIcon)
+              else if (icon != null)
+                Icon(icon, color: iconColor, size: 22),
+              const SizedBox(width: 10),
               Flexible(
                 child: Text(
                   label,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
                     color: AppColors.textPrimary,
                   ),
                 ),
@@ -102,4 +93,63 @@ class _SocialPill extends StatelessWidget {
       ),
     );
   }
+}
+
+class _GoogleActualLogo extends StatelessWidget {
+  const _GoogleActualLogo();
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(
+      painter: _GoogleLogoPainter(),
+    );
+  }
+}
+
+class _GoogleLogoPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final double w = size.width;
+    final double h = size.height;
+    final double centerX = w / 2;
+    final double centerY = h / 2;
+    
+    // Precise thickness to match real Google G proportions
+    final double thickness = w * 0.24; 
+    final paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = thickness
+      ..strokeCap = StrokeCap.butt;
+
+    final rect = Rect.fromCircle(center: Offset(centerX, centerY), radius: (w - thickness) / 2);
+
+    double degToRad(double deg) => deg * (math.pi / 180.0);
+
+    // 1. Red (Top)
+    paint.color = const Color(0xFFEA4335);
+    canvas.drawArc(rect, degToRad(198), degToRad(112), false, paint);
+
+    // 2. Yellow (Left)
+    paint.color = const Color(0xFFFBBC05);
+    canvas.drawArc(rect, degToRad(150), degToRad(48), false, paint);
+
+    // 3. Green (Bottom)
+    paint.color = const Color(0xFF34A853);
+    canvas.drawArc(rect, degToRad(45), degToRad(105), false, paint);
+
+    // 4. Blue (Right side arc)
+    paint.color = const Color(0xFF4285F4);
+    canvas.drawArc(rect, degToRad(0), degToRad(45), false, paint);
+    
+    // Blue Bar (Tail) - Now flush and aligned
+    final barPaint = Paint()..color = const Color(0xFF4285F4)..style = PaintingStyle.fill;
+    // We start the bar from center and ensure it matches the arc's vertical position exactly
+    canvas.drawRect(
+      Rect.fromLTWH(centerX, centerY - thickness / 2, w / 2, thickness),
+      barPaint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(CustomPainter oldDelegate) => false;
 }

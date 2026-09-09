@@ -165,11 +165,29 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
               onChanged: (_) => setState(() {}),
             ),
             const SizedBox(height: 22),
-            StaffButton(
-              label: _isSubmitting ? 'Sending...' : 'Send to Owner',
-              icon: _isSubmitting ? null : CupertinoIcons.paperplane_fill,
-              onPressed: _canSubmit && !_isSubmitting ? _confirmSubmit : null,
-            ),
+            if (_canSubmit)
+              SizedBox(
+                width: double.infinity,
+                child: StaffButton(
+                  label: _isSubmitting ? 'Sending...' : 'Send to Owner',
+                  icon: _isSubmitting ? null : CupertinoIcons.paperplane_fill,
+                  onPressed: _isSubmitting ? null : _confirmSubmit,
+                ),
+              )
+            else
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 8),
+                child: Text(
+                  'Note: Pakipili ang issue sa itaas o mag-type ng message para lumabas ang send button.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 12,
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+              ),
+            const SizedBox(height: 40),
           ],
         ),
       ),

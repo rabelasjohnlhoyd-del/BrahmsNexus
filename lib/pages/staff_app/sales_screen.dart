@@ -259,27 +259,55 @@ class _SalesScreenState extends State<SalesScreen> {
                   children: [
                     _computedRow('Orders Sold', '${computation.ordersSold}'),
                     _computedRow(
-                      'Sales',
-                      '${computation.ordersSold} × ₱${_pricePerOrder.toStringAsFixed(0)} '
-                          '= ₱${computation.salesAmount.toStringAsFixed(0)}',
+                      'Gross Sales',
+                      '₱${computation.salesAmount.toStringAsFixed(0)}',
+                      subtitle: '${computation.ordersSold} × ₱${_pricePerOrder.toStringAsFixed(0)}',
                     ),
-                    _computedRow('Wage',
-                        '- ₱${computation.wage.toStringAsFixed(0)}'),
+                    _computedRow(
+                      'Daily Wage',
+                      '- ₱${computation.wage.toStringAsFixed(0)}',
+                      isNegative: true,
+                    ),
                     const _CupertinoDivider(),
                     _computedRow(
-                      'TOTAL',
+                      'EXPECTED CASH',
                       '₱${computation.netTotal.toStringAsFixed(0)}',
                       isTotal: true,
                     ),
                   ],
                 ),
               ),
-              const SizedBox(height: 20),
-              StaffButton(
-                label: _submitted ? 'Submitted' : 'Submit Sales',
-                icon: _submitted ? CupertinoIcons.check_mark : null,
-                onPressed: _submitted ? null : _confirmSubmit,
-              ),
+              const SizedBox(height: 24),
+              if (_submitted)
+                Container(
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  decoration: BoxDecoration(
+                    color: AppColors.success.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: AppColors.success.withValues(alpha: 0.2)),
+                  ),
+                  child: const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(CupertinoIcons.check_mark_circled_solid, color: AppColors.success, size: 20),
+                      SizedBox(width: 8),
+                      Text(
+                        'Sales Submitted Successfully',
+                        style: TextStyle(
+                          color: AppColors.success,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 15,
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              else
+                StaffButton(
+                  label: 'Submit Sales',
+                  icon: CupertinoIcons.cloud_upload_fill,
+                  onPressed: _confirmSubmit,
+                ),
             ] else
               Container(
                 padding: const EdgeInsets.all(14),
@@ -308,25 +336,38 @@ class _SalesScreenState extends State<SalesScreen> {
     );
   }
 
-  Widget _computedRow(String label, String value, {bool isTotal = false}) {
+  Widget _computedRow(String label, String value, {bool isTotal = false, bool isNegative = false, String? subtitle}) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
+      padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(
-            label,
-            style: TextStyle(
-              color: isTotal ? AppColors.textPrimary : AppColors.textSecondary,
-              fontWeight: isTotal ? FontWeight.bold : FontWeight.normal,
-            ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: isTotal ? 15 : 14,
+                  color: isTotal ? AppColors.textPrimary : AppColors.textSecondary,
+                  fontWeight: isTotal ? FontWeight.w800 : FontWeight.w600,
+                ),
+              ),
+              if (subtitle != null)
+                Text(
+                  subtitle,
+                  style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                ),
+            ],
           ),
           Text(
             value,
             style: TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: isTotal ? 18 : 14,
-              color: isTotal ? AppColors.accent : AppColors.textPrimary,
+              fontWeight: FontWeight.w800,
+              fontSize: isTotal ? 20 : 15,
+              color: isNegative 
+                  ? AppColors.error 
+                  : (isTotal ? AppColors.accent : AppColors.textPrimary),
             ),
           ),
         ],

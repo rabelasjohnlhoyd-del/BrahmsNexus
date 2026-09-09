@@ -5,7 +5,6 @@ import 'daily_report_screen.dart';
 import 'homepage_screen.dart';
 import 'profile_screen.dart';
 import 'sales_screen.dart';
-import 'timer_screen.dart';
 
 /// Main shell of the Cook/Staff app — a CupertinoTabScaffold with 4
 /// tabs (Homepage, Sales, Daily Report, Timer), following iOS Human
@@ -127,10 +126,6 @@ class StaffShell extends StatelessWidget {
                     activeIcon: _tabItem(CupertinoIcons.doc_text_fill, 'Report', active: true),
                   ),
                   BottomNavigationBarItem(
-                    icon: _tabItem(CupertinoIcons.timer_fill, 'Timer', active: false),
-                    activeIcon: _tabItem(CupertinoIcons.timer_fill, 'Timer', active: true),
-                  ),
-                  BottomNavigationBarItem(
                     icon: _tabItem(CupertinoIcons.person_fill, 'Profile', active: false),
                     activeIcon: _tabItem(CupertinoIcons.person_fill, 'Profile', active: true),
                   ),
@@ -149,10 +144,6 @@ class StaffShell extends StatelessWidget {
                   case 2:
                     return CupertinoTabView(
                       builder: (context) => const DailyReportScreen(),
-                    );
-                  case 3:
-                    return CupertinoTabView(
-                      builder: (context) => const TimerScreen(),
                     );
                   default:
                     return CupertinoTabView(
