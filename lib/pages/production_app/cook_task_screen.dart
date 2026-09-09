@@ -18,16 +18,6 @@ class _CookTaskScreenState extends State<CookTaskScreen> {
   final _kiloController = TextEditingController();
   final List<bool> _checkSteps = [false, false, false];
   bool _showSubmitButton = false;
-  
-  // Ingredient status: 0 = Good, 1 = Low, 2 = Out
-  final Map<String, int> _ingredients = {
-    'Toyo (1 Gallon)': 0,
-    'Asin (1 Sack)': 0,
-    'Paminta (1 Kilo)': 0,
-    'Vetsin (1 Kilo)': 0,
-    'Laurel (1 Kilo)': 0,
-    'Gasul (LPG Tank)': 0,
-  };
 
   bool _isRefreshing = false;
   int _tempC = 28;
@@ -39,7 +29,12 @@ class _CookTaskScreenState extends State<CookTaskScreen> {
   }
 
   void _onKiloChanged() {
-    final hasInput = _kiloController.text.trim().isNotEmpty;
+    final text = _kiloController.text.trim();
+    final hasInput = text.isNotEmpty;
+    
+    // Update local UI state (colors) immediately
+    setState(() {});
+
     if (hasInput != _showSubmitButton) {
       setState(() => _showSubmitButton = hasInput);
     }
@@ -143,7 +138,7 @@ class _CookTaskScreenState extends State<CookTaskScreen> {
             _weatherWidget(),
             const SizedBox(height: 22),
 
-            // 1. COOKING CHECKLIST
+            // 1. COOKING STATUS
             const StaffSectionHeader(
               label: 'Cooking Status',
               icon: CupertinoIcons.checkmark_circle_fill,
@@ -168,19 +163,7 @@ class _CookTaskScreenState extends State<CookTaskScreen> {
             
             const SizedBox(height: 26),
 
-            // 2. INGREDIENT INVENTORY
-            const StaffSectionHeader(
-              label: 'Ingredient Inventory',
-              icon: CupertinoIcons.archivebox_fill,
-              large: true,
-              subtitle: 'Monitor and report stocks',
-            ),
-            const SizedBox(height: 14),
-            ..._ingredients.keys.map((name) => _buildIngredientRow(name)),
-            
-            const SizedBox(height: 26),
-
-            // 3. RECORD OUTPUT
+            // 2. RECORD OUTPUT
             const StaffSectionHeader(
               label: 'Record Output',
               icon: CupertinoIcons.chart_bar_square_fill,
@@ -188,46 +171,74 @@ class _CookTaskScreenState extends State<CookTaskScreen> {
               subtitle: 'Report total kilos produced',
             ),
             const SizedBox(height: 14),
-            StaffCard(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const Text(
-                    'TOTAL KILOS COOKED',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: AppColors.textSecondary, letterSpacing: 1),
-                  ),
-                  const SizedBox(height: 16),
-                  CupertinoTextField(
-                    controller: _kiloController,
-                    placeholder: '0.0',
-                    textAlign: TextAlign.center,
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    style: const TextStyle(fontSize: 42, fontWeight: FontWeight.w900, color: AppColors.accent),
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    decoration: BoxDecoration(
-                      color: AppColors.background,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: AppColors.border),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  const Text('Standard range: 140 - 150 kg', 
-                    textAlign: TextAlign.center, 
-                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textSecondary)),
-                  
-                  // DYNAMIC SUBMIT BUTTON - Only rendered when there is input
-                  if (_showSubmitButton)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 28),
-                      child: StaffButton(
-                        label: 'SUBMIT REPORT',
-                        onPressed: _submitReport,
+            Builder(
+              builder: (context) {
+                final double? val = double.tryParse(_kiloController.text.trim());
+                final bool isInRange = val != null && val >= 140 && val <= 150;
+                
+                return StaffCard(
+                  padding: const EdgeInsets.all(24),
+                  highlighted: isInRange,
+                  borderColor: isInRange ? AppColors.accent : null,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const Text(
+                        'TOTAL KILOS COOKED',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: AppColors.textSecondary, letterSpacing: 1),
                       ),
-                    ),
-                ],
-              ),
+                      const SizedBox(height: 16),
+                      CupertinoTextField(
+                        controller: _kiloController,
+                        placeholder: '0.0',
+                        textAlign: TextAlign.center,
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        style: TextStyle(
+                          fontSize: 42, 
+                          fontWeight: FontWeight.w900, 
+                          color: isInRange ? AppColors.success : AppColors.accent,
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        decoration: BoxDecoration(
+                          color: AppColors.background,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: AppColors.border),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      const Text('Standard range: 140 - 150 kg', 
+                        textAlign: TextAlign.center, 
+                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textSecondary)),
+                      
+                      const SizedBox(height: 12),
+                      if (!_showSubmitButton)
+                        const Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 4),
+                          child: Text(
+                            'Note: Pakilagay ang kabuuang kilos na naluto para lumabas ang submit button.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: AppColors.textSecondary,
+                              fontStyle: FontStyle.italic,
+                            ),
+                          ),
+                        ),
+
+                      // DYNAMIC SUBMIT BUTTON - Only rendered when there is input
+                      if (_showSubmitButton)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 28),
+                          child: StaffButton(
+                            label: 'SUBMIT REPORT',
+                            onPressed: _submitReport,
+                          ),
+                        ),
+                    ],
+                  ),
+                );
+              }
             ),
             const SizedBox(height: 40),
           ],
@@ -318,66 +329,5 @@ class _CookTaskScreenState extends State<CookTaskScreen> {
         ),
       ),
     );
-  }
-
-  Widget _buildIngredientRow(String name) {
-    final status = _ingredients[name] ?? 0;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: StaffCard(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        child: Row(
-          children: [
-            Container(
-              width: 36, height: 36,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(color: AppColors.accent.withValues(alpha: 0.08), shape: BoxShape.circle),
-              child: const Icon(CupertinoIcons.archivebox, size: 18, color: AppColors.accent),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(name, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
-                ],
-              ),
-            ),
-            StaffButton(
-              label: 'Request',
-              onPressed: () {}, 
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _showStatusPicker(String name) {
-    showCupertinoModalPopup(
-      context: context,
-      builder: (context) => CupertinoActionSheet(
-        title: Text('Status ng $name'),
-        actions: [
-          CupertinoActionSheetAction(onPressed: () { setState(() => _ingredients[name] = 0); Navigator.pop(context); }, child: const Text('Good Stock')),
-          CupertinoActionSheetAction(onPressed: () { setState(() => _ingredients[name] = 1); Navigator.pop(context); }, child: const Text('Low Stock')),
-          CupertinoActionSheetAction(onPressed: () { setState(() => _ingredients[name] = 2); Navigator.pop(context); }, isDestructiveAction: true, child: const Text('Out of Stock')),
-        ],
-        cancelButton: CupertinoActionSheetAction(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-      ),
-    );
-  }
-
-  String _getStatusText(int status) {
-    if (status == 0) return 'GOOD';
-    if (status == 1) return 'LOW';
-    return 'OUT';
-  }
-
-  Color _getStatusColor(int status) {
-    if (status == 0) return AppColors.success;
-    if (status == 1) return AppColors.warning;
-    return AppColors.error;
   }
 }
