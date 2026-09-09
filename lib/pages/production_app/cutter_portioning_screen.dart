@@ -29,218 +29,11 @@ class _CutterPortioningScreenState extends State<CutterPortioningScreen> {
 
   final _meatLeftController = TextEditingController();
   
-  final List<String> _packagingItems = [
-    'Plastic Labo (1kg)',
-    'Plastic Sando Bag (10kg)',
-  ];
-
-  bool _isRefreshing = false;
-  bool _isCelsius = true;
-
-  int _tempC = 28;
-  int _humidity = 81;
-  double _windSpeed = 12.5;
-  int _feelsLikeC = 30;
-
-  void _refreshWeather() async {
-    if (_isRefreshing) return;
-    setState(() => _isRefreshing = true);
-    await Future.delayed(const Duration(milliseconds: 800));
-    if (mounted) {
-      setState(() {
-        _isRefreshing = false;
-        _tempC = 27 + (DateTime.now().second % 3); 
-        _humidity = 80 + (DateTime.now().second % 5);
-        _windSpeed = 10.0 + (DateTime.now().second % 10);
-        _feelsLikeC = _tempC + 2;
-      });
-    }
-  }
-
-  void _toggleUnit() {
-    setState(() => _isCelsius = !_isCelsius);
-  }
-
-  int _convertTemp(int celsius) {
-    return _isCelsius ? celsius : ((celsius * 9 / 5) + 32).round();
-  }
-
-  String _formattedTime() {
-    final now = DateTime.now();
-    final day = _weekdays[now.weekday % 7];
-    final hour = now.hour % 12 == 0 ? 12 : now.hour % 12;
-    final minute = now.minute.toString().padLeft(2, '0');
-    final period = now.hour >= 12 ? 'PM' : 'AM';
-    return '$day $hour:$minute $period';
-  }
-
-  static const List<String> _weekdays = [
-    'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'
-  ];
-
-  Widget _weatherWidget() {
-    final displayTemp = _convertTemp(_tempC);
-    final feelsLike = _convertTemp(_feelsLikeC);
-    final unitLabel = _isCelsius ? '°C' : '°F';
-    final windUnit = _isCelsius ? 'km/h' : 'mph';
-    final displayWind =
-        _isCelsius ? _windSpeed : (_windSpeed * 0.621371).roundToDouble();
-
-    return StaffCard(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    width: 8,
-                    height: 8,
-                    decoration: const BoxDecoration(
-                      color: Color(0xFF4285F4),
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  const Text(
-                    'San Francisco, Victoria',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
-                ],
-              ),
-              GestureDetector(
-                onTap: _refreshWeather,
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: AppColors.accent.withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Row(
-                    children: [
-                      const Text(
-                        'Update',
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.accent,
-                        ),
-                      ),
-                      const SizedBox(width: 4),
-                      _isRefreshing
-                          ? const CupertinoActivityIndicator(radius: 5)
-                          : const Icon(CupertinoIcons.refresh,
-                              size: 10, color: AppColors.accent),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              const Icon(CupertinoIcons.cloud_fill,
-                  size: 48, color: AppColors.pastelBrown),
-              const SizedBox(width: 12),
-              Expanded(
-                child: GestureDetector(
-                  onTap: _toggleUnit,
-                  behavior: HitTestBehavior.opaque,
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '$displayTemp',
-                        style: const TextStyle(
-                          fontSize: 48,
-                          fontWeight: FontWeight.w400,
-                          color: AppColors.textPrimary,
-                          letterSpacing: -2,
-                        ),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.only(top: 8, left: 2),
-                        child: Text(
-                          unitLabel,
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.textSecondary,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  const Text(
-                    'Cloudy',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w800,
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
-                  Text(
-                    _formattedTime(),
-                    style: const TextStyle(
-                      fontSize: 11,
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              _weatherInfoItem(
-                  CupertinoIcons.thermometer, 'Feels like', '$feelsLike$unitLabel'),
-              _weatherInfoItem(CupertinoIcons.drop, 'Humidity', '$_humidity%'),
-              _weatherInfoItem(CupertinoIcons.wind, 'Wind',
-                  '${displayWind.toStringAsFixed(1)} $windUnit'),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _weatherInfoItem(IconData icon, String label, String value) {
-    return Row(
-      children: [
-        Icon(icon, size: 14, color: AppColors.accent.withValues(alpha: 0.7)),
-        const SizedBox(width: 6),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(label,
-                style: const TextStyle(
-                    fontSize: 10, color: AppColors.textSecondary)),
-            Text(value,
-                style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.textPrimary)),
-          ],
-        ),
-      ],
-    );
-  }
+  // Packaging status: 0 = GOOD, 1 = LOW
+  final Map<String, int> _packaging = {
+    'Plastic Labo (1kg)': 0,
+    'Plastic Sando Bag (10kg)': 0,
+  };
 
   @override
   void dispose() {
@@ -255,8 +48,8 @@ class _CutterPortioningScreenState extends State<CutterPortioningScreen> {
     showCupertinoDialog(
       context: context,
       builder: (context) => CupertinoAlertDialog(
-        title: const Text('Submit Portions'),
-        content: const Text('Sigurado ka bang tama ang lahat ng portion counts na nilagay mo?'),
+        title: const Text('Submit Report'),
+        content: const Text('Sigurado ka bang tama ang lahat ng portion counts at inventory report?'),
         actions: [
           CupertinoDialogAction(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
           CupertinoDialogAction(
@@ -264,12 +57,13 @@ class _CutterPortioningScreenState extends State<CutterPortioningScreen> {
             onPressed: () {
               Navigator.pop(context);
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Portioning report submitted to Owner!')),
+                const SnackBar(content: Text('Report submitted to Owner!')),
               );
               setState(() {
                 for (var controller in _controllers.values) {
                   controller.text = '0';
                 }
+                _meatLeftController.clear();
               });
             },
             child: const Text('Submit'),
@@ -302,6 +96,36 @@ class _CutterPortioningScreenState extends State<CutterPortioningScreen> {
     );
   }
 
+  void _showStatusPicker(String name) {
+    showCupertinoModalPopup(
+      context: context,
+      builder: (context) => CupertinoActionSheet(
+        title: Text('Status ng $name'),
+        actions: [
+          CupertinoActionSheetAction(
+            onPressed: () {
+              setState(() => _packaging[name] = 0);
+              Navigator.pop(context);
+            },
+            child: const Text('Good Stock'),
+          ),
+          CupertinoActionSheetAction(
+            isDestructiveAction: true,
+            onPressed: () {
+              setState(() => _packaging[name] = 1);
+              Navigator.pop(context);
+            },
+            child: const Text('Low Stock'),
+          ),
+        ],
+        cancelButton: CupertinoActionSheetAction(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return CupertinoPageScaffold(
@@ -316,8 +140,6 @@ class _CutterPortioningScreenState extends State<CutterPortioningScreen> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            _weatherWidget(),
-            const SizedBox(height: 22),
             const StaffSectionHeader(
               label: 'Meat Portioning',
               icon: CupertinoIcons.scissors_alt,
@@ -382,12 +204,12 @@ class _CutterPortioningScreenState extends State<CutterPortioningScreen> {
               subtitle: 'Plastic supplies monitor',
             ),
             const SizedBox(height: 14),
-            ..._packagingItems.map((name) => _buildPackagingRow(name)),
+            ..._packaging.keys.map((name) => _buildPackagingRow(name)),
             const SizedBox(height: 32),
             SizedBox(
               width: double.infinity,
               child: StaffButton(
-                label: 'SUBMIT',
+                label: 'SUBMIT REPORT',
                 onPressed: _submitPortions,
               ),
             ),
@@ -465,49 +287,37 @@ class _CutterPortioningScreenState extends State<CutterPortioningScreen> {
   }
 
   Widget _buildPackagingRow(String name) {
+    final status = _packaging[name] ?? 0;
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: StaffCard(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         child: Row(
           children: [
-            Container(
-              width: 32,
-              height: 32,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: AppColors.accent.withValues(alpha: 0.08),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(CupertinoIcons.bag,
-                  size: 16, color: AppColors.accent),
-            ),
-            const SizedBox(width: 12),
             Expanded(
-              child: Text(
-                name,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.textPrimary,
-                ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(name, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+                  const SizedBox(height: 2),
+                  GestureDetector(
+                    onTap: () => _showStatusPicker(name),
+                    child: Row(
+                      children: [
+                        Text(status == 0 ? 'GOOD' : 'LOW', 
+                          style: TextStyle(fontSize: 12, color: status == 0 ? AppColors.success : AppColors.error, fontWeight: FontWeight.w800)),
+                        const SizedBox(width: 4),
+                        Icon(CupertinoIcons.chevron_down, size: 12, color: status == 0 ? AppColors.success : AppColors.error),
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(width: 8),
-            CupertinoButton(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            StaffButton(
+              label: 'Request',
               onPressed: () => _requestStock(name),
-              color: AppColors.accent.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(10),
-              minSize: 0,
-              child: const Text(
-                'Request',
-                style: TextStyle(
-                  color: AppColors.accent,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
             ),
           ],
         ),

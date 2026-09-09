@@ -101,7 +101,7 @@ class _WelcomeBanner extends StatelessWidget {
             color: AdminWebColors.accent.withValues(alpha: 0.12),
             shape: BoxShape.circle,
           ),
-          child: const Text('☀️', style: TextStyle(fontSize: 24)),
+          child: const Icon(Icons.wb_sunny_rounded, size: 24, color: AdminWebColors.accent),
         ),
         const SizedBox(width: 16),
         Flexible(
@@ -447,26 +447,30 @@ class _QuickLinksGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final links = [
-      const QuickLinkCard(
+    final List<Widget> links = [
+      QuickLinkCard(
         icon: Icons.history_rounded,
         title: 'Activity Logs',
         subtitle: 'Audit admin actions',
+        onTap: () {},
       ),
-      const QuickLinkCard(
+      QuickLinkCard(
         icon: Icons.search_rounded,
         title: 'Global Search',
         subtitle: 'Find cross-data',
+        onTap: () {},
       ),
-      const QuickLinkCard(
+      QuickLinkCard(
         icon: Icons.description_outlined,
         title: 'Data Exports',
         subtitle: 'Generate reports',
+        onTap: () {},
       ),
-      const QuickLinkCard(
+      QuickLinkCard(
         icon: Icons.settings_outlined,
         title: 'System Settings',
         subtitle: 'Configurations',
+        onTap: () {},
       ),
     ];
 
