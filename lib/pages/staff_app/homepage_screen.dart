@@ -36,6 +36,13 @@ class _HomepageScreenState extends State<HomepageScreen> {
   double _windSpeed = 12.5;
   int _feelsLikeC = 30;
 
+  String _greetingPrefix() {
+    final hour = DateTime.now().hour;
+    if (hour < 12) return 'Good Morning,';
+    if (hour < 18) return 'Good Afternoon,';
+    return 'Good Evening,';
+  }
+
   void _refreshWeather() async {
     if (_isRefreshing) return;
     setState(() => _isRefreshing = true);
@@ -293,12 +300,32 @@ class _HomepageScreenState extends State<HomepageScreen> {
   bool get _canDeny => _hasEnteredCount && !_countsMatch;
 
   void _confirm() {
-    setState(() {
-      _inventory = _inventory.copyWith(
-        status: InventoryVerificationStatus.confirmed,
-      );
-    });
-    _showToast('Inventory confirmed!');
+    showCupertinoDialog(
+      context: context,
+      builder: (context) => CupertinoAlertDialog(
+        title: const Text('Confirm Inventory'),
+        content: const Text('Sigurado ka bang tugma ang lahat ng counts na natanggap mo para sa araw na ito?'),
+        actions: [
+          CupertinoDialogAction(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          CupertinoDialogAction(
+            isDefaultAction: true,
+            onPressed: () {
+              Navigator.pop(context);
+              setState(() {
+                _inventory = _inventory.copyWith(
+                  status: InventoryVerificationStatus.confirmed,
+                );
+              });
+              _showToast('Inventory confirmed!');
+            },
+            child: const Text('Yes, Confirm'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _showDenyDialog() async {
@@ -306,22 +333,30 @@ class _HomepageScreenState extends State<HomepageScreen> {
     await showCupertinoDialog<void>(
       context: context,
       builder: (dialogContext) => CupertinoAlertDialog(
-        title: const Text("What's missing or extra?"),
-        content: Padding(
-          padding: const EdgeInsets.only(top: 12),
-          child: CupertinoTextField(
-            controller: _discrepancyController,
-            placeholder: 'e.g., 5kg short on Karne...',
-            maxLines: 3,
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: AppColors.background,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.border),
+        title: const Text("Discrepancy Report"),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 8),
+            const Text(
+              "Pakilagay kung ano ang kulang o sobra sa natanggap mong stock.",
+              style: TextStyle(fontSize: 13),
             ),
-            placeholderStyle: const TextStyle(color: AppColors.textSecondary),
-            style: const TextStyle(color: AppColors.textPrimary),
-          ),
+            const SizedBox(height: 14),
+            CupertinoTextField(
+              controller: _discrepancyController,
+              placeholder: 'e.g., short on meat...',
+              maxLines: 3,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.background,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.border),
+              ),
+              placeholderStyle: const TextStyle(color: AppColors.textSecondary),
+              style: const TextStyle(color: AppColors.textPrimary),
+            ),
+          ],
         ),
         actions: [
           CupertinoDialogAction(
@@ -338,7 +373,7 @@ class _HomepageScreenState extends State<HomepageScreen> {
                 );
               });
               Navigator.of(dialogContext).pop();
-              _showToast('Your report has been sent to the Owner.');
+              _showToast('Report sent to Owner.');
             },
             child: const Text('Send to Owner'),
           ),
@@ -439,15 +474,41 @@ class _HomepageScreenState extends State<HomepageScreen> {
     return CupertinoPageScaffold(
       backgroundColor: AppColors.background,
       navigationBar: const StaffNavBar(
-        title: 'Homepage',
-        mode: StaffHeaderMode.greeting,
-        greetingName: 'Staff',
+        title: 'Home',
         trailing: StaffTopActions(),
       ),
       child: SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
+            // GREETING
+            Padding(
+              padding: const EdgeInsets.only(bottom: 16, left: 4),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _greetingPrefix(),
+                    style: TextStyle(
+                      color: AppColors.textSecondary.withValues(alpha: 0.9),
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: -0.5,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  const Text(
+                    'Staff',
+                    style: TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 34,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: -1.2,
+                    ),
+                  ),
+                ],
+              ),
+            ),
             _weatherWidget(),
             const SizedBox(height: 20),
             // Branch selector pill
@@ -615,35 +676,37 @@ class _HomepageScreenState extends State<HomepageScreen> {
               ),
             ),
             const SizedBox(height: 14),
-            Row(
-              children: [
-                Expanded(
-                  child: StaffButton(
-                    label: 'Confirm',
-                    icon: CupertinoIcons.checkmark_alt,
-                    color: AppColors.success,
-                    onPressed: _canConfirm ? _confirm : null,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: StaffButton(
-                    label: 'Deny',
-                    icon: CupertinoIcons.xmark,
-                    color: AppColors.error,
-                    onPressed: _canDeny ? _showDenyDialog : null,
-                  ),
-                ),
-              ],
-            ),
-            if (!_hasEnteredCount) ...[
-              const SizedBox(height: 8),
-              const Text(
-                'Enter all four counts above to enable Confirm or Deny.',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+            // DYNAMIC CONFIRM/DENY BUTTON
+            if (_hasEnteredCount && status == InventoryVerificationStatus.pending)
+              SizedBox(
+                width: double.infinity,
+                child: _countsMatch
+                    ? StaffButton(
+                        label: 'Confirm Inventory',
+                        icon: CupertinoIcons.checkmark_alt,
+                        color: AppColors.success,
+                        onPressed: _confirm,
+                      )
+                    : StaffButton(
+                        label: 'Report Discrepancy (Deny)',
+                        icon: CupertinoIcons.xmark,
+                        color: AppColors.error,
+                        onPressed: _showDenyDialog,
+                      ),
               ),
-            ],
+            if (!_hasEnteredCount && status == InventoryVerificationStatus.pending)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 8),
+                child: Text(
+                  'Note: Pakilagay ang lahat ng counts para lumabas ang verification button.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 12,
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+              ),
             const SizedBox(height: 26),
 
             // Co-workers

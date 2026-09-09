@@ -69,6 +69,13 @@ class _DriverHomepageScreenState extends State<DriverHomepageScreen> {
     'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'
   ];
 
+  String _greetingPrefix() {
+    final hour = DateTime.now().hour;
+    if (hour < 12) return 'Good Morning,';
+    if (hour < 18) return 'Good Afternoon,';
+    return 'Good Evening,';
+  }
+
   String _formattedTime() {
     final now = DateTime.now();
     final day = _weekdays[now.weekday % 7];
@@ -279,14 +286,40 @@ class _DriverHomepageScreenState extends State<DriverHomepageScreen> {
       backgroundColor: AppColors.background,
       navigationBar: const DriverNavBar(
         title: 'Home',
-        mode: DriverHeaderMode.greeting,
-        greetingName: 'Ramon',
         trailing: DriverTopActions(),
       ),
       child: SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
+            // GREETING
+            Padding(
+              padding: const EdgeInsets.only(bottom: 16, left: 4),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _greetingPrefix(),
+                    style: TextStyle(
+                      color: AppColors.textSecondary.withValues(alpha: 0.9),
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: -0.5,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  const Text(
+                    'Ramon',
+                    style: TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 34,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: -1.2,
+                    ),
+                  ),
+                ],
+              ),
+            ),
             _weatherWidget(),
             const SizedBox(height: 20),
             DriverSectionHeader(
