@@ -111,3 +111,4 @@ class _CutterInventoryScreenState extends State<CutterInventoryScreen> {
     );
   }
 }
+

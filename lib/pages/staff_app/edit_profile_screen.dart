@@ -315,3 +315,4 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         color: AppColors.border.withValues(alpha: 0.4),
       );
 }
+

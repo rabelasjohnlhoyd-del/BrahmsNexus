@@ -225,3 +225,4 @@ class _StockTransferScreenState extends State<StockTransferScreen> {
     );
   }
 }
+
