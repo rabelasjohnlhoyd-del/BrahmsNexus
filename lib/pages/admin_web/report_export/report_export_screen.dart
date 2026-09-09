@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import '../admin_web_colors.dart';
+import '../admin_web_shell.dart';
 import '../admin_web_widgets/glass_card.dart';
 import '../../../widgets/primary_button.dart';
-import '../../../widgets/admin_page_header.dart';
 
 class ReportExportScreen extends StatefulWidget {
   const ReportExportScreen({super.key});
@@ -14,6 +14,35 @@ class ReportExportScreen extends StatefulWidget {
 class _ReportExportScreenState extends State<ReportExportScreen> {
   String _selectedType = 'Sales';
   DateTimeRange? _dateRange;
+
+  @override
+  void initState() {
+    super.initState();
+    _updateShellActions();
+  }
+
+  @override
+  void didUpdateWidget(ReportExportScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _updateShellActions();
+  }
+
+  void _updateShellActions() {
+    final shell = context.findAncestorStateOfType<AdminWebShellState>();
+    shell?.setActions([
+      ElevatedButton.icon(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.white.withValues(alpha: 0.15),
+          foregroundColor: Colors.white,
+          side: BorderSide(color: Colors.white.withValues(alpha: 0.3)),
+          elevation: 0,
+        ),
+        onPressed: _export,
+        icon: const Icon(Icons.download_rounded, size: 18),
+        label: const Text('GENERATE CSV'),
+      ),
+    ]);
+  }
 
   void _export() {
     showDialog(
@@ -40,20 +69,18 @@ class _ReportExportScreenState extends State<ReportExportScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 600),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const AdminPageHeader(
-                title: 'Data Export',
-                subtitle: 'Configure and generate CSV reports for accounting and auditing.',
-              ),
-              const SizedBox(height: 32),
-              GlassCard(
+    return Container(
+      color: AdminWebColors.background,
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 600),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 20),
+                GlassCard(
                 padding: const EdgeInsets.all(24),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -110,23 +137,12 @@ class _ReportExportScreenState extends State<ReportExportScreen> {
                   ],
                 ),
               ),
-              const SizedBox(height: 32),
-              Align(
-                alignment: Alignment.centerRight,
-                child: SizedBox(
-                  width: 200,
-                  child: PrimaryButton(
-                    onPressed: _export,
-                    icon: Icons.download_rounded,
-                    label: 'GENERATE CSV',
-                  ),
-                ),
-              ),
               const SizedBox(height: 40),
             ],
           ),
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 }

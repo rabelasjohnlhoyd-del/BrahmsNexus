@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../../models/sales_record.dart';
 import '../admin_web_colors.dart';
+import '../admin_web_shell.dart';
 import '../admin_web_widgets/glass_card.dart';
 import '../../../widgets/primary_button.dart';
-import '../../../widgets/admin_page_header.dart';
 
 /// Admin monitors daily sales per branch/employee here. Wage/commission
 /// and expected cash remittance are auto-computed from the values
@@ -73,6 +73,47 @@ class _SalesPayrollScreenState extends State<SalesPayrollScreen> {
   double get _totalRemittance =>
       _visibleRecords.fold(0, (sum, r) => sum + r.expectedCashRemittance);
 
+  @override
+  void initState() {
+    super.initState();
+    _updateShellActions();
+  }
+
+  @override
+  void didUpdateWidget(SalesPayrollScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _updateShellActions();
+  }
+
+  void _updateShellActions() {
+    final shell = context.findAncestorStateOfType<AdminWebShellState>();
+    shell?.setActions([
+      OutlinedButton.icon(
+        onPressed: _showSetRateDialog,
+        icon: const Icon(Icons.tune_rounded, size: 18, color: Colors.white),
+        label: Text(
+          'RATE: ₱${_commissionRate.toStringAsFixed(2)}',
+          style: const TextStyle(color: Colors.white),
+        ),
+        style: OutlinedButton.styleFrom(
+          side: BorderSide(color: Colors.white.withValues(alpha: 0.3)),
+          backgroundColor: Colors.white.withValues(alpha: 0.1),
+        ),
+      ),
+      ElevatedButton.icon(
+        onPressed: () {},
+        icon: const Icon(Icons.ios_share_rounded, size: 18, color: Colors.white),
+        label: const Text('EXPORT'),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.white.withValues(alpha: 0.15),
+          foregroundColor: Colors.white,
+          side: BorderSide(color: Colors.white.withValues(alpha: 0.3)),
+          elevation: 0,
+        ),
+      ),
+    ]);
+  }
+
   Future<void> _showSetRateDialog() async {
     final controller =
         TextEditingController(text: _commissionRate.toStringAsFixed(2));
@@ -96,6 +137,7 @@ class _SalesPayrollScreenState extends State<SalesPayrollScreen> {
               final value = double.tryParse(controller.text);
               if (value != null) {
                 setState(() => _commissionRate = value);
+                _updateShellActions();
               }
               Navigator.of(dialogContext).pop();
             },
@@ -110,35 +152,19 @@ class _SalesPayrollScreenState extends State<SalesPayrollScreen> {
   Widget build(BuildContext context) {
     final branches = _records.map((r) => r.branchName).toSet().toList();
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final isWide = constraints.maxWidth >= _wideBreakpoint;
+    return Container(
+      color: AdminWebColors.background,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isWide = constraints.maxWidth >= _wideBreakpoint;
 
-        return SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              AdminPageHeader(
-                title: 'Sales & Payroll',
-                subtitle:
-                    'Monitor daily sales, computed wages, and expected cash remittances per branch.',
-                actions: [
-                  OutlinedButton.icon(
-                    onPressed: _showSetRateDialog,
-                    icon: const Icon(Icons.tune_rounded, size: 18),
-                    label:
-                        Text('COMMISSION: ₱${_commissionRate.toStringAsFixed(2)}'),
-                  ),
-                  PrimaryButton(
-                    label: 'EXPORT REPORT',
-                    icon: Icons.ios_share_rounded,
-                    onPressed: () {},
-                  ),
-                ],
-              ),
-              const SizedBox(height: 32),
-              isWide
+          return SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 24),
+                isWide
                   ? Row(
                       children: [
                         Expanded(
@@ -250,8 +276,9 @@ class _SalesPayrollScreenState extends State<SalesPayrollScreen> {
           ),
         );
       },
-    );
-  }
+    ),
+  );
+}
 
   Widget _summaryCard(String label, String value, IconData icon) {
     return GlassCard(

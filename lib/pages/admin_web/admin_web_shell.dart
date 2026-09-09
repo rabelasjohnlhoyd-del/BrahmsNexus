@@ -43,11 +43,29 @@ class AdminWebShell extends StatefulWidget {
   const AdminWebShell({super.key});
 
   @override
-  State<AdminWebShell> createState() => _AdminWebShellState();
+  State<AdminWebShell> createState() => AdminWebShellState();
 }
 
-class _AdminWebShellState extends State<AdminWebShell> {
+class AdminWebShellState extends State<AdminWebShell> {
   int _selectedIndex = 0;
+  String? _customTitle;
+  List<Widget> _currentActions = [];
+
+  void setActions(List<Widget> actions) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        setState(() => _currentActions = List.from(actions));
+      }
+    });
+  }
+
+  void setTitle(String? title) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _customTitle != title) {
+        setState(() => _customTitle = title);
+      }
+    });
+  }
 
   /// Breakpoint: below this (e.g. phone browser) = Drawer layout.
   /// Above this (desktop/tablet) = always-visible side-nav + top bar.
@@ -142,20 +160,31 @@ class _AdminWebShellState extends State<AdminWebShell> {
                     items: _items,
                     selectedIndex: _selectedIndex,
                     onSelect: (index) =>
-                        setState(() => _selectedIndex = index),
+                        setState(() {
+                          _selectedIndex = index;
+                          _currentActions = [];
+                          _customTitle = null;
+                        }),
                     onLogout: _handleLogout,
                   ),
                   Expanded(
                     child: Column(
                       children: [
                         AdminTopBar(
-                          title: _items[_selectedIndex].label,
+                          title: _customTitle ?? _items[_selectedIndex].label,
                           subtitle: 'Brahms Nexus Management System',
                           onLogout: _handleLogout,
+                          actions: _currentActions,
                         ),
                         Expanded(
                           child: SafeArea(
-                            child: currentPage,
+                            child: Navigator(
+                              key: ValueKey(_selectedIndex),
+                              onGenerateRoute: (settings) => MaterialPageRoute(
+                                builder: (context) => currentPage,
+                                settings: settings,
+                              ),
+                            ),
                           ),
                         ),
                       ],
@@ -167,11 +196,6 @@ class _AdminWebShellState extends State<AdminWebShell> {
           }
 
           // --- PHONE BROWSER: Drawer (hamburger menu) ---
-          // No title text here — the page itself (e.g. DashboardScreen's
-          // own header) already shows the title/subtitle/notification/
-          // profile row, so this bar only needs to expose the drawer
-          // toggle. A bare AppBar with a drawer set automatically gets
-          // the hamburger icon from Scaffold, so nothing else is drawn.
           return Scaffold(
             backgroundColor: AdminWebColors.background,
             appBar: AppBar(
@@ -193,7 +217,11 @@ class _AdminWebShellState extends State<AdminWebShell> {
                 items: _items,
                 selectedIndex: _selectedIndex,
                 onSelect: (index) {
-                  setState(() => _selectedIndex = index);
+                  setState(() {
+                    _selectedIndex = index;
+                    _currentActions = [];
+                    _customTitle = null;
+                  });
                   Navigator.of(context).pop(); // close the drawer
                 },
                 onLogout: () {
@@ -203,7 +231,13 @@ class _AdminWebShellState extends State<AdminWebShell> {
               ),
             ),
             body: SafeArea(
-              child: currentPage,
+              child: Navigator(
+                key: ValueKey(_selectedIndex),
+                onGenerateRoute: (settings) => MaterialPageRoute(
+                  builder: (context) => currentPage,
+                  settings: settings,
+                ),
+              ),
             ),
           );
         },

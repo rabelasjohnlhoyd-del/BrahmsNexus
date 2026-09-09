@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import '../admin_web_colors.dart';
+import '../admin_web_shell.dart';
 import '../admin_web_widgets/glass_card.dart';
-import '../../../widgets/admin_page_header.dart';
-import '../../../widgets/primary_button.dart';
 
 class SystemSettingsScreen extends StatefulWidget {
   const SystemSettingsScreen({super.key});
@@ -16,32 +15,51 @@ class _SystemSettingsScreenState extends State<SystemSettingsScreen> {
   final _lowStockController = TextEditingController(text: '10.0');
 
   @override
+  void initState() {
+    super.initState();
+    _updateShellActions();
+  }
+
+  @override
+  void didUpdateWidget(SystemSettingsScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _updateShellActions();
+  }
+
+  void _updateShellActions() {
+    final shell = context.findAncestorStateOfType<AdminWebShellState>();
+    shell?.setActions([
+      ElevatedButton.icon(
+        onPressed: () {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+              content: Text('System settings saved successfully.')));
+        },
+        icon: const Icon(Icons.save_rounded, size: 18, color: Colors.white),
+        label: const Text('SAVE SETTINGS'),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.white.withValues(alpha: 0.15),
+          foregroundColor: Colors.white,
+          side: BorderSide(color: Colors.white.withValues(alpha: 0.3)),
+          elevation: 0,
+        ),
+      ),
+    ]);
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 800),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              AdminPageHeader(
-                title: 'System Settings',
-                subtitle:
-                    'Configure global application parameters, financial rates, and inventory thresholds.',
-                actions: [
-                  PrimaryButton(
-                    label: 'SAVE SETTINGS',
-                    icon: Icons.save_rounded,
-                    onPressed: () {
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                          content: Text('System settings saved successfully.')));
-                    },
-                  ),
-                ],
-              ),
-              const SizedBox(height: 32),
-              _buildSection('Financial Parameters', [
+    return Container(
+      color: AdminWebColors.background,
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 800),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 20),
+                _buildSection('Financial Parameters', [
                 _buildSettingRow(
                   'Default Commission Rate',
                   'Base pay (in ₱) added to staff salary for each portion sold.',
@@ -89,8 +107,9 @@ class _SystemSettingsScreenState extends State<SystemSettingsScreen> {
           ),
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildSection(String title, List<Widget> children) {
     return Column(

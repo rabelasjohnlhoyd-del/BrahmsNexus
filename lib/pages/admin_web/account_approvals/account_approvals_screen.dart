@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import '../../../models/account_status.dart';
 import '../../../models/registration_request.dart';
 import '../../../models/user_role.dart';
-import '../../../widgets/admin_page_header.dart';
 import '../admin_web_colors.dart';
+import '../admin_web_shell.dart';
 import '../admin_web_widgets/glass_card.dart';
 
 /// Owner reviews new Staff/Driver registrations here and Accepts or
@@ -54,6 +54,52 @@ class _AccountApprovalsScreenState extends State<AccountApprovalsScreen> {
         ),
       ),
     );
+    _updateShellActions();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _updateShellActions();
+  }
+
+  @override
+  void didUpdateWidget(AccountApprovalsScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _updateShellActions();
+  }
+
+  void _updateShellActions() {
+    final shell = context.findAncestorStateOfType<AdminWebShellState>();
+    final pendingCount = _requests.where((r) => r.status == AccountStatus.pending).length;
+    
+    shell?.setActions([
+      if (pendingCount > 0)
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: AdminWebColors.warning.withValues(alpha: 0.2),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.3)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.pending_actions_rounded, size: 14, color: Colors.white),
+              const SizedBox(width: 8),
+              Text(
+                '$pendingCount PENDING',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ],
+          ),
+        ),
+    ]);
   }
 
   @override
@@ -68,13 +114,6 @@ class _AccountApprovalsScreenState extends State<AccountApprovalsScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Padding(
-            padding: EdgeInsets.fromLTRB(24, 24, 24, 0),
-            child: AdminPageHeader(
-              title: 'Account Approvals',
-              subtitle: 'Review new Staff/Driver registrations before they can log in.',
-            ),
-          ),
           const SizedBox(height: 20),
           Expanded(
             child: ListView(

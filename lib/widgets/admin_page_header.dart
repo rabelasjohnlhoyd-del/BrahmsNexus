@@ -32,18 +32,19 @@ class AdminPageHeader extends StatelessWidget {
             Text(
               title,
               style: const TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.w700,
+                fontSize: 26,
+                fontWeight: FontWeight.w900,
                 color: AdminWebColors.textPrimary,
-                letterSpacing: -0.3,
+                letterSpacing: -1.0,
               ),
             ),
             if (subtitle != null) ...[
-              const SizedBox(height: 4),
+              const SizedBox(height: 2),
               Text(
                 subtitle!,
                 style: const TextStyle(
-                  fontSize: 13.5,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
                   color: AdminWebColors.textSecondary,
                 ),
               ),

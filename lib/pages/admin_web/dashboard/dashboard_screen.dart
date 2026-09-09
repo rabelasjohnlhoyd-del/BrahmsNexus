@@ -1,15 +1,77 @@
 import 'package:flutter/material.dart';
 import '../admin_web_colors.dart';
+import '../admin_web_shell.dart';
 import '../admin_web_widgets/glass_card.dart';
 import '../admin_web_widgets/kpi_card.dart';
 import '../admin_web_widgets/quick_link_card.dart';
 import '../admin_web_widgets/simple_bar_chart.dart';
 
 /// Admin Web dashboard — glassmorphism redesign following standard page layout.
-class DashboardScreen extends StatelessWidget {
+class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key, this.onLogout});
 
   final VoidCallback? onLogout;
+
+  @override
+  State<DashboardScreen> createState() => _DashboardScreenState();
+}
+
+class _DashboardScreenState extends State<DashboardScreen> {
+  @override
+  void initState() {
+    super.initState();
+    _updateShellActions();
+  }
+
+  @override
+  void didUpdateWidget(DashboardScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _updateShellActions();
+  }
+
+  void _updateShellActions() {
+    final shell = context.findAncestorStateOfType<AdminWebShellState>();
+    shell?.setActions([
+      Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.15),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+        ),
+        child: const Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.trending_up_rounded, size: 16, color: Colors.white),
+                SizedBox(width: 8),
+                Text(
+                  '₱18,240',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w900,
+                    color: Colors.white,
+                  ),
+                ),
+              ],
+            ),
+            Text(
+              "TODAY'S REVENUE",
+              style: TextStyle(
+                fontSize: 9,
+                fontWeight: FontWeight.w800,
+                color: Colors.white70,
+                letterSpacing: 0.5,
+              ),
+            ),
+          ],
+        ),
+      ),
+    ]);
+  }
 
   String _formattedToday() {
     const weekdays = [
@@ -28,9 +90,9 @@ class DashboardScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final today = _formattedToday();
 
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      body: LayoutBuilder(
+    return Container(
+      color: AdminWebColors.background,
+      child: LayoutBuilder(
         builder: (context, constraints) {
           final isWide = constraints.maxWidth >= 900;
           final isMedium = constraints.maxWidth >= 600;
@@ -40,7 +102,7 @@ class DashboardScreen extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _WelcomeBanner(today: today, isWide: isWide),
+                _WelcomeBanner(today: today),
                 const SizedBox(height: 24),
                 _KpiGrid(crossAxisCount: isWide ? 4 : (isMedium ? 2 : 1)),
                 const SizedBox(height: 24),
@@ -84,117 +146,53 @@ class DashboardScreen extends StatelessWidget {
 }
 
 class _WelcomeBanner extends StatelessWidget {
-  const _WelcomeBanner({required this.today, required this.isWide});
+  const _WelcomeBanner({required this.today});
 
   final String today;
-  final bool isWide;
 
   @override
   Widget build(BuildContext context) {
-    final greeting = Row(
-      children: [
-        Container(
-          width: 52,
-          height: 52,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: AdminWebColors.accent.withValues(alpha: 0.12),
-            shape: BoxShape.circle,
-          ),
-          child: const Icon(Icons.wb_sunny_rounded, size: 24, color: AdminWebColors.accent),
-        ),
-        const SizedBox(width: 16),
-        Flexible(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
-                'Welcome back, Admin 👋',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w900,
-                  color: AdminWebColors.textPrimary,
-                  letterSpacing: -0.5,
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                "Today is $today. All systems are operational.",
-                style: const TextStyle(
-                  fontSize: 13,
-                  color: AdminWebColors.textSecondary,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-
-    final salesBox = Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AdminWebColors.border),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 8,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.trending_up_rounded,
-                  size: 18, color: AdminWebColors.success),
-              const SizedBox(width: 8),
-              const Text(
-                '₱18,240',
-                style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w900,
-                  color: AdminWebColors.textPrimary,
-                ),
-              ),
-            ],
-          ),
-          const Text(
-            "Today's total revenue",
-            style: TextStyle(
-              fontSize: 12,
-              color: AdminWebColors.textSecondary,
-            ),
-          ),
-        ],
-      ),
-    );
-
     return GlassCard(
-      borderRadius: 24,
-      child: isWide
-          ? Row(
-              children: [
-                Expanded(child: greeting),
-                const SizedBox(width: 24),
-                salesBox,
-              ],
-            )
-          : Column(
+      child: Row(
+        children: [
+          Container(
+            width: 52,
+            height: 52,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: AdminWebColors.accent.withValues(alpha: 0.12),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.wb_sunny_rounded, size: 24, color: AdminWebColors.accent),
+          ),
+          const SizedBox(width: 16),
+          Flexible(
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
-                greeting,
-                const SizedBox(height: 24),
-                salesBox,
+                const Text(
+                  'Welcome back, Admin 👋',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w900,
+                    color: AdminWebColors.textPrimary,
+                    letterSpacing: -0.5,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  "Today is $today. All systems are operational.",
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: AdminWebColors.textSecondary,
+                  ),
+                ),
               ],
             ),
+          ),
+        ],
+      ),
     );
   }
 }

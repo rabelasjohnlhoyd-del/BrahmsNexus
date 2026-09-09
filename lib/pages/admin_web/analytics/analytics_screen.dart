@@ -1,113 +1,142 @@
 import 'package:flutter/material.dart';
 import '../admin_web_colors.dart';
+import '../admin_web_shell.dart';
 import '../admin_web_widgets/glass_card.dart';
 import '../admin_web_widgets/simple_bar_chart.dart';
-import '../../../widgets/admin_page_header.dart';
 
 /// DSS Analytics — Descriptive, Predictive, and Prescriptive insights
 /// built with consistent Admin Web glassmorphism components.
-class AnalyticsScreen extends StatelessWidget {
+class AnalyticsScreen extends StatefulWidget {
   const AnalyticsScreen({super.key});
 
   @override
+  State<AnalyticsScreen> createState() => _AnalyticsScreenState();
+}
+
+class _AnalyticsScreenState extends State<AnalyticsScreen> {
+  @override
+  void initState() {
+    super.initState();
+    _updateShellActions();
+  }
+
+  void _updateShellActions() {
+    final shell = context.findAncestorStateOfType<AdminWebShellState>();
+    shell?.setActions([
+      ElevatedButton.icon(
+        onPressed: () {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Downloading full DSS report...')),
+          );
+        },
+        icon: const Icon(Icons.download_rounded, size: 18, color: Colors.white),
+        label: const Text('EXPORT REPORT'),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.white.withValues(alpha: 0.15),
+          foregroundColor: Colors.white,
+          side: BorderSide(color: Colors.white.withValues(alpha: 0.3)),
+          elevation: 0,
+        ),
+      ),
+    ]);
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final isNarrow = constraints.maxWidth < 900;
+    return Container(
+      color: AdminWebColors.background,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isNarrow = constraints.maxWidth < 900;
 
-        return SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const AdminPageHeader(
-                title: 'DSS Analytics',
-                subtitle:
-                    'Decision Support System insights and business intelligence across descriptive, predictive, and prescriptive layers.',
-              ),
-              const SizedBox(height: 32),
-
-              // --- 1. DESCRIPTIVE ANALYTICS ---
-              _SectionHeader(
-                title: 'Descriptive Analytics',
-                subtitle: 'Historical patterns and current performance',
-                icon: Icons.history_rounded,
-              ),
-              const SizedBox(height: 16),
-              if (isNarrow)
-                Column(
-                  children: [
-                    _buildSalesVolumeCard(),
-                    const SizedBox(height: 20),
-                    _buildBestSellingCard(),
-                  ],
-                )
-              else
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(flex: 2, child: _buildSalesVolumeCard()),
-                    const SizedBox(width: 20),
-                    Expanded(child: _buildBestSellingCard()),
-                  ],
+          return SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 20),
+                // --- 1. DESCRIPTIVE ANALYTICS ---
+                _SectionHeader(
+                  title: 'Descriptive Analytics',
+                  subtitle: 'Historical patterns and current performance',
+                  icon: Icons.history_rounded,
                 ),
+                const SizedBox(height: 16),
+                if (isNarrow)
+                  Column(
+                    children: [
+                      _buildSalesVolumeCard(),
+                      const SizedBox(height: 20),
+                      _buildBestSellingCard(),
+                    ],
+                  )
+                else
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(flex: 2, child: _buildSalesVolumeCard()),
+                      const SizedBox(width: 20),
+                      Expanded(child: _buildBestSellingCard()),
+                    ],
+                  ),
 
-              const SizedBox(height: 40),
+                const SizedBox(height: 40),
 
-              // --- 2. PREDICTIVE ANALYTICS ---
-              _SectionHeader(
-                title: 'Predictive Analytics',
-                subtitle: 'Forecasting and future trends based on historical data',
-                icon: Icons.auto_graph_rounded,
-              ),
-              const SizedBox(height: 16),
-              if (isNarrow)
-                Column(
-                  children: [
-                    _buildForecastCard(),
-                    const SizedBox(height: 20),
-                    _buildDepletionCard(),
-                  ],
-                )
-              else
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(child: _buildForecastCard()),
-                    const SizedBox(width: 20),
-                    Expanded(child: _buildDepletionCard()),
-                  ],
+                // --- 2. PREDICTIVE ANALYTICS ---
+                _SectionHeader(
+                  title: 'Predictive Analytics',
+                  subtitle: 'Forecasting and future trends based on historical data',
+                  icon: Icons.auto_graph_rounded,
                 ),
+                const SizedBox(height: 16),
+                if (isNarrow)
+                  Column(
+                    children: [
+                      _buildForecastCard(),
+                      const SizedBox(height: 20),
+                      _buildDepletionCard(),
+                    ],
+                  )
+                else
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(child: _buildForecastCard()),
+                      const SizedBox(width: 20),
+                      Expanded(child: _buildDepletionCard()),
+                    ],
+                  ),
 
-              const SizedBox(height: 40),
+                const SizedBox(height: 40),
 
-              // --- 3. PRESCRIPTIVE ANALYTICS ---
-              _SectionHeader(
-                title: 'Prescriptive Analytics',
-                subtitle: 'Automated system recommendations and action items',
-                icon: Icons.lightbulb_outline_rounded,
-              ),
-              const SizedBox(height: 16),
-              _RecommendationCard(
-                title: 'Inventory Optimization',
-                description:
-                    'Stock at Sta. Cruz is depleting faster than usual. Consider transferring 15kg extra from Dayap surplus to avoid stockout.',
-                priority: 'High',
-                icon: Icons.inventory_2_rounded,
-              ),
-              const SizedBox(height: 12),
-              _RecommendationCard(
-                title: 'Staffing Adjustment',
-                description:
-                    'Orders peak between 11 AM - 1 PM on Saturdays. Consider assigning an additional cook to Pila branch next week.',
-                priority: 'Medium',
-                icon: Icons.people_alt_rounded,
-              ),
-              const SizedBox(height: 40),
-            ],
-          ),
-        );
-      },
+                // --- 3. PRESCRIPTIVE ANALYTICS ---
+                _SectionHeader(
+                  title: 'Prescriptive Analytics',
+                  subtitle: 'Automated system recommendations and action items',
+                  icon: Icons.lightbulb_outline_rounded,
+                ),
+                const SizedBox(height: 16),
+                _RecommendationCard(
+                  title: 'Inventory Optimization',
+                  description:
+                      'Stock at Sta. Cruz is depleting faster than usual. Consider transferring 15kg extra from Dayap surplus to avoid stockout.',
+                  priority: 'High',
+                  icon: Icons.inventory_2_rounded,
+                ),
+                const SizedBox(height: 12),
+                _RecommendationCard(
+                  title: 'Staffing Adjustment',
+                  description:
+                      'Orders peak between 11 AM - 1 PM on Saturdays. Consider assigning an additional cook to Pila branch next week.',
+                  priority: 'Medium',
+                  icon: Icons.people_alt_rounded,
+                ),
+                const SizedBox(height: 40),
+              ],
+            ),
+          );
+        },
+      ),
     );
   }
 

@@ -24,6 +24,10 @@ class AdminWebColors {
   static const Color accent = Color(0xFFA0522D);
   static const Color accentDark = Color(0xFF8B4513);
 
+  // Header Gradient (Matching Staff/Driver brand chocolate)
+  static const Color headerStart = Color(0xFF2B1B12);
+  static const Color headerEnd = Color(0xFF7A4A2A);
+
   // Text
   static const Color textPrimary = Color(0xFF3B2418);
   static const Color textSecondary = Color(0xFF8B4513);

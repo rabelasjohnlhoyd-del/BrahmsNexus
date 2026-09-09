@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import '../../../models/branch.dart';
 import '../../../models/branch_assignment.dart';
 import '../admin_web_colors.dart';
+import '../admin_web_shell.dart';
 import '../admin_web_widgets/glass_card.dart';
-import '../../../widgets/admin_page_header.dart';
 
 /// Owner assigns each employee to a branch for a chosen date, and
 /// marks them On Duty or on a Rest Day. This is what Staff read for
@@ -56,6 +56,47 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
     ),
   ];
 
+  @override
+  void initState() {
+    super.initState();
+    _updateShellActions();
+  }
+
+  @override
+  void didUpdateWidget(BranchAssignmentsScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _updateShellActions();
+  }
+
+  void _updateShellActions() {
+    final shell = context.findAncestorStateOfType<AdminWebShellState>();
+    shell?.setActions([
+      OutlinedButton.icon(
+        onPressed: _pickDate,
+        icon: const Icon(Icons.calendar_today_rounded, size: 18, color: Colors.white),
+        label: Text(
+          '${_selectedDate.month}/${_selectedDate.day}/${_selectedDate.year}',
+          style: const TextStyle(color: Colors.white),
+        ),
+        style: OutlinedButton.styleFrom(
+          side: BorderSide(color: Colors.white.withValues(alpha: 0.3)),
+          backgroundColor: Colors.white.withValues(alpha: 0.1),
+        ),
+      ),
+      ElevatedButton.icon(
+        onPressed: _saveAll,
+        icon: const Icon(Icons.save_rounded, size: 18, color: Colors.white),
+        label: const Text('SAVE'),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.white.withValues(alpha: 0.15),
+          foregroundColor: Colors.white,
+          side: BorderSide(color: Colors.white.withValues(alpha: 0.3)),
+          elevation: 0,
+        ),
+      ),
+    ]);
+  }
+
   Future<void> _pickDate() async {
     final picked = await showDatePicker(
       context: context,
@@ -65,6 +106,7 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
     );
     if (picked != null) {
       setState(() => _selectedDate = picked);
+      _updateShellActions();
     }
   }
 
@@ -106,51 +148,37 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          AdminPageHeader(
-            title: 'Branch Assignments',
-            subtitle:
-                'Assign each employee to a branch and set their work status for the day.',
-            actions: [
-              OutlinedButton.icon(
-                onPressed: _pickDate,
-                icon: const Icon(Icons.calendar_today_rounded, size: 18),
-                label: Text(
-                    '${_selectedDate.month}/${_selectedDate.day}/${_selectedDate.year}'),
+    return Container(
+      color: AdminWebColors.background,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(height: 24),
+            Expanded(
+              child: ListView.separated(
+                itemCount: _assignments.length,
+                separatorBuilder: (context, index) => const SizedBox(height: 12),
+                itemBuilder: (context, index) {
+                  final a = _assignments[index];
+                  return LayoutBuilder(
+                    builder: (context, constraints) {
+                      final isWide = constraints.maxWidth >= 700;
+                      return _AssignmentCard(
+                        assignment: a,
+                        isWide: isWide,
+                        onBranchChanged: (branch) => _updateBranch(index, branch),
+                        onStatusChanged: (status) => _updateStatus(index, status),
+                      );
+                    },
+                  );
+                },
               ),
-              ElevatedButton.icon(
-                onPressed: _saveAll,
-                icon: const Icon(Icons.save_rounded, size: 18),
-                label: const Text('SAVE ASSIGNMENTS'),
-              ),
-            ],
-          ),
-          const SizedBox(height: 24),
-          Expanded(
-            child: ListView.separated(
-              itemCount: _assignments.length,
-              separatorBuilder: (context, index) => const SizedBox(height: 12),
-              itemBuilder: (context, index) {
-                final a = _assignments[index];
-                return LayoutBuilder(
-                  builder: (context, constraints) {
-                    final isWide = constraints.maxWidth >= 700;
-                    return _AssignmentCard(
-                      assignment: a,
-                      isWide: isWide,
-                      onBranchChanged: (branch) => _updateBranch(index, branch),
-                      onStatusChanged: (status) => _updateStatus(index, status),
-                    );
-                  },
-                );
-              },
             ),
-          ),
-        ],
+            const SizedBox(height: 24),
+          ],
+        ),
       ),
     );
   }

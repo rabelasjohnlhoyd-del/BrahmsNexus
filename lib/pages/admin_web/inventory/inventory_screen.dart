@@ -2,18 +2,15 @@ import 'package:flutter/material.dart';
 import '../../../models/branch.dart';
 import '../../../models/inventory_item.dart';
 import '../admin_web_colors.dart';
+import '../admin_web_shell.dart';
 import '../admin_web_widgets/glass_card.dart';
-import '../../../widgets/primary_button.dart';
-import '../../../widgets/admin_page_header.dart';
+import 'update_stock_screen.dart';
+import 'adjust_allocation_screen.dart';
+import 'record_transfer_screen.dart';
 
 /// Admin manages inventory here: main warehouse total stock, daily
 /// per-branch allocation, remaining stock per branch, and inter-branch
 /// transfer logs (maps to the Inventory Management flowchart).
-///
-/// NOTE: Mock data for now — once Supabase/Firebase are wired up,
-/// warehouse totals and allocations (rarely-changing structure) fit
-/// Supabase, while daily remaining-stock submissions (frequently
-/// changing) fit Firebase.
 class InventoryScreen extends StatefulWidget {
   const InventoryScreen({super.key});
 
@@ -76,249 +73,163 @@ class _InventoryScreenState extends State<InventoryScreen>
   ];
 
   @override
+  void initState() {
+    super.initState();
+    _tabController.addListener(_handleTabSelection);
+    _updateShellActions();
+  }
+
+  @override
+  void didUpdateWidget(InventoryScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _updateShellActions();
+  }
+
+  void _handleTabSelection() {
+    if (_tabController.indexIsChanging) {
+      _updateShellActions();
+    }
+  }
+
+  void _updateShellActions() {
+    final shell = context.findAncestorStateOfType<AdminWebShellState>();
+    shell?.setTitle(null);
+    if (_tabController.index == 0) {
+      shell?.setActions([
+        ElevatedButton.icon(
+          onPressed: _navigateToUpdateStock,
+          icon: const Icon(Icons.edit_rounded, size: 18, color: Colors.white),
+          label: const Text('UPDATE TOTAL STOCK'),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.white.withValues(alpha: 0.15),
+            foregroundColor: Colors.white,
+            side: BorderSide(color: Colors.white.withValues(alpha: 0.3)),
+            elevation: 0,
+          ),
+        ),
+      ]);
+    } else if (_tabController.index == 2) {
+      shell?.setActions([
+        ElevatedButton.icon(
+          onPressed: _navigateToRecordTransfer,
+          icon: const Icon(Icons.add_rounded, size: 18, color: Colors.white),
+          label: const Text('RECORD TRANSFER'),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.white.withValues(alpha: 0.15),
+            foregroundColor: Colors.white,
+            side: BorderSide(color: Colors.white.withValues(alpha: 0.3)),
+            elevation: 0,
+          ),
+        ),
+      ]);
+    } else {
+      shell?.setActions([]);
+    }
+  }
+
+  @override
   void dispose() {
+    _tabController.removeListener(_handleTabSelection);
     _tabController.dispose();
     super.dispose();
   }
 
-  Future<void> _showSetTotalStockDialog() async {
-    final controller =
-        TextEditingController(text: _warehouse.totalKg.toStringAsFixed(0));
-    await showDialog(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Set Main Warehouse Total Stock'),
-        content: TextField(
-          controller: controller,
-          keyboardType: TextInputType.number,
-          decoration: const InputDecoration(
-            labelText: 'TOTAL STOCK (KG)',
-            isDense: true,
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              final value = double.tryParse(controller.text);
-              if (value != null) {
-                setState(() {
-                  _warehouse = WarehouseStock(
-                    date: _warehouse.date,
-                    totalKg: value,
-                    allocatedKg: _warehouse.allocatedKg,
-                  );
-                });
-              }
-              Navigator.of(dialogContext).pop();
-            },
-            child: const Text('Save'),
-          ),
-        ],
+  void _navigateToUpdateStock() async {
+    final result = await Navigator.of(context).push<double>(
+      MaterialPageRoute(
+        builder: (context) => UpdateStockScreen(currentStock: _warehouse.totalKg),
       ),
     );
+
+    if (result != null) {
+      setState(() {
+        _warehouse = WarehouseStock(
+          date: _warehouse.date,
+          totalKg: result,
+          allocatedKg: _warehouse.allocatedKg,
+        );
+      });
+      _updateShellActions();
+    }
   }
 
-  Future<void> _showAllocateDialog(BranchStock stock) async {
-    final controller =
-        TextEditingController(text: stock.allocatedKg.toStringAsFixed(0));
-    await showDialog(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text('Allocate Stock — ${stock.branchName}'),
-        content: TextField(
-          controller: controller,
-          keyboardType: TextInputType.number,
-          decoration: const InputDecoration(
-            labelText: 'ALLOCATED (KG)',
-            isDense: true,
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              final value = double.tryParse(controller.text);
-              if (value != null) {
-                setState(() {
-                  final index = _branchStocks
-                      .indexWhere((b) => b.branchId == stock.branchId);
-                  final oldAllocated = _branchStocks[index].allocatedKg;
-                  _branchStocks[index] = BranchStock(
-                    branchId: stock.branchId,
-                    branchName: stock.branchName,
-                    date: stock.date,
-                    allocatedKg: value,
-                    remainingKg: stock.remainingKg,
-                  );
-                  _warehouse = WarehouseStock(
-                    date: _warehouse.date,
-                    totalKg: _warehouse.totalKg,
-                    allocatedKg:
-                        _warehouse.allocatedKg - oldAllocated + value,
-                  );
-                });
-              }
-              Navigator.of(dialogContext).pop();
-            },
-            child: const Text('Save'),
-          ),
-        ],
+  void _navigateToAdjustAllocation(BranchStock stock) async {
+    final result = await Navigator.of(context).push<double>(
+      MaterialPageRoute(
+        builder: (context) => AdjustAllocationScreen(branchStock: stock),
       ),
     );
+
+    if (result != null) {
+      setState(() {
+        final index = _branchStocks.indexWhere((b) => b.branchId == stock.branchId);
+        final oldAllocated = _branchStocks[index].allocatedKg;
+        _branchStocks[index] = BranchStock(
+          branchId: stock.branchId,
+          branchName: stock.branchName,
+          date: stock.date,
+          allocatedKg: result,
+          remainingKg: stock.remainingKg,
+        );
+        _warehouse = WarehouseStock(
+          date: _warehouse.date,
+          totalKg: _warehouse.totalKg,
+          allocatedKg: _warehouse.allocatedKg - oldAllocated + result,
+        );
+      });
+      _updateShellActions();
+    }
   }
 
-  Future<void> _showAddTransferDialog() async {
-    String sourceId = kSampleBranches.first.id;
-    String destId = kSampleBranches[1].id;
-    final qtyController = TextEditingController();
-
-    await showDialog(
-      context: context,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (dialogContext, setDialogState) => AlertDialog(
-          title: const Text('Record Inter-Branch Transfer'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              DropdownButtonFormField<String>(
-                value: sourceId,
-                decoration: const InputDecoration(
-                  labelText: 'FROM BRANCH',
-                  isDense: true,
-                  labelStyle: TextStyle(
-                    fontWeight: FontWeight.w800,
-                    fontSize: 10,
-                    letterSpacing: 1.0,
-                  ),
-                ),
-                items: kSampleBranches
-                    .map((b) =>
-                        DropdownMenuItem(value: b.id, child: Text(b.fullName)))
-                    .toList(),
-                onChanged: (v) {
-                  if (v != null) setDialogState(() => sourceId = v);
-                },
-              ),
-              const SizedBox(height: 16),
-              DropdownButtonFormField<String>(
-                value: destId,
-                decoration: const InputDecoration(
-                  labelText: 'TO BRANCH',
-                  isDense: true,
-                  labelStyle: TextStyle(
-                    fontWeight: FontWeight.w800,
-                    fontSize: 10,
-                    letterSpacing: 1.0,
-                  ),
-                ),
-                items: kSampleBranches
-                    .map((b) =>
-                        DropdownMenuItem(value: b.id, child: Text(b.fullName)))
-                    .toList(),
-                onChanged: (v) {
-                  if (v != null) setDialogState(() => destId = v);
-                },
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: qtyController,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                  labelText: 'QUANTITY (KG)',
-                  isDense: true,
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                final qty = double.tryParse(qtyController.text);
-                if (qty == null || sourceId == destId) return;
-                final source =
-                    kSampleBranches.firstWhere((b) => b.id == sourceId);
-                final dest =
-                    kSampleBranches.firstWhere((b) => b.id == destId);
-                setState(() {
-                  _transferLogs.insert(
-                    0,
-                    StockTransferLog(
-                      id: 'tl${_transferLogs.length + 1}',
-                      sourceBranchId: source.id,
-                      sourceBranchName: source.fullName,
-                      destinationBranchId: dest.id,
-                      destinationBranchName: dest.fullName,
-                      quantityKg: qty,
-                      dateTime: DateTime.now(),
-                    ),
-                  );
-                });
-                Navigator.of(dialogContext).pop();
-              },
-              child: const Text('Save Transfer'),
-            ),
-          ],
-        ),
+  void _navigateToRecordTransfer() async {
+    final result = await Navigator.of(context).push<StockTransferLog>(
+      MaterialPageRoute(
+        builder: (context) => const RecordTransferScreen(),
       ),
     );
+
+    if (result != null) {
+      setState(() {
+        _transferLogs.insert(0, result);
+      });
+      _updateShellActions();
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          AdminPageHeader(
-            title: 'Inventory',
-            subtitle:
-                'Manage main warehouse stock, daily branch allocations, and inter-branch transfers.',
-            actions: [
-              if (_tabController.index == 2)
-                PrimaryButton(
-                  label: 'RECORD TRANSFER',
-                  icon: Icons.add_rounded,
-                  onPressed: _showAddTransferDialog,
-                ),
-            ],
-          ),
-          const SizedBox(height: 24),
-          TabBar(
-            controller: _tabController,
-            isScrollable: true,
-            tabAlignment: TabAlignment.start,
-            labelStyle: const TextStyle(fontWeight: FontWeight.bold),
-            onTap: (index) => setState(() {}),
-            tabs: const [
-              Tab(text: 'Main Warehouse'),
-              Tab(text: 'Branch Allocation'),
-              Tab(text: 'Transfer Logs'),
-            ],
-          ),
-          const SizedBox(height: 24),
-          Expanded(
-            child: TabBarView(
+    return Container(
+      color: AdminWebColors.background,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(height: 24),
+            TabBar(
               controller: _tabController,
-              children: [
-                _buildWarehouseTab(),
-                _buildBranchStockTab(),
-                _buildTransferLogsTab(),
+              isScrollable: true,
+              tabAlignment: TabAlignment.start,
+              labelStyle: const TextStyle(fontWeight: FontWeight.bold),
+              tabs: const [
+                Tab(text: 'Main Warehouse'),
+                Tab(text: 'Branch Allocation'),
+                Tab(text: 'Transfer Logs'),
               ],
             ),
-          ),
-        ],
+            const SizedBox(height: 24),
+            Expanded(
+              child: TabBarView(
+                controller: _tabController,
+                children: [
+                  _buildWarehouseTab(),
+                  _buildBranchStockTab(),
+                  _buildTransferLogsTab(),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -345,15 +256,6 @@ class _InventoryScreenState extends State<InventoryScreen>
                 '${_warehouse.allocatedKg.toStringAsFixed(0)} kg'),
             _statRow('Remaining Unallocated',
                 '${_warehouse.unallocatedKg.toStringAsFixed(0)} kg'),
-            const SizedBox(height: 24),
-            SizedBox(
-              width: 240,
-              child: PrimaryButton(
-                label: 'UPDATE TOTAL STOCK',
-                icon: Icons.edit_rounded,
-                onPressed: _showSetTotalStockDialog,
-              ),
-            ),
           ],
         ),
       ),
@@ -464,7 +366,7 @@ class _InventoryScreenState extends State<InventoryScreen>
                     ),
                   ),
                   OutlinedButton.icon(
-                    onPressed: () => _showAllocateDialog(stock),
+                    onPressed: () => _navigateToAdjustAllocation(stock),
                     icon: const Icon(Icons.add_chart_rounded, size: 16),
                     label: const Text('ADJUST ALLOCATION'),
                     style: OutlinedButton.styleFrom(

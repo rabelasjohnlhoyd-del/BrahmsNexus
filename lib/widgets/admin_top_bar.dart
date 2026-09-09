@@ -9,13 +9,15 @@ class AdminTopBar extends StatelessWidget implements PreferredSizeWidget {
     required this.title,
     this.subtitle,
     this.onLogout,
+    this.actions = const [],
   });
 
   final String title;
   final String? subtitle;
   final VoidCallback? onLogout;
+  final List<Widget> actions;
 
-  static const double _height = 80;
+  static const double _height = 100;
 
   @override
   Size get preferredSize => const Size.fromHeight(_height);
@@ -25,13 +27,16 @@ class AdminTopBar extends StatelessWidget implements PreferredSizeWidget {
     return Container(
       height: _height,
       decoration: const BoxDecoration(
-        color: Colors.white,
-        border: Border(bottom: BorderSide(color: AdminWebColors.border)),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [AdminWebColors.headerStart, AdminWebColors.headerEnd],
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black12,
-            blurRadius: 10,
-            offset: Offset(0, 2),
+            color: Colors.black26,
+            blurRadius: 12,
+            offset: Offset(0, 4),
           ),
         ],
       ),
@@ -44,35 +49,49 @@ class AdminTopBar extends StatelessWidget implements PreferredSizeWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  title,
+                  title.toUpperCase(),
                   style: const TextStyle(
-                    fontSize: 22,
+                    fontSize: 24,
                     fontWeight: FontWeight.w900,
-                    color: AdminWebColors.textPrimary,
-                    letterSpacing: -0.5,
+                    color: Colors.white,
+                    letterSpacing: 1.2,
                   ),
                 ),
                 if (subtitle != null)
                   Text(
                     subtitle!,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 13,
-                      color: AdminWebColors.textSecondary,
+                      color: Colors.white.withValues(alpha: 0.8),
+                      fontWeight: FontWeight.w500,
                     ),
                   ),
               ],
             ),
           ),
           const SizedBox(width: 16),
+          // Page Specific Actions
+          ...actions.map((a) => Padding(
+            padding: const EdgeInsets.only(right: 12),
+            child: a,
+          )),
+          if (actions.isNotEmpty)
+            Container(
+              height: 32,
+              width: 1,
+              margin: const EdgeInsets.only(right: 20, left: 8),
+              color: Colors.white.withValues(alpha: 0.2),
+            ),
           // Notification Bell
           IconButton(
             onPressed: () {},
             icon: Badge(
               label: const Text('2'),
-              child: Icon(Icons.notifications_outlined, color: AdminWebColors.accent),
+              backgroundColor: AdminWebColors.warning,
+              child: const Icon(Icons.notifications_outlined, color: Colors.white),
             ),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 12),
           // Profile Section
           PopupMenuButton<String>(
             offset: const Offset(0, 50),
@@ -92,22 +111,23 @@ class AdminTopBar extends StatelessWidget implements PreferredSizeWidget {
               ),
             ],
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
               decoration: BoxDecoration(
-                color: AdminWebColors.surfaceTint,
-                borderRadius: BorderRadius.circular(10),
+                color: Colors.white.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   CircleAvatar(
                     radius: 16,
-                    backgroundColor: AdminWebColors.accent,
+                    backgroundColor: Colors.white,
                     child: const Text(
                       'O',
                       style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w800,
+                        color: AdminWebColors.headerStart,
+                        fontWeight: FontWeight.w900,
                         fontSize: 14,
                       ),
                     ),
@@ -118,11 +138,12 @@ class AdminTopBar extends StatelessWidget implements PreferredSizeWidget {
                     style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.bold,
-                      color: AdminWebColors.textPrimary,
+                      color: Colors.white,
                     ),
                   ),
+                  const SizedBox(width: 4),
                   const Icon(Icons.keyboard_arrow_down_rounded,
-                      size: 20, color: AdminWebColors.textSecondary),
+                      size: 20, color: Colors.white70),
                 ],
               ),
             ),

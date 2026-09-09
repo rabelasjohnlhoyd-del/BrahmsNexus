@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../../models/branch.dart';
 import '../admin_web_colors.dart';
+import '../admin_web_shell.dart';
 import '../admin_web_widgets/glass_card.dart';
-import '../../../widgets/admin_page_header.dart';
-import '../../../widgets/primary_button.dart';
+import 'branch_form_screen.dart';
 
 class BranchManagementScreen extends StatefulWidget {
   const BranchManagementScreen({super.key});
@@ -32,83 +32,66 @@ class _BranchManagementScreenState extends State<BranchManagementScreen> {
     }).toList();
   }
 
-  void _showBranchDialog([Branch? branch]) {
-    final isEdit = branch != null;
-    final nameController = TextEditingController(text: branch?.name);
-    final municipalityController = TextEditingController(text: branch?.municipality);
-    final sequenceController = TextEditingController(text: branch?.dailyRouteSequence.toString() ?? '1');
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(isEdit ? 'Edit Branch' : 'Add New Branch'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: nameController,
-              decoration: const InputDecoration(labelText: 'Branch Name (e.g. Brgy. Gatid)'),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: municipalityController,
-              decoration: const InputDecoration(labelText: 'Municipality'),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: sequenceController,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: 'Daily Route Sequence'),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-          ElevatedButton(
-            onPressed: () {
-              final newBranch = Branch(
-                id: isEdit ? branch.id : 'br${_branches.length + 1}',
-                name: nameController.text,
-                municipality: municipalityController.text,
-                dailyRouteSequence: int.tryParse(sequenceController.text) ?? 1,
-              );
-              setState(() {
-                if (isEdit) {
-                  final index = _branches.indexWhere((b) => b.id == branch.id);
-                  _branches[index] = newBranch;
-                } else {
-                  _branches.add(newBranch);
-                }
-              });
-              Navigator.pop(context);
-            },
-            child: Text(isEdit ? 'Update' : 'Add'),
-          ),
-        ],
+  void _navigateToForm([Branch? branch]) async {
+    final result = await Navigator.of(context).push<Branch>(
+      MaterialPageRoute(
+        builder: (context) => BranchFormScreen(branch: branch),
       ),
     );
+
+    if (result != null) {
+      setState(() {
+        final index = _branches.indexWhere((b) => b.id == result.id);
+        if (index != -1) {
+          _branches[index] = result;
+        } else {
+          _branches.add(result);
+        }
+      });
+      _updateShellActions();
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _updateShellActions();
+  }
+
+  @override
+  void didUpdateWidget(BranchManagementScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _updateShellActions();
+  }
+
+  void _updateShellActions() {
+    final shell = context.findAncestorStateOfType<AdminWebShellState>();
+    shell?.setTitle(null);
+    shell?.setActions([
+      ElevatedButton.icon(
+        onPressed: () => _navigateToForm(),
+        icon: const Icon(Icons.add_location_alt_rounded, size: 18, color: Colors.white),
+        label: const Text('NEW BRANCH'),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.white.withValues(alpha: 0.15),
+          foregroundColor: Colors.white,
+          side: BorderSide(color: Colors.white.withValues(alpha: 0.3)),
+          elevation: 0,
+        ),
+      ),
+    ]);
   }
 
   @override
   Widget build(BuildContext context) {
     final branches = _filteredBranches;
-    return Padding(
+    return Container(
+      color: AdminWebColors.background,
       padding: const EdgeInsets.all(24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          AdminPageHeader(
-            title: 'Branch Management',
-            subtitle: 'Add, edit, or remove store locations and their route sequences.',
-            actions: [
-              PrimaryButton(
-                label: 'NEW BRANCH',
-                icon: Icons.add_location_alt_rounded,
-                onPressed: () => _showBranchDialog(),
-              ),
-            ],
-          ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 20),
           GlassCard(
             padding: EdgeInsets.zero,
             child: TextField(
@@ -143,20 +126,24 @@ class _BranchManagementScreenState extends State<BranchManagementScreen> {
               itemBuilder: (context, index) {
                 final b = branches[index];
                 return GlassCard(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  child: ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: Container(
-                      width: 44,
-                      height: 44,
-                      decoration: BoxDecoration(
-                        color: AdminWebColors.accent.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(10),
+                  padding: EdgeInsets.zero,
+                  child: Material(
+                    color: Colors.transparent,
+                    borderRadius: BorderRadius.circular(16),
+                    clipBehavior: Clip.antiAlias,
+                    child: ListTile(
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      leading: Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: AdminWebColors.accent.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        alignment: Alignment.center,
+                        child: const Icon(Icons.storefront_rounded,
+                            color: AdminWebColors.accent),
                       ),
-                      alignment: Alignment.center,
-                      child: const Icon(Icons.storefront_rounded,
-                          color: AdminWebColors.accent),
-                    ),
                     title: Text(
                       b.fullName,
                       style: const TextStyle(
@@ -178,7 +165,7 @@ class _BranchManagementScreenState extends State<BranchManagementScreen> {
                         IconButton(
                           icon: const Icon(Icons.edit_note_rounded,
                               color: AdminWebColors.accent),
-                          onPressed: () => _showBranchDialog(b),
+                          onPressed: () => _navigateToForm(b),
                           tooltip: 'Edit Branch',
                         ),
                         IconButton(
@@ -193,12 +180,13 @@ class _BranchManagementScreenState extends State<BranchManagementScreen> {
                       ],
                     ),
                   ),
-                );
-              },
-            ),
+                ),
+              );
+            },
           ),
-        ],
-      ),
-    );
-  }
+        ),
+      ],
+    ),
+  );
+}
 }

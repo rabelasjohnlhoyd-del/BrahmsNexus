@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../admin_web_colors.dart';
+import '../admin_web_shell.dart';
 import '../admin_web_widgets/glass_card.dart';
-import '../../../widgets/admin_page_header.dart';
 
 class ActivityEntry {
   final String actor;
@@ -25,6 +25,23 @@ class ActivityLogScreen extends StatefulWidget {
 }
 
 class _ActivityLogScreenState extends State<ActivityLogScreen> {
+  @override
+  void initState() {
+    super.initState();
+    _updateShellActions();
+  }
+
+  @override
+  void didUpdateWidget(ActivityLogScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _updateShellActions();
+  }
+
+  void _updateShellActions() {
+    final shell = context.findAncestorStateOfType<AdminWebShellState>();
+    shell?.setActions([]);
+  }
+
   final List<ActivityEntry> _allEntries = [
     ActivityEntry(
       actor: 'Owner',
@@ -66,17 +83,15 @@ class _ActivityLogScreenState extends State<ActivityLogScreen> {
         .where((e) => _selectedType == null || e.type == _selectedType)
         .toList();
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const AdminPageHeader(
-            title: 'Activity Log',
-            subtitle: 'Track system changes, user actions, and inventory alerts.',
-          ),
-          const SizedBox(height: 32),
-          const Text(
+    return Container(
+      color: AdminWebColors.background,
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(height: 20),
+            const Text(
             'FILTER BY TYPE',
             style: TextStyle(
               fontWeight: FontWeight.w800,
@@ -184,8 +199,9 @@ class _ActivityLogScreenState extends State<ActivityLogScreen> {
           const SizedBox(height: 40),
         ],
       ),
-    );
-  }
+    ),
+  );
+}
 
   String _formatDate(DateTime dt) {
     return '${dt.month}/${dt.day} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';

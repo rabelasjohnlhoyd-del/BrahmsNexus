@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../models/staff_member.dart';
-import '../../../widgets/admin_page_header.dart';
 import '../admin_web_colors.dart';
+import '../admin_web_shell.dart';
 import '../admin_web_widgets/glass_card.dart';
 import 'add_staff_screen.dart';
 import 'edit_staff_screen.dart';
@@ -46,10 +46,13 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
 
   Future<void> _openAddStaff() async {
     final result = await Navigator.of(context).push<StaffMember>(
-      MaterialPageRoute(builder: (_) => const AddStaffScreen()),
+      MaterialPageRoute(builder: (context) => const AddStaffScreen()),
     );
 
-    if (result == null || !mounted) return;
+    if (!mounted) return;
+    _updateShellActions();
+
+    if (result == null) return;
 
     setState(() => _staff.insert(0, result));
 
@@ -68,10 +71,13 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
 
   Future<void> _openEditStaff(StaffMember member) async {
     final result = await Navigator.of(context).push<StaffMember>(
-      MaterialPageRoute(builder: (_) => EditStaffScreen(member: member)),
+      MaterialPageRoute(builder: (context) => EditStaffScreen(member: member)),
     );
 
-    if (result == null || !mounted) return;
+    if (!mounted) return;
+    _updateShellActions();
+
+    if (result == null) return;
 
     setState(() {
       final index = _staff.indexWhere((s) => s.id == member.id);
@@ -116,6 +122,35 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    _updateShellActions();
+  }
+
+  @override
+  void didUpdateWidget(StaffManagementScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _updateShellActions();
+  }
+
+  void _updateShellActions() {
+    final shell = context.findAncestorStateOfType<AdminWebShellState>();
+    shell?.setActions([
+      ElevatedButton.icon(
+        onPressed: _openAddStaff,
+        icon: const Icon(Icons.person_add_alt_1, size: 18, color: Colors.white),
+        label: const Text('ADD STAFF'),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.white.withValues(alpha: 0.15),
+          foregroundColor: Colors.white,
+          side: BorderSide(color: Colors.white.withValues(alpha: 0.3)),
+          elevation: 0,
+        ),
+      ),
+    ]);
+  }
+
+  @override
   Widget build(BuildContext context) {
     final staff = _filteredStaff;
 
@@ -123,20 +158,6 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
       color: AdminWebColors.background,
       child: Column(
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
-            child: AdminPageHeader(
-              title: 'Staff Management',
-              subtitle: 'Manage roles and access for your branch employees.',
-              actions: [
-                ElevatedButton.icon(
-                  onPressed: _openAddStaff,
-                  icon: const Icon(Icons.person_add_alt_1, size: 18),
-                  label: const Text('ADD STAFF'),
-                ),
-              ],
-            ),
-          ),
           Padding(
             padding: const EdgeInsets.fromLTRB(24, 20, 24, 16),
             child: Row(

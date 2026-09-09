@@ -7,10 +7,9 @@ class AdminSidebarItem {
   final String label;
 }
 
-/// Side navigation para sa Admin Web — sinusunod ang 60-30-10 palette:
-/// soft pastel beige ang background (30%), warm brown ang active state
-/// (10%). Ginagamit ito parehong ng laging-nakikitang side-nav (wide
-/// screens) at ng Drawer (narrow/phone browser).
+/// Refined Side navigation for Admin Web.
+/// Uses the brand's chocolate gradient for the header and polished
+/// active states for menu items.
 class AdminSidebar extends StatelessWidget {
   const AdminSidebar({
     super.key,
@@ -28,95 +27,123 @@ class AdminSidebar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 240,
-      color: AdminWebColors.sidebarBackground,
+      width: 280, // Slightly wider for better readability
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        border: Border(right: BorderSide(color: AdminWebColors.border)),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          // Branding Header with Brand Gradient
           Container(
-            padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 20),
-            decoration: BoxDecoration(
-              border: Border(
-                bottom: BorderSide(
-                  color: AdminWebColors.border,
-                ),
+            padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 24),
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [AdminWebColors.headerStart, AdminWebColors.headerEnd],
               ),
             ),
             child: Row(
               children: [
                 Container(
-                  width: 30,
-                  height: 30,
+                  width: 36,
+                  height: 36,
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
-                    color: AdminWebColors.accent.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(9),
+                    color: Colors.white.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(10),
                   ),
-                  child: const Icon(Icons.storefront_rounded,
-                      color: AdminWebColors.accent, size: 17),
+                  child: const Icon(Icons.restaurant_menu_rounded,
+                      color: Colors.white, size: 20),
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: 12),
                 const Expanded(
-                  child: Text(
-                    'BRAHMS NEXUS',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: AdminWebColors.accentDark,
-                      letterSpacing: 0.5,
-                      fontSize: 13,
-                    ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'BRAHMS',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w900,
+                          color: Colors.white,
+                          letterSpacing: 2,
+                          fontSize: 16,
+                        ),
+                      ),
+                      Text(
+                        'NEXUS SYSTEM',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w500,
+                          color: Colors.white70,
+                          letterSpacing: 1,
+                          fontSize: 10,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
             ),
           ),
+          const SizedBox(height: 16),
           Expanded(
             child: ListView.builder(
-              padding: const EdgeInsets.symmetric(vertical: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 16),
               itemCount: items.length,
               itemBuilder: (context, index) {
                 final item = items[index];
                 final bool isSelected = index == selectedIndex;
                 return Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
+                  padding: const EdgeInsets.only(bottom: 4),
                   child: Material(
                     color: isSelected
-                        ? AdminWebColors.accent
+                        ? AdminWebColors.accent.withValues(alpha: 0.08)
                         : Colors.transparent,
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: BorderRadius.circular(12),
                     child: InkWell(
-                      borderRadius: BorderRadius.circular(10),
+                      borderRadius: BorderRadius.circular(12),
                       onTap: () => onSelect(index),
+                      hoverColor: AdminWebColors.accent.withValues(alpha: 0.04),
                       child: Padding(
                         padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 12,
+                          horizontal: 16,
+                          vertical: 14,
                         ),
                         child: Row(
                           children: [
                             Icon(
                               item.icon,
-                              size: 19,
+                              size: 20,
                               color: isSelected
-                                  ? Colors.white
-                                  : AdminWebColors.accentDark,
+                                  ? AdminWebColors.accent
+                                  : AdminWebColors.textSecondary,
                             ),
-                            const SizedBox(width: 12),
+                            const SizedBox(width: 14),
                             Expanded(
                               child: Text(
                                 item.label,
                                 style: TextStyle(
-                                  fontSize: 13.5,
+                                  fontSize: 14,
                                   fontWeight: isSelected
-                                      ? FontWeight.w600
+                                      ? FontWeight.w700
                                       : FontWeight.w500,
                                   color: isSelected
-                                      ? Colors.white
+                                      ? AdminWebColors.accent
                                       : AdminWebColors.textPrimary,
                                 ),
                               ),
                             ),
+                            if (isSelected)
+                              Container(
+                                width: 4,
+                                height: 18,
+                                decoration: BoxDecoration(
+                                  color: AdminWebColors.accent,
+                                  borderRadius: BorderRadius.circular(2),
+                                ),
+                              ),
                           ],
                         ),
                       ),
@@ -126,27 +153,27 @@ class AdminSidebar extends StatelessWidget {
               },
             ),
           ),
+          // Logout Section
           Padding(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(16),
             child: Material(
-              color: Colors.transparent,
-              borderRadius: BorderRadius.circular(10),
+              color: AdminWebColors.error.withValues(alpha: 0.05),
+              borderRadius: BorderRadius.circular(12),
               child: InkWell(
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(12),
                 onTap: onLogout,
                 child: const Padding(
-                  padding:
-                      EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                   child: Row(
                     children: [
                       Icon(Icons.logout_rounded,
-                          size: 19, color: AdminWebColors.error),
-                      SizedBox(width: 12),
+                          size: 20, color: AdminWebColors.error),
+                      const SizedBox(width: 14),
                       Text(
-                        'Log out',
+                        'Logout',
                         style: TextStyle(
-                          fontSize: 13.5,
-                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
                           color: AdminWebColors.error,
                         ),
                       ),

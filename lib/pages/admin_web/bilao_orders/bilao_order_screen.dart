@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../../models/bilao_order.dart';
 import '../admin_web_colors.dart';
+import '../admin_web_shell.dart';
 import '../admin_web_widgets/glass_card.dart';
-import '../../../widgets/admin_page_header.dart';
-import '../../../widgets/primary_button.dart';
+import 'add_bilao_order_screen.dart';
 
 /// Admin records confirmed advance/special bilao orders here (received
 /// via Messenger/phone — customers never order directly in-app), then
@@ -95,152 +95,20 @@ class _BilaoOrderScreenState extends State<BilaoOrderScreen> {
     });
   }
 
-  Future<void> _showAddOrderDialog() async {
-    final formKey = GlobalKey<FormState>();
-    final nameController = TextEditingController();
-    final contactController = TextEditingController();
-    final quantityController = TextEditingController(text: '1');
-    BilaoSize selectedSize = BilaoSize.medium;
-    DateTime scheduledDateTime = DateTime.now().add(const Duration(hours: 2));
+  Future<void> _openAddOrder() async {
+    final result = await Navigator.of(context).push<BilaoOrder>(
+      MaterialPageRoute(builder: (context) => const AddBilaoOrderScreen()),
+    );
 
-    await showDialog(
-      context: context,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (dialogContext, setDialogState) => AlertDialog(
-          title: const Text('Record New Bilao Order'),
-          content: SizedBox(
-            width: 420,
-            child: Form(
-              key: formKey,
-              child: SingleChildScrollView(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    TextFormField(
-                      controller: nameController,
-                      decoration: const InputDecoration(
-                        labelText: 'CUSTOMER NAME',
-                        isDense: true,
-                      ),
-                      validator: (v) =>
-                          (v == null || v.trim().isEmpty) ? 'Required' : null,
-                    ),
-                    const SizedBox(height: 12),
-                    TextFormField(
-                      controller: contactController,
-                      keyboardType: TextInputType.phone,
-                      decoration: const InputDecoration(
-                        labelText: 'CONTACT NUMBER',
-                        isDense: true,
-                      ),
-                      validator: (v) =>
-                          (v == null || v.trim().isEmpty) ? 'Required' : null,
-                    ),
-                    const SizedBox(height: 12),
-                    DropdownButtonFormField<BilaoSize>(
-                      initialValue: selectedSize,
-                      decoration: const InputDecoration(
-                        labelText: 'BILAO SIZE',
-                        isDense: true,
-                      ),
-                      items: BilaoSize.values
-                          .map((s) => DropdownMenuItem(
-                                value: s,
-                                child: Text(
-                                  '${s.label.toUpperCase()} (₱${s.price.toStringAsFixed(0)})',
-                                ),
-                              ))
-                          .toList(),
-                      onChanged: (value) {
-                        if (value != null) {
-                          setDialogState(() => selectedSize = value);
-                        }
-                      },
-                    ),
-                    const SizedBox(height: 12),
-                    TextFormField(
-                      controller: quantityController,
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(
-                        labelText: 'QUANTITY',
-                        isDense: true,
-                      ),
-                      validator: (v) {
-                        if (v == null || v.trim().isEmpty) return 'Required';
-                        if (int.tryParse(v) == null) return 'Invalid number';
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 12),
-                    ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: const Text('Scheduled Date & Time'),
-                      subtitle: Text(
-                        '${scheduledDateTime.month}/${scheduledDateTime.day}/'
-                        '${scheduledDateTime.year} · '
-                        '${scheduledDateTime.hour.toString().padLeft(2, '0')}:'
-                        '${scheduledDateTime.minute.toString().padLeft(2, '0')}',
-                      ),
-                      trailing: const Icon(Icons.edit_calendar_rounded),
-                      onTap: () async {
-                        final date = await showDatePicker(
-                          context: dialogContext,
-                          initialDate: scheduledDateTime,
-                          firstDate: DateTime.now(),
-                          lastDate:
-                              DateTime.now().add(const Duration(days: 60)),
-                        );
-                        if (date == null) return;
-                        if (!dialogContext.mounted) return;
-                        final time = await showTimePicker(
-                          context: dialogContext,
-                          initialTime:
-                              TimeOfDay.fromDateTime(scheduledDateTime),
-                        );
-                        if (time == null) return;
-                        setDialogState(() {
-                          scheduledDateTime = DateTime(
-                            date.year,
-                            date.month,
-                            date.day,
-                            time.hour,
-                            time.minute,
-                          );
-                        });
-                      },
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                if (!formKey.currentState!.validate()) return;
-                setState(() {
-                  _orders.add(
-                    BilaoOrder(
-                      id: 'ord${_orders.length + 1}',
-                      customerName: nameController.text.trim(),
-                      contactNumber: contactController.text.trim(),
-                      size: selectedSize,
-                      quantity: int.parse(quantityController.text),
-                      scheduledDateTime: scheduledDateTime,
-                    ),
-                  );
-                });
-                Navigator.of(dialogContext).pop();
-              },
-              child: const Text('Save Order'),
-            ),
-          ],
-        ),
-      ),
+    if (!mounted) return;
+    _updateShellActions();
+
+    if (result == null) return;
+
+    setState(() => _orders.insert(0, result));
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Order for ${result.customerName} recorded.')),
     );
   }
 
@@ -267,6 +135,35 @@ class _BilaoOrderScreenState extends State<BilaoOrderScreen> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    _updateShellActions();
+  }
+
+  @override
+  void didUpdateWidget(BilaoOrderScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _updateShellActions();
+  }
+
+  void _updateShellActions() {
+    final shell = context.findAncestorStateOfType<AdminWebShellState>();
+    shell?.setActions([
+      ElevatedButton.icon(
+        onPressed: _openAddOrder,
+        icon: const Icon(Icons.add_rounded, size: 18, color: Colors.white),
+        label: const Text('RECORD NEW ORDER'),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.white.withValues(alpha: 0.15),
+          foregroundColor: Colors.white,
+          side: BorderSide(color: Colors.white.withValues(alpha: 0.3)),
+          elevation: 0,
+        ),
+      ),
+    ]);
+  }
+
+  @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -277,25 +174,6 @@ class _BilaoOrderScreenState extends State<BilaoOrderScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Padding(
-                padding: EdgeInsets.fromLTRB(
-                  isWide ? 24 : 16,
-                  isWide ? 24 : 16,
-                  isWide ? 24 : 16,
-                  0,
-                ),
-                child: AdminPageHeader(
-                  title: 'Bilao Orders',
-                  subtitle: 'Track preparation and delivery for special advance orders.',
-                  actions: [
-                    PrimaryButton(
-                      label: 'RECORD NEW ORDER',
-                      icon: Icons.add_rounded,
-                      onPressed: _showAddOrderDialog,
-                    ),
-                  ],
-                ),
-              ),
               const SizedBox(height: 20),
               Padding(
                 padding: EdgeInsets.symmetric(horizontal: isWide ? 24 : 16),

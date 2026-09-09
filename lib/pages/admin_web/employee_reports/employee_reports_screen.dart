@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../../models/daily_report.dart';
 import '../admin_web_colors.dart';
+import '../admin_web_shell.dart';
+import '../admin_web_widgets/glass_card.dart';
 
 /// Admin monitors all submitted daily reports here — filterable by
 /// branch, searchable by employee, sortable by date, with submission
@@ -66,6 +68,37 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
   String _searchQuery = '';
   String? _branchFilter;
   bool _newestFirst = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _updateShellActions();
+  }
+
+  @override
+  void didUpdateWidget(EmployeeReportsScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _updateShellActions();
+  }
+
+  void _updateShellActions() {
+    final shell = context.findAncestorStateOfType<AdminWebShellState>();
+    shell?.setActions([
+      IconButton(
+        tooltip: _newestFirst ? 'Sort: Newest First' : 'Sort: Oldest First',
+        icon: Icon(
+          _newestFirst
+              ? Icons.sort_rounded
+              : Icons.history_rounded,
+          color: Colors.white,
+        ),
+        onPressed: () {
+          setState(() => _newestFirst = !_newestFirst);
+          _updateShellActions();
+        },
+      ),
+    ]);
+  }
 
   Color _statusColor(ReportSubmissionStatus status) {
     switch (status) {
@@ -162,156 +195,130 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
           ),
         ];
 
-        return Padding(
-          padding: EdgeInsets.all(isWide ? 24 : 16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Employee Reports',
-                style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                  color: AdminWebColors.textPrimary,
-                ),
-              ),
-              const SizedBox(height: 16),
-              isWide
-                  ? Row(
-                      children: [
-                        Expanded(child: statusCards[0]),
-                        const SizedBox(width: 12),
-                        Expanded(child: statusCards[1]),
-                        const SizedBox(width: 12),
-                        Expanded(child: statusCards[2]),
-                      ],
-                    )
-                  : Row(
-                      children: [
-                        Expanded(child: statusCards[0]),
-                        const SizedBox(width: 8),
-                        Expanded(child: statusCards[1]),
-                        const SizedBox(width: 8),
-                        Expanded(child: statusCards[2]),
-                      ],
-                    ),
-              const SizedBox(height: 20),
-              isWide
-                  ? Row(
-                      children: [
-                        Expanded(
-                          flex: 2,
-                          child: TextField(
+        return Container(
+          color: AdminWebColors.background,
+          child: Padding(
+            padding: EdgeInsets.all(isWide ? 24 : 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 8),
+                isWide
+                    ? Row(
+                        children: [
+                          Expanded(child: statusCards[0]),
+                          const SizedBox(width: 12),
+                          Expanded(child: statusCards[1]),
+                          const SizedBox(width: 12),
+                          Expanded(child: statusCards[2]),
+                        ],
+                      )
+                    : Row(
+                        children: [
+                          Expanded(child: statusCards[0]),
+                          const SizedBox(width: 8),
+                          Expanded(child: statusCards[1]),
+                          const SizedBox(width: 8),
+                          Expanded(child: statusCards[2]),
+                        ],
+                      ),
+                const SizedBox(height: 20),
+                isWide
+                    ? Row(
+                        children: [
+                          Expanded(
+                            flex: 2,
+                            child: TextField(
+                              decoration: const InputDecoration(
+                                hintText: 'Search by employee name...',
+                                prefixIcon: Icon(Icons.search_rounded),
+                                isDense: true,
+                              ),
+                              onChanged: (v) =>
+                                  setState(() => _searchQuery = v),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: _branchChips(branches),
+                          ),
+                        ],
+                      )
+                    : Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          TextField(
                             decoration: const InputDecoration(
                               hintText: 'Search by employee name...',
                               prefixIcon: Icon(Icons.search_rounded),
                               isDense: true,
                             ),
-                            onChanged: (v) =>
-                                setState(() => _searchQuery = v),
+                            onChanged: (v) => setState(() => _searchQuery = v),
                           ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: _branchChips(branches),
-                        ),
-                        IconButton(
-                          tooltip:
-                              _newestFirst ? 'Newest first' : 'Oldest first',
-                          icon: Icon(
-                            _newestFirst
-                                ? Icons.arrow_downward_rounded
-                                : Icons.arrow_upward_rounded,
+                          const SizedBox(height: 10),
+                          _branchChips(branches),
+                        ],
+                      ),
+                const SizedBox(height: 16),
+                Expanded(
+                  child: _visibleReports.isEmpty
+                      ? const Center(
+                          child: Text(
+                            'Walang report na tumutugma.',
+                            style: TextStyle(color: AdminWebColors.textSecondary),
                           ),
-                          onPressed: () =>
-                              setState(() => _newestFirst = !_newestFirst),
-                        ),
-                      ],
-                    )
-                  : Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        TextField(
-                          decoration: const InputDecoration(
-                            hintText: 'Search by employee name...',
-                            prefixIcon: Icon(Icons.search_rounded),
-                            isDense: true,
-                          ),
-                          onChanged: (v) => setState(() => _searchQuery = v),
-                        ),
-                        const SizedBox(height: 10),
-                        Row(
-                          children: [
-                            Expanded(child: _branchChips(branches)),
-                            IconButton(
-                              tooltip: _newestFirst
-                                  ? 'Newest first'
-                                  : 'Oldest first',
-                              icon: Icon(
-                                _newestFirst
-                                    ? Icons.arrow_downward_rounded
-                                    : Icons.arrow_upward_rounded,
-                              ),
-                              onPressed: () => setState(
-                                  () => _newestFirst = !_newestFirst),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-              const SizedBox(height: 16),
-              Expanded(
-                child: _visibleReports.isEmpty
-                    ? const Center(
-                        child: Text(
-                          'Walang report na tumutugma.',
-                          style: TextStyle(color: AdminWebColors.textSecondary),
-                        ),
-                      )
-                    : ListView.separated(
-                        itemCount: _visibleReports.length,
-                        separatorBuilder: (context, index) =>
-                            const SizedBox(height: 10),
-                        itemBuilder: (context, index) {
-                          final r = _visibleReports[index];
-                          return Card(
-                            child: ListTile(
-                              onTap: () => _showReportDetail(r),
-                              leading: CircleAvatar(
-                                backgroundColor: AdminWebColors.accent,
-                                child: Text(
-                                  r.employeeName.substring(0, 1),
-                                  style:
-                                      const TextStyle(color: Colors.white),
-                                ),
-                              ),
-                              title: Text(r.employeeName),
-                              subtitle: Text(
-                                '${r.branchName} · ${_formatDate(r.date)}',
-                              ),
-                              trailing: Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 10, vertical: 4),
-                                decoration: BoxDecoration(
-                                  color: _statusColor(r.status)
-                                      .withValues(alpha: 0.15),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: Text(
-                                  r.status.label,
-                                  style: TextStyle(
-                                    color: _statusColor(r.status),
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 11.5,
+                        )
+                      : ListView.separated(
+                          itemCount: _visibleReports.length,
+                          separatorBuilder: (context, index) =>
+                              const SizedBox(height: 10),
+                          itemBuilder: (context, index) {
+                            final r = _visibleReports[index];
+                            return GlassCard(
+                              padding: EdgeInsets.zero,
+                              child: Material(
+                                color: Colors.transparent,
+                                borderRadius: BorderRadius.circular(16),
+                                clipBehavior: Clip.antiAlias,
+                                child: ListTile(
+                                  onTap: () => _showReportDetail(r),
+                                  leading: CircleAvatar(
+                                    backgroundColor: AdminWebColors.accent,
+                                    child: Text(
+                                      r.employeeName.substring(0, 1),
+                                      style:
+                                          const TextStyle(color: Colors.white),
+                                    ),
+                                  ),
+                                  title: Text(r.employeeName),
+                                  subtitle: Text(
+                                    '${r.branchName} · ${_formatDate(r.date)}',
+                                  ),
+                                  trailing: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 10, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: _statusColor(r.status)
+                                          .withValues(alpha: 0.15),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Text(
+                                      r.status.label,
+                                      style: TextStyle(
+                                        color: _statusColor(r.status),
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 11.5,
+                                      ),
+                                    ),
                                   ),
                                 ),
                               ),
-                            ),
-                          );
-                        },
-                      ),
-              ),
-            ],
+                            );
+                          },
+                        ),
+                ),
+              ],
+            ),
           ),
         );
       },
@@ -345,10 +352,9 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
   }
 
   Widget _statusCard(String label, int count, Color color, IconData icon) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-        child: Row(
+    return GlassCard(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+      child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
@@ -385,7 +391,6 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
               ),
             ),
           ],
-        ),
       ),
     );
   }

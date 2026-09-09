@@ -23,56 +23,60 @@ class KpiCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GlassCard(
-      padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
+      padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Container(
-                width: 34,
-                height: 34,
+                width: 40,
+                height: 40,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  color: AdminWebColors.accent.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(10),
+                  color: AdminWebColors.accent.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(icon, size: 17, color: AdminWebColors.accent),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  label,
-                  style: const TextStyle(
-                    fontSize: 12.5,
-                    color: AdminWebColors.textSecondary,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                ),
+                child: Icon(icon, size: 20, color: AdminWebColors.accent),
               ),
               SizedBox(
-                width: 44,
-                height: 20,
+                width: 48,
+                height: 24,
                 child: CustomPaint(painter: _TrendPainter()),
               ),
             ],
           ),
-          const SizedBox(height: 14),
+          const Spacer(),
+          Text(
+            label.toUpperCase(),
+            style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.8,
+              color: AdminWebColors.textSecondary,
+            ),
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 4),
           Text(
             value,
             style: const TextStyle(
-              fontSize: 26,
-              fontWeight: FontWeight.bold,
+              fontSize: 28,
+              fontWeight: FontWeight.w900,
               color: AdminWebColors.textPrimary,
+              letterSpacing: -0.5,
             ),
           ),
           const SizedBox(height: 2),
           Text(
             subtitle,
-            style: const TextStyle(
-              fontSize: 11.5,
-              color: AdminWebColors.textSecondary,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: subtitle.contains('+') || subtitle.contains('Active') 
+                  ? AdminWebColors.success 
+                  : AdminWebColors.textSecondary,
             ),
             overflow: TextOverflow.ellipsis,
           ),
