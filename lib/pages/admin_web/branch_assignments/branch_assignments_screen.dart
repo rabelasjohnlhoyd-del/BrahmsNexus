@@ -313,3 +313,4 @@ class _AssignmentCard extends StatelessWidget {
     );
   }
 }
+

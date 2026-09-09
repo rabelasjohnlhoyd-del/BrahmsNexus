@@ -455,3 +455,4 @@ class _SalesRecordCard extends StatelessWidget {
     );
   }
 }
+

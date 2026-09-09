@@ -133,3 +133,4 @@ class _UpdateStockScreenState extends State<UpdateStockScreen> {
     );
   }
 }
+

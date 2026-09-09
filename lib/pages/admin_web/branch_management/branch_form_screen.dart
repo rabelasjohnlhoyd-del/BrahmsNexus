@@ -174,3 +174,4 @@ class _BranchFormScreenState extends State<BranchFormScreen> {
     );
   }
 }
+

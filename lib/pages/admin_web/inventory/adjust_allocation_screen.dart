@@ -135,3 +135,4 @@ class _AdjustAllocationScreenState extends State<AdjustAllocationScreen> {
     );
   }
 }
+

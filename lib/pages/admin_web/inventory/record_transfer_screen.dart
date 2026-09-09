@@ -185,3 +185,4 @@ class _RecordTransferScreenState extends State<RecordTransferScreen> {
     );
   }
 }
+

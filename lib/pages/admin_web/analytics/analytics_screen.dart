@@ -453,3 +453,4 @@ class _RecommendationCard extends StatelessWidget {
     );
   }
 }
+

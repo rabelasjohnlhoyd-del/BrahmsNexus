@@ -205,3 +205,4 @@ class _GridPainter extends CustomPainter {
   bool shouldRepaint(covariant _GridPainter oldDelegate) =>
       oldDelegate.steps != steps;
 }
+

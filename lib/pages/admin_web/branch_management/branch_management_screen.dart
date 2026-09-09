@@ -190,3 +190,4 @@ class _BranchManagementScreenState extends State<BranchManagementScreen> {
   );
 }
 }
+

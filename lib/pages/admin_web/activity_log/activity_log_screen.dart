@@ -207,3 +207,4 @@ class _ActivityLogScreenState extends State<ActivityLogScreen> {
     return '${dt.month}/${dt.day} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
   }
 }
+
