@@ -52,26 +52,7 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
 
   void _updateShellActions() {
     final shell = context.findAncestorStateOfType<AdminWebShellState>();
-    shell?.setActions([
-      ElevatedButton.icon(
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.white.withValues(alpha: 0.15),
-          foregroundColor: Colors.white,
-          side: BorderSide(color: Colors.white.withValues(alpha: 0.3)),
-          elevation: 0,
-        ),
-        label: const Text('POST ANNOUNCEMENT'),
-        icon: _isPosting
-            ? const SizedBox(
-                width: 18,
-                height: 18,
-                child: CircularProgressIndicator(
-                    strokeWidth: 2, color: Colors.white),
-              )
-            : const Icon(Icons.send_rounded, size: 18),
-        onPressed: _isPosting ? null : _postAnnouncement,
-      ),
-    ]);
+    shell?.setActions([]);
   }
 
   @override
@@ -110,7 +91,30 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
   }
 
   void _deleteAnnouncement(String id) {
-    setState(() => _announcements.removeWhere((a) => a.id == id));
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Confirm Delete'),
+        content: const Text('Are you sure you want to delete this announcement?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('CANCEL'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: AdminWebColors.error),
+            onPressed: () {
+              setState(() => _announcements.removeWhere((a) => a.id == id));
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Announcement deleted.')),
+              );
+            },
+            child: const Text('DELETE', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
   }
 
   String _formatDate(DateTime date) {

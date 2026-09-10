@@ -28,19 +28,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
 
   void _updateShellActions() {
     final shell = context.findAncestorStateOfType<AdminWebShellState>();
-    shell?.setActions([
-      ElevatedButton.icon(
-        onPressed: _exportReport,
-        icon: const Icon(Icons.download_rounded, size: 18, color: Colors.white),
-        label: const Text('EXPORT REPORT'),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.white.withValues(alpha: 0.15),
-          foregroundColor: Colors.white,
-          side: BorderSide(color: Colors.white.withValues(alpha: 0.3)),
-          elevation: 0,
-        ),
-      ),
-    ]);
+    shell?.setActions([]); // Always keep header clean
   }
 
   @override
@@ -57,10 +45,10 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const SizedBox(height: 20),
-                if (isMobile) ...[
-                  SizedBox(
-                    width: double.infinity,
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 240),
                     child: ElevatedButton.icon(
                       onPressed: _exportReport,
                       icon: const Icon(Icons.download_rounded, size: 18),
@@ -68,15 +56,16 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AdminWebColors.accent,
                         foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 20, vertical: 16),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(8),
                         ),
                       ),
                     ),
                   ),
-                  const SizedBox(height: 20),
-                ],
+                ),
+                const SizedBox(height: 20),
                 // --- 1. DESCRIPTIVE ANALYTICS ---
                 _SectionHeader(
                   title: 'Descriptive Analytics',

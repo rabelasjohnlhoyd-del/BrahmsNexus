@@ -35,32 +35,7 @@ class _AdjustAllocationScreenState extends State<AdjustAllocationScreen> {
   void _updateShellActions() {
     final shell = context.findAncestorStateOfType<AdminWebShellState>();
     shell?.setTitle('ADJUST ALLOCATION');
-    shell?.setActions([
-      TextButton(
-        onPressed: _isSaving ? null : () => Navigator.of(context).pop(),
-        child: const Text('CANCEL', style: TextStyle(color: Colors.white)),
-      ),
-      ElevatedButton.icon(
-        onPressed: _isSaving ? null : _handleSave,
-        icon: _isSaving
-            ? const SizedBox(
-                width: 18,
-                height: 18,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                ),
-              )
-            : const Icon(Icons.check_rounded, size: 18, color: Colors.white),
-        label: const Text('SAVE ALLOCATION'),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.white.withValues(alpha: 0.15),
-          foregroundColor: Colors.white,
-          side: BorderSide(color: Colors.white.withValues(alpha: 0.3)),
-          elevation: 0,
-        ),
-      ),
-    ]);
+    shell?.setActions([]);
   }
 
   Future<void> _handleSave() async {

@@ -1,15 +1,11 @@
 import 'package:flutter/material.dart';
 import '../../../models/sales_record.dart';
+import '../../../models/branch.dart';
 import '../admin_web_colors.dart';
 import '../admin_web_shell.dart';
 import '../admin_web_widgets/glass_card.dart';
 
-/// Admin monitors daily sales per branch/employee here. Wage/commission
-/// and expected cash remittance are auto-computed from the values
-/// Staff submit (see Sales and Auto-Payroll flowchart).
-///
-/// NOTE: Mock data for now — once Supabase/Firebase are wired up, this
-/// reads the real `sales_records` table.
+/// Admin monitors daily sales per branch/employee here.
 class SalesPayrollScreen extends StatefulWidget {
   const SalesPayrollScreen({super.key});
 
@@ -18,8 +14,6 @@ class SalesPayrollScreen extends StatefulWidget {
 }
 
 class _SalesPayrollScreenState extends State<SalesPayrollScreen> {
-  double _commissionRate = 5;
-
   static const double _wideBreakpoint = 700;
 
   final List<SalesRecord> _records = [
@@ -61,7 +55,7 @@ class _SalesPayrollScreenState extends State<SalesPayrollScreen> {
   String? _branchFilter;
 
   List<SalesRecord> get _visibleRecords {
-    if (_branchFilter == null) return _records;
+    if (_branchFilter == null || _branchFilter == 'All') return _records;
     return _records.where((r) => r.branchName == _branchFilter).toList();
   }
 
@@ -86,71 +80,11 @@ class _SalesPayrollScreenState extends State<SalesPayrollScreen> {
 
   void _updateShellActions() {
     final shell = context.findAncestorStateOfType<AdminWebShellState>();
-    shell?.setActions([
-      OutlinedButton.icon(
-        onPressed: _showSetRateDialog,
-        icon: const Icon(Icons.tune_rounded, size: 18, color: Colors.white),
-        label: Text(
-          'RATE: ₱${_commissionRate.toStringAsFixed(2)}',
-          style: const TextStyle(color: Colors.white),
-        ),
-        style: OutlinedButton.styleFrom(
-          side: BorderSide(color: Colors.white.withValues(alpha: 0.3)),
-          backgroundColor: Colors.white.withValues(alpha: 0.1),
-        ),
-      ),
-      ElevatedButton.icon(
-        onPressed: () {},
-        icon: const Icon(Icons.ios_share_rounded, size: 18, color: Colors.white),
-        label: const Text('EXPORT'),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.white.withValues(alpha: 0.15),
-          foregroundColor: Colors.white,
-          side: BorderSide(color: Colors.white.withValues(alpha: 0.3)),
-          elevation: 0,
-        ),
-      ),
-    ]);
-  }
-
-  Future<void> _showSetRateDialog() async {
-    final controller =
-        TextEditingController(text: _commissionRate.toStringAsFixed(2));
-    await showDialog(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Set Commission Rate'),
-        content: TextField(
-          controller: controller,
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          decoration:
-              const InputDecoration(labelText: 'Rate per portion (₱)'),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              final value = double.tryParse(controller.text);
-              if (value != null) {
-                setState(() => _commissionRate = value);
-                _updateShellActions();
-              }
-              Navigator.of(dialogContext).pop();
-            },
-            child: const Text('Save'),
-          ),
-        ],
-      ),
-    );
+    shell?.setActions([]);
   }
 
   @override
   Widget build(BuildContext context) {
-    final branches = _records.map((r) => r.branchName).toSet().toList();
-
     return Container(
       color: AdminWebColors.background,
       child: LayoutBuilder(
@@ -163,128 +97,109 @@ class _SalesPayrollScreenState extends State<SalesPayrollScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const SizedBox(height: 24),
-                if (!isWide) ...[
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: _showSetRateDialog,
-                          icon: const Icon(Icons.tune_rounded, size: 16),
-                          label: Text(
-                            'RATE: ₱${_commissionRate.toStringAsFixed(2)}',
-                            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
-                          ),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: AdminWebColors.accent,
-                            side: const BorderSide(color: AdminWebColors.accent),
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      ElevatedButton.icon(
-                        onPressed: () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Payroll summary exported.')),
-                          );
-                        },
-                        icon: const Icon(Icons.ios_share_rounded, size: 16),
-                        label: const Text('EXPORT'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AdminWebColors.accent,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                ],
-                isWide
-                  ? Row(
-                      children: [
-                        Expanded(
-                          child: _summaryCard(
-                            'Total Gross Sales',
-                            '₱${_totalSales.toStringAsFixed(0)}',
-                            Icons.payments_rounded,
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: _summaryCard(
-                            'Staff Payroll (Wages)',
-                            '₱${_totalWages.toStringAsFixed(0)}',
-                            Icons.badge_rounded,
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: _summaryCard(
-                            'Expected Remittance',
-                            '₱${_totalRemittance.toStringAsFixed(0)}',
-                            Icons.account_balance_wallet_rounded,
-                          ),
-                        ),
-                      ],
-                    )
-                  : Column(
-                      children: [
-                        _summaryCard(
-                          'Total Gross Sales',
-                          '₱${_totalSales.toStringAsFixed(0)}',
-                          Icons.payments_rounded,
-                        ),
-                        const SizedBox(height: 12),
-                        _summaryCard(
-                          'Staff Payroll (Wages)',
-                          '₱${_totalWages.toStringAsFixed(0)}',
-                          Icons.badge_rounded,
-                        ),
-                        const SizedBox(height: 12),
-                        _summaryCard(
-                          'Expected Remittance',
-                          '₱${_totalRemittance.toStringAsFixed(0)}',
-                          Icons.account_balance_wallet_rounded,
-                        ),
-                      ],
-                    ),
-              const SizedBox(height: 32),
-              const Text(
-                'FILTER BY BRANCH',
-                style: TextStyle(
-                  fontWeight: FontWeight.w800,
-                  fontSize: 11,
-                  letterSpacing: 1.0,
-                  color: AdminWebColors.textSecondary,
-                ),
-              ),
-              const SizedBox(height: 12),
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
                   children: [
-                    ChoiceChip(
-                      label: const Text('ALL BRANCHES'),
-                      selected: _branchFilter == null,
-                      onSelected: (_) => setState(() => _branchFilter = null),
-                    ),
-                    const SizedBox(width: 8),
-                    ...branches.map(
-                      (b) => Padding(
-                        padding: const EdgeInsets.only(right: 8),
-                        child: ChoiceChip(
-                          label: Text(b.toUpperCase()),
-                          selected: _branchFilter == b,
-                          onSelected: (_) => setState(() => _branchFilter = b),
-                        ),
+                    ElevatedButton.icon(
+                      onPressed: () {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                              content: Text('Payroll summary exported.')),
+                        );
+                      },
+                      icon: const Icon(Icons.ios_share_rounded, size: 16),
+                      label: const Text('EXPORT'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AdminWebColors.accent,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 18),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10)),
+                        elevation: 0,
                       ),
                     ),
                   ],
                 ),
+                const SizedBox(height: 24),
+                isWide
+                    ? Row(
+                        children: [
+                          Expanded(
+                            child: _summaryCard(
+                              'Total Gross Sales',
+                              '₱${_totalSales.toStringAsFixed(0)}',
+                              Icons.payments_rounded,
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: _summaryCard(
+                              'Staff Payroll (Wages)',
+                              '₱${_totalWages.toStringAsFixed(0)}',
+                              Icons.badge_rounded,
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: _summaryCard(
+                              'Expected Remittance',
+                              '₱${_totalRemittance.toStringAsFixed(0)}',
+                              Icons.account_balance_wallet_rounded,
+                            ),
+                          ),
+                        ],
+                      )
+                    : Column(
+                        children: [
+                          _summaryCard(
+                            'Total Gross Sales',
+                            '₱${_totalSales.toStringAsFixed(0)}',
+                            Icons.payments_rounded,
+                          ),
+                          const SizedBox(height: 12),
+                          _summaryCard(
+                            'Staff Payroll (Wages)',
+                            '₱${_totalWages.toStringAsFixed(0)}',
+                            Icons.badge_rounded,
+                          ),
+                          const SizedBox(height: 12),
+                          _summaryCard(
+                            'Expected Remittance',
+                            '₱${_totalRemittance.toStringAsFixed(0)}',
+                            Icons.account_balance_wallet_rounded,
+                          ),
+                        ],
+                      ),
+              const SizedBox(height: 32),
+              
+              // NEW DROPDOWN FILTER
+              Row(
+                children: [
+                  Expanded(
+                    child: DropdownButtonFormField<String>(
+                      value: _branchFilter ?? 'All',
+                      decoration: const InputDecoration(
+                        labelText: 'FILTER BY BRANCH',
+                        isDense: true,
+                        prefixIcon: Icon(Icons.storefront_rounded, size: 18),
+                      ),
+                      items: [
+                        const DropdownMenuItem(value: 'All', child: Text('ALL BRANCHES')),
+                        ...kSampleBranches.map((b) => DropdownMenuItem(
+                          value: b.fullName,
+                          child: Text(b.fullName.toUpperCase()),
+                        )),
+                      ],
+                      onChanged: (v) {
+                        setState(() => _branchFilter = (v == 'All' ? null : v));
+                      },
+                    ),
+                  ),
+                  if (isWide) const Spacer(),
+                ],
               ),
+              
               const SizedBox(height: 24),
               if (_visibleRecords.isEmpty)
                 const Center(
@@ -363,9 +278,6 @@ class _SalesPayrollScreenState extends State<SalesPayrollScreen> {
   }
 }
 
-/// Isang sales record — Row (magkatabi, 6 elements) sa malawak na
-/// screen; Column na may 2x2 grid ng mini-stats sa makitid na screen
-/// (phone browser) para hindi masiksik.
 class _SalesRecordCard extends StatelessWidget {
   const _SalesRecordCard({required this.record, required this.isWide});
 
@@ -493,4 +405,3 @@ class _SalesRecordCard extends StatelessWidget {
     );
   }
 }
-

@@ -28,4 +28,24 @@ class BranchAssignment {
   final String branchName;
   final DateTime date;
   final WorkStatus workStatus;
+
+  BranchAssignment copyWith({
+    String? id,
+    String? employeeId,
+    String? employeeName,
+    String? branchId,
+    String? branchName,
+    DateTime? date,
+    WorkStatus? workStatus,
+  }) {
+    return BranchAssignment(
+      id: id ?? this.id,
+      employeeId: employeeId ?? this.employeeId,
+      employeeName: employeeName ?? this.employeeName,
+      branchId: branchId ?? this.branchId,
+      branchName: branchName ?? this.branchName,
+      date: date ?? this.date,
+      workStatus: workStatus ?? this.workStatus,
+    );
+  }
 }

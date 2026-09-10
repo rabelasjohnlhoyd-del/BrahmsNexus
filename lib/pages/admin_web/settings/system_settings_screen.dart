@@ -34,19 +34,7 @@ class _SystemSettingsScreenState extends State<SystemSettingsScreen> {
 
   void _updateShellActions() {
     final shell = context.findAncestorStateOfType<AdminWebShellState>();
-    shell?.setActions([
-      ElevatedButton.icon(
-        onPressed: _saveSettings,
-        icon: const Icon(Icons.save_rounded, size: 18, color: Colors.white),
-        label: const Text('SAVE SETTINGS'),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.white.withValues(alpha: 0.15),
-          foregroundColor: Colors.white,
-          side: BorderSide(color: Colors.white.withValues(alpha: 0.3)),
-          elevation: 0,
-        ),
-      ),
-    ]);
+    shell?.setActions([]);
   }
 
   @override

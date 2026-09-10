@@ -25,6 +25,9 @@ class ActivityLogScreen extends StatefulWidget {
 }
 
 class _ActivityLogScreenState extends State<ActivityLogScreen> {
+  int _currentPage = 0;
+  static const int _pageSize = 10;
+
   @override
   void initState() {
     super.initState();
@@ -138,63 +141,69 @@ class _ActivityLogScreenState extends State<ActivityLogScreen> {
               ),
             )
           else
-            ListView.separated(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: filtered.length,
-              separatorBuilder: (context, index) => const SizedBox(height: 10),
-              itemBuilder: (context, index) {
-                final e = filtered[index];
-                return GlassCard(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: AdminWebColors.accent.withValues(alpha: 0.1),
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(
-                          e.type == 'User'
-                              ? Icons.person_rounded
-                              : e.type == 'Inventory'
-                                  ? Icons.inventory_2_rounded
-                                  : Icons.settings_suggest_rounded,
-                          color: AdminWebColors.accent,
-                          size: 20,
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              e.action,
-                              style: const TextStyle(
-                                fontSize: 14.5,
-                                fontWeight: FontWeight.w600,
-                                color: AdminWebColors.textPrimary,
-                              ),
+            Column(
+              children: [
+                ListView.separated(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: (filtered.length - (_currentPage * _pageSize)).clamp(0, _pageSize),
+                  separatorBuilder: (context, index) => const SizedBox(height: 10),
+                  itemBuilder: (context, index) {
+                    final e = filtered[(_currentPage * _pageSize) + index];
+                    return GlassCard(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: AdminWebColors.accent.withValues(alpha: 0.1),
+                              shape: BoxShape.circle,
                             ),
-                            const SizedBox(height: 2),
-                            Text(
-                              '${e.actor.toUpperCase()} • ${_formatDate(e.timestamp)}',
-                              style: const TextStyle(
-                                fontSize: 11.5,
-                                fontWeight: FontWeight.w500,
-                                color: AdminWebColors.textSecondary,
-                                letterSpacing: 0.3,
-                              ),
+                            child: Icon(
+                              e.type == 'User'
+                                  ? Icons.person_rounded
+                                  : e.type == 'Inventory'
+                                      ? Icons.inventory_2_rounded
+                                      : Icons.settings_suggest_rounded,
+                              color: AdminWebColors.accent,
+                              size: 20,
                             ),
-                          ],
-                        ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  e.action,
+                                  style: const TextStyle(
+                                    fontSize: 14.5,
+                                    fontWeight: FontWeight.w600,
+                                    color: AdminWebColors.textPrimary,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  '${e.actor.toUpperCase()} • ${_formatDate(e.timestamp)}',
+                                  style: const TextStyle(
+                                    fontSize: 11.5,
+                                    fontWeight: FontWeight.w500,
+                                    color: AdminWebColors.textSecondary,
+                                    letterSpacing: 0.3,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
-                );
-              },
+                    );
+                  },
+                ),
+                const SizedBox(height: 24),
+                _buildPagination(filtered.length),
+              ],
             ),
           const SizedBox(height: 40),
         ],
@@ -202,6 +211,29 @@ class _ActivityLogScreenState extends State<ActivityLogScreen> {
     ),
   );
 }
+
+  Widget _buildPagination(int totalItems) {
+    final totalPages = (totalItems / _pageSize).ceil();
+    if (totalPages <= 1) return const SizedBox.shrink();
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        IconButton(
+          icon: const Icon(Icons.chevron_left_rounded),
+          onPressed: _currentPage > 0 ? () => setState(() => _currentPage--) : null,
+        ),
+        Text(
+          'Page ${_currentPage + 1} of $totalPages',
+          style: const TextStyle(fontWeight: FontWeight.bold, color: AdminWebColors.textSecondary),
+        ),
+        IconButton(
+          icon: const Icon(Icons.chevron_right_rounded),
+          onPressed: _currentPage < totalPages - 1 ? () => setState(() => _currentPage++) : null,
+        ),
+      ],
+    );
+  }
 
   String _formatDate(DateTime dt) {
     return '${dt.month}/${dt.day} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';

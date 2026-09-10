@@ -1,114 +1,121 @@
 import 'branch.dart';
 
 /// Represents a staff/employee account managed by the Administrator.
-///
-/// NOTE: This is a front-end-only model for now. Credentials (password)
-/// are NOT stored here — once Firebase Auth is wired up, account creation
-/// will call Firebase Auth directly and this model will only hold the
-/// profile/record data that lives in Firestore.
 class StaffMember {
   StaffMember({
     required this.id,
-    required this.fullName,
+    required this.firstName,
+    this.middleName = '',
+    required this.lastName,
     required this.username,
     required this.branch,
     required this.position,
     this.email,
     this.phone,
+    this.address = '',
+    this.age = '',
     this.isActive = true,
+    this.isArchived = false,
     DateTime? dateAdded,
   }) : dateAdded = dateAdded ?? DateTime.now();
 
   final String id;
-  final String fullName;
+  final String firstName;
+  final String middleName;
+  final String lastName;
   final String username;
   final String branch;
   final String position;
   final String? email;
   final String? phone;
+  final String address;
+  final String age;
   final bool isActive;
+  final bool isArchived;
   final DateTime dateAdded;
 
+  String get fullName => '$firstName ${middleName.isNotEmpty ? '$middleName ' : ''}$lastName';
+
   StaffMember copyWith({
-    String? fullName,
+    String? firstName,
+    String? middleName,
+    String? lastName,
     String? username,
     String? branch,
     String? position,
     String? email,
     String? phone,
+    String? address,
+    String? age,
     bool? isActive,
+    bool? isArchived,
   }) {
     return StaffMember(
       id: id,
-      fullName: fullName ?? this.fullName,
+      firstName: firstName ?? this.firstName,
+      middleName: middleName ?? this.middleName,
+      lastName: lastName ?? this.lastName,
       username: username ?? this.username,
       branch: branch ?? this.branch,
       position: position ?? this.position,
       email: email ?? this.email,
       phone: phone ?? this.phone,
+      address: address ?? this.address,
+      age: age ?? this.age,
       isActive: isActive ?? this.isActive,
+      isArchived: isArchived ?? this.isArchived,
       dateAdded: dateAdded,
     );
   }
 
   /// Two-letter initials used for the avatar bubble in the staff list.
   String get initials {
-    final parts = fullName.trim().split(RegExp(r'\s+'));
-    if (parts.isEmpty || parts.first.isEmpty) return '?';
-    if (parts.length == 1) return parts.first.substring(0, 1).toUpperCase();
-    return (parts.first.substring(0, 1) + parts.last.substring(0, 1))
-        .toUpperCase();
+    if (firstName.isEmpty || lastName.isEmpty) return '?';
+    return (firstName.substring(0, 1) + lastName.substring(0, 1)).toUpperCase();
   }
 }
 
-/// Branch names for pickers/dropdowns — derived from [kSampleBranches]
-/// (see models/branch.dart), which is also what the Driver app's Route
-/// tab and the Owner app's Assignments tab read. Previously this was a
-/// second, separately hardcoded list that could (and did) drift out of
-/// sync with the branch list used elsewhere.
-final List<String> kBranchOptions =
-    kSampleBranches.map((b) => b.fullName).toList();
+final List<String> kBranchOptions = kSampleBranches.map((b) => b.fullName).toList();
 
-/// Shared mock staff directory — the single source of truth for staff
-/// accounts, used by both Staff Management (admin_web) and the Owner
-/// app's Assignments tab. Previously each screen had its own separate
-/// hardcoded employee list with names that didn't match.
+final List<String> kPositionOptions = [
+  'Production Cook',
+  'Production Meat Cutter',
+  'Branch Cook',
+  'Driver',
+];
+
+/// Shared mock staff directory
 final List<StaffMember> kSampleStaff = [
   StaffMember(
     id: 'sample-1',
-    fullName: 'Maria Santos',
+    firstName: 'Maria',
+    lastName: 'Santos',
     username: 'maria.santos',
     branch: kBranchOptions[0],
     position: 'Branch Cook',
     email: 'maria.santos@example.com',
+    address: 'Brgy. Gatid, Sta. Cruz',
+    age: '24',
   ),
   StaffMember(
     id: 'sample-2',
-    fullName: 'Juan Dela Cruz',
+    firstName: 'Juan',
+    lastName: 'Dela Cruz',
     username: 'juan.delacruz',
     branch: kBranchOptions[1],
     position: 'Branch Cook',
     isActive: false,
+    address: 'Brgy. Labuin, Pila',
+    age: '29',
   ),
   StaffMember(
     id: 'sample-driver',
-    fullName: 'Robert Tan',
+    firstName: 'Robert',
+    lastName: 'Tan',
     username: 'robert.tan',
     branch: 'N/A',
     position: 'Driver',
-  ),
-  StaffMember(
-    id: 'sample-menes',
-    fullName: 'Menes',
-    username: 'menes.cook',
-    branch: 'Central Production Kitchen',
-    position: 'Production Area Cook',
-  ),
-  StaffMember(
-    id: 'sample-abby',
-    fullName: 'Abby',
-    username: 'abby.cutter',
-    branch: 'Central Production Kitchen',
-    position: 'Production Area Meat Cutter',
+    address: 'Brgy. Dayap, Calauan',
+    age: '35',
   ),
 ];

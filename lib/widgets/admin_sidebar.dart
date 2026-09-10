@@ -64,20 +64,20 @@ class AdminSidebar extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'BRAHMS',
+                        'BRAHMSNEXUS',
                         style: TextStyle(
                           fontWeight: FontWeight.w900,
                           color: Colors.white,
-                          letterSpacing: 2,
+                          letterSpacing: 1.5,
                           fontSize: 16,
                         ),
                       ),
                       Text(
-                        'NEXUS SYSTEM',
+                        'MANAGEMENT SYSTEM',
                         style: TextStyle(
-                          fontWeight: FontWeight.w500,
+                          fontWeight: FontWeight.w600,
                           color: Colors.white70,
-                          letterSpacing: 1,
+                          letterSpacing: 0.5,
                           fontSize: 10,
                         ),
                       ),

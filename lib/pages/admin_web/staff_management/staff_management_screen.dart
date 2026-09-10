@@ -19,13 +19,13 @@ class StaffManagementScreen extends StatefulWidget {
 }
 
 class _StaffManagementScreenState extends State<StaffManagementScreen> {
-  // Seeded from the shared kSampleStaff directory (models/staff_member.dart)
-  // so this list stays in sync with the Owner app's Assignments tab —
-  // previously this had its own separate hardcoded entries.
   final List<StaffMember> _staff = List<StaffMember>.from(kSampleStaff);
 
   final _searchController = TextEditingController();
   String _query = '';
+  bool _showArchived = false;
+  int _currentPage = 1;
+  static const int _pageSize = 10;
 
   @override
   void dispose() {
@@ -34,14 +34,42 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
   }
 
   List<StaffMember> get _filteredStaff {
-    if (_query.trim().isEmpty) return _staff;
+    final base = _staff.where((s) => s.isArchived == _showArchived).toList();
+    if (_query.trim().isEmpty) return base;
     final q = _query.trim().toLowerCase();
-    return _staff.where((s) {
+    return base.where((s) {
       return s.fullName.toLowerCase().contains(q) ||
           s.username.toLowerCase().contains(q) ||
           s.branch.toLowerCase().contains(q) ||
           s.position.toLowerCase().contains(q);
     }).toList();
+  }
+
+  List<StaffMember> get _paginatedStaff {
+    final filtered = _filteredStaff;
+    final start = (_currentPage - 1) * _pageSize;
+    if (start >= filtered.length) return [];
+    final end = start + _pageSize;
+    return filtered.sublist(start, end > filtered.length ? filtered.length : end);
+  }
+
+  int get _totalPages {
+    final count = _filteredStaff.length;
+    if (count == 0) return 1;
+    return (count / _pageSize).ceil();
+  }
+
+  void _changePage(int page) {
+    setState(() => _currentPage = page);
+  }
+
+  void _toggleView() {
+    setState(() {
+      _showArchived = !_showArchived;
+      _currentPage = 1;
+      _query = '';
+      _searchController.clear();
+    });
   }
 
   Future<void> _openAddStaff() async {
@@ -54,7 +82,10 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
 
     if (result == null) return;
 
-    setState(() => _staff.insert(0, result));
+    setState(() {
+      _staff.insert(0, result);
+      _currentPage = 1;
+    });
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('${result.fullName} was added successfully.')),
@@ -89,14 +120,17 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
     );
   }
 
-  Future<void> _confirmRemove(StaffMember member) async {
+  Future<void> _toggleArchive(StaffMember member) async {
+    final action = member.isArchived ? 'Restore' : 'Archive';
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Remove Staff Account'),
+        title: Text('$action Staff Account'),
         content: Text(
-          'Are you sure you want to remove ${member.fullName}\'s account? '
-          'This action cannot be undone.',
+          member.isArchived
+              ? 'Are you sure you want to restore ${member.fullName}\'s account to the active list?'
+              : 'Are you sure you want to archive ${member.fullName}\'s account? '
+                  'They will no longer appear in the active staff list.',
         ),
         actions: [
           TextButton(
@@ -105,18 +139,68 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
           ),
           TextButton(
             onPressed: () => Navigator.of(context).pop(true),
-            style: TextButton.styleFrom(foregroundColor: AdminWebColors.error),
-            child: const Text('Remove'),
+            style: TextButton.styleFrom(
+              foregroundColor: member.isArchived
+                  ? AdminWebColors.success
+                  : AdminWebColors.error,
+            ),
+            child: Text(action),
           ),
         ],
       ),
     );
 
     if (confirmed == true) {
-      setState(() => _staff.removeWhere((s) => s.id == member.id));
+      setState(() {
+        final index = _staff.indexWhere((s) => s.id == member.id);
+        if (index != -1) {
+          _staff[index] = member.copyWith(isArchived: !member.isArchived);
+        }
+      });
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${member.fullName} was removed.')),
+        SnackBar(
+          content: Text(
+            '${member.fullName} was ${member.isArchived ? 'restored' : 'archived'}.',
+          ),
+        ),
+      );
+    }
+  }
+
+  Future<void> _permanentDelete(StaffMember member) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Permanent Delete'),
+        content: Text(
+          'Are you sure you want to PERMANENTLY delete this account? This action cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: TextButton.styleFrom(
+              foregroundColor: AdminWebColors.error,
+            ),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      setState(() {
+        _staff.removeWhere((s) => s.id == member.id);
+      });
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${member.fullName} was permanently deleted.'),
+        ),
       );
     }
   }
@@ -135,24 +219,13 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
 
   void _updateShellActions() {
     final shell = context.findAncestorStateOfType<AdminWebShellState>();
-    shell?.setActions([
-      ElevatedButton.icon(
-        onPressed: _openAddStaff,
-        icon: const Icon(Icons.person_add_alt_1, size: 18, color: Colors.white),
-        label: const Text('ADD STAFF'),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.white.withValues(alpha: 0.15),
-          foregroundColor: Colors.white,
-          side: BorderSide(color: Colors.white.withValues(alpha: 0.3)),
-          elevation: 0,
-        ),
-      ),
-    ]);
+    shell?.setActions([]); // Always keep header clean
   }
 
   @override
   Widget build(BuildContext context) {
-    final staff = _filteredStaff;
+    final staff = _paginatedStaff;
+    final totalPages = _totalPages;
 
     return Container(
       color: AdminWebColors.background,
@@ -160,17 +233,20 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(24, 20, 24, 16),
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final isWide = constraints.maxWidth >= 700;
-                return Row(
+            child: Column(
+              children: [
+                Row(
                   children: [
                     Expanded(
                       child: TextField(
                         controller: _searchController,
-                        onChanged: (value) => setState(() => _query = value),
+                        onChanged: (value) => setState(() {
+                          _query = value;
+                          _currentPage = 1;
+                        }),
                         decoration: InputDecoration(
-                          hintText: 'SEARCH BY NAME, USERNAME, BRANCH, OR POSITION',
+                          hintText:
+                              'SEARCH BY NAME, USERNAME, BRANCH, OR POSITION',
                           prefixIcon: const Icon(Icons.search_rounded, size: 20),
                           isDense: true,
                           hintStyle: const TextStyle(
@@ -183,35 +259,89 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
                                   icon: const Icon(Icons.close_rounded, size: 18),
                                   onPressed: () {
                                     _searchController.clear();
-                                    setState(() => _query = '');
+                                    setState(() {
+                                      _query = '';
+                                      _currentPage = 1;
+                                    });
                                   },
                                 ),
                         ),
                       ),
                     ),
-                    if (!isWide) ...[
-                      const SizedBox(width: 12),
-                      ElevatedButton.icon(
-                        onPressed: _openAddStaff,
-                        icon: const Icon(Icons.person_add_alt_1, size: 16),
-                        label: const Text('ADD STAFF'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AdminWebColors.accent,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                          elevation: 0,
-                        ),
+                    const SizedBox(width: 16),
+                    OutlinedButton.icon(
+                      onPressed: _toggleView,
+                      icon: Icon(
+                        _showArchived
+                            ? Icons.arrow_back_rounded
+                            : Icons.archive_outlined,
+                        size: 18,
                       ),
-                    ],
+                      label: Text(
+                        _showArchived ? 'BACK TO ACTIVE' : 'VIEW ARCHIVED',
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 20, vertical: 20),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    ElevatedButton.icon(
+                      onPressed: _openAddStaff,
+                      icon: const Icon(Icons.person_add_alt_1, size: 18),
+                      label: const Text('ADD NEW STAFF'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AdminWebColors.accent,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 20, vertical: 20),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
+                        elevation: 0,
+                      ),
+                    ),
                   ],
-                );
-              },
+                ),
+                if (_showArchived) ...[
+                  const SizedBox(height: 12),
+                  Container(
+                    width: double.infinity,
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: AdminWebColors.error.withValues(alpha: 0.05),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: AdminWebColors.error.withValues(alpha: 0.2),
+                      ),
+                    ),
+                    child: const Row(
+                      children: [
+                        Icon(Icons.info_outline_rounded,
+                            size: 16, color: AdminWebColors.error),
+                        SizedBox(width: 8),
+                        Text(
+                          'VIEWING ARCHIVED ACCOUNTS',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            color: AdminWebColors.error,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ],
             ),
           ),
           Expanded(
             child: staff.isEmpty
-                ? _EmptyState(hasQuery: _query.isNotEmpty)
+                ? _EmptyState(
+                    hasQuery: _query.isNotEmpty,
+                    isArchivedView: _showArchived,
+                  )
                 : ListView.separated(
                     padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
                     itemCount: staff.length,
@@ -222,11 +352,18 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
                         member: member,
                         onEdit: () => _openEditStaff(member),
                         onToggleStatus: () => _toggleStatus(member),
-                        onRemove: () => _confirmRemove(member),
+                        onArchive: () => _toggleArchive(member),
+                        onPermanentDelete: () => _permanentDelete(member),
                       );
                     },
                   ),
           ),
+          if (_filteredStaff.length > _pageSize)
+            _PaginationFooter(
+              currentPage: _currentPage,
+              totalPages: totalPages,
+              onPageChanged: _changePage,
+            ),
         ],
       ),
     );
@@ -238,13 +375,15 @@ class _StaffTile extends StatelessWidget {
     required this.member,
     required this.onEdit,
     required this.onToggleStatus,
-    required this.onRemove,
+    required this.onArchive,
+    required this.onPermanentDelete,
   });
 
   final StaffMember member;
   final VoidCallback onEdit;
   final VoidCallback onToggleStatus;
-  final VoidCallback onRemove;
+  final VoidCallback onArchive;
+  final VoidCallback onPermanentDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -323,11 +462,13 @@ class _StaffTile extends StatelessWidget {
           ),
           const SizedBox(width: 8),
           PopupMenuButton<String>(
-            icon: const Icon(Icons.more_vert_rounded, color: AdminWebColors.textSecondary),
+            icon: const Icon(Icons.more_vert_rounded,
+                color: AdminWebColors.textSecondary),
             onSelected: (value) {
               if (value == 'edit') onEdit();
               if (value == 'toggle') onToggleStatus();
-              if (value == 'remove') onRemove();
+              if (value == 'archive') onArchive();
+              if (value == 'delete') onPermanentDelete();
             },
             itemBuilder: (context) => [
               const PopupMenuItem(
@@ -344,23 +485,62 @@ class _StaffTile extends StatelessWidget {
                 value: 'toggle',
                 child: Row(
                   children: [
-                    Icon(member.isActive ? Icons.block_flipped : Icons.check_circle_outline, size: 18),
+                    Icon(
+                        member.isActive
+                            ? Icons.block_flipped
+                            : Icons.check_circle_outline,
+                        size: 18),
                     SizedBox(width: 10),
-                    Text(member.isActive ? 'Deactivate Account' : 'Activate Account'),
+                    Text(member.isActive
+                        ? 'Deactivate Account'
+                        : 'Activate Account'),
                   ],
                 ),
               ),
               const PopupMenuDivider(),
-              const PopupMenuItem(
-                value: 'remove',
+              PopupMenuItem(
+                value: 'archive',
                 child: Row(
                   children: [
-                    Icon(Icons.delete_outline_rounded, size: 18, color: AdminWebColors.error),
-                    SizedBox(width: 10),
-                    Text('Remove Account', style: TextStyle(color: AdminWebColors.error)),
+                    Icon(
+                      member.isArchived
+                          ? Icons.unarchive_outlined
+                          : Icons.archive_outlined,
+                      size: 18,
+                      color: member.isArchived
+                          ? AdminWebColors.success
+                          : AdminWebColors.error,
+                    ),
+                    const SizedBox(width: 10),
+                    Text(
+                      member.isArchived ? 'Restore Account' : 'Archive Account',
+                      style: TextStyle(
+                        color: member.isArchived
+                            ? AdminWebColors.success
+                            : AdminWebColors.error,
+                      ),
+                    ),
                   ],
                 ),
               ),
+              if (member.isArchived)
+                PopupMenuItem(
+                  value: 'delete',
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.delete_forever_outlined,
+                        size: 18,
+                        color: AdminWebColors.error,
+                      ),
+                      const SizedBox(width: 10),
+                      Text(
+                        'Permanent Delete',
+                        style: TextStyle(color: AdminWebColors.error),
+                      ),
+                    ],
+                  ),
+                ),
             ],
           ),
         ],
@@ -433,9 +613,13 @@ class _InfoPill extends StatelessWidget {
 }
 
 class _EmptyState extends StatelessWidget {
-  const _EmptyState({required this.hasQuery});
+  const _EmptyState({
+    required this.hasQuery,
+    required this.isArchivedView,
+  });
 
   final bool hasQuery;
+  final bool isArchivedView;
 
   @override
   Widget build(BuildContext context) {
@@ -446,7 +630,11 @@ class _EmptyState extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
-              hasQuery ? Icons.search_off_rounded : Icons.people_outline,
+              hasQuery
+                  ? Icons.search_off_rounded
+                  : (isArchivedView
+                      ? Icons.archive_outlined
+                      : Icons.people_outline),
               size: 48,
               color: AdminWebColors.textSecondary,
             ),
@@ -454,12 +642,63 @@ class _EmptyState extends StatelessWidget {
             Text(
               hasQuery
                   ? 'No staff match your search.'
-                  : 'No staff accounts yet.\nTap "Add Staff" to create one.',
+                  : (isArchivedView
+                      ? 'No archived accounts.'
+                      : 'No staff accounts yet.\nTap "Add Staff" to create one.'),
               textAlign: TextAlign.center,
               style: const TextStyle(color: AdminWebColors.textSecondary),
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _PaginationFooter extends StatelessWidget {
+  const _PaginationFooter({
+    required this.currentPage,
+    required this.totalPages,
+    required this.onPageChanged,
+  });
+
+  final int currentPage;
+  final int totalPages;
+  final ValueChanged<int> onPageChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        border: Border(top: BorderSide(color: AdminWebColors.border)),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          IconButton(
+            onPressed: currentPage > 1 ? () => onPageChanged(currentPage - 1) : null,
+            icon: const Icon(Icons.chevron_left_rounded),
+            tooltip: 'Previous Page',
+          ),
+          const SizedBox(width: 16),
+          Text(
+            'PAGE $currentPage OF $totalPages',
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+              color: AdminWebColors.textSecondary,
+              letterSpacing: 1.0,
+            ),
+          ),
+          const SizedBox(width: 16),
+          IconButton(
+            onPressed: currentPage < totalPages ? () => onPageChanged(currentPage + 1) : null,
+            icon: const Icon(Icons.chevron_right_rounded),
+            tooltip: 'Next Page',
+          ),
+        ],
       ),
     );
   }

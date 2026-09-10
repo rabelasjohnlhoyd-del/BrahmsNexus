@@ -1,25 +1,22 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 
-/// Elevated white surface shared by the Login and Register forms — the
-/// same soft, brown-tinted shadow + border-radius language as
-/// widgets/driver_card.dart / widgets/staff_card.dart, adapted to a
-/// Material context (this uses Colors.white rather than
-/// CupertinoColors.white, since the auth flow is built with Material
-/// widgets like Form/TextFormField throughout, while Driver/Staff use
-/// Cupertino). Keeping this as one shared widget means Login and
-/// Register can't drift apart in padding/radius/shadow the way the
-/// three-tab apps used to before DriverCard/StaffCard existed.
+/// Elevated white surface shared by the Login and Register forms.
 class AuthCard extends StatelessWidget {
-  const AuthCard({super.key, required this.child});
+  const AuthCard({
+    super.key, 
+    required this.child,
+    this.padding = const EdgeInsets.fromLTRB(20, 24, 20, 20),
+  });
 
   final Widget child;
+  final EdgeInsetsGeometry padding;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
+      padding: padding,
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),

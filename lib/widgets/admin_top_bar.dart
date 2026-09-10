@@ -51,21 +51,12 @@ class AdminTopBar extends StatelessWidget implements PreferredSizeWidget {
                 Text(
                   title.toUpperCase(),
                   style: const TextStyle(
-                    fontSize: 24,
+                    fontSize: 26,
                     fontWeight: FontWeight.w900,
                     color: Colors.white,
-                    letterSpacing: 1.2,
+                    letterSpacing: 1.5,
                   ),
                 ),
-                if (subtitle != null)
-                  Text(
-                    subtitle!,
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: Colors.white.withValues(alpha: 0.8),
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
               ],
             ),
           ),

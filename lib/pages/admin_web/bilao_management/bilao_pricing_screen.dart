@@ -78,19 +78,7 @@ class _BilaoPricingScreenState extends State<BilaoPricingScreen> {
 
   void _updateShellActions() {
     final shell = context.findAncestorStateOfType<AdminWebShellState>();
-    shell?.setActions([
-      ElevatedButton.icon(
-        onPressed: _savePricing,
-        icon: const Icon(Icons.save_rounded, size: 18, color: Colors.white),
-        label: const Text('SAVE GLOBAL DEFAULTS'),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.white.withValues(alpha: 0.15),
-          foregroundColor: Colors.white,
-          side: BorderSide(color: Colors.white.withValues(alpha: 0.3)),
-          elevation: 0,
-        ),
-      ),
-    ]);
+    shell?.setActions([]);
   }
 
   @override

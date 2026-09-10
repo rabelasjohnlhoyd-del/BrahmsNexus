@@ -4,23 +4,13 @@ import '../../models/user_role.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/auth_brand_mark.dart';
 import '../../widgets/auth_card.dart';
-import '../../widgets/primary_button.dart';
 import '../../widgets/social_login_row.dart';
+import 'forgot_password_screen.dart';
 import 'mock_accounts.dart';
 import 'register_screen.dart';
 import 'role_router.dart';
 import 'welcome_screen.dart';
 
-/// The one and only login screen — used by Owner, Staff, and Driver
-/// alike.
-///
-/// Deliberately has NO "log in as ___" selector. Role and approval
-/// status are never chosen by the person logging in — they're looked
-/// up from the account behind the username/password, the same way a
-/// real backend would resolve them. See mock_accounts.dart for the
-/// dev-only stand-in for that lookup (kept reachable only via the small
-/// "Dev: demo accounts" link at the bottom, so it doesn't read as a
-/// real feature).
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
@@ -65,10 +55,6 @@ class _LoginScreenState extends State<LoginScreen> {
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _isLoading = true);
-
-    // Mock lookup — stands in for Firebase Auth + a Firestore user-record
-    // read. Notice the account (not the person) determines the role and
-    // status; nothing here lets the user assert their own role.
     await Future.delayed(const Duration(milliseconds: 700));
     final account = kMockAccounts[_usernameController.text.trim()];
 
@@ -96,18 +82,9 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   void _handleBack() {
-    // Login is usually reached by pushing on top of WelcomeScreen, so a
-    // normal pop takes the user right back there. But after a logout
-    // (pushAndRemoveUntil clears the whole stack down to just
-    // LoginScreen, on purpose — see the logout flows), there's nothing
-    // left to pop to. In that case, go to WelcomeScreen explicitly
-    // instead of leaving Back looking broken.
     if (Navigator.of(context).canPop()) {
       Navigator.of(context).pop();
     } else if (!kIsWeb) {
-      // WelcomeScreen isn't part of the web flow at all (see main.dart —
-      // web goes straight to LoginScreen), so there's nothing to fall
-      // back to here on web; only mobile has a WelcomeScreen to return to.
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (_) => const WelcomeScreen()),
       );
@@ -116,7 +93,14 @@ class _LoginScreenState extends State<LoginScreen> {
 
   void _showComingSoon(String feature) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('$feature is not available yet.')),
+      SnackBar(
+        backgroundColor: const Color(0xFF4A2C22),
+        behavior: SnackBarBehavior.fixed,
+        content: Text(
+          '$feature is not available yet.',
+          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500),
+        ),
+      ),
     );
   }
 
@@ -155,15 +139,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   color: AppColors.textPrimary,
                 ),
               ),
-              const SizedBox(height: 4),
-              const Text(
-                'Tap one to fill the form. Only reachable in this '
-                'pre-backend build — remove once real auth is wired up.',
-                style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
-              ),
               const SizedBox(height: 12),
-              // Web (Owner-only) only ever needs the owner demo account
-              // listed here — Staff/Driver accounts belong to the app.
               ...(kIsWeb
                       ? kMockAccounts.entries
                           .where((e) => e.value.role == UserRole.owner)
@@ -194,12 +170,6 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return PopScope(
-      // Always intercept system/hardware back (gesture or button) and
-      // route it through the same _handleBack logic as the on-screen
-      // arrow above, so both agree: pop if there's something to pop
-      // to, otherwise land on WelcomeScreen instead of doing nothing
-      // (or closing the app, which is the default when canPop is
-      // false and this is left unhandled).
       canPop: false,
       onPopInvokedWithResult: (didPop, result) {
         if (didPop) return;
@@ -210,68 +180,57 @@ class _LoginScreenState extends State<LoginScreen> {
         body: SafeArea(
           child: Center(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(24, 4, 24, 28),
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
               child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 420),
+                constraints: const BoxConstraints(maxWidth: 400),
                 child: Form(
                   key: _formKey,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      if (!kIsWeb)
-                        Align(
-                          alignment: Alignment.centerLeft,
-                          child: IconButton(
-                            icon: const Icon(Icons.arrow_back_ios_new_rounded,
-                                size: 20),
-                            color: AppColors.textPrimary,
-                            onPressed: _handleBack,
-                          ),
-                        ),
-                      const SizedBox(height: 4),
                       const Center(
                         child: AuthBrandMark(icon: Icons.storefront_rounded),
                       ),
-                      const SizedBox(height: 20),
+                      const SizedBox(height: 32),
                       const Text(
                         'Welcome back',
                         textAlign: TextAlign.center,
                         style: TextStyle(
-                          fontSize: 28,
-                          fontWeight: FontWeight.w800,
+                          fontSize: 32,
+                          fontWeight: FontWeight.w900,
                           color: AppColors.textPrimary,
                           letterSpacing: -0.5,
                         ),
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 12),
                       const Text(
                         'Sign in to keep things running.',
                         textAlign: TextAlign.center,
                         style: TextStyle(
-                          fontSize: 14.5,
-                          color: AppColors.textSecondary,
-                          height: 1.4,
+                          fontSize: 15,
+                          color: Color(0xFF8D6E63),
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
-                      const SizedBox(height: 28),
+                      const SizedBox(height: 40),
 
-                      // Elevated form card — same soft brown-tinted
-                      // shadow + radius language as DriverCard/StaffCard,
-                      // so the sign-in form reads as one deliberate
-                      // surface instead of fields floating loose on the
-                      // cream background.
                       AuthCard(
+                        padding: const EdgeInsets.all(24),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
                             TextFormField(
                               controller: _usernameController,
                               textInputAction: TextInputAction.next,
-                              autofillHints: const [AutofillHints.username],
-                              decoration: const InputDecoration(
+                              decoration: InputDecoration(
                                 labelText: 'USERNAME',
-                                isDense: true,
-                                prefixIcon: Icon(Icons.person_outline),
+                                labelStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, letterSpacing: 1),
+                                prefixIcon: const Icon(Icons.person_outline_rounded, size: 20),
+                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: const BorderSide(color: AppColors.border),
+                                ),
                               ),
                               validator: _validateUsername,
                             ),
@@ -280,21 +239,25 @@ class _LoginScreenState extends State<LoginScreen> {
                               controller: _passwordController,
                               obscureText: _obscurePassword,
                               textInputAction: TextInputAction.done,
-                              autofillHints: const [AutofillHints.password],
-                              onFieldSubmitted: (_) => _handleLogin(),
                               decoration: InputDecoration(
                                 labelText: 'PASSWORD',
-                                isDense: true,
-                                prefixIcon: const Icon(Icons.lock_outline),
+                                labelStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, letterSpacing: 1),
+                                prefixIcon: const Icon(Icons.lock_outline_rounded, size: 20),
                                 suffixIcon: IconButton(
                                   icon: Icon(
                                     _obscurePassword
                                         ? Icons.visibility_off_outlined
                                         : Icons.visibility_outlined,
+                                    size: 20,
                                   ),
                                   onPressed: () => setState(
                                     () => _obscurePassword = !_obscurePassword,
                                   ),
+                                ),
+                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: const BorderSide(color: AppColors.border),
                                 ),
                               ),
                               validator: _validatePassword,
@@ -315,62 +278,53 @@ class _LoginScreenState extends State<LoginScreen> {
                               child: TextButton(
                                 onPressed: _isLoading
                                     ? null
-                                    : () => _showComingSoon('Password reset'),
-                                child: const Text('Forgot your password?'),
+                                    : () => Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                              builder: (_) =>
+                                                  const ForgotPasswordScreen()),
+                                        ),
+                                child: const Text(
+                                  'Forgot your password?',
+                                  style: TextStyle(
+                                      color: AppColors.accent,
+                                      fontWeight: FontWeight.w600),
+                                ),
                               ),
                             ),
-                            const SizedBox(height: 4),
-                            PrimaryButton(
-                              label: 'SIGN IN',
-                              isLoading: _isLoading,
-                              onPressed: _handleLogin,
+                            const SizedBox(height: 12),
+                            ElevatedButton(
+                              onPressed: _isLoading ? null : _handleLogin,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppColors.accent,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(vertical: 20),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                elevation: 0,
+                              ),
+                              child: _isLoading 
+                                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                                : const Text('SIGN IN', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, letterSpacing: 1)),
                             ),
                           ],
                         ),
                       ),
 
                       if (!kIsWeb) ...[
-                        const SizedBox(height: 20),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Text(
-                              "Don't have an account? ",
-                              style: TextStyle(color: AppColors.textSecondary),
-                            ),
-                            GestureDetector(
-                              onTap: _isLoading
-                                  ? null
-                                  : () => Navigator.of(context).push(
-                                        MaterialPageRoute(
-                                          builder: (_) =>
-                                              const RegisterScreen(),
-                                        ),
-                                      ),
-                              child: const Text(
-                                'Create new account',
-                                style: TextStyle(
-                                  color: AppColors.accent,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
+                        const SizedBox(height: 32),
+                        const _OrDivider(),
+                        const SizedBox(height: 24),
+                        const SocialLoginRow(),
                       ],
-                      const SizedBox(height: 28),
-                      const _OrDivider(),
-                      const SizedBox(height: 18),
-                      const SocialLoginRow(),
-                      const SizedBox(height: 24),
+                      const SizedBox(height: 32),
                       Center(
                         child: TextButton.icon(
                           onPressed: _showDemoAccounts,
                           icon: const Icon(Icons.science_outlined, size: 16),
                           label: const Text('Dev: demo accounts'),
                           style: TextButton.styleFrom(
-                            foregroundColor: AppColors.textSecondary,
-                            textStyle: const TextStyle(fontSize: 12),
+                            foregroundColor: AppColors.accent.withValues(alpha: 0.7),
+                            textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
                           ),
                         ),
                       ),
@@ -392,21 +346,21 @@ class _OrDivider extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Row(
-      children: const [
-        Expanded(child: Divider(color: AppColors.border)),
+      children: [
+        const Expanded(child: Divider(color: AppColors.border)),
         Padding(
-          padding: EdgeInsets.symmetric(horizontal: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Text(
             'OR CONTINUE WITH',
             style: TextStyle(
-              color: AppColors.textSecondary,
+              color: AppColors.textSecondary.withValues(alpha: 0.8),
               fontSize: 11,
               fontWeight: FontWeight.w800,
-              letterSpacing: 1.0,
+              letterSpacing: 1,
             ),
           ),
         ),
-        Expanded(child: Divider(color: AppColors.border)),
+        const Expanded(child: Divider(color: AppColors.border)),
       ],
     );
   }

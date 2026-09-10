@@ -1,18 +1,13 @@
 import 'package:flutter/material.dart';
 import '../../../models/branch.dart';
 import '../../../models/branch_assignment.dart';
+import '../../../models/staff_member.dart';
 import '../admin_web_colors.dart';
 import '../admin_web_shell.dart';
 import '../admin_web_widgets/glass_card.dart';
 
-/// Owner assigns each employee to a branch for a chosen date, and
-/// marks them On Duty or on a Rest Day. This is what Staff read for
-/// "Today's Assignment" and what Driver reads to build the route.
-///
-/// NOTE: Mock data for now — once Supabase is wired up, this reads/
-/// writes the real `branch_assignments` table (rarely-changing branch
-/// list lives in Supabase; the daily assignment records could live in
-/// either store depending on how often they're queried).
+/// Owner assigns each Branch Cook to a branch for the current day.
+/// Drivers and Production staff are excluded from this list.
 class BranchAssignmentsScreen extends StatefulWidget {
   const BranchAssignmentsScreen({super.key});
 
@@ -22,42 +17,37 @@ class BranchAssignmentsScreen extends StatefulWidget {
 }
 
 class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
-  DateTime _selectedDate = DateTime.now();
+  // Current date (auto-updates on rebuild/init)
+  final DateTime _today = DateTime.now();
+  
+  final _searchController = TextEditingController();
+  String _query = '';
 
-  final List<BranchAssignment> _assignments = [
-    BranchAssignment(
-      id: 'a1',
-      employeeId: 'emp1',
-      employeeName: 'Juan Dela Cruz',
-      branchId: 'br1',
-      branchName: 'Brgy. Gatid, Sta. Cruz',
-      date: DateTime.now(),
-      workStatus: WorkStatus.onDuty,
-    ),
-    BranchAssignment(
-      id: 'a2',
-      employeeId: 'emp2',
-      employeeName: 'Maria Reyes',
-      branchId: 'br3',
-      branchName: 'Brgy. Sta. Clara Sur, Pila',
-      date: DateTime.now(),
-      workStatus: WorkStatus.onDuty,
-    ),
-    BranchAssignment(
-      id: 'a3',
-      employeeId: 'emp3',
-      employeeName: 'Pedro Santos',
-      branchId: 'br2',
-      branchName: 'Brgy. Labuin, Pila',
-      date: DateTime.now(),
-      workStatus: WorkStatus.restDay,
-    ),
-  ];
+  // derive assignments from staff list, filtered to show only Branch Cooks
+  late List<BranchAssignment> _assignments;
 
   @override
   void initState() {
     super.initState();
+    _initializeAssignments();
     _updateShellActions();
+  }
+
+  void _initializeAssignments() {
+    // Only include Branch Cooks
+    final branchCooks = kSampleStaff.where((s) => s.position == 'Branch Cook').toList();
+    
+    _assignments = branchCooks.map((s) {
+      return BranchAssignment(
+        id: 'ba-${s.id}',
+        employeeId: s.id,
+        employeeName: s.fullName,
+        branchId: s.branch != 'N/A' ? kSampleBranches.firstWhere((b) => b.fullName == s.branch, orElse: () => kSampleBranches.first).id : kSampleBranches.first.id,
+        branchName: s.branch != 'N/A' ? s.branch : kSampleBranches.first.fullName,
+        date: _today,
+        workStatus: s.isActive ? WorkStatus.onDuty : WorkStatus.restDay,
+      );
+    }).toList();
   }
 
   @override
@@ -68,84 +58,54 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
 
   void _updateShellActions() {
     final shell = context.findAncestorStateOfType<AdminWebShellState>();
-    shell?.setActions([
-      OutlinedButton.icon(
-        onPressed: _pickDate,
-        icon: const Icon(Icons.calendar_today_rounded, size: 18, color: Colors.white),
-        label: Text(
-          '${_selectedDate.month}/${_selectedDate.day}/${_selectedDate.year}',
-          style: const TextStyle(color: Colors.white),
-        ),
-        style: OutlinedButton.styleFrom(
-          side: BorderSide(color: Colors.white.withValues(alpha: 0.3)),
-          backgroundColor: Colors.white.withValues(alpha: 0.1),
-        ),
-      ),
-      ElevatedButton.icon(
-        onPressed: _saveAll,
-        icon: const Icon(Icons.save_rounded, size: 18, color: Colors.white),
-        label: const Text('SAVE'),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.white.withValues(alpha: 0.15),
-          foregroundColor: Colors.white,
-          side: BorderSide(color: Colors.white.withValues(alpha: 0.3)),
-          elevation: 0,
-        ),
-      ),
-    ]);
-  }
-
-  Future<void> _pickDate() async {
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: _selectedDate,
-      firstDate: DateTime.now().subtract(const Duration(days: 30)),
-      lastDate: DateTime.now().add(const Duration(days: 30)),
-    );
-    if (picked != null) {
-      setState(() => _selectedDate = picked);
-      _updateShellActions();
-    }
+    shell?.setActions([]); 
   }
 
   void _updateBranch(int index, Branch branch) {
     setState(() {
-      final a = _assignments[index];
-      _assignments[index] = BranchAssignment(
-        id: a.id,
-        employeeId: a.employeeId,
-        employeeName: a.employeeName,
-        branchId: branch.id,
-        branchName: branch.fullName,
-        date: a.date,
-        workStatus: a.workStatus,
-      );
+      final a = _filteredAssignments[index];
+      // find original index in _assignments
+      final originalIndex = _assignments.indexWhere((item) => item.id == a.id);
+      if (originalIndex != -1) {
+        _assignments[originalIndex] = a.copyWith(
+          branchId: branch.id,
+          branchName: branch.fullName,
+        );
+      }
     });
   }
 
   void _updateStatus(int index, WorkStatus status) {
     setState(() {
-      final a = _assignments[index];
-      _assignments[index] = BranchAssignment(
-        id: a.id,
-        employeeId: a.employeeId,
-        employeeName: a.employeeName,
-        branchId: a.branchId,
-        branchName: a.branchName,
-        date: a.date,
-        workStatus: status,
-      );
+      final a = _filteredAssignments[index];
+      final originalIndex = _assignments.indexWhere((item) => item.id == a.id);
+      if (originalIndex != -1) {
+        _assignments[originalIndex] = a.copyWith(workStatus: status);
+      }
     });
   }
 
   void _saveAll() {
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Branch assignments saved!')),
+      const SnackBar(content: Text('Branch assignments saved successfully!')),
     );
+  }
+
+  List<BranchAssignment> get _filteredAssignments {
+    if (_query.trim().isEmpty) return _assignments;
+    final q = _query.toLowerCase().trim();
+    return _assignments.where((a) => a.employeeName.toLowerCase().contains(q)).toList();
+  }
+
+  String _formatToday() {
+    final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return '${months[_today.month - 1]} ${_today.day}, ${_today.year}';
   }
 
   @override
   Widget build(BuildContext context) {
+    final list = _filteredAssignments;
+
     return Container(
       color: AdminWebColors.background,
       child: Padding(
@@ -153,69 +113,103 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            LayoutBuilder(
-              builder: (context, constraints) {
-                final isWide = constraints.maxWidth >= 700;
-                if (isWide) return const SizedBox.shrink();
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 16),
-                  child: Row(
-                    children: [
-                      OutlinedButton.icon(
-                        onPressed: _pickDate,
-                        icon: const Icon(Icons.calendar_today_rounded, size: 16, color: AdminWebColors.accent),
-                        label: Text(
-                          '${_selectedDate.month}/${_selectedDate.day}/${_selectedDate.year}',
+            // Header Controls
+            Padding(
+              padding: const EdgeInsets.only(bottom: 24, top: 24),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: AdminWebColors.accent.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: AdminWebColors.accent.withValues(alpha: 0.2)),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.event_available_rounded, size: 18, color: AdminWebColors.accent),
+                        const SizedBox(width: 10),
+                        Text(
+                          'ASSIGNMENT DATE: ${_formatToday().toUpperCase()}',
                           style: const TextStyle(
-                            color: AdminWebColors.textPrimary,
-                            fontWeight: FontWeight.w700,
+                            color: AdminWebColors.accent,
+                            fontWeight: FontWeight.w900,
                             fontSize: 13,
+                            letterSpacing: 0.5,
                           ),
                         ),
-                        style: OutlinedButton.styleFrom(
-                          backgroundColor: Colors.white,
-                          side: const BorderSide(color: AdminWebColors.border),
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                        ),
-                      ),
-                      const Spacer(),
-                      ElevatedButton.icon(
-                        onPressed: _saveAll,
-                        icon: const Icon(Icons.save_rounded, size: 16, color: Colors.white),
-                        label: const Text('SAVE ASSIGNMENTS'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AdminWebColors.accent,
-                          foregroundColor: Colors.white,
-                          elevation: 0,
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                        ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                );
-              },
+                  const Spacer(),
+                  ElevatedButton.icon(
+                    onPressed: _saveAll,
+                    icon: const Icon(Icons.save_rounded, size: 16, color: Colors.white),
+                    label: const Text('SAVE ASSIGNMENTS'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AdminWebColors.accent,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                  ),
+                ],
+              ),
             ),
+
+            // Search Bar
+            GlassCard(
+              padding: EdgeInsets.zero,
+              child: TextField(
+                controller: _searchController,
+                onChanged: (v) => setState(() => _query = v),
+                decoration: InputDecoration(
+                  hintText: 'SEARCH STAFF BY NAME...',
+                  prefixIcon: const Icon(Icons.search_rounded, color: AdminWebColors.accent),
+                  suffixIcon: _query.isEmpty
+                      ? null
+                      : IconButton(
+                          icon: const Icon(Icons.clear_rounded),
+                          onPressed: () {
+                            _searchController.clear();
+                            setState(() => _query = '');
+                          },
+                        ),
+                  filled: true,
+                  fillColor: Colors.transparent,
+                  border: InputBorder.none,
+                  enabledBorder: InputBorder.none,
+                  focusedBorder: InputBorder.none,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                ),
+              ),
+            ),
+            
+            const SizedBox(height: 20),
+
+            // Assignments List
             Expanded(
-              child: ListView.separated(
-                itemCount: _assignments.length,
-                separatorBuilder: (context, index) => const SizedBox(height: 12),
-                itemBuilder: (context, index) {
-                  final a = _assignments[index];
-                  return LayoutBuilder(
-                    builder: (context, constraints) {
-                      final isWide = constraints.maxWidth >= 700;
-                      return _AssignmentCard(
-                        assignment: a,
-                        isWide: isWide,
-                        onBranchChanged: (branch) => _updateBranch(index, branch),
-                        onStatusChanged: (status) => _updateStatus(index, status),
+              child: list.isEmpty
+                ? const Center(child: Text('No matching staff found.', style: TextStyle(color: AdminWebColors.textSecondary)))
+                : ListView.separated(
+                    itemCount: list.length,
+                    separatorBuilder: (context, index) => const SizedBox(height: 12),
+                    itemBuilder: (context, index) {
+                      final a = list[index];
+                      return LayoutBuilder(
+                        builder: (context, constraints) {
+                          final isWide = constraints.maxWidth >= 700;
+                          return _AssignmentCard(
+                            assignment: a,
+                            isWide: isWide,
+                            onBranchChanged: (branch) => _updateBranch(index, branch),
+                            onStatusChanged: (status) => _updateStatus(index, status),
+                          );
+                        },
                       );
                     },
-                  );
-                },
-              ),
+                  ),
             ),
             const SizedBox(height: 24),
           ],
@@ -225,9 +219,6 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
   }
 }
 
-/// Isang employee row — Row (magkatabi) sa malawak na screen, Column
-/// (nakapatong) sa makitid na screen (phone browser) para hindi
-/// masiksik ang dropdown at segmented button.
 class _AssignmentCard extends StatelessWidget {
   const _AssignmentCard({
     required this.assignment,
@@ -243,6 +234,8 @@ class _AssignmentCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final bool isRestDay = assignment.workStatus == WorkStatus.restDay;
+
     final avatarAndName = Row(
       children: [
         Container(
@@ -279,39 +272,46 @@ class _AssignmentCard extends StatelessWidget {
       ],
     );
 
-    final branchDropdown = DropdownButtonFormField<String>(
-      initialValue: assignment.branchId,
-      decoration: const InputDecoration(
-        labelText: 'BRANCH',
-        isDense: true,
-        labelStyle: TextStyle(
-          fontWeight: FontWeight.w800,
-          fontSize: 11,
-          letterSpacing: 1.0,
-          color: AdminWebColors.textSecondary,
+    final branchDropdown = IgnorePointer(
+      ignoring: isRestDay,
+      child: Opacity(
+        opacity: isRestDay ? 0.5 : 1.0,
+        child: DropdownButtonFormField<String>(
+          value: assignment.branchId,
+          decoration: const InputDecoration(
+            labelText: 'ASSIGNED BRANCH',
+            isDense: true,
+            labelStyle: TextStyle(
+              fontWeight: FontWeight.w800,
+              fontSize: 11,
+              letterSpacing: 1.0,
+              color: AdminWebColors.textSecondary,
+            ),
+            prefixIcon: Icon(Icons.storefront_rounded, size: 20, color: AdminWebColors.accent),
+          ),
+          items: kSampleBranches
+              .map((b) => DropdownMenuItem(
+                    value: b.id,
+                    child: Text(
+                      b.fullName.toUpperCase(),
+                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                    ),
+                  ))
+              .toList(),
+          onChanged: (branchId) {
+            if (branchId != null) {
+              final branch = kSampleBranches.firstWhere((b) => b.id == branchId);
+              onBranchChanged(branch);
+            }
+          },
         ),
-        prefixIcon:
-            Icon(Icons.storefront_rounded, size: 20, color: AdminWebColors.accent),
       ),
-      items: kSampleBranches
-          .map((b) => DropdownMenuItem(
-                value: b.id,
-                child: Text(
-                  b.fullName.toUpperCase(),
-                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-                ),
-              ))
-          .toList(),
-      onChanged: (branchId) {
-        final branch = kSampleBranches.firstWhere((b) => b.id == branchId);
-        onBranchChanged(branch);
-      },
     );
 
     final statusSelector = SegmentedButton<WorkStatus>(
       showSelectedIcon: false,
       style: SegmentedButton.styleFrom(
-        selectedBackgroundColor: AdminWebColors.accent,
+        selectedBackgroundColor: isRestDay ? AdminWebColors.error : AdminWebColors.success,
         selectedForegroundColor: Colors.white,
         side: const BorderSide(color: AdminWebColors.border),
       ),
@@ -354,4 +354,3 @@ class _AssignmentCard extends StatelessWidget {
     );
   }
 }
-

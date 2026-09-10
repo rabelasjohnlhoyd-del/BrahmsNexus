@@ -14,8 +14,11 @@ class RecordTransferScreen extends StatefulWidget {
 
 class _RecordTransferScreenState extends State<RecordTransferScreen> {
   final _formKey = GlobalKey<FormState>();
-  String _sourceId = kSampleBranches.first.id;
-  String _destId = kSampleBranches[1].id;
+  
+  // Logic updated: Source is always Main Warehouse (Owner's House)
+  final String _sourceName = 'Main Warehouse (Owner\'s House)';
+  
+  String _destId = kSampleBranches.first.id;
   final _qtyController = TextEditingController();
   bool _isSaving = false;
 
@@ -33,62 +36,29 @@ class _RecordTransferScreenState extends State<RecordTransferScreen> {
 
   void _updateShellActions() {
     final shell = context.findAncestorStateOfType<AdminWebShellState>();
-    shell?.setTitle('RECORD INTER-BRANCH TRANSFER');
-    shell?.setActions([
-      TextButton(
-        onPressed: _isSaving ? null : () => Navigator.of(context).pop(),
-        child: const Text('CANCEL', style: TextStyle(color: Colors.white)),
-      ),
-      ElevatedButton.icon(
-        onPressed: _isSaving ? null : _handleSave,
-        icon: _isSaving
-            ? const SizedBox(
-                width: 18,
-                height: 18,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                ),
-              )
-            : const Icon(Icons.check_rounded, size: 18, color: Colors.white),
-        label: const Text('SAVE TRANSFER'),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.white.withValues(alpha: 0.15),
-          foregroundColor: Colors.white,
-          side: BorderSide(color: Colors.white.withValues(alpha: 0.3)),
-          elevation: 0,
-        ),
-      ),
-    ]);
+    shell?.setTitle('RECORD STOCK DISPATCH');
+    shell?.setActions([]);
   }
 
   Future<void> _handleSave() async {
     if (!_formKey.currentState!.validate()) return;
-    if (_sourceId == _destId) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Source and destination branches must be different')),
-      );
-      return;
-    }
 
     setState(() {
       _isSaving = true;
       _updateShellActions();
     });
 
-    // Simulate save delay
     await Future.delayed(const Duration(milliseconds: 500));
 
     if (!mounted) return;
 
-    final source = kSampleBranches.firstWhere((b) => b.id == _sourceId);
     final dest = kSampleBranches.firstWhere((b) => b.id == _destId);
     final qty = double.parse(_qtyController.text);
 
     final log = StockTransferLog(
       id: 'tl_${DateTime.now().millisecondsSinceEpoch}',
-      sourceBranchId: source.id,
-      sourceBranchName: source.fullName,
+      sourceBranchId: 'warehouse',
+      sourceBranchName: _sourceName,
       destinationBranchId: dest.id,
       destinationBranchName: dest.fullName,
       quantityKg: qty,
@@ -118,7 +88,7 @@ class _RecordTransferScreenState extends State<RecordTransferScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const Text(
-                          'TRANSFER DETAILS',
+                          'DISPATCH DETAILS',
                           style: TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.w800,
@@ -127,26 +97,29 @@ class _RecordTransferScreenState extends State<RecordTransferScreen> {
                           ),
                         ),
                         const SizedBox(height: 24),
-                        DropdownButtonFormField<String>(
-                          initialValue: _sourceId,
-                          decoration: const InputDecoration(
-                            labelText: 'FROM BRANCH',
-                            isDense: true,
-                            prefixIcon: Icon(Icons.logout_rounded, size: 20),
+                        // FIXED SOURCE
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: AdminWebColors.accent.withValues(alpha: 0.05),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: AdminWebColors.border),
                           ),
-                          items: kSampleBranches
-                              .map((b) =>
-                                  DropdownMenuItem(value: b.id, child: Text(b.fullName)))
-                              .toList(),
-                          onChanged: (v) {
-                            if (v != null) setState(() => _sourceId = v);
-                          },
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text('FROM SOURCE', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AdminWebColors.textSecondary)),
+                              const SizedBox(height: 4),
+                              Text(_sourceName, style: const TextStyle(fontWeight: FontWeight.w800, color: AdminWebColors.textPrimary)),
+                            ],
+                          ),
                         ),
                         const SizedBox(height: 20),
                         DropdownButtonFormField<String>(
                           initialValue: _destId,
                           decoration: const InputDecoration(
-                            labelText: 'TO BRANCH',
+                            labelText: 'DESTINATION BRANCH',
                             isDense: true,
                             prefixIcon: Icon(Icons.login_rounded, size: 20),
                           ),
@@ -166,6 +139,7 @@ class _RecordTransferScreenState extends State<RecordTransferScreen> {
                             labelText: 'QUANTITY (KG)',
                             isDense: true,
                             prefixIcon: Icon(Icons.scale_rounded, size: 20),
+                            suffixText: 'KG',
                           ),
                           validator: (v) {
                             if (v == null || v.trim().isEmpty) return 'Required';
@@ -205,7 +179,7 @@ class _RecordTransferScreenState extends State<RecordTransferScreen> {
                                 ),
                               )
                             : const Icon(Icons.check_rounded, size: 18),
-                        label: const Text('SAVE TRANSFER'),
+                        label: const Text('CONFIRM DISPATCH'),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AdminWebColors.accent,
                           foregroundColor: Colors.white,
@@ -228,4 +202,3 @@ class _RecordTransferScreenState extends State<RecordTransferScreen> {
     );
   }
 }
-

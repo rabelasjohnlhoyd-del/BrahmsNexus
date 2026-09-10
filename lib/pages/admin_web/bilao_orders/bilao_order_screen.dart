@@ -21,6 +21,9 @@ class BilaoOrderScreen extends StatefulWidget {
 class _BilaoOrderScreenState extends State<BilaoOrderScreen> {
   static const double _wideBreakpoint = 700;
 
+  int _currentPage = 0;
+  static const int _pageSize = 10;
+
   final List<BilaoOrder> _orders = [
     BilaoOrder(
       id: 'ord1',
@@ -265,31 +268,7 @@ class _BilaoOrderScreenState extends State<BilaoOrderScreen> {
 
   void _updateShellActions() {
     final shell = context.findAncestorStateOfType<AdminWebShellState>();
-    shell?.setActions([
-      ElevatedButton.icon(
-        onPressed: _showPricingDialog,
-        icon: const Icon(Icons.sell_outlined, size: 16, color: Colors.white),
-        label: const Text('MANAGE PRICING'),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.white.withValues(alpha: 0.15),
-          foregroundColor: Colors.white,
-          side: BorderSide(color: Colors.white.withValues(alpha: 0.3)),
-          elevation: 0,
-        ),
-      ),
-      const SizedBox(width: 8),
-      ElevatedButton.icon(
-        onPressed: _openAddOrder,
-        icon: const Icon(Icons.add_rounded, size: 18, color: Colors.white),
-        label: const Text('RECORD NEW ORDER'),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.white.withValues(alpha: 0.15),
-          foregroundColor: Colors.white,
-          side: BorderSide(color: Colors.white.withValues(alpha: 0.3)),
-          elevation: 0,
-        ),
-      ),
-    ]);
+    shell?.setActions([]);
   }
 
   @override
@@ -306,110 +285,121 @@ class _BilaoOrderScreenState extends State<BilaoOrderScreen> {
               const SizedBox(height: 20),
               Padding(
                 padding: EdgeInsets.symmetric(horizontal: isWide ? 24 : 16),
-                child: isWide
-                    ? Row(
-                        children: [
-                          Expanded(
-                            flex: 2,
-                            child: TextField(
-                              decoration: const InputDecoration(
-                                hintText: 'Search by customer name...',
-                                prefixIcon: Icon(Icons.search_rounded, size: 20),
-                                isDense: true,
-                              ),
-                              onChanged: (v) =>
-                                  setState(() => _searchQuery = v),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        OutlinedButton.icon(
+                          onPressed: _showPricingDialog,
+                          icon: const Icon(Icons.sell_outlined,
+                              size: 16, color: AdminWebColors.accent),
+                          label: const Text(
+                            'PRICING',
+                            style: TextStyle(
+                              color: AdminWebColors.textPrimary,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 12,
                             ),
                           ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: DropdownButtonFormField<String>(
-                              initialValue: _statusFilter,
-                              decoration: const InputDecoration(
-                                labelText: 'FILTER BY STATUS',
-                                isDense: true,
-                                prefixIcon: Icon(Icons.filter_list_rounded, size: 18),
-                              ),
-                              items: _statusFilters
-                                  .map((s) =>
-                                      DropdownMenuItem(value: s, child: Text(s.toUpperCase())))
-                                  .toList(),
-                              onChanged: (v) {
-                                if (v != null) setState(() => _statusFilter = v);
-                              },
-                            ),
+                          style: OutlinedButton.styleFrom(
+                            backgroundColor: Colors.white,
+                            side: const BorderSide(color: AdminWebColors.border),
+                            padding: const EdgeInsets.symmetric(
+                                vertical: 12, horizontal: 16),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10)),
                           ),
-                        ],
-                      )
-                    : Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Row(
+                        ),
+                        const SizedBox(width: 10),
+                        ElevatedButton.icon(
+                          onPressed: _openAddOrder,
+                          icon: const Icon(Icons.add_rounded,
+                              size: 18, color: Colors.white),
+                          label: const Text('NEW ORDER'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AdminWebColors.accent,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(
+                                vertical: 12, horizontal: 16),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10)),
+                            elevation: 0,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    isWide
+                        ? Row(
                             children: [
                               Expanded(
-                                child: OutlinedButton.icon(
-                                  onPressed: _showPricingDialog,
-                                  icon: const Icon(Icons.sell_outlined, size: 16, color: AdminWebColors.accent),
-                                  label: const Text(
-                                    'PRICING',
-                                    style: TextStyle(
-                                      color: AdminWebColors.textPrimary,
-                                      fontWeight: FontWeight.w700,
-                                      fontSize: 12,
-                                    ),
+                                flex: 2,
+                                child: TextField(
+                                  decoration: const InputDecoration(
+                                    hintText: 'Search by customer name...',
+                                    prefixIcon: Icon(Icons.search_rounded, size: 20),
+                                    isDense: true,
                                   ),
-                                  style: OutlinedButton.styleFrom(
-                                    backgroundColor: Colors.white,
-                                    side: const BorderSide(color: AdminWebColors.border),
-                                    padding: const EdgeInsets.symmetric(vertical: 12),
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                                  ),
+                                  onChanged: (v) =>
+                                      setState(() => _searchQuery = v),
                                 ),
                               ),
-                              const SizedBox(width: 10),
+                              const SizedBox(width: 16),
                               Expanded(
-                                child: ElevatedButton.icon(
-                                  onPressed: _openAddOrder,
-                                  icon: const Icon(Icons.add_rounded, size: 18, color: Colors.white),
-                                  label: const Text('NEW ORDER'),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: AdminWebColors.accent,
-                                    foregroundColor: Colors.white,
-                                    padding: const EdgeInsets.symmetric(vertical: 12),
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                                    elevation: 0,
+                                child: DropdownButtonFormField<String>(
+                                  initialValue: _statusFilter,
+                                  decoration: const InputDecoration(
+                                    labelText: 'FILTER BY STATUS',
+                                    isDense: true,
+                                    prefixIcon:
+                                        Icon(Icons.filter_list_rounded, size: 18),
                                   ),
+                                  items: _statusFilters
+                                      .map((s) => DropdownMenuItem(
+                                          value: s,
+                                          child: Text(s.toUpperCase())))
+                                      .toList(),
+                                  onChanged: (v) {
+                                    if (v != null) setState(() => _statusFilter = v);
+                                  },
                                 ),
                               ),
                             ],
+                          )
+                        : Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              TextField(
+                                decoration: const InputDecoration(
+                                  hintText: 'Search by customer name...',
+                                  prefixIcon: Icon(Icons.search_rounded, size: 20),
+                                  isDense: true,
+                                ),
+                                onChanged: (v) => setState(() => _searchQuery = v),
+                              ),
+                              const SizedBox(height: 12),
+                              DropdownButtonFormField<String>(
+                                initialValue: _statusFilter,
+                                decoration: const InputDecoration(
+                                  labelText: 'FILTER BY STATUS',
+                                  isDense: true,
+                                  prefixIcon:
+                                      Icon(Icons.filter_list_rounded, size: 18),
+                                ),
+                                items: _statusFilters
+                                    .map((s) => DropdownMenuItem(
+                                        value: s, child: Text(s.toUpperCase())))
+                                    .toList(),
+                                onChanged: (v) {
+                                  if (v != null) setState(() => _statusFilter = v);
+                                },
+                              ),
+                            ],
                           ),
-                          const SizedBox(height: 12),
-                          TextField(
-                            decoration: const InputDecoration(
-                              hintText: 'Search by customer name...',
-                              prefixIcon: Icon(Icons.search_rounded, size: 20),
-                              isDense: true,
-                            ),
-                            onChanged: (v) => setState(() => _searchQuery = v),
-                          ),
-                          const SizedBox(height: 12),
-                          DropdownButtonFormField<String>(
-                            initialValue: _statusFilter,
-                            decoration: const InputDecoration(
-                              labelText: 'FILTER BY STATUS',
-                              isDense: true,
-                              prefixIcon: Icon(Icons.filter_list_rounded, size: 18),
-                            ),
-                            items: _statusFilters
-                                .map((s) =>
-                                    DropdownMenuItem(value: s, child: Text(s.toUpperCase())))
-                                .toList(),
-                            onChanged: (v) {
-                              if (v != null) setState(() => _statusFilter = v);
-                            },
-                          ),
-                        ],
-                      ),
+                  ],
+                ),
               ),
               const SizedBox(height: 16),
               Expanded(
@@ -420,36 +410,68 @@ class _BilaoOrderScreenState extends State<BilaoOrderScreen> {
                           style: TextStyle(color: AdminWebColors.textSecondary),
                         ),
                       )
-                    : ListView.separated(
-                        padding: EdgeInsets.fromLTRB(
-                          isWide ? 24 : 16,
-                          0,
-                          isWide ? 24 : 16,
-                          24,
-                        ),
-                        itemCount: _visibleOrders.length,
-                        separatorBuilder: (_, index) =>
-                            const SizedBox(height: 12),
-                        itemBuilder: (context, index) {
-                          final order = _visibleOrders[index];
-                          return _OrderCard(
-                            order: order,
-                            isWide: isWide,
-                            prepColor: _prepColor(order.preparationStatus),
-                            deliveryColor:
-                                _deliveryColor(order.deliveryStatus),
-                            onPreparationChanged: (s) =>
-                                _updatePreparation(order.id, s),
-                            onDeliveryChanged: (s) =>
-                                _updateDelivery(order.id, s),
-                          );
-                        },
+                    : Column(
+                        children: [
+                          Expanded(
+                            child: ListView.separated(
+                              padding: EdgeInsets.fromLTRB(
+                                isWide ? 24 : 16,
+                                0,
+                                isWide ? 24 : 16,
+                                12,
+                              ),
+                              itemCount: (_visibleOrders.length - (_currentPage * _pageSize)).clamp(0, _pageSize),
+                              separatorBuilder: (_, index) =>
+                                  const SizedBox(height: 12),
+                              itemBuilder: (context, index) {
+                                final order = _visibleOrders[(_currentPage * _pageSize) + index];
+                                return _OrderCard(
+                                  order: order,
+                                  isWide: isWide,
+                                  prepColor: _prepColor(order.preparationStatus),
+                                  deliveryColor:
+                                      _deliveryColor(order.deliveryStatus),
+                                  onPreparationChanged: (s) =>
+                                      _updatePreparation(order.id, s),
+                                  onDeliveryChanged: (s) =>
+                                      _updateDelivery(order.id, s),
+                                );
+                              },
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          _buildPagination(_visibleOrders.length),
+                          const SizedBox(height: 24),
+                        ],
                       ),
               ),
             ],
           ),
         );
       },
+    );
+  }
+
+  Widget _buildPagination(int totalItems) {
+    final totalPages = (totalItems / _pageSize).ceil();
+    if (totalPages <= 1) return const SizedBox.shrink();
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        IconButton(
+          icon: const Icon(Icons.chevron_left_rounded),
+          onPressed: _currentPage > 0 ? () => setState(() => _currentPage--) : null,
+        ),
+        Text(
+          'Page ${_currentPage + 1} of $totalPages',
+          style: const TextStyle(fontWeight: FontWeight.bold, color: AdminWebColors.textSecondary),
+        ),
+        IconButton(
+          icon: const Icon(Icons.chevron_right_rounded),
+          onPressed: _currentPage < totalPages - 1 ? () => setState(() => _currentPage++) : null,
+        ),
+      ],
     );
   }
 }

@@ -23,16 +23,20 @@ class AddStaffScreen extends StatefulWidget {
 class _AddStaffScreenState extends State<AddStaffScreen> {
   final _formKey = GlobalKey<FormState>();
 
-  final _fullNameController = TextEditingController();
+  final _firstNameController = TextEditingController();
+  final _middleNameController = TextEditingController();
+  final _lastNameController = TextEditingController();
   final _usernameController = TextEditingController();
   final _emailController = TextEditingController();
   final _phoneController = TextEditingController();
-  final _positionController = TextEditingController();
+  final _ageController = TextEditingController();
+  final _addressController = TextEditingController();
   final _otherBranchController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
 
   String? _selectedBranch;
+  String? _selectedPosition;
   bool _isActive = true;
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
@@ -40,11 +44,14 @@ class _AddStaffScreenState extends State<AddStaffScreen> {
 
   @override
   void dispose() {
-    _fullNameController.dispose();
+    _firstNameController.dispose();
+    _middleNameController.dispose();
+    _lastNameController.dispose();
     _usernameController.dispose();
     _emailController.dispose();
     _phoneController.dispose();
-    _positionController.dispose();
+    _ageController.dispose();
+    _addressController.dispose();
     _otherBranchController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
@@ -66,38 +73,12 @@ class _AddStaffScreenState extends State<AddStaffScreen> {
   void _updateShellActions() {
     final shell = context.findAncestorStateOfType<AdminWebShellState>();
     shell?.setTitle('ADD NEW STAFF');
-    shell?.setActions([
-      TextButton(
-        onPressed: _isSaving ? null : () => Navigator.of(context).pop(),
-        child: const Text('CANCEL', style: TextStyle(color: Colors.white)),
-      ),
-      ElevatedButton.icon(
-        onPressed: _isSaving ? null : _handleSave,
-        icon: _isSaving
-            ? const SizedBox(
-                width: 18,
-                height: 18,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                ),
-              )
-            : const Icon(Icons.person_add_alt_1, size: 18, color: Colors.white),
-        label: const Text('CREATE ACCOUNT'),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.white.withValues(alpha: 0.15),
-          foregroundColor: Colors.white,
-          side: BorderSide(color: Colors.white.withValues(alpha: 0.3)),
-          elevation: 0,
-        ),
-      ),
-    ]);
+    shell?.setActions([]);
   }
 
-  String? _validateFullName(String? value) {
+  String? _validateRequired(String? value, String fieldName) {
     final trimmed = value?.trim() ?? '';
-    if (trimmed.isEmpty) return 'Full name is required';
-    if (trimmed.length < 2) return 'Enter a valid full name';
+    if (trimmed.isEmpty) return '$fieldName is required';
     return null;
   }
 
@@ -130,8 +111,7 @@ class _AddStaffScreenState extends State<AddStaffScreen> {
   }
 
   String? _validatePosition(String? value) {
-    final trimmed = value?.trim() ?? '';
-    if (trimmed.isEmpty) return 'Position is required';
+    if (value == null || value.isEmpty) return 'Position is required';
     return null;
   }
 
@@ -189,16 +169,20 @@ class _AddStaffScreenState extends State<AddStaffScreen> {
 
     final newStaff = StaffMember(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
-      fullName: _fullNameController.text.trim(),
+      firstName: _firstNameController.text.trim(),
+      middleName: _middleNameController.text.trim(),
+      lastName: _lastNameController.text.trim(),
       username: _usernameController.text.trim(),
       branch: branch,
-      position: _positionController.text.trim(),
+      position: _selectedPosition!,
       email: _emailController.text.trim().isEmpty
           ? null
           : _emailController.text.trim(),
       phone: _phoneController.text.trim().isEmpty
           ? null
           : _phoneController.text.trim(),
+      age: _ageController.text.trim(),
+      address: _addressController.text.trim(),
       isActive: _isActive,
     );
 
@@ -244,19 +228,52 @@ class _AddStaffScreenState extends State<AddStaffScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Expanded(
+                              flex: 2,
                               child: TextFormField(
-                                controller: _fullNameController,
+                                controller: _firstNameController,
                                 textCapitalization: TextCapitalization.words,
                                 textInputAction: TextInputAction.next,
                                 decoration: const InputDecoration(
-                                  labelText: 'FULL NAME',
+                                  labelText: 'FIRST NAME',
                                   isDense: true,
                                   prefixIcon: Icon(Icons.badge_outlined, size: 20),
                                 ),
-                                validator: _validateFullName,
+                                validator: (v) => _validateRequired(v, 'First name'),
                               ),
                             ),
                             const SizedBox(width: 16),
+                            Expanded(
+                              flex: 1,
+                              child: TextFormField(
+                                controller: _middleNameController,
+                                textCapitalization: TextCapitalization.words,
+                                textInputAction: TextInputAction.next,
+                                decoration: const InputDecoration(
+                                  labelText: 'M.I. (OPTIONAL)',
+                                  isDense: true,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              flex: 2,
+                              child: TextFormField(
+                                controller: _lastNameController,
+                                textCapitalization: TextCapitalization.words,
+                                textInputAction: TextInputAction.next,
+                                decoration: const InputDecoration(
+                                  labelText: 'LAST NAME',
+                                  isDense: true,
+                                ),
+                                validator: (v) => _validateRequired(v, 'Last name'),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 20),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
                             Expanded(
                               child: TextFormField(
                                 controller: _usernameController,
@@ -271,6 +288,8 @@ class _AddStaffScreenState extends State<AddStaffScreen> {
                                 validator: _validateUsername,
                               ),
                             ),
+                            const SizedBox(width: 16),
+                            const Spacer(), // Balance the row
                           ],
                         ),
                         const SizedBox(height: 20),
@@ -302,6 +321,39 @@ class _AddStaffScreenState extends State<AddStaffScreen> {
                                   prefixIcon: Icon(Icons.phone_outlined, size: 20),
                                 ),
                                 validator: _validatePhone,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 20),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              flex: 1,
+                              child: TextFormField(
+                                controller: _ageController,
+                                keyboardType: TextInputType.number,
+                                textInputAction: TextInputAction.next,
+                                decoration: const InputDecoration(
+                                  labelText: 'AGE',
+                                  isDense: true,
+                                  prefixIcon: Icon(Icons.cake_outlined, size: 20),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              flex: 3,
+                              child: TextFormField(
+                                controller: _addressController,
+                                textCapitalization: TextCapitalization.words,
+                                textInputAction: TextInputAction.next,
+                                decoration: const InputDecoration(
+                                  labelText: 'HOME ADDRESS',
+                                  isDense: true,
+                                  prefixIcon: Icon(Icons.home_outlined, size: 20),
+                                ),
                               ),
                             ),
                           ],
@@ -351,16 +403,22 @@ class _AddStaffScreenState extends State<AddStaffScreen> {
                             ),
                             const SizedBox(width: 16),
                             Expanded(
-                              child: TextFormField(
-                                controller: _positionController,
-                                textCapitalization: TextCapitalization.words,
-                                textInputAction: TextInputAction.next,
+                              child: DropdownButtonFormField<String>(
+                                value: _selectedPosition,
                                 decoration: const InputDecoration(
                                   labelText: 'POSITION',
                                   isDense: true,
-                                  hintText: 'e.g., Cashier, Cook',
                                   prefixIcon: Icon(Icons.work_outline, size: 20),
                                 ),
+                                items: kPositionOptions
+                                    .map((pos) => DropdownMenuItem(
+                                          value: pos,
+                                          child: Text(pos.toUpperCase()),
+                                        ))
+                                    .toList(),
+                                onChanged: (value) {
+                                  setState(() => _selectedPosition = value);
+                                },
                                 validator: _validatePosition,
                               ),
                             ),
@@ -380,11 +438,17 @@ class _AddStaffScreenState extends State<AddStaffScreen> {
                           ),
                         ],
                         const SizedBox(height: 12),
-                        SwitchListTile.adaptive(
+                        SwitchListTile(
                           contentPadding: EdgeInsets.zero,
                           value: _isActive,
                           onChanged: (value) => setState(() => _isActive = value),
-                          activeTrackColor: AdminWebColors.accent,
+                          activeColor: AdminWebColors.accent,
+                          activeTrackColor: AdminWebColors.accent.withValues(alpha: 0.3),
+                          thumbColor: WidgetStateProperty.resolveWith<Color?>(
+                            (states) => states.contains(WidgetState.selected)
+                                ? Colors.white
+                                : null,
+                          ),
                           title: const Text(
                             'ACTIVE ACCOUNT',
                             style: TextStyle(
@@ -395,7 +459,8 @@ class _AddStaffScreenState extends State<AddStaffScreen> {
                           ),
                           subtitle: const Text(
                             'Inactive staff cannot log in until reactivated.',
-                            style: TextStyle(fontSize: 12, color: AdminWebColors.textSecondary),
+                            style: TextStyle(
+                                fontSize: 12, color: AdminWebColors.textSecondary),
                           ),
                         ),
                       ],

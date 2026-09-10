@@ -71,35 +71,7 @@ class _AccountApprovalsScreenState extends State<AccountApprovalsScreen> {
 
   void _updateShellActions() {
     final shell = context.findAncestorStateOfType<AdminWebShellState>();
-    final pendingCount = _requests.where((r) => r.status == AccountStatus.pending).length;
-    
-    shell?.setActions([
-      if (pendingCount > 0)
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          decoration: BoxDecoration(
-            color: AdminWebColors.warning.withValues(alpha: 0.2),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.3)),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.pending_actions_rounded, size: 14, color: Colors.white),
-              const SizedBox(width: 8),
-              Text(
-                '$pendingCount PENDING',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 0.5,
-                ),
-              ),
-            ],
-          ),
-        ),
-    ]);
+    shell?.setActions([]);
   }
 
   @override
@@ -109,12 +81,48 @@ class _AccountApprovalsScreenState extends State<AccountApprovalsScreen> {
     final decided =
         _requests.where((r) => r.status != AccountStatus.pending).toList();
 
+    final pendingCount = pending.length;
+
     return Container(
       color: AdminWebColors.background,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const SizedBox(height: 20),
+          if (pendingCount > 0)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: AdminWebColors.warning.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(20),
+                    border:
+                        Border.all(color: AdminWebColors.warning.withValues(alpha: 0.3)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.pending_actions_rounded,
+                          size: 14, color: AdminWebColors.warning),
+                      const SizedBox(width: 8),
+                      Text(
+                        '$pendingCount PENDING',
+                        style: const TextStyle(
+                          color: AdminWebColors.warning,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          const SizedBox(height: 10),
           Expanded(
             child: ListView(
               padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),

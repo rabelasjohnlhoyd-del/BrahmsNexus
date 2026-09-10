@@ -30,46 +30,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   void _updateShellActions() {
     final shell = context.findAncestorStateOfType<AdminWebShellState>();
-    shell?.setActions([
-      Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.15),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
-        ),
-        child: const Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.trending_up_rounded, size: 16, color: Colors.white),
-                SizedBox(width: 8),
-                Text(
-                  '₱18,240',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w900,
-                    color: Colors.white,
-                  ),
-                ),
-              ],
-            ),
-            Text(
-              "TODAY'S REVENUE",
-              style: TextStyle(
-                fontSize: 9,
-                fontWeight: FontWeight.w800,
-                color: Colors.white70,
-                letterSpacing: 0.5,
-              ),
-            ),
-          ],
-        ),
-      ),
-    ]);
+    shell?.setActions([]); // Clear header actions as requested
   }
 
   String _formattedToday() {
@@ -103,7 +64,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               children: [
                 _WelcomeBanner(today: today),
                 const SizedBox(height: 24),
-                _KpiGrid(crossAxisCount: isWide ? 4 : (isMedium ? 2 : 1)),
+                _KpiGrid(crossAxisCount: isWide ? 5 : (isMedium ? 3 : 1)),
                 const SizedBox(height: 24),
                 isWide
                     ? const Row(
@@ -158,7 +119,7 @@ class _WelcomeBanner extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 const Text(
-                  'Welcome back, Admin 👋',
+                  'Welcome back, Admin',
                   style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.w900,
@@ -190,7 +151,13 @@ class _KpiGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cards = const [
+    const cards = [
+      KpiCard(
+        icon: Icons.payments_outlined,
+        label: "Today's Revenue",
+        value: '₱18,240',
+        subtitle: '+15% vs yesterday',
+      ),
       KpiCard(
         icon: Icons.shopping_bag_outlined,
         label: "Today's Orders",
@@ -223,7 +190,7 @@ class _KpiGrid extends StatelessWidget {
       physics: const NeverScrollableScrollPhysics(),
       mainAxisSpacing: 20,
       crossAxisSpacing: 20,
-      childAspectRatio: crossAxisCount == 1 ? 2.6 : 1.6,
+      childAspectRatio: crossAxisCount == 5 ? 1.2 : (crossAxisCount == 1 ? 2.6 : 1.5),
       children: cards,
     );
   }

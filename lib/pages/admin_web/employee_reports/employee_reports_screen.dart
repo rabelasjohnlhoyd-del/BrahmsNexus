@@ -22,6 +22,10 @@ class EmployeeReportsScreen extends StatefulWidget {
 class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
   static const double _wideBreakpoint = 700;
 
+  int _currentPage = 0;
+  static const int _pageSize = 10;
+  DateTime? _dateFilter;
+
   final List<DailyReport> _reports = [
     DailyReport(
       id: 'r1',
@@ -83,21 +87,7 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
 
   void _updateShellActions() {
     final shell = context.findAncestorStateOfType<AdminWebShellState>();
-    shell?.setActions([
-      IconButton(
-        tooltip: _newestFirst ? 'Sort: Newest First' : 'Sort: Oldest First',
-        icon: Icon(
-          _newestFirst
-              ? Icons.sort_rounded
-              : Icons.history_rounded,
-          color: Colors.white,
-        ),
-        onPressed: () {
-          setState(() => _newestFirst = !_newestFirst);
-          _updateShellActions();
-        },
-      ),
-    ]);
+    shell?.setActions([]);
   }
 
   Color _statusColor(ReportSubmissionStatus status) {
@@ -117,12 +107,31 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
           r.employeeName.toLowerCase().contains(_searchQuery.toLowerCase());
       final matchesBranch =
           _branchFilter == null || r.branchName == _branchFilter;
-      return matchesSearch && matchesBranch;
+      final matchesDate = _dateFilter == null ||
+          (r.date.year == _dateFilter!.year &&
+           r.date.month == _dateFilter!.month &&
+           r.date.day == _dateFilter!.day);
+      return matchesSearch && matchesBranch && matchesDate;
     }).toList();
 
     list.sort((a, b) =>
         _newestFirst ? b.date.compareTo(a.date) : a.date.compareTo(b.date));
     return list;
+  }
+
+  void _pickDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _dateFilter ?? DateTime.now(),
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now().add(const Duration(days: 30)),
+    );
+    if (picked != null) {
+      setState(() {
+        _dateFilter = picked;
+        _currentPage = 0;
+      });
+    }
   }
 
   int _countByStatus(ReportSubmissionStatus status) =>
@@ -223,76 +232,125 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
                         ],
                       ),
                 const SizedBox(height: 20),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    OutlinedButton.icon(
+                      onPressed: _pickDate,
+                      icon: const Icon(Icons.calendar_today_rounded, size: 16),
+                      label: Text(
+                        _dateFilter == null
+                            ? 'FILTER BY DATE'
+                            : '${_dateFilter!.month}/${_dateFilter!.day}/${_dateFilter!.year}',
+                        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AdminWebColors.accent,
+                        side: const BorderSide(color: AdminWebColors.accent),
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                    ),
+                    if (_dateFilter != null) ...[
+                      const SizedBox(width: 8),
+                      IconButton(
+                        icon: const Icon(Icons.clear_rounded, color: AdminWebColors.error, size: 20),
+                        onPressed: () => setState(() => _dateFilter = null),
+                        tooltip: 'Clear Date Filter',
+                      ),
+                    ],
+                    const SizedBox(width: 12),
+                    OutlinedButton.icon(
+                      onPressed: () {
+                        setState(() => _newestFirst = !_newestFirst);
+                        _updateShellActions();
+                      },
+                      icon: Icon(
+                        _newestFirst ? Icons.sort_rounded : Icons.history_rounded,
+                        size: 16,
+                      ),
+                      label: Text(
+                        _newestFirst ? 'NEWEST FIRST' : 'OLDEST FIRST',
+                        style: const TextStyle(
+                            fontSize: 11, fontWeight: FontWeight.bold),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AdminWebColors.accent,
+                        side: const BorderSide(color: AdminWebColors.accent),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
                 isWide
                     ? Row(
                         children: [
                           Expanded(
-                            flex: 2,
-                            child: TextField(
+                            child: DropdownButtonFormField<String>(
+                              value: _branchFilter ?? 'All',
                               decoration: const InputDecoration(
-                                hintText: 'Search by employee name...',
-                                prefixIcon: Icon(Icons.search_rounded),
+                                labelText: 'FILTER BY BRANCH',
                                 isDense: true,
+                                prefixIcon: Icon(Icons.storefront_rounded, size: 18),
                               ),
-                              onChanged: (v) =>
-                                  setState(() => _searchQuery = v),
+                              items: [
+                                const DropdownMenuItem(value: 'All', child: Text('ALL BRANCHES')),
+                                ...branches.map((b) => DropdownMenuItem(
+                                  value: b,
+                                  child: Text(b.toUpperCase()),
+                                )),
+                              ],
+                              onChanged: (v) {
+                                setState(() {
+                                  _branchFilter = (v == 'All' ? null : v);
+                                  _currentPage = 0;
+                                });
+                              },
                             ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: _branchChips(branches),
                           ),
                         ],
                       )
                     : Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          Row(
-                            children: [
-                              Expanded(
-                                child: TextField(
-                                  decoration: const InputDecoration(
-                                    hintText: 'Search by employee name...',
-                                    prefixIcon: Icon(Icons.search_rounded),
-                                    isDense: true,
-                                  ),
-                                  onChanged: (v) =>
-                                      setState(() => _searchQuery = v),
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              OutlinedButton.icon(
-                                onPressed: () {
-                                  setState(() => _newestFirst = !_newestFirst);
-                                  _updateShellActions();
-                                },
-                                icon: Icon(
-                                  _newestFirst
-                                      ? Icons.sort_rounded
-                                      : Icons.history_rounded,
-                                  size: 16,
-                                ),
-                                label: Text(
-                                  _newestFirst ? 'NEWEST' : 'OLDEST',
-                                  style: const TextStyle(
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.bold),
-                                ),
-                                style: OutlinedButton.styleFrom(
-                                  foregroundColor: AdminWebColors.accent,
-                                  side: const BorderSide(
-                                      color: AdminWebColors.accent),
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 10, vertical: 12),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                ),
-                              ),
-                            ],
+                          TextField(
+                            decoration: const InputDecoration(
+                              hintText: 'Search by employee name...',
+                              prefixIcon: Icon(Icons.search_rounded),
+                              isDense: true,
+                            ),
+                            onChanged: (v) => setState(() {
+                              _searchQuery = v;
+                              _currentPage = 0;
+                            }),
                           ),
-                          const SizedBox(height: 10),
-                          _branchChips(branches),
+                          const SizedBox(height: 12),
+                          DropdownButtonFormField<String>(
+                            value: _branchFilter ?? 'All',
+                            decoration: const InputDecoration(
+                              labelText: 'FILTER BY BRANCH',
+                              isDense: true,
+                              prefixIcon: Icon(Icons.storefront_rounded, size: 18),
+                            ),
+                            items: [
+                              const DropdownMenuItem(value: 'All', child: Text('ALL BRANCHES')),
+                              ...branches.map((b) => DropdownMenuItem(
+                                value: b,
+                                child: Text(b.toUpperCase()),
+                              )),
+                            ],
+                            onChanged: (v) {
+                              setState(() {
+                                _branchFilter = (v == 'All' ? null : v);
+                                _currentPage = 0;
+                              });
+                            },
+                          ),
                         ],
                       ),
                 const SizedBox(height: 16),
@@ -304,53 +362,61 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
                             style: TextStyle(color: AdminWebColors.textSecondary),
                           ),
                         )
-                      : ListView.separated(
-                          itemCount: _visibleReports.length,
-                          separatorBuilder: (context, index) =>
-                              const SizedBox(height: 10),
-                          itemBuilder: (context, index) {
-                            final r = _visibleReports[index];
-                            return GlassCard(
-                              padding: EdgeInsets.zero,
-                              child: Material(
-                                color: Colors.transparent,
-                                borderRadius: BorderRadius.circular(16),
-                                clipBehavior: Clip.antiAlias,
-                                child: ListTile(
-                                  onTap: () => _showReportDetail(r),
-                                  leading: CircleAvatar(
-                                    backgroundColor: AdminWebColors.accent,
-                                    child: Text(
-                                      r.employeeName.substring(0, 1),
-                                      style:
-                                          const TextStyle(color: Colors.white),
-                                    ),
-                                  ),
-                                  title: Text(r.employeeName),
-                                  subtitle: Text(
-                                    '${r.branchName} · ${_formatDate(r.date)}',
-                                  ),
-                                  trailing: Container(
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 10, vertical: 4),
-                                    decoration: BoxDecoration(
-                                      color: _statusColor(r.status)
-                                          .withValues(alpha: 0.15),
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    child: Text(
-                                      r.status.label,
-                                      style: TextStyle(
-                                        color: _statusColor(r.status),
-                                        fontWeight: FontWeight.w600,
-                                        fontSize: 11.5,
+                      : Column(
+                          children: [
+                            Expanded(
+                              child: ListView.separated(
+                                itemCount: (_visibleReports.length - (_currentPage * _pageSize)).clamp(0, _pageSize),
+                                separatorBuilder: (context, index) =>
+                                    const SizedBox(height: 10),
+                                itemBuilder: (context, index) {
+                                  final r = _visibleReports[(_currentPage * _pageSize) + index];
+                                  return GlassCard(
+                                    padding: EdgeInsets.zero,
+                                    child: Material(
+                                      color: Colors.transparent,
+                                      borderRadius: BorderRadius.circular(16),
+                                      clipBehavior: Clip.antiAlias,
+                                      child: ListTile(
+                                        onTap: () => _showReportDetail(r),
+                                        leading: CircleAvatar(
+                                          backgroundColor: AdminWebColors.accent,
+                                          child: Text(
+                                            r.employeeName.substring(0, 1),
+                                            style:
+                                                const TextStyle(color: Colors.white),
+                                          ),
+                                        ),
+                                        title: Text(r.employeeName),
+                                        subtitle: Text(
+                                          '${r.branchName} · ${_formatDate(r.date)}',
+                                        ),
+                                        trailing: Container(
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 10, vertical: 4),
+                                          decoration: BoxDecoration(
+                                            color: _statusColor(r.status)
+                                                .withValues(alpha: 0.15),
+                                            borderRadius: BorderRadius.circular(8),
+                                          ),
+                                          child: Text(
+                                            r.status.label,
+                                            style: TextStyle(
+                                              color: _statusColor(r.status),
+                                              fontWeight: FontWeight.w600,
+                                              fontSize: 11.5,
+                                            ),
+                                          ),
+                                        ),
                                       ),
                                     ),
-                                  ),
-                                ),
+                                  );
+                                },
                               ),
-                            );
-                          },
+                            ),
+                            const SizedBox(height: 16),
+                            _buildPagination(_visibleReports.length),
+                          ],
                         ),
                 ),
               ],
@@ -361,29 +427,26 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
     );
   }
 
-  Widget _branchChips(List<String> branches) {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: [
-          ChoiceChip(
-            label: const Text('All Branches'),
-            selected: _branchFilter == null,
-            onSelected: (_) => setState(() => _branchFilter = null),
-          ),
-          const SizedBox(width: 8),
-          ...branches.map(
-            (b) => Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: ChoiceChip(
-                label: Text(b),
-                selected: _branchFilter == b,
-                onSelected: (_) => setState(() => _branchFilter = b),
-              ),
-            ),
-          ),
-        ],
-      ),
+  Widget _buildPagination(int totalItems) {
+    final totalPages = (totalItems / _pageSize).ceil();
+    if (totalPages <= 1) return const SizedBox.shrink();
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        IconButton(
+          icon: const Icon(Icons.chevron_left_rounded),
+          onPressed: _currentPage > 0 ? () => setState(() => _currentPage--) : null,
+        ),
+        Text(
+          'Page ${_currentPage + 1} of $totalPages',
+          style: const TextStyle(fontWeight: FontWeight.bold, color: AdminWebColors.textSecondary),
+        ),
+        IconButton(
+          icon: const Icon(Icons.chevron_right_rounded),
+          onPressed: _currentPage < totalPages - 1 ? () => setState(() => _currentPage++) : null,
+        ),
+      ],
     );
   }
 

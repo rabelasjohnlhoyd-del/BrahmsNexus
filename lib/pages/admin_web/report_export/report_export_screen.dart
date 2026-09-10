@@ -29,19 +29,7 @@ class _ReportExportScreenState extends State<ReportExportScreen> {
 
   void _updateShellActions() {
     final shell = context.findAncestorStateOfType<AdminWebShellState>();
-    shell?.setActions([
-      ElevatedButton.icon(
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.white.withValues(alpha: 0.15),
-          foregroundColor: Colors.white,
-          side: BorderSide(color: Colors.white.withValues(alpha: 0.3)),
-          elevation: 0,
-        ),
-        onPressed: _export,
-        icon: const Icon(Icons.download_rounded, size: 18),
-        label: const Text('GENERATE CSV'),
-      ),
-    ]);
+    shell?.setActions([]);
   }
 
   void _export() {
