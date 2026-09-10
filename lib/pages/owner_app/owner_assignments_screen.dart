@@ -37,6 +37,7 @@ class OwnerAssignmentsScreen extends StatefulWidget {
 
 class _OwnerAssignmentsScreenState extends State<OwnerAssignmentsScreen> {
   final DateTime _selectedDate = DateTime.now();
+  String _searchQuery = '';
 
   // Mock per-date assignment records, keyed by "yyyy-M-d". Only today
   // is seeded with data — other dates start with nothing, so picking a
@@ -55,34 +56,30 @@ class _OwnerAssignmentsScreenState extends State<OwnerAssignmentsScreen> {
       ),
       BranchAssignment(
         id: 'a2',
-        employeeId: 'sample-3',
-        employeeName: 'Maria Reyes',
-        branchId: 'br3',
-        branchName: 'Brgy. Sta. Clara Sur, Pila',
-        date: DateTime.now(),
-        workStatus: WorkStatus.onDuty,
-      ),
-      BranchAssignment(
-        id: 'a3',
-        employeeId: 'sample-4',
-        employeeName: 'Pedro Santos',
+        employeeId: 'sample-2',
+        employeeName: 'Juan Dela Cruz',
         branchId: 'br2',
         branchName: 'Brgy. Labuin, Pila',
         date: DateTime.now(),
-        workStatus: WorkStatus.restDay,
+        workStatus: WorkStatus.onDuty,
       ),
     ],
   };
 
   static String _dateKey(DateTime d) => '${d.year}-${d.month}-${d.day}';
 
-  List<BranchAssignment> get _assignments =>
-      _assignmentsByDate[_dateKey(_selectedDate)] ?? const [];
+  List<BranchAssignment> get _assignments {
+    final list = _assignmentsByDate[_dateKey(_selectedDate)] ?? const [];
+    if (_searchQuery.isEmpty) return list;
+    return list
+        .where((a) => a.employeeName.toLowerCase().contains(_searchQuery.toLowerCase()))
+        .toList();
+  }
 
   /// Staff who can actually be assigned — deactivated accounts (see
   /// Staff Management) are excluded.
   List<StaffMember> get _assignableStaff =>
-      kSampleStaff.where((s) => s.isActive).toList();
+      kSampleStaff.where((s) => s.isActive && s.position == 'Branch Cook').toList();
 
   /// Seeds default assignments (On Duty, at each staff member's usual
   /// branch) for the currently selected date.
@@ -245,37 +242,52 @@ class _OwnerAssignmentsScreenState extends State<OwnerAssignmentsScreen> {
         trailing: StaffTopActions(),
       ),
       child: SafeArea(
-        child: assignments.isEmpty
-            ? _buildEmptyState()
-            : ListView(
-                padding: const EdgeInsets.all(16),
-                children: [
-                  const StaffSectionHeader(
-                    label:
-                        'Assign each staff to a branch and set their work status today.',
-                    icon: CupertinoIcons.person_2_fill,
-                  ),
-                  const SizedBox(height: 16),
-                  ...List.generate(assignments.length, (index) {
-                    final a = assignments[index];
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 10),
-                      child: _AssignmentRow(
-                        assignment: a,
-                        onBranchTap: () => _pickBranch(index, a),
-                        onStatusChanged: (status) =>
-                            _updateStatus(index, status),
-                      ),
-                    );
-                  }),
-                  const SizedBox(height: 8),
-                  StaffButton(
-                    label: 'Save All',
-                    icon: CupertinoIcons.check_mark_circled,
-                    onPressed: _saveAll,
-                  ),
-                ],
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+              child: CupertinoSearchTextField(
+                placeholder: 'Search staff by name...',
+                onChanged: (v) => setState(() => _searchQuery = v),
               ),
+            ),
+            Expanded(
+              child: assignments.isEmpty
+                  ? _buildEmptyState()
+                  : ListView(
+                      padding: const EdgeInsets.all(16),
+                      children: [
+                        const StaffSectionHeader(
+                          label:
+                              'Assign each staff to a branch and set their work status today.',
+                          icon: CupertinoIcons.person_2_fill,
+                        ),
+                        const SizedBox(height: 16),
+                        ...List.generate(assignments.length, (index) {
+                          final a = assignments[index];
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 10),
+                            child: _AssignmentRow(
+                              assignment: a,
+                              onBranchTap: a.workStatus == WorkStatus.restDay
+                                  ? null
+                                  : () => _pickBranch(index, a),
+                              onStatusChanged: (status) =>
+                                  _updateStatus(index, status),
+                            ),
+                          );
+                        }),
+                        const SizedBox(height: 8),
+                        StaffButton(
+                          label: 'Save All',
+                          icon: CupertinoIcons.check_mark_circled,
+                          onPressed: _saveAll,
+                        ),
+                      ],
+                    ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -315,11 +327,13 @@ class _AssignmentRow extends StatelessWidget {
   });
 
   final BranchAssignment assignment;
-  final VoidCallback onBranchTap;
+  final VoidCallback? onBranchTap;
   final ValueChanged<WorkStatus> onStatusChanged;
 
   @override
   Widget build(BuildContext context) {
+    final isRestDay = assignment.workStatus == WorkStatus.restDay;
+
     return StaffCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -355,33 +369,36 @@ class _AssignmentRow extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 12),
-          GestureDetector(
-            onTap: onBranchTap,
-            child: Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              decoration: BoxDecoration(
-                color: AppColors.background,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: AppColors.border),
-              ),
-              child: Row(
-                children: [
-                  const Icon(CupertinoIcons.location_solid,
-                      size: 15, color: AppColors.textSecondary),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      assignment.branchName,
-                      style: const TextStyle(
-                        fontSize: 13,
-                        color: AppColors.textPrimary,
+          Opacity(
+            opacity: isRestDay ? 0.4 : 1.0,
+            child: GestureDetector(
+              onTap: onBranchTap,
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: AppColors.background,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: AppColors.border),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(CupertinoIcons.location_solid,
+                        size: 15, color: AppColors.textSecondary),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        assignment.branchName,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: AppColors.textPrimary,
+                        ),
                       ),
                     ),
-                  ),
-                  const Icon(CupertinoIcons.chevron_down,
-                      size: 14, color: AppColors.textSecondary),
-                ],
+                    const Icon(CupertinoIcons.chevron_down,
+                        size: 14, color: AppColors.textSecondary),
+                  ],
+                ),
               ),
             ),
           ),

@@ -35,6 +35,48 @@ class _OwnerHomepageScreenState extends State<OwnerHomepageScreen> {
   double _windSpeed = 12.5;
   int _feelsLikeC = 30;
 
+  Widget _KPITile({
+    required IconData icon,
+    required String label,
+    required String value,
+    required Color color,
+  }) {
+    return StaffCard(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, size: 16, color: color),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.w900,
+              color: AppColors.textPrimary,
+              letterSpacing: -0.5,
+            ),
+          ),
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textSecondary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _refreshWeather() async {
     if (_isRefreshing) return;
     setState(() => _isRefreshing = true);
@@ -454,23 +496,24 @@ class _OwnerHomepageScreenState extends State<OwnerHomepageScreen> {
               icon: CupertinoIcons.speedometer,
               trailing: _dateChip(),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 12),
             Row(
               children: [
                 Expanded(
-                  child: DriverDisplayTile(
+                  child: _KPITile(
                     icon: CupertinoIcons.person_2_fill,
                     label: 'On Duty',
                     value: '$_onDutyCount/${_assignments.length}',
+                    color: AppColors.accent,
                   ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: DriverDisplayTile(
+                  child: _KPITile(
                     icon: CupertinoIcons.exclamationmark_triangle_fill,
                     label: 'Low Stock',
                     value: '$_lowStockCount',
-                    dark: _lowStockCount > 0,
+                    color: _lowStockCount > 0 ? AppColors.error : AppColors.textSecondary,
                   ),
                 ),
               ],
@@ -479,19 +522,20 @@ class _OwnerHomepageScreenState extends State<OwnerHomepageScreen> {
             Row(
               children: [
                 Expanded(
-                  child: DriverDisplayTile(
+                  child: _KPITile(
                     icon: CupertinoIcons.money_dollar_circle_fill,
                     label: "Today's Sales",
                     value: '₱${_todaysSales.toStringAsFixed(0)}',
+                    color: AppColors.success,
                   ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: DriverDisplayTile(
+                  child: _KPITile(
                     icon: CupertinoIcons.doc_text_fill,
-                    label: 'Pending Reports',
+                    label: 'Pending',
                     value: '$_pendingReportsCount',
-                    dark: _pendingReportsCount > 0,
+                    color: _pendingReportsCount > 0 ? AppColors.warning : AppColors.textSecondary,
                   ),
                 ),
               ],

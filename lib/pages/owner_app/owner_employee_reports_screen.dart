@@ -112,6 +112,71 @@ class _OwnerEmployeeReportsScreenState
   String _formatDate(DateTime date) =>
       '${date.month}/${date.day}/${date.year}';
 
+  void _showBranchPicker() {
+    showCupertinoModalPopup(
+      context: context,
+      builder: (context) => CupertinoActionSheet(
+        title: const Text('Filter by Branch'),
+        actions: [
+          CupertinoActionSheetAction(
+            onPressed: () {
+              setState(() => _branchFilter = null);
+              Navigator.pop(context);
+            },
+            child: const Text('All Branches'),
+          ),
+          ...kSampleBranches.map((b) => CupertinoActionSheetAction(
+                onPressed: () {
+                  setState(() => _branchFilter = b.id);
+                  Navigator.pop(context);
+                },
+                child: Text(b.fullName),
+              )),
+        ],
+        cancelButton: CupertinoActionSheetAction(
+          onPressed: () => Navigator.pop(context),
+          isDestructiveAction: true,
+          child: const Text('Cancel'),
+        ),
+      ),
+    );
+  }
+
+  void _showDatePicker() {
+    showCupertinoModalPopup(
+      context: context,
+      builder: (context) => Container(
+        height: 250,
+        color: CupertinoColors.white,
+        child: Column(
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                CupertinoButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancel'),
+                ),
+                const Text('Select Date', style: TextStyle(fontWeight: FontWeight.w600)),
+                CupertinoButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Done'),
+                ),
+              ],
+            ),
+            Expanded(
+              child: CupertinoDatePicker(
+                mode: CupertinoDatePickerMode.date,
+                initialDateTime: DateTime.now(),
+                onDateTimeChanged: (d) {},
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   void _showReportDetail(DailyReport report) {
     showCupertinoDialog(
       context: context,
@@ -222,9 +287,14 @@ class _OwnerEmployeeReportsScreenState
   Widget build(BuildContext context) {
     return CupertinoPageScaffold(
       backgroundColor: AppColors.background,
-      navigationBar: const StaffNavBar(
+      navigationBar: StaffNavBar(
         title: 'Employee Reports',
         showBackButton: true,
+        trailing: CupertinoButton(
+          padding: EdgeInsets.zero,
+          onPressed: _showDatePicker,
+          child: const Icon(CupertinoIcons.calendar, size: 22, color: AppColors.accent),
+        ),
       ),
       child: SafeArea(
         child: Column(
@@ -269,41 +339,48 @@ class _OwnerEmployeeReportsScreenState
                 onChanged: (v) => setState(() => _searchQuery = v),
               ),
             ),
-            SizedBox(
-              height: 34,
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Row(
                 children: [
                   Expanded(
-                    child: ListView(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      scrollDirection: Axis.horizontal,
-                      children: [
-                        _filterChip(
-                          label: 'All Branches',
-                          selected: _branchFilter == null,
-                          onTap: () => setState(() => _branchFilter = null),
+                    child: CupertinoButton(
+                      padding: EdgeInsets.zero,
+                      onPressed: _showBranchPicker,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: CupertinoColors.white,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: AppColors.border),
                         ),
-                        const SizedBox(width: 8),
-                        for (final b in kSampleBranches) ...[
-                          _filterChip(
-                            label: b.fullName,
-                            selected: _branchFilter == b.id,
-                            onTap: () =>
-                                setState(() => _branchFilter = b.id),
-                          ),
-                          const SizedBox(width: 8),
-                        ],
-                      ],
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              _branchFilter == null
+                                  ? 'All Branches'
+                                  : kSampleBranches
+                                      .firstWhere((b) => b.id == _branchFilter)
+                                      .fullName,
+                              style: const TextStyle(
+                                  fontSize: 13,
+                                  color: AppColors.textPrimary,
+                                  fontWeight: FontWeight.w600),
+                            ),
+                            const Icon(CupertinoIcons.chevron_down,
+                                size: 14, color: AppColors.textSecondary),
+                          ],
+                        ),
+                      ),
                     ),
                   ),
+                  const SizedBox(width: 8),
                   CupertinoButton(
-                    padding: const EdgeInsets.only(right: 16),
-                    onPressed: () =>
-                        setState(() => _newestFirst = !_newestFirst),
+                    padding: EdgeInsets.zero,
+                    onPressed: () => setState(() => _newestFirst = !_newestFirst),
                     child: Icon(
-                      _newestFirst
-                          ? CupertinoIcons.arrow_down
-                          : CupertinoIcons.arrow_up,
+                      _newestFirst ? CupertinoIcons.arrow_down : CupertinoIcons.arrow_up,
                       size: 18,
                       color: AppColors.accent,
                     ),

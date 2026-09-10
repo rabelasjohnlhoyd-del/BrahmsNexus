@@ -5,15 +5,51 @@ import '../../widgets/staff_card.dart';
 import '../../widgets/staff_nav_bar.dart';
 import '../../widgets/staff_section_header.dart';
 import '../../widgets/staff_top_actions.dart';
+import '../../widgets/staff_dialog.dart';
 import '../auth/login_screen.dart';
 
 /// Profile tab of the Owner App — displays the owner's account
 /// credentials, administrative privileges, operational settings,
 /// and log out action.
-class OwnerProfileScreen extends StatelessWidget {
+class OwnerProfileScreen extends StatefulWidget {
   const OwnerProfileScreen({super.key});
 
-  void _confirmLogout(BuildContext context) {
+  @override
+  State<OwnerProfileScreen> createState() => _OwnerProfileScreenState();
+}
+
+class _OwnerProfileScreenState extends State<OwnerProfileScreen> {
+  bool _isEditing = false;
+
+  // Initial mock data
+  final String _fullName = 'Ramon Santos';
+  final String _age = '45';
+  final String _address = 'Sta. Cruz, Laguna';
+  String _contact = '+63 917 888 1234';
+  String _email = 'owner@brahmsnexus.ph';
+  String _username = 'ramon.santos';
+
+  late TextEditingController _contactController;
+  late TextEditingController _emailController;
+  late TextEditingController _usernameController;
+
+  @override
+  void initState() {
+    super.initState();
+    _contactController = TextEditingController(text: _contact);
+    _emailController = TextEditingController(text: _email);
+    _usernameController = TextEditingController(text: _username);
+  }
+
+  @override
+  void dispose() {
+    _contactController.dispose();
+    _emailController.dispose();
+    _usernameController.dispose();
+    super.dispose();
+  }
+
+  void _confirmLogout() {
     showCupertinoDialog<void>(
       context: context,
       builder: (dialogContext) => CupertinoAlertDialog(
@@ -40,6 +76,59 @@ class OwnerProfileScreen extends StatelessWidget {
     );
   }
 
+  Future<void> _handleEditToggle() async {
+    if (!_isEditing) {
+      final confirm = await StaffDialog.confirm(
+        context,
+        title: 'Edit Account Details',
+        message: 'Are you sure you want to edit your account details?',
+        icon: CupertinoIcons.pencil,
+        confirmLabel: 'Edit',
+      );
+      if (confirm) setState(() => _isEditing = true);
+    } else {
+      // If currently editing, this is the "Discard" or "Save" logic
+      // Handled by specific buttons in the UI
+    }
+  }
+
+  Future<void> _discardChanges() async {
+    final confirm = await StaffDialog.confirm(
+      context,
+      title: 'Discard Changes',
+      message: 'Are you sure you want to discard your changes?',
+      icon: CupertinoIcons.xmark_circle,
+      isDestructive: true,
+      confirmLabel: 'Discard',
+    );
+    if (confirm) {
+      setState(() {
+        _isEditing = false;
+        _contactController.text = _contact;
+        _emailController.text = _email;
+        _usernameController.text = _username;
+      });
+    }
+  }
+
+  Future<void> _saveChanges() async {
+    final confirm = await StaffDialog.confirm(
+      context,
+      title: 'Save Changes',
+      message: 'Are you sure you want to save these changes?',
+      icon: CupertinoIcons.checkmark_circle,
+      confirmLabel: 'Save',
+    );
+    if (confirm) {
+      setState(() {
+        _contact = _contactController.text;
+        _email = _emailController.text;
+        _username = _usernameController.text;
+        _isEditing = false;
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return CupertinoPageScaffold(
@@ -54,28 +143,57 @@ class OwnerProfileScreen extends StatelessWidget {
           children: [
             _buildProfileHeader(),
             const SizedBox(height: 20),
-
-            const StaffSectionHeader(
+            StaffSectionHeader(
               label: 'Account Details',
               icon: CupertinoIcons.person_crop_circle_fill,
+              trailing: _isEditing
+                  ? Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        CupertinoButton(
+                          padding: EdgeInsets.zero,
+                          onPressed: _discardChanges,
+                          child: const Text('Discard',
+                              style: TextStyle(fontSize: 12, color: AppColors.error)),
+                        ),
+                        const SizedBox(width: 8),
+                        CupertinoButton(
+                          padding: EdgeInsets.zero,
+                          onPressed: _saveChanges,
+                          child: const Text('Save',
+                              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                        ),
+                      ],
+                    )
+                  : CupertinoButton(
+                      padding: EdgeInsets.zero,
+                      onPressed: _handleEditToggle,
+                      child: const Text('Edit', style: TextStyle(fontSize: 13)),
+                    ),
             ),
             const SizedBox(height: 8),
             StaffCard(
               padding: EdgeInsets.zero,
               child: Column(
                 children: [
-                  _infoTile(CupertinoIcons.person_fill, 'Full Name', 'Ramon Santos'),
+                  _infoTile(CupertinoIcons.person_fill, 'Full Name', _fullName),
                   _divider(),
-                  _infoTile(CupertinoIcons.phone_fill, 'Contact Number', '+63 917 888 1234'),
+                  _infoTile(CupertinoIcons.number, 'Age', _age),
                   _divider(),
-                  _infoTile(CupertinoIcons.mail_solid, 'Email', 'owner@brahmsnexus.ph'),
+                  _infoTile(CupertinoIcons.location_fill, 'Address', _address),
                   _divider(),
-                  _infoTile(CupertinoIcons.shield_fill, 'Role', 'Owner / Administrator'),
+                  _editTile(CupertinoIcons.phone_fill, 'Contact', _contactController,
+                      _isEditing),
+                  _divider(),
+                  _editTile(CupertinoIcons.mail_solid, 'Email', _emailController,
+                      _isEditing),
+                  _divider(),
+                  _editTile(CupertinoIcons.shield_fill, 'Username', _usernameController,
+                      _isEditing),
                 ],
               ),
             ),
             const SizedBox(height: 20),
-
             const StaffSectionHeader(
               label: 'Operations & Business',
               icon: CupertinoIcons.building_2_fill,
@@ -87,39 +205,21 @@ class OwnerProfileScreen extends StatelessWidget {
                 children: [
                   _infoTile(CupertinoIcons.map_pin_ellipse, 'Active Branches', '6 Branches'),
                   _divider(),
-                  _infoTile(CupertinoIcons.checkmark_shield_fill, 'Access Level', 'Full Administrative Access'),
+                  _infoTile(CupertinoIcons.checkmark_shield_fill, 'Access Level',
+                      'Full Administrative Access'),
                   _divider(),
-                  _infoTile(CupertinoIcons.info_circle_fill, 'System Version', 'Brahms Nexus v1.0.0'),
-                ],
-              ),
-            ),
-            const SizedBox(height: 20),
-
-            const StaffSectionHeader(
-              label: 'Preferences & Security',
-              icon: CupertinoIcons.gear_alt_fill,
-            ),
-            const SizedBox(height: 8),
-            StaffCard(
-              padding: EdgeInsets.zero,
-              child: Column(
-                children: [
-                  _settingsTile(CupertinoIcons.lock_fill, 'PIN Protection', 'Enabled'),
-                  _divider(),
-                  _settingsTile(CupertinoIcons.bell_fill, 'Notifications', 'Enabled'),
-                  _divider(),
-                  _settingsTile(CupertinoIcons.question_circle_fill, 'Help & Support', null),
+                  _infoTile(CupertinoIcons.info_circle_fill, 'System Version',
+                      'Brahms Nexus v1.0.0'),
                 ],
               ),
             ),
             const SizedBox(height: 24),
-
             StaffButton(
               label: 'Log Out',
               icon: CupertinoIcons.square_arrow_right,
               color: AppColors.error.withValues(alpha: 0.1),
               textColor: AppColors.error,
-              onPressed: () => _confirmLogout(context),
+              onPressed: _confirmLogout,
             ),
             const SizedBox(height: 16),
           ],
@@ -163,23 +263,23 @@ class OwnerProfileScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 16),
-          const Expanded(
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Ramon Santos',
+                  _fullName,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.w900,
                     color: AppColors.textPrimary,
                     letterSpacing: -0.6,
                   ),
                 ),
-                SizedBox(height: 2),
-                Text(
+                const SizedBox(height: 2),
+                const Text(
                   'Business Owner',
                   style: TextStyle(
                     fontSize: 13,
@@ -187,8 +287,8 @@ class OwnerProfileScreen extends StatelessWidget {
                     fontWeight: FontWeight.w600,
                   ),
                 ),
-                SizedBox(height: 6),
-                Row(
+                const SizedBox(height: 6),
+                const Row(
                   children: [
                     Icon(CupertinoIcons.checkmark_seal_fill, size: 14, color: AppColors.accent),
                     SizedBox(width: 4),
@@ -244,9 +344,10 @@ class OwnerProfileScreen extends StatelessWidget {
     );
   }
 
-  Widget _settingsTile(IconData icon, String label, String? value) {
+  Widget _editTile(
+      IconData icon, String label, TextEditingController controller, bool editing) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Row(
         children: [
           Icon(icon, size: 18, color: AppColors.accent),
@@ -255,22 +356,35 @@ class OwnerProfileScreen extends StatelessWidget {
             label,
             style: const TextStyle(
               fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: AppColors.textPrimary,
+              color: AppColors.textSecondary,
+              fontWeight: FontWeight.w500,
             ),
           ),
-          const Spacer(),
-          if (value != null)
-            Text(
-              value,
-              style: const TextStyle(
-                fontSize: 13,
-                color: AppColors.textSecondary,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          const SizedBox(width: 6),
-          const Icon(CupertinoIcons.chevron_forward, size: 14, color: AppColors.border),
+          const SizedBox(width: 8),
+          Expanded(
+            child: editing
+                ? CupertinoTextField(
+                    controller: controller,
+                    textAlign: TextAlign.end,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      color: AppColors.textPrimary,
+                      fontWeight: FontWeight.w700,
+                    ),
+                    decoration: null,
+                  )
+                : Text(
+                    controller.text,
+                    textAlign: TextAlign.end,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      color: AppColors.textPrimary,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+          ),
         ],
       ),
     );
