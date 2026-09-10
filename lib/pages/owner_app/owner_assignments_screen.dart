@@ -7,6 +7,7 @@ import '../../widgets/staff_button.dart';
 import '../../widgets/staff_card.dart';
 import '../../widgets/staff_nav_bar.dart';
 import '../../widgets/staff_section_header.dart';
+import '../../widgets/staff_top_actions.dart';
 
 /// Assignments tab — Owner assigns each active staff member to a branch
 /// and sets their work status (On Duty / Rest Day) for a chosen date.
@@ -35,7 +36,7 @@ class OwnerAssignmentsScreen extends StatefulWidget {
 }
 
 class _OwnerAssignmentsScreenState extends State<OwnerAssignmentsScreen> {
-  DateTime _selectedDate = DateTime.now();
+  final DateTime _selectedDate = DateTime.now();
 
   // Mock per-date assignment records, keyed by "yyyy-M-d". Only today
   // is seeded with data — other dates start with nothing, so picking a
@@ -82,47 +83,6 @@ class _OwnerAssignmentsScreenState extends State<OwnerAssignmentsScreen> {
   /// Staff Management) are excluded.
   List<StaffMember> get _assignableStaff =>
       kSampleStaff.where((s) => s.isActive).toList();
-
-  Future<void> _pickDate() async {
-    var tempDate = _selectedDate;
-    await showCupertinoModalPopup<void>(
-      context: context,
-      builder: (popupContext) => Container(
-        height: 260,
-        color: CupertinoColors.white,
-        child: Column(
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                CupertinoButton(
-                  onPressed: () => Navigator.of(popupContext).pop(),
-                  child: const Text('Cancel'),
-                ),
-                CupertinoButton(
-                  onPressed: () {
-                    setState(() => _selectedDate = tempDate);
-                    Navigator.of(popupContext).pop();
-                  },
-                  child: const Text('Done'),
-                ),
-              ],
-            ),
-            Expanded(
-              child: CupertinoDatePicker(
-                mode: CupertinoDatePickerMode.date,
-                initialDateTime: _selectedDate,
-                minimumDate:
-                    DateTime.now().subtract(const Duration(days: 30)),
-                maximumDate: DateTime.now().add(const Duration(days: 30)),
-                onDateTimeChanged: (d) => tempDate = d,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
   /// Seeds default assignments (On Duty, at each staff member's usual
   /// branch) for the currently selected date.
@@ -274,43 +234,15 @@ class _OwnerAssignmentsScreenState extends State<OwnerAssignmentsScreen> {
     Future.delayed(const Duration(seconds: 2), () => entry.remove());
   }
 
-  static const List<String> _months = [
-    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
-  ];
-
-  String _formattedDate(DateTime d) =>
-      '${_months[d.month - 1]} ${d.day}, ${d.year}';
-
   @override
   Widget build(BuildContext context) {
     final assignments = _assignments;
 
     return CupertinoPageScaffold(
       backgroundColor: AppColors.background,
-      navigationBar: StaffNavBar(
+      navigationBar: const StaffNavBar(
         title: 'Assignments',
-        trailing: CupertinoButton(
-          padding: EdgeInsets.zero,
-          minimumSize: Size.zero,
-          onPressed: _pickDate,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(CupertinoIcons.calendar,
-                  color: CupertinoColors.white, size: 16),
-              const SizedBox(width: 4),
-              Text(
-                _formattedDate(_selectedDate),
-                style: const TextStyle(
-                  color: CupertinoColors.white,
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-        ),
+        trailing: StaffTopActions(),
       ),
       child: SafeArea(
         child: assignments.isEmpty
@@ -318,9 +250,9 @@ class _OwnerAssignmentsScreenState extends State<OwnerAssignmentsScreen> {
             : ListView(
                 padding: const EdgeInsets.all(16),
                 children: [
-                  StaffSectionHeader(
+                  const StaffSectionHeader(
                     label:
-                        'Assign each staff to a branch and set their status for ${_formattedDate(_selectedDate)}.',
+                        'Assign each staff to a branch and set their work status today.',
                     icon: CupertinoIcons.person_2_fill,
                   ),
                   const SizedBox(height: 16),
@@ -355,17 +287,17 @@ class _OwnerAssignmentsScreenState extends State<OwnerAssignmentsScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(CupertinoIcons.calendar,
+            const Icon(CupertinoIcons.person_2_fill,
                 size: 44, color: AppColors.textSecondary),
             const SizedBox(height: 12),
-            Text(
-              'No assignments yet for ${_formattedDate(_selectedDate)}.',
+            const Text(
+              'No assignments recorded for today.',
               textAlign: TextAlign.center,
-              style: const TextStyle(color: AppColors.textSecondary),
+              style: TextStyle(color: AppColors.textSecondary),
             ),
             const SizedBox(height: 16),
             StaffButton(
-              label: 'Assign Staff for This Date',
+              label: 'Assign Staff for Today',
               onPressed: _generateForDate,
             ),
           ],
@@ -454,23 +386,44 @@ class _AssignmentRow extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 12),
-          CupertinoSlidingSegmentedControl<WorkStatus>(
-            groupValue: assignment.workStatus,
-            backgroundColor: AppColors.background,
-            thumbColor: AppColors.accent,
-            children: const {
-              WorkStatus.onDuty: Padding(
-                padding: EdgeInsets.symmetric(vertical: 6),
-                child: Text('On Duty'),
-              ),
-              WorkStatus.restDay: Padding(
-                padding: EdgeInsets.symmetric(vertical: 6),
-                child: Text('Rest Day'),
-              ),
-            },
-            onValueChanged: (value) {
-              if (value != null) onStatusChanged(value);
-            },
+          SizedBox(
+            width: double.infinity,
+            child: CupertinoSlidingSegmentedControl<WorkStatus>(
+              groupValue: assignment.workStatus,
+              backgroundColor: AppColors.background,
+              thumbColor: AppColors.accent,
+              children: {
+                WorkStatus.onDuty: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 7),
+                  child: Text(
+                    'On Duty',
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w600,
+                      color: assignment.workStatus == WorkStatus.onDuty
+                          ? CupertinoColors.white
+                          : AppColors.textPrimary,
+                    ),
+                  ),
+                ),
+                WorkStatus.restDay: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 7),
+                  child: Text(
+                    'Rest Day',
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w600,
+                      color: assignment.workStatus == WorkStatus.restDay
+                          ? CupertinoColors.white
+                          : AppColors.textPrimary,
+                    ),
+                  ),
+                ),
+              },
+              onValueChanged: (value) {
+                if (value != null) onStatusChanged(value);
+              },
+            ),
           ),
         ],
       ),

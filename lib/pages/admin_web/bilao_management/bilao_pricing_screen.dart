@@ -70,15 +70,17 @@ class _BilaoPricingScreenState extends State<BilaoPricingScreen> {
     _updateShellActions();
   }
 
+  void _savePricing() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Pricing defaults updated for current session.')),
+    );
+  }
+
   void _updateShellActions() {
     final shell = context.findAncestorStateOfType<AdminWebShellState>();
     shell?.setActions([
       ElevatedButton.icon(
-        onPressed: () {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Pricing defaults updated for current session.')),
-          );
-        },
+        onPressed: _savePricing,
         icon: const Icon(Icons.save_rounded, size: 18, color: Colors.white),
         label: const Text('SAVE GLOBAL DEFAULTS'),
         style: ElevatedButton.styleFrom(
@@ -158,6 +160,27 @@ class _BilaoPricingScreenState extends State<BilaoPricingScreen> {
                       ),
                     ),
                   ),
+                const SizedBox(height: 24),
+                SizedBox(
+                  width: double.infinity,
+                  height: 48,
+                  child: ElevatedButton.icon(
+                    onPressed: _savePricing,
+                    icon: const Icon(Icons.save_rounded, size: 18),
+                    label: const Text(
+                      'SAVE GLOBAL DEFAULTS',
+                      style: TextStyle(
+                          fontWeight: FontWeight.bold, letterSpacing: 0.5),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AdminWebColors.accent,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                  ),
+                ),
                 const SizedBox(height: 40),
               ],
             ),

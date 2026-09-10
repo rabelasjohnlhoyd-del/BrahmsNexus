@@ -1,6 +1,5 @@
 import 'package:flutter/cupertino.dart';
 import '../../theme/app_theme.dart';
-import '../../widgets/staff_card.dart';
 
 class OwnerLockScreen extends StatefulWidget {
   const OwnerLockScreen({super.key, required this.onUnlocked});
@@ -45,8 +44,11 @@ class _OwnerLockScreenState extends State<OwnerLockScreen> {
     return CupertinoPageScaffold(
       backgroundColor: AppColors.background,
       child: SafeArea(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(vertical: 24),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
           children: [
             const Icon(CupertinoIcons.lock_shield_fill,
                 size: 64, color: AppColors.accent),
@@ -112,7 +114,9 @@ class _OwnerLockScreenState extends State<OwnerLockScreen> {
           ],
         ),
       ),
-    );
+    ),
+  ),
+);
   }
 
   Widget _buildKey(String label) {

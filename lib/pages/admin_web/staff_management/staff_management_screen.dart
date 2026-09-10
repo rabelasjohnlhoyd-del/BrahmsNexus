@@ -160,33 +160,53 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(24, 20, 24, 16),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _searchController,
-                    onChanged: (value) => setState(() => _query = value),
-                    decoration: InputDecoration(
-                      hintText: 'SEARCH BY NAME, USERNAME, BRANCH, OR POSITION',
-                      prefixIcon: const Icon(Icons.search_rounded, size: 20),
-                      isDense: true,
-                      hintStyle: const TextStyle(
-                        fontSize: 12,
-                        letterSpacing: 0.5,
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final isWide = constraints.maxWidth >= 700;
+                return Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _searchController,
+                        onChanged: (value) => setState(() => _query = value),
+                        decoration: InputDecoration(
+                          hintText: 'SEARCH BY NAME, USERNAME, BRANCH, OR POSITION',
+                          prefixIcon: const Icon(Icons.search_rounded, size: 20),
+                          isDense: true,
+                          hintStyle: const TextStyle(
+                            fontSize: 12,
+                            letterSpacing: 0.5,
+                          ),
+                          suffixIcon: _query.isEmpty
+                              ? null
+                              : IconButton(
+                                  icon: const Icon(Icons.close_rounded, size: 18),
+                                  onPressed: () {
+                                    _searchController.clear();
+                                    setState(() => _query = '');
+                                  },
+                                ),
+                        ),
                       ),
-                      suffixIcon: _query.isEmpty
-                          ? null
-                          : IconButton(
-                              icon: const Icon(Icons.close_rounded, size: 18),
-                              onPressed: () {
-                                _searchController.clear();
-                                setState(() => _query = '');
-                              },
-                            ),
                     ),
-                  ),
-                ),
-              ],
+                    if (!isWide) ...[
+                      const SizedBox(width: 12),
+                      ElevatedButton.icon(
+                        onPressed: _openAddStaff,
+                        icon: const Icon(Icons.person_add_alt_1, size: 16),
+                        label: const Text('ADD STAFF'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AdminWebColors.accent,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          elevation: 0,
+                        ),
+                      ),
+                    ],
+                  ],
+                );
+              },
             ),
           ),
           Expanded(

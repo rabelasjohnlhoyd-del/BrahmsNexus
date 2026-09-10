@@ -167,7 +167,7 @@ class _AddBilaoOrderScreenState extends State<AddBilaoOrderScreen> {
                             Expanded(
                               flex: 2,
                               child: DropdownButtonFormField<BilaoSize>(
-                                value: _selectedSize,
+                                initialValue: _selectedSize,
                                 decoration: const InputDecoration(
                                   labelText: 'BILAO SIZE',
                                   isDense: true,
@@ -249,7 +249,7 @@ class _AddBilaoOrderScreenState extends State<AddBilaoOrderScreen> {
                                       DateTime.now().add(const Duration(days: 60)),
                                 );
                                 if (date == null) return;
-                                if (!mounted) return;
+                                if (!mounted || !context.mounted) return;
                                 final time = await showTimePicker(
                                   context: context,
                                   initialTime:
@@ -272,6 +272,49 @@ class _AddBilaoOrderScreenState extends State<AddBilaoOrderScreen> {
                       ],
                     ),
                   ),
+                  const SizedBox(height: 24),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton(
+                        onPressed:
+                            _isSaving ? null : () => Navigator.of(context).pop(),
+                        child: const Text(
+                          'CANCEL',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: AdminWebColors.textSecondary,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      ElevatedButton.icon(
+                        onPressed: _isSaving ? null : _handleSave,
+                        icon: _isSaving
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor:
+                                      AlwaysStoppedAnimation<Color>(Colors.white),
+                                ),
+                              )
+                            : const Icon(Icons.check_rounded, size: 18),
+                        label: const Text('SAVE ORDER'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AdminWebColors.accent,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 24, vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 40),
                 ],
               ),
             ),

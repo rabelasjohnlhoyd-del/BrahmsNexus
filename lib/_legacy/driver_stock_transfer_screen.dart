@@ -19,12 +19,11 @@ class _TransferTask {
     required this.branch,
     required this.kind,
     required this.detail,
-    this.isDone = false,
   });
   final String branch;
   final _TransferKind kind;
   final String detail;
-  bool isDone;
+  bool isDone = false;
 }
 
 class _StockTransferScreenState extends State<StockTransferScreen> {

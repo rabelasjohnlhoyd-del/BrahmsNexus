@@ -113,8 +113,6 @@ class _OwnerEmployeeReportsScreenState
       '${date.month}/${date.day}/${date.year}';
 
   void _showReportDetail(DailyReport report) {
-    final existingReply = _ownerReplies[report.id];
-    
     showCupertinoDialog(
       context: context,
       builder: (dialogContext) => StatefulBuilder(
@@ -356,6 +354,8 @@ class _OwnerEmployeeReportsScreenState
           const SizedBox(height: 8),
           Text(
             label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style:
                 const TextStyle(fontSize: 11, color: AppColors.textSecondary),
           ),
@@ -430,6 +430,8 @@ class _OwnerEmployeeReportsScreenState
                 children: [
                   Text(
                     r.employeeName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                       fontWeight: FontWeight.w600,
                       color: AppColors.textPrimary,
@@ -438,12 +440,15 @@ class _OwnerEmployeeReportsScreenState
                   const SizedBox(height: 2),
                   Text(
                     '${r.branchName} \u00b7 ${_formatDate(r.date)}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                         fontSize: 11.5, color: AppColors.textSecondary),
                   ),
                 ],
               ),
             ),
+            const SizedBox(width: 8),
             Container(
               padding:
                   const EdgeInsets.symmetric(horizontal: 10, vertical: 4),

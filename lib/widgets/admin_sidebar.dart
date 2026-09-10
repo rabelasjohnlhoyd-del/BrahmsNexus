@@ -168,7 +168,7 @@ class AdminSidebar extends StatelessWidget {
                     children: [
                       Icon(Icons.logout_rounded,
                           size: 20, color: AdminWebColors.error),
-                      const SizedBox(width: 14),
+                      SizedBox(width: 14),
                       Text(
                         'Logout',
                         style: TextStyle(

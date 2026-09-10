@@ -3,7 +3,6 @@ import '../admin_web_colors.dart';
 import '../admin_web_shell.dart';
 import '../admin_web_widgets/glass_card.dart';
 import '../admin_web_widgets/kpi_card.dart';
-import '../admin_web_widgets/quick_link_card.dart';
 import '../admin_web_widgets/simple_bar_chart.dart';
 
 /// Admin Web dashboard — glassmorphism redesign following standard page layout.
@@ -122,20 +121,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           _SalesReportCard(),
                         ],
                       ),
-                const SizedBox(height: 32),
-                const Text(
-                  'Quick Links',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w900,
-                    color: AdminWebColors.textPrimary,
-                    letterSpacing: -0.5,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                _QuickLinksGrid(
-                    crossAxisCount: isWide ? 4 : (isMedium ? 2 : 1)),
-                const SizedBox(height: 40),
+                const SizedBox(height: 24),
               ],
             ),
           );
@@ -434,52 +420,6 @@ class _LegendDot extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-class _QuickLinksGrid extends StatelessWidget {
-  const _QuickLinksGrid({required this.crossAxisCount});
-
-  final int crossAxisCount;
-
-  @override
-  Widget build(BuildContext context) {
-    final List<Widget> links = [
-      QuickLinkCard(
-        icon: Icons.history_rounded,
-        title: 'Activity Logs',
-        subtitle: 'Audit admin actions',
-        onTap: () {},
-      ),
-      QuickLinkCard(
-        icon: Icons.search_rounded,
-        title: 'Global Search',
-        subtitle: 'Find cross-data',
-        onTap: () {},
-      ),
-      QuickLinkCard(
-        icon: Icons.description_outlined,
-        title: 'Data Exports',
-        subtitle: 'Generate reports',
-        onTap: () {},
-      ),
-      QuickLinkCard(
-        icon: Icons.settings_outlined,
-        title: 'System Settings',
-        subtitle: 'Configurations',
-        onTap: () {},
-      ),
-    ];
-
-    return GridView.count(
-      crossAxisCount: crossAxisCount,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      mainAxisSpacing: 16,
-      crossAxisSpacing: 16,
-      childAspectRatio: crossAxisCount == 1 ? 3.2 : 2.6,
-      children: links,
     );
   }
 }

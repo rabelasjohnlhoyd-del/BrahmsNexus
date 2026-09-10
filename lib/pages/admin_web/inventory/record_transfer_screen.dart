@@ -128,7 +128,7 @@ class _RecordTransferScreenState extends State<RecordTransferScreen> {
                         ),
                         const SizedBox(height: 24),
                         DropdownButtonFormField<String>(
-                          value: _sourceId,
+                          initialValue: _sourceId,
                           decoration: const InputDecoration(
                             labelText: 'FROM BRANCH',
                             isDense: true,
@@ -144,7 +144,7 @@ class _RecordTransferScreenState extends State<RecordTransferScreen> {
                         ),
                         const SizedBox(height: 20),
                         DropdownButtonFormField<String>(
-                          value: _destId,
+                          initialValue: _destId,
                           decoration: const InputDecoration(
                             labelText: 'TO BRANCH',
                             isDense: true,
@@ -176,6 +176,49 @@ class _RecordTransferScreenState extends State<RecordTransferScreen> {
                       ],
                     ),
                   ),
+                  const SizedBox(height: 24),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton(
+                        onPressed:
+                            _isSaving ? null : () => Navigator.of(context).pop(),
+                        child: const Text(
+                          'CANCEL',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: AdminWebColors.textSecondary,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      ElevatedButton.icon(
+                        onPressed: _isSaving ? null : _handleSave,
+                        icon: _isSaving
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor:
+                                      AlwaysStoppedAnimation<Color>(Colors.white),
+                                ),
+                              )
+                            : const Icon(Icons.check_rounded, size: 18),
+                        label: const Text('SAVE TRANSFER'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AdminWebColors.accent,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 24, vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 40),
                 ],
               ),
             ),

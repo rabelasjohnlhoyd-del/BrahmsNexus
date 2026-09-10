@@ -24,8 +24,6 @@ class BranchAssignmentsScreen extends StatefulWidget {
 class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
   DateTime _selectedDate = DateTime.now();
 
-  static const double _wideBreakpoint = 700;
-
   final List<BranchAssignment> _assignments = [
     BranchAssignment(
       id: 'a1',
@@ -155,7 +153,50 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const SizedBox(height: 24),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final isWide = constraints.maxWidth >= 700;
+                if (isWide) return const SizedBox.shrink();
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  child: Row(
+                    children: [
+                      OutlinedButton.icon(
+                        onPressed: _pickDate,
+                        icon: const Icon(Icons.calendar_today_rounded, size: 16, color: AdminWebColors.accent),
+                        label: Text(
+                          '${_selectedDate.month}/${_selectedDate.day}/${_selectedDate.year}',
+                          style: const TextStyle(
+                            color: AdminWebColors.textPrimary,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 13,
+                          ),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          backgroundColor: Colors.white,
+                          side: const BorderSide(color: AdminWebColors.border),
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
+                      ),
+                      const Spacer(),
+                      ElevatedButton.icon(
+                        onPressed: _saveAll,
+                        icon: const Icon(Icons.save_rounded, size: 16, color: Colors.white),
+                        label: const Text('SAVE ASSIGNMENTS'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AdminWebColors.accent,
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
             Expanded(
               child: ListView.separated(
                 itemCount: _assignments.length,
@@ -239,7 +280,7 @@ class _AssignmentCard extends StatelessWidget {
     );
 
     final branchDropdown = DropdownButtonFormField<String>(
-      value: assignment.branchId,
+      initialValue: assignment.branchId,
       decoration: const InputDecoration(
         labelText: 'BRANCH',
         isDense: true,

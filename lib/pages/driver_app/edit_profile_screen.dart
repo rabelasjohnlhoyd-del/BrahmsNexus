@@ -279,7 +279,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               if (!isEditingThis)
                 CupertinoButton(
                   padding: EdgeInsets.zero,
-                  minSize: 0,
+                  minimumSize: Size.zero,
                   onPressed: () => _confirmEdit(fieldName),
                   child: const Row(
                     children: [

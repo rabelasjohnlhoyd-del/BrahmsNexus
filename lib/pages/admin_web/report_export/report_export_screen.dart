@@ -96,7 +96,7 @@ class _ReportExportScreenState extends State<ReportExportScreen> {
                     ),
                     const SizedBox(height: 12),
                     DropdownButtonFormField<String>(
-                      value: _selectedType,
+                      initialValue: _selectedType,
                       items: ['Sales', 'Inventory', 'Payroll', 'Audit Log']
                           .map((t) => DropdownMenuItem(value: t, child: Text(t.toUpperCase())))
                           .toList(),
@@ -132,6 +132,26 @@ class _ReportExportScreenState extends State<ReportExportScreen> {
                             ? 'SELECT DATE RANGE'
                             : '${_dateRange!.start.month}/${_dateRange!.start.day} - ${_dateRange!.end.month}/${_dateRange!.end.day}',
                         style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                    const SizedBox(height: 28),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 46,
+                      child: ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AdminWebColors.accent,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        onPressed: _export,
+                        icon: const Icon(Icons.download_rounded, size: 18),
+                        label: const Text(
+                          'GENERATE CSV',
+                          style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 0.5),
+                        ),
                       ),
                     ),
                   ],

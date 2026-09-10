@@ -6,6 +6,7 @@ import '../../widgets/staff_button.dart';
 import '../../widgets/staff_card.dart';
 import '../../widgets/staff_nav_bar.dart';
 import '../../widgets/staff_section_header.dart';
+import '../../widgets/staff_top_actions.dart';
 
 /// Inventory tab — Owner monitors and manages main-warehouse stock,
 /// per-branch allocation, and inter-branch transfers.
@@ -333,49 +334,127 @@ class _OwnerInventoryScreenState extends State<OwnerInventoryScreen> {
   Widget build(BuildContext context) {
     return CupertinoPageScaffold(
       backgroundColor: AppColors.background,
-      navigationBar: const StaffNavBar(title: 'Inventory'),
+      navigationBar: const StaffNavBar(
+        title: 'Inventory',
+        trailing: StaffTopActions(),
+      ),
       child: SafeArea(
         child: Column(
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-              child: CupertinoSlidingSegmentedControl<int>(
-                groupValue: _section,
-                backgroundColor: AppColors.background,
-                thumbColor: AppColors.accent,
-                children: const {
-                  0: Padding(
-                    padding: EdgeInsets.symmetric(vertical: 6),
-                    child: Text('Warehouse', style: TextStyle(fontSize: 12.5)),
-                  ),
-                  1: Padding(
-                    padding: EdgeInsets.symmetric(vertical: 6),
-                    child: Text('Branches', style: TextStyle(fontSize: 12.5)),
-                  ),
-                  2: Padding(
-                    padding: EdgeInsets.symmetric(vertical: 6),
-                    child: Text('Transfers', style: TextStyle(fontSize: 12.5)),
-                  ),
-                },
-                onValueChanged: (value) {
-                  if (value != null) setState(() => _section = value);
-                },
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 10),
+              child: SizedBox(
+                width: double.infinity,
+                child: CupertinoSlidingSegmentedControl<int>(
+                  groupValue: _section,
+                  backgroundColor: AppColors.background,
+                  thumbColor: AppColors.accent,
+                  children: {
+                    0: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 7),
+                      child: Text(
+                        'Warehouse',
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w600,
+                          color: _section == 0
+                              ? CupertinoColors.white
+                              : AppColors.textPrimary,
+                        ),
+                      ),
+                    ),
+                    1: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 7),
+                      child: Text(
+                        'Branches',
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w600,
+                          color: _section == 1
+                              ? CupertinoColors.white
+                              : AppColors.textPrimary,
+                        ),
+                      ),
+                    ),
+                    2: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 7),
+                      child: Text(
+                        'Transfers',
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w600,
+                          color: _section == 2
+                              ? CupertinoColors.white
+                              : AppColors.textPrimary,
+                        ),
+                      ),
+                    ),
+                  },
+                  onValueChanged: (value) {
+                    if (value != null) setState(() => _section = value);
+                  },
+                ),
               ),
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-              child: CupertinoSlidingSegmentedControl<int>(
-                groupValue: _dateRangeFilter,
-                backgroundColor: AppColors.border.withValues(alpha: 0.1),
-                thumbColor: CupertinoColors.white,
-                children: const {
-                  0: Text('Today', style: TextStyle(fontSize: 12)),
-                  1: Text('Yesterday', style: TextStyle(fontSize: 12)),
-                  2: Text('This Week', style: TextStyle(fontSize: 12)),
-                },
-                onValueChanged: (v) {
-                  if (v != null) setState(() => _dateRangeFilter = v);
-                },
+              child: SizedBox(
+                width: double.infinity,
+                child: CupertinoSlidingSegmentedControl<int>(
+                  groupValue: _dateRangeFilter,
+                  backgroundColor: AppColors.border.withValues(alpha: 0.15),
+                  thumbColor: CupertinoColors.white,
+                  children: {
+                    0: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 6),
+                      child: Text(
+                        'Today',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: _dateRangeFilter == 0
+                              ? FontWeight.w700
+                              : FontWeight.w500,
+                          color: _dateRangeFilter == 0
+                              ? AppColors.accentDark
+                              : AppColors.textSecondary,
+                        ),
+                      ),
+                    ),
+                    1: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 6),
+                      child: Text(
+                        'Yesterday',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: _dateRangeFilter == 1
+                              ? FontWeight.w700
+                              : FontWeight.w500,
+                          color: _dateRangeFilter == 1
+                              ? AppColors.accentDark
+                              : AppColors.textSecondary,
+                        ),
+                      ),
+                    ),
+                    2: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 6),
+                      child: Text(
+                        'This Week',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: _dateRangeFilter == 2
+                              ? FontWeight.w700
+                              : FontWeight.w500,
+                          color: _dateRangeFilter == 2
+                              ? AppColors.accentDark
+                              : AppColors.textSecondary,
+                        ),
+                      ),
+                    ),
+                  },
+                  onValueChanged: (v) {
+                    if (v != null) setState(() => _dateRangeFilter = v);
+                  },
+                ),
               ),
             ),
             Expanded(
@@ -522,14 +601,19 @@ class _OwnerInventoryScreenState extends State<OwnerInventoryScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
-                        '${stock.remainingKg.toStringAsFixed(1)} kg left of '
-                        '${stock.allocatedKg.toStringAsFixed(1)} kg',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: AppColors.textSecondary,
+                      Expanded(
+                        child: Text(
+                          '${stock.remainingKg.toStringAsFixed(1)} kg left of '
+                          '${stock.allocatedKg.toStringAsFixed(1)} kg',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: AppColors.textSecondary,
+                          ),
                         ),
                       ),
+                      const SizedBox(width: 8),
                       CupertinoButton(
                         padding: EdgeInsets.zero,
                         minimumSize: Size.zero,
@@ -594,9 +678,6 @@ class _OwnerInventoryScreenState extends State<OwnerInventoryScreen> {
 
   Future<void> _showAddTransferDialogWithPrefill(
       BranchStock low, BranchStock surplus) async {
-    final sourceIndex = kSampleBranches.indexWhere((b) => b.id == surplus.branchId);
-    final destIndex = kSampleBranches.indexWhere((b) => b.id == low.branchId);
-    
     // For MVP, just open the regular dialog; prefills would require
     // refactoring _showAddTransferDialog to take params.
     _showAddTransferDialog();

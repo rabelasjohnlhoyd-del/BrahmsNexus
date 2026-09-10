@@ -1,12 +1,15 @@
 import 'package:flutter/cupertino.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/staff_card.dart';
+import '../../widgets/staff_nav_bar.dart';
+import '../../widgets/staff_top_actions.dart';
+import 'owner_account_approvals_screen.dart';
 import 'owner_announcements_screen.dart';
 import 'owner_bilao_orders_screen.dart';
 import 'owner_employee_reports_screen.dart';
 
-/// More tab — links to Bilao Orders, Employee Reports, and
-/// Announcements (Owner composes these; not just a notification bell
-/// like Staff/Driver, since Owner is the one posting).
+/// More tab — links to Account Approvals, Bilao Orders,
+/// Employee Reports, and Announcements.
 class OwnerMoreScreen extends StatelessWidget {
   const OwnerMoreScreen({super.key});
 
@@ -14,15 +17,25 @@ class OwnerMoreScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return CupertinoPageScaffold(
       backgroundColor: AppColors.background,
-      navigationBar: const CupertinoNavigationBar(
-        middle: Text('More'),
-        backgroundColor: CupertinoColors.white,
-        border: null,
+      navigationBar: const StaffNavBar(
+        title: 'More',
+        trailing: StaffTopActions(),
       ),
       child: SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
+            _MoreRow(
+              icon: CupertinoIcons.person_crop_circle_badge_checkmark,
+              title: 'Account Approvals',
+              subtitle: 'Review & approve new staff registrations',
+              onTap: () => Navigator.of(context).push(
+                CupertinoPageRoute(
+                  builder: (context) => const OwnerAccountApprovalsScreen(),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
             _MoreRow(
               icon: CupertinoIcons.bag_fill,
               title: 'Bilao Orders',
@@ -79,51 +92,56 @@ class _MoreRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
-      child: Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: CupertinoColors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 38,
-            height: 38,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: AppColors.accent.withValues(alpha: 0.12),
-              shape: BoxShape.circle,
+      child: StaffCard(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: AppColors.accent.withValues(alpha: 0.12),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, size: 20, color: AppColors.accent),
             ),
-            child: Icon(icon, size: 18, color: AppColors.accent),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textPrimary,
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 15,
+                      color: AppColors.textPrimary,
+                    ),
                   ),
-                ),
-                Text(
-                  subtitle,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: AppColors.textSecondary,
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: AppColors.textSecondary,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-          const Icon(CupertinoIcons.chevron_forward,
-              size: 16, color: AppColors.textSecondary),
-        ],
-      ),
+            const SizedBox(width: 8),
+            const Icon(
+              CupertinoIcons.chevron_forward,
+              size: 16,
+              color: AppColors.textSecondary,
+            ),
+          ],
+        ),
       ),
     );
   }

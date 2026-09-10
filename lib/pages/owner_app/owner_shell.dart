@@ -6,11 +6,11 @@ import 'owner_assignments_screen.dart';
 import 'owner_inventory_screen.dart';
 import 'owner_sales_payroll_screen.dart';
 import 'owner_more_screen.dart';
+import 'owner_profile_screen.dart';
 import 'owner_lock_screen.dart';
 
-/// Main shell for the Owner mobile app — matches the 4-tab structure
-/// of the Staff app but with 5 tabs (Home, Assign, Inventory, Sales,
-/// More) and Owner-specific data views.
+/// Main shell for the Owner mobile app — 6-tab navigation structure:
+/// Home, Assign, Inventory, Sales, More, and Profile.
 class OwnerShell extends StatefulWidget {
   const OwnerShell({super.key});
 
@@ -37,10 +37,10 @@ class _OwnerShellState extends State<OwnerShell> {
 
   Widget _tabItem(IconData icon, String label, {required bool active}) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
       decoration: BoxDecoration(
         color: active ? AppColors.textPrimary : null,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(10),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -48,15 +48,17 @@ class _OwnerShellState extends State<OwnerShell> {
         children: [
           Icon(
             icon,
-            size: 18,
+            size: 17,
             color: active ? CupertinoColors.white : _inactiveTint,
           ),
           const SizedBox(height: 2),
           Text(
             label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              fontSize: 9,
-              height: 1.0,
+              fontSize: 8.5,
+              height: 1.1,
               fontWeight: active ? FontWeight.w700 : FontWeight.w500,
               color: active ? CupertinoColors.white : _inactiveTint,
             ),
@@ -114,6 +116,10 @@ class _OwnerShellState extends State<OwnerShell> {
                     icon: _tabItem(CupertinoIcons.ellipsis_circle_fill, 'More', active: false),
                     activeIcon: _tabItem(CupertinoIcons.ellipsis_circle_fill, 'More', active: true),
                   ),
+                  BottomNavigationBarItem(
+                    icon: _tabItem(CupertinoIcons.person_fill, 'Profile', active: false),
+                    activeIcon: _tabItem(CupertinoIcons.person_fill, 'Profile', active: true),
+                  ),
                 ],
               ),
               tabBuilder: (context, index) {
@@ -125,6 +131,7 @@ class _OwnerShellState extends State<OwnerShell> {
                       case 2: return const OwnerInventoryScreen();
                       case 3: return const OwnerSalesPayrollScreen();
                       case 4: return const OwnerMoreScreen();
+                      case 5: return const OwnerProfileScreen();
                       default: return const OwnerHomepageScreen();
                     }
                   },

@@ -26,14 +26,17 @@ class _SystemSettingsScreenState extends State<SystemSettingsScreen> {
     _updateShellActions();
   }
 
+  void _saveSettings() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('System settings saved successfully.')),
+    );
+  }
+
   void _updateShellActions() {
     final shell = context.findAncestorStateOfType<AdminWebShellState>();
     shell?.setActions([
       ElevatedButton.icon(
-        onPressed: () {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-              content: Text('System settings saved successfully.')));
-        },
+        onPressed: _saveSettings,
         icon: const Icon(Icons.save_rounded, size: 18, color: Colors.white),
         label: const Text('SAVE SETTINGS'),
         style: ElevatedButton.styleFrom(
@@ -102,6 +105,26 @@ class _SystemSettingsScreenState extends State<SystemSettingsScreen> {
                   false,
                 ),
               ]),
+              const SizedBox(height: 32),
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: ElevatedButton.icon(
+                  onPressed: _saveSettings,
+                  icon: const Icon(Icons.save_rounded, size: 18),
+                  label: const Text(
+                    'SAVE SETTINGS',
+                    style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 0.5),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AdminWebColors.accent,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                ),
+              ),
               const SizedBox(height: 40),
             ],
           ),

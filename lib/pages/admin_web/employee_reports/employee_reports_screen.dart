@@ -247,13 +247,49 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
                     : Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          TextField(
-                            decoration: const InputDecoration(
-                              hintText: 'Search by employee name...',
-                              prefixIcon: Icon(Icons.search_rounded),
-                              isDense: true,
-                            ),
-                            onChanged: (v) => setState(() => _searchQuery = v),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: TextField(
+                                  decoration: const InputDecoration(
+                                    hintText: 'Search by employee name...',
+                                    prefixIcon: Icon(Icons.search_rounded),
+                                    isDense: true,
+                                  ),
+                                  onChanged: (v) =>
+                                      setState(() => _searchQuery = v),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              OutlinedButton.icon(
+                                onPressed: () {
+                                  setState(() => _newestFirst = !_newestFirst);
+                                  _updateShellActions();
+                                },
+                                icon: Icon(
+                                  _newestFirst
+                                      ? Icons.sort_rounded
+                                      : Icons.history_rounded,
+                                  size: 16,
+                                ),
+                                label: Text(
+                                  _newestFirst ? 'NEWEST' : 'OLDEST',
+                                  style: const TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.bold),
+                                ),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: AdminWebColors.accent,
+                                  side: const BorderSide(
+                                      color: AdminWebColors.accent),
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 10, vertical: 12),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                           const SizedBox(height: 10),
                           _branchChips(branches),

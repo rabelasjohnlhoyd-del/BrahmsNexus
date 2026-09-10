@@ -142,7 +142,7 @@ class _ActivityLogScreenState extends State<ActivityLogScreen> {
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               itemCount: filtered.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 10),
+              separatorBuilder: (context, index) => const SizedBox(height: 10),
               itemBuilder: (context, index) {
                 final e = filtered[index];
                 return GlassCard(

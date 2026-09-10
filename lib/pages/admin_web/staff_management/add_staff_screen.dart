@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../models/staff_member.dart';
 import '../admin_web_widgets/glass_card.dart';
-import '../../../widgets/primary_button.dart';
 import '../admin_web_colors.dart';
 import '../admin_web_shell.dart';
 
@@ -332,7 +331,7 @@ class _AddStaffScreenState extends State<AddStaffScreen> {
                           children: [
                             Expanded(
                               child: DropdownButtonFormField<String>(
-                                value: _selectedBranch,
+                                initialValue: _selectedBranch,
                                 decoration: const InputDecoration(
                                   labelText: 'BRANCH',
                                   isDense: true,
@@ -385,7 +384,7 @@ class _AddStaffScreenState extends State<AddStaffScreen> {
                           contentPadding: EdgeInsets.zero,
                           value: _isActive,
                           onChanged: (value) => setState(() => _isActive = value),
-                          activeColor: AdminWebColors.accent,
+                          activeTrackColor: AdminWebColors.accent,
                           title: const Text(
                             'ACTIVE ACCOUNT',
                             style: TextStyle(
@@ -482,6 +481,48 @@ class _AddStaffScreenState extends State<AddStaffScreen> {
                         ),
                       ],
                     ),
+                  ),
+                  const SizedBox(height: 24),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton(
+                        onPressed:
+                            _isSaving ? null : () => Navigator.of(context).pop(),
+                        child: const Text(
+                          'CANCEL',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: AdminWebColors.textSecondary,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      ElevatedButton.icon(
+                        onPressed: _isSaving ? null : _handleSave,
+                        icon: _isSaving
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor:
+                                      AlwaysStoppedAnimation<Color>(Colors.white),
+                                ),
+                              )
+                            : const Icon(Icons.person_add_alt_1, size: 18),
+                        label: const Text('CREATE ACCOUNT'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AdminWebColors.accent,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 24, vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 40),
                 ],

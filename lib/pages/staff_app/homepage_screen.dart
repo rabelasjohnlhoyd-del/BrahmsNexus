@@ -291,13 +291,7 @@ class _HomepageScreenState extends State<HomepageScreen> {
         int.tryParse(_toyoController.text) == a.toyo;
   }
 
-  /// Confirm only unlocks when the input is complete AND matches the
-  /// allocated amount.
-  bool get _canConfirm => _hasEnteredCount && _countsMatch;
 
-  /// Deny only unlocks when the input is complete but does NOT match
-  /// (too much or too little) the allocated amount.
-  bool get _canDeny => _hasEnteredCount && !_countsMatch;
 
   void _confirm() {
     showCupertinoDialog(

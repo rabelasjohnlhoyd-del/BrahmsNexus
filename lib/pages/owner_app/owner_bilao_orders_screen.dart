@@ -469,14 +469,19 @@ class _OwnerBilaoOrdersScreenState extends State<OwnerBilaoOrdersScreen> {
         children: [
           Text(
             order.customerName,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: const TextStyle(
-              fontWeight: FontWeight.w600,
+              fontWeight: FontWeight.w700,
+              fontSize: 15,
               color: AppColors.textPrimary,
             ),
           ),
           const SizedBox(height: 2),
           Text(
             order.contactNumber,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style:
                 const TextStyle(fontSize: 12, color: AppColors.textSecondary),
           ),
@@ -485,8 +490,9 @@ class _OwnerBilaoOrdersScreenState extends State<OwnerBilaoOrdersScreen> {
             '${order.size.label} \u00d7 ${order.quantity} '
             '\u00b7 \u20b1${order.totalAmount.toStringAsFixed(0)}',
             style:
-                const TextStyle(fontSize: 12.5, color: AppColors.textPrimary),
+                const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
           ),
+          const SizedBox(height: 2),
           Text(
             '${order.scheduledDateTime.month}/'
             '${order.scheduledDateTime.day}/'
@@ -497,14 +503,15 @@ class _OwnerBilaoOrdersScreenState extends State<OwnerBilaoOrdersScreen> {
                 fontSize: 11.5, color: AppColors.textSecondary),
           ),
           const SizedBox(height: 12),
-          Row(
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
             children: [
               _statusPill(
                 order.preparationStatus.label,
                 _prepColor(order.preparationStatus),
                 () => _pickPreparation(order),
               ),
-              const SizedBox(width: 8),
               _statusPill(
                 order.deliveryStatus.label,
                 _deliveryColor(order.deliveryStatus),

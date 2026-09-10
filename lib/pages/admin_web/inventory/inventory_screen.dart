@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../../../models/branch.dart';
 import '../../../models/inventory_item.dart';
 import '../admin_web_colors.dart';
 import '../admin_web_shell.dart';
@@ -198,43 +197,49 @@ class _InventoryScreenState extends State<InventoryScreen>
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      color: AdminWebColors.background,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 24),
-            TabBar(
-              controller: _tabController,
-              isScrollable: true,
-              tabAlignment: TabAlignment.start,
-              labelStyle: const TextStyle(fontWeight: FontWeight.bold),
-              tabs: const [
-                Tab(text: 'Main Warehouse'),
-                Tab(text: 'Branch Allocation'),
-                Tab(text: 'Transfer Logs'),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isWide = constraints.maxWidth >= 700;
+
+        return Container(
+          color: AdminWebColors.background,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 24),
+                TabBar(
+                  controller: _tabController,
+                  isScrollable: true,
+                  tabAlignment: TabAlignment.start,
+                  labelStyle: const TextStyle(fontWeight: FontWeight.bold),
+                  tabs: const [
+                    Tab(text: 'Main Warehouse'),
+                    Tab(text: 'Branch Allocation'),
+                    Tab(text: 'Transfer Logs'),
+                  ],
+                ),
+                const SizedBox(height: 24),
+                Expanded(
+                  child: TabBarView(
+                    controller: _tabController,
+                    children: [
+                      _buildWarehouseTab(isWide),
+                      _buildBranchStockTab(),
+                      _buildTransferLogsTab(isWide),
+                    ],
+                  ),
+                ),
               ],
             ),
-            const SizedBox(height: 24),
-            Expanded(
-              child: TabBarView(
-                controller: _tabController,
-                children: [
-                  _buildWarehouseTab(),
-                  _buildBranchStockTab(),
-                  _buildTransferLogsTab(),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 
-  Widget _buildWarehouseTab() {
+  Widget _buildWarehouseTab(bool isWide) {
     return SingleChildScrollView(
       child: GlassCard(
         child: Column(
@@ -256,6 +261,25 @@ class _InventoryScreenState extends State<InventoryScreen>
                 '${_warehouse.allocatedKg.toStringAsFixed(0)} kg'),
             _statRow('Remaining Unallocated',
                 '${_warehouse.unallocatedKg.toStringAsFixed(0)} kg'),
+            if (!isWide) ...[
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: _navigateToUpdateStock,
+                  icon: const Icon(Icons.edit_rounded, size: 18),
+                  label: const Text('UPDATE TOTAL STOCK'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AdminWebColors.accent,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
       ),
@@ -388,73 +412,95 @@ class _InventoryScreenState extends State<InventoryScreen>
     );
   }
 
-  Widget _buildTransferLogsTab() {
-    if (_transferLogs.isEmpty) {
-      return const Center(
-        child: Text(
-          'No inter-branch transfers recorded yet.',
-          style: TextStyle(color: AdminWebColors.textSecondary),
-        ),
-      );
-    }
-
-    return ListView.separated(
-      itemCount: _transferLogs.length,
-      separatorBuilder: (_, _) => const SizedBox(height: 10),
-      itemBuilder: (context, index) {
-        final log = _transferLogs[index];
-        return GlassCard(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          child: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: AdminWebColors.accent.withValues(alpha: 0.1),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.local_shipping_rounded,
-                  color: AdminWebColors.accent,
-                  size: 20,
-                ),
+  Widget _buildTransferLogsTab(bool isWide) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (!isWide) ...[
+          ElevatedButton.icon(
+            onPressed: _navigateToRecordTransfer,
+            icon: const Icon(Icons.add_rounded, size: 18),
+            label: const Text('RECORD TRANSFER'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AdminWebColors.accent,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
               ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '${log.sourceBranchName} → ${log.destinationBranchName}',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w600,
-                        color: AdminWebColors.textPrimary,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      '${log.dateTime.month}/${log.dateTime.day}/${log.dateTime.year} at ${log.dateTime.hour.toString().padLeft(2, '0')}:${log.dateTime.minute.toString().padLeft(2, '0')}',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: AdminWebColors.textSecondary,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Text(
-                '${log.quantityKg.toStringAsFixed(1)} kg',
-                style: const TextStyle(
-                  fontWeight: FontWeight.w800,
-                  fontSize: 16,
-                  color: AdminWebColors.accent,
-                ),
-              ),
-            ],
+            ),
           ),
-        );
-      },
+          const SizedBox(height: 16),
+        ],
+        Expanded(
+          child: _transferLogs.isEmpty
+              ? const Center(
+                  child: Text(
+                    'No inter-branch transfers recorded yet.',
+                    style: TextStyle(color: AdminWebColors.textSecondary),
+                  ),
+                )
+              : ListView.separated(
+                  itemCount: _transferLogs.length,
+                  separatorBuilder: (_, _) => const SizedBox(height: 10),
+                  itemBuilder: (context, index) {
+                    final log = _transferLogs[index];
+                    return GlassCard(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 12),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color:
+                                  AdminWebColors.accent.withValues(alpha: 0.1),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.local_shipping_rounded,
+                              color: AdminWebColors.accent,
+                              size: 20,
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  '${log.sourceBranchName} → ${log.destinationBranchName}',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    color: AdminWebColors.textPrimary,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  '${log.dateTime.month}/${log.dateTime.day}/${log.dateTime.year} at ${log.dateTime.hour.toString().padLeft(2, '0')}:${log.dateTime.minute.toString().padLeft(2, '0')}',
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: AdminWebColors.textSecondary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Text(
+                            '${log.quantityKg.toStringAsFixed(0)} kg',
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                              color: AdminWebColors.textPrimary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+        ),
+      ],
     );
   }
 }
-

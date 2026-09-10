@@ -6,6 +6,7 @@ import '../../widgets/staff_button.dart';
 import '../../widgets/staff_card.dart';
 import '../../widgets/staff_nav_bar.dart';
 import '../../widgets/staff_section_header.dart';
+import '../../widgets/staff_top_actions.dart';
 
 /// Sales & Payroll tab — Owner monitors daily sales per branch/
 /// employee; wage/commission and expected cash remittance are
@@ -160,7 +161,10 @@ class _OwnerSalesPayrollScreenState extends State<OwnerSalesPayrollScreen> {
   Widget build(BuildContext context) {
     return CupertinoPageScaffold(
       backgroundColor: AppColors.background,
-      navigationBar: const StaffNavBar(title: 'Sales & Payroll'),
+      navigationBar: const StaffNavBar(
+        title: 'Sales & Payroll',
+        trailing: StaffTopActions(),
+      ),
       child: SafeArea(
         child: ListView(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
@@ -202,27 +206,63 @@ class _OwnerSalesPayrollScreenState extends State<OwnerSalesPayrollScreen> {
               icon: CupertinoIcons.calendar,
             ),
             const SizedBox(height: 12),
-            CupertinoSlidingSegmentedControl<int>(
-              groupValue: _dateRangeFilter,
-              backgroundColor: AppColors.border.withValues(alpha: 0.1),
-              thumbColor: CupertinoColors.white,
-              children: const {
-                0: Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  child: Text('Today', style: TextStyle(fontSize: 13)),
-                ),
-                1: Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  child: Text('Yesterday', style: TextStyle(fontSize: 13)),
-                ),
-                2: Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  child: Text('This Week', style: TextStyle(fontSize: 13)),
-                ),
-              },
-              onValueChanged: (v) {
-                if (v != null) setState(() => _dateRangeFilter = v);
-              },
+            SizedBox(
+              width: double.infinity,
+              child: CupertinoSlidingSegmentedControl<int>(
+                groupValue: _dateRangeFilter,
+                backgroundColor: AppColors.border.withValues(alpha: 0.15),
+                thumbColor: CupertinoColors.white,
+                children: {
+                  0: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: Text(
+                      'Today',
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: _dateRangeFilter == 0
+                            ? FontWeight.w700
+                            : FontWeight.w500,
+                        color: _dateRangeFilter == 0
+                            ? AppColors.accentDark
+                            : AppColors.textSecondary,
+                      ),
+                    ),
+                  ),
+                  1: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: Text(
+                      'Yesterday',
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: _dateRangeFilter == 1
+                            ? FontWeight.w700
+                            : FontWeight.w500,
+                        color: _dateRangeFilter == 1
+                            ? AppColors.accentDark
+                            : AppColors.textSecondary,
+                      ),
+                    ),
+                  ),
+                  2: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: Text(
+                      'This Week',
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: _dateRangeFilter == 2
+                            ? FontWeight.w700
+                            : FontWeight.w500,
+                        color: _dateRangeFilter == 2
+                            ? AppColors.accentDark
+                            : AppColors.textSecondary,
+                      ),
+                    ),
+                  ),
+                },
+                onValueChanged: (v) {
+                  if (v != null) setState(() => _dateRangeFilter = v);
+                },
+              ),
             ),
             const SizedBox(height: 20),
             const StaffSectionHeader(
@@ -314,12 +354,20 @@ class _OwnerSalesPayrollScreenState extends State<OwnerSalesPayrollScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(label,
-                    style: const TextStyle(
-                        fontSize: 12, color: AppColors.textSecondary)),
+                Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
                 const SizedBox(height: 2),
                 Text(
                   value,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w700,

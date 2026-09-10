@@ -5,26 +5,280 @@ import '../../models/inventory_item.dart';
 import '../../models/sales_record.dart';
 import '../../theme/app_theme.dart';
 import 'package:share_plus/share_plus.dart';
+import '../../widgets/driver_stat_tile.dart';
 import '../../widgets/owner_sales_trend_chart.dart';
 import '../../widgets/staff_button.dart';
 import '../../widgets/staff_card.dart';
 import '../../widgets/staff_nav_bar.dart';
 import '../../widgets/staff_section_header.dart';
-import '../../widgets/staff_stat_tile.dart';
+import '../../widgets/staff_top_actions.dart';
 
 /// Homepage tab of the Owner app — an at-a-glance overview of today's
-/// operations across all branches: staff on duty, low-stock alerts,
-/// today's sales, and pending reports.
+/// operations across all branches: interactive weather, staff on duty,
+/// low-stock alerts, today's sales, and pending reports.
 ///
-/// NOTE: Mock data for now, matching the same shapes already used by
-/// the Branch Assignments / Inventory / Sales & Payroll / Employee
-/// Reports screens. Once Supabase/Firebase are wired up, these four
-/// numbers are simple aggregate queries over the real tables.
-class OwnerHomepageScreen extends StatelessWidget {
+/// Styled to match the Staff and Driver app design system.
+class OwnerHomepageScreen extends StatefulWidget {
   const OwnerHomepageScreen({super.key});
 
-  // Same mock shape as branch_assignments — will be replaced by a
-  // real query once these screens share one data source.
+  @override
+  State<OwnerHomepageScreen> createState() => _OwnerHomepageScreenState();
+}
+
+class _OwnerHomepageScreenState extends State<OwnerHomepageScreen> {
+  bool _isRefreshing = false;
+  bool _isCelsius = true;
+
+  // Mock data for functional simulation
+  int _tempC = 28;
+  int _humidity = 81;
+  double _windSpeed = 12.5;
+  int _feelsLikeC = 30;
+
+  void _refreshWeather() async {
+    if (_isRefreshing) return;
+    setState(() => _isRefreshing = true);
+
+    await Future.delayed(const Duration(milliseconds: 800));
+
+    if (mounted) {
+      setState(() {
+        _isRefreshing = false;
+        _tempC = 27 + (DateTime.now().second % 3);
+        _humidity = 80 + (DateTime.now().second % 5);
+        _windSpeed = 10.0 + (DateTime.now().second % 10);
+        _feelsLikeC = _tempC + 2;
+      });
+    }
+  }
+
+  void _toggleUnit() {
+    setState(() => _isCelsius = !_isCelsius);
+  }
+
+  int _convertTemp(int celsius) {
+    return _isCelsius ? celsius : ((celsius * 9 / 5) + 32).round();
+  }
+
+  static const List<String> _months = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December',
+  ];
+
+  static const List<String> _weekdays = [
+    'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'
+  ];
+
+  String _greetingPrefix() {
+    final hour = DateTime.now().hour;
+    if (hour < 12) return 'Good Morning,';
+    if (hour < 18) return 'Good Afternoon,';
+    return 'Good Evening,';
+  }
+
+  String _formattedTime() {
+    final now = DateTime.now();
+    final day = _weekdays[now.weekday % 7];
+    final hour = now.hour % 12 == 0 ? 12 : now.hour % 12;
+    final minute = now.minute.toString().padLeft(2, '0');
+    final period = now.hour >= 12 ? 'PM' : 'AM';
+    return '$day $hour:$minute $period';
+  }
+
+  Widget _weatherWidget() {
+    final displayTemp = _convertTemp(_tempC);
+    final feelsLike = _convertTemp(_feelsLikeC);
+    final unitLabel = _isCelsius ? '°C' : '°F';
+    final windUnit = _isCelsius ? 'km/h' : 'mph';
+    final displayWind =
+        _isCelsius ? _windSpeed : (_windSpeed * 0.621371).roundToDouble();
+
+    return StaffCard(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFF4285F4),
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  const Text(
+                    'San Francisco, Victoria',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                ],
+              ),
+              GestureDetector(
+                onTap: _refreshWeather,
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: AppColors.accent.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    children: [
+                      const Text(
+                        'Update',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.accent,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      _isRefreshing
+                          ? const CupertinoActivityIndicator(radius: 5)
+                          : const Icon(CupertinoIcons.refresh,
+                              size: 10, color: AppColors.accent),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              const Icon(CupertinoIcons.cloud_fill,
+                  size: 48, color: AppColors.pastelBrown),
+              const SizedBox(width: 12),
+              Expanded(
+                child: GestureDetector(
+                  onTap: _toggleUnit,
+                  behavior: HitTestBehavior.opaque,
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '$displayTemp',
+                        style: const TextStyle(
+                          fontSize: 48,
+                          fontWeight: FontWeight.w400,
+                          color: AppColors.textPrimary,
+                          letterSpacing: -2,
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8, left: 2),
+                        child: Text(
+                          unitLabel,
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  const Text(
+                    'Cloudy',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  Text(
+                    _formattedTime(),
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              _weatherInfoItem(CupertinoIcons.thermometer, 'Feels like',
+                  '$feelsLike$unitLabel'),
+              _weatherInfoItem(
+                  CupertinoIcons.drop, 'Humidity', '$_humidity%'),
+              _weatherInfoItem(CupertinoIcons.wind, 'Wind',
+                  '${displayWind.toStringAsFixed(1)} $windUnit'),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _weatherInfoItem(IconData icon, String label, String value) {
+    return Row(
+      children: [
+        Icon(icon, size: 14, color: AppColors.accent.withValues(alpha: 0.7)),
+        const SizedBox(width: 6),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(label,
+                style: const TextStyle(
+                    fontSize: 10, color: AppColors.textSecondary)),
+            Text(value,
+                style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textPrimary)),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _dateChip() {
+    final now = DateTime.now();
+    final label = '${_months[now.month - 1]} ${now.day}, ${now.year}';
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: AppColors.pastelBrown.withValues(alpha: 0.2),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(CupertinoIcons.calendar,
+              size: 12, color: AppColors.accentDark),
+          const SizedBox(width: 5),
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: AppColors.accentDark,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Mock data
   static final List<BranchAssignment> _assignments = [
     BranchAssignment(
       id: 'a1',
@@ -140,13 +394,14 @@ class OwnerHomepageScreen extends StatelessWidget {
       .length;
 
   void _shareSummary() {
-    final summary = "Brahms Nexus - Today's Summary (${DateTime.now().month}/${DateTime.now().day}/${DateTime.now().year})\n\n"
+    final summary =
+        "Brahms Nexus - Today's Summary (${DateTime.now().month}/${DateTime.now().day}/${DateTime.now().year})\n\n"
         "💰 Total Sales: ₱${_todaysSales.toStringAsFixed(0)}\n"
         "👨‍🍳 On Duty: $_onDutyCount/${_assignments.length}\n"
         "📦 Low Stock Branches: $_lowStockCount\n"
         "📝 Pending Reports: $_pendingReportsCount\n\n"
         "Keep up the good work!";
-    Share.share(summary);
+    SharePlus.instance.share(ShareParams(text: summary));
   }
 
   @override
@@ -154,39 +409,65 @@ class OwnerHomepageScreen extends StatelessWidget {
     return CupertinoPageScaffold(
       backgroundColor: AppColors.background,
       navigationBar: const StaffNavBar(
-        title: 'Owner',
-        mode: StaffHeaderMode.greeting,
-        greetingName: 'Owner',
+        title: 'Home',
+        trailing: StaffTopActions(),
       ),
       child: SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            const StaffSectionHeader(
-              label: "Sales Trend",
-              icon: CupertinoIcons.graph_square_fill,
+            // GREETING
+            Padding(
+              padding: const EdgeInsets.only(bottom: 16, left: 4),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _greetingPrefix(),
+                    style: TextStyle(
+                      color: AppColors.textSecondary.withValues(alpha: 0.9),
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: -0.5,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  const Text(
+                    'Owner',
+                    style: TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 34,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: -1.2,
+                    ),
+                  ),
+                ],
+              ),
             ),
-            const SizedBox(height: 12),
-            const StaffCard(
-              child: OwnerSalesTrendChart(),
-            ),
-            const SizedBox(height: 24),
-            const StaffSectionHeader(
+            // WEATHER WIDGET
+            _weatherWidget(),
+            const SizedBox(height: 20),
+
+            // TODAY'S OVERVIEW
+            StaffSectionHeader(
               label: "Today's Overview",
-              icon: CupertinoIcons.chart_bar_alt_fill,
+              icon: CupertinoIcons.speedometer,
+              trailing: _dateChip(),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 10),
             Row(
               children: [
                 Expanded(
-                  child: StaffDisplayTile(
+                  child: DriverDisplayTile(
+                    icon: CupertinoIcons.person_2_fill,
                     label: 'On Duty',
                     value: '$_onDutyCount/${_assignments.length}',
                   ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: StaffDisplayTile(
+                  child: DriverDisplayTile(
+                    icon: CupertinoIcons.exclamationmark_triangle_fill,
                     label: 'Low Stock',
                     value: '$_lowStockCount',
                     dark: _lowStockCount > 0,
@@ -198,14 +479,16 @@ class OwnerHomepageScreen extends StatelessWidget {
             Row(
               children: [
                 Expanded(
-                  child: StaffDisplayTile(
+                  child: DriverDisplayTile(
+                    icon: CupertinoIcons.money_dollar_circle_fill,
                     label: "Today's Sales",
                     value: '₱${_todaysSales.toStringAsFixed(0)}',
                   ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: StaffDisplayTile(
+                  child: DriverDisplayTile(
+                    icon: CupertinoIcons.doc_text_fill,
                     label: 'Pending Reports',
                     value: '$_pendingReportsCount',
                     dark: _pendingReportsCount > 0,
@@ -220,42 +503,19 @@ class OwnerHomepageScreen extends StatelessWidget {
               onPressed: _shareSummary,
             ),
             const SizedBox(height: 24),
+
+            // SALES TREND
             const StaffSectionHeader(
-              label: 'Quick Links',
-              icon: CupertinoIcons.square_grid_2x2_fill,
+              label: "Sales Trend",
+              icon: CupertinoIcons.graph_square_fill,
             ),
             const SizedBox(height: 12),
-            StaffCard(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: const [
-                  _QuickLinkRow(
-                    icon: CupertinoIcons.person_2_fill,
-                    label: 'Assign staff to a branch',
-                    hint: 'Assign tab',
-                  ),
-                  SizedBox(height: 12),
-                  _QuickLinkRow(
-                    icon: CupertinoIcons.cube_box_fill,
-                    label: 'Check branch stock levels',
-                    hint: 'Inventory tab',
-                  ),
-                  SizedBox(height: 12),
-                  _QuickLinkRow(
-                    icon: CupertinoIcons.money_dollar_circle_fill,
-                    label: 'Review sales and payroll',
-                    hint: 'Sales tab',
-                  ),
-                  SizedBox(height: 12),
-                  _QuickLinkRow(
-                    icon: CupertinoIcons.ellipsis_circle_fill,
-                    label: 'Orders, reports, announcements',
-                    hint: 'More tab',
-                  ),
-                ],
-              ),
+            const StaffCard(
+              child: OwnerSalesTrendChart(),
             ),
             const SizedBox(height: 24),
+
+            // TOP PERFORMERS
             const StaffSectionHeader(
               label: 'Top Performers',
               icon: CupertinoIcons.star_fill,
@@ -270,7 +530,12 @@ class OwnerHomepageScreen extends StatelessWidget {
                       branch: r.branchName,
                       portions: r.portionsSold,
                     ),
-                    if (r != _salesRecords.last) Container(height: 1, color: AppColors.border, margin: const EdgeInsets.symmetric(vertical: 12)),
+                    if (r != _salesRecords.last)
+                      Container(
+                        height: 1,
+                        color: AppColors.border,
+                        margin: const EdgeInsets.symmetric(vertical: 12),
+                      ),
                   ],
                 ],
               ),
@@ -299,8 +564,8 @@ class _TopPerformerRow extends StatelessWidget {
     return Row(
       children: [
         Container(
-          width: 32,
-          height: 32,
+          width: 34,
+          height: 34,
           alignment: Alignment.center,
           decoration: const BoxDecoration(
             color: AppColors.accent,
@@ -311,7 +576,7 @@ class _TopPerformerRow extends StatelessWidget {
             style: const TextStyle(
               color: CupertinoColors.white,
               fontWeight: FontWeight.bold,
-              fontSize: 12,
+              fontSize: 13,
             ),
           ),
         ),
@@ -322,14 +587,19 @@ class _TopPerformerRow extends StatelessWidget {
             children: [
               Text(
                 name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
                   fontWeight: FontWeight.w600,
                   fontSize: 14,
                   color: AppColors.textPrimary,
                 ),
               ),
+              const SizedBox(height: 2),
               Text(
                 branch,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
                   fontSize: 11,
                   color: AppColors.textSecondary,
@@ -338,6 +608,7 @@ class _TopPerformerRow extends StatelessWidget {
             ],
           ),
         ),
+        const SizedBox(width: 10),
         Column(
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
@@ -358,53 +629,6 @@ class _TopPerformerRow extends StatelessWidget {
               ),
             ),
           ],
-        ),
-      ],
-    );
-  }
-}
-
-class _QuickLinkRow extends StatelessWidget {
-  const _QuickLinkRow({
-    required this.icon,
-    required this.label,
-    required this.hint,
-  });
-
-  final IconData icon;
-  final String label;
-  final String hint;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Container(
-          width: 32,
-          height: 32,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: AppColors.accent.withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(9),
-          ),
-          child: Icon(icon, size: 16, color: AppColors.accent),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Text(
-            label,
-            style: const TextStyle(
-              fontSize: 13,
-              color: AppColors.textPrimary,
-            ),
-          ),
-        ),
-        Text(
-          hint,
-          style: const TextStyle(
-            fontSize: 11.5,
-            color: AppColors.textSecondary,
-          ),
         ),
       ],
     );

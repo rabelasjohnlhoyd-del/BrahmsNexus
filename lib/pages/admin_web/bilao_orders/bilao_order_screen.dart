@@ -146,9 +146,138 @@ class _BilaoOrderScreenState extends State<BilaoOrderScreen> {
     _updateShellActions();
   }
 
+  final Map<BilaoSize, double> _prices = {
+    BilaoSize.small: 750.0,
+    BilaoSize.medium: 950.0,
+    BilaoSize.large: 1300.0,
+  };
+
+  void _showPricingDialog() {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          return AlertDialog(
+            backgroundColor: Colors.white,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: const Row(
+              children: [
+                Icon(Icons.sell_rounded, color: AdminWebColors.accent),
+                SizedBox(width: 10),
+                Text('Bilao Pricing', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+              ],
+            ),
+            content: SizedBox(
+              width: 380,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: BilaoSize.values.map((size) {
+                  final price = _prices[size] ?? size.price;
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 6),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: AdminWebColors.background,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: AdminWebColors.border),
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  size.label.toUpperCase(),
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 13,
+                                    color: AdminWebColors.textPrimary,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  'Current: ₱${price.toStringAsFixed(0)}',
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: AdminWebColors.textSecondary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.edit_rounded, size: 20, color: AdminWebColors.accent),
+                            onPressed: () {
+                              final ctrl = TextEditingController(text: price.toStringAsFixed(0));
+                              showDialog<void>(
+                                context: context,
+                                builder: (c) => AlertDialog(
+                                  title: Text('Edit Price: ${size.label}'),
+                                  content: TextField(
+                                    controller: ctrl,
+                                    keyboardType: TextInputType.number,
+                                    decoration: const InputDecoration(
+                                      labelText: 'PRICE (₱)',
+                                      prefixText: '₱ ',
+                                    ),
+                                  ),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () => Navigator.pop(c),
+                                      child: const Text('CANCEL'),
+                                    ),
+                                    ElevatedButton(
+                                      onPressed: () {
+                                        final val = double.tryParse(ctrl.text);
+                                        if (val != null) {
+                                          setState(() => _prices[size] = val);
+                                          setDialogState(() {});
+                                        }
+                                        Navigator.pop(c);
+                                      },
+                                      child: const Text('SAVE'),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('DONE'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
   void _updateShellActions() {
     final shell = context.findAncestorStateOfType<AdminWebShellState>();
     shell?.setActions([
+      ElevatedButton.icon(
+        onPressed: _showPricingDialog,
+        icon: const Icon(Icons.sell_outlined, size: 16, color: Colors.white),
+        label: const Text('MANAGE PRICING'),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.white.withValues(alpha: 0.15),
+          foregroundColor: Colors.white,
+          side: BorderSide(color: Colors.white.withValues(alpha: 0.3)),
+          elevation: 0,
+        ),
+      ),
+      const SizedBox(width: 8),
       ElevatedButton.icon(
         onPressed: _openAddOrder,
         icon: const Icon(Icons.add_rounded, size: 18, color: Colors.white),
@@ -195,7 +324,7 @@ class _BilaoOrderScreenState extends State<BilaoOrderScreen> {
                           const SizedBox(width: 16),
                           Expanded(
                             child: DropdownButtonFormField<String>(
-                              value: _statusFilter,
+                              initialValue: _statusFilter,
                               decoration: const InputDecoration(
                                 labelText: 'FILTER BY STATUS',
                                 isDense: true,
@@ -215,6 +344,46 @@ class _BilaoOrderScreenState extends State<BilaoOrderScreen> {
                     : Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: OutlinedButton.icon(
+                                  onPressed: _showPricingDialog,
+                                  icon: const Icon(Icons.sell_outlined, size: 16, color: AdminWebColors.accent),
+                                  label: const Text(
+                                    'PRICING',
+                                    style: TextStyle(
+                                      color: AdminWebColors.textPrimary,
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                  style: OutlinedButton.styleFrom(
+                                    backgroundColor: Colors.white,
+                                    side: const BorderSide(color: AdminWebColors.border),
+                                    padding: const EdgeInsets.symmetric(vertical: 12),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: ElevatedButton.icon(
+                                  onPressed: _openAddOrder,
+                                  icon: const Icon(Icons.add_rounded, size: 18, color: Colors.white),
+                                  label: const Text('NEW ORDER'),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: AdminWebColors.accent,
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(vertical: 12),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                    elevation: 0,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
                           TextField(
                             decoration: const InputDecoration(
                               hintText: 'Search by customer name...',

@@ -20,15 +20,17 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     _updateShellActions();
   }
 
+  void _exportReport() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Downloading full DSS report...')),
+    );
+  }
+
   void _updateShellActions() {
     final shell = context.findAncestorStateOfType<AdminWebShellState>();
     shell?.setActions([
       ElevatedButton.icon(
-        onPressed: () {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Downloading full DSS report...')),
-          );
-        },
+        onPressed: _exportReport,
         icon: const Icon(Icons.download_rounded, size: 18, color: Colors.white),
         label: const Text('EXPORT REPORT'),
         style: ElevatedButton.styleFrom(
@@ -48,6 +50,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
       child: LayoutBuilder(
         builder: (context, constraints) {
           final isNarrow = constraints.maxWidth < 900;
+          final isMobile = constraints.maxWidth < 700;
 
           return SingleChildScrollView(
             padding: const EdgeInsets.all(24),
@@ -55,6 +58,25 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const SizedBox(height: 20),
+                if (isMobile) ...[
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: _exportReport,
+                      icon: const Icon(Icons.download_rounded, size: 18),
+                      label: const Text('EXPORT REPORT'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AdminWebColors.accent,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                ],
                 // --- 1. DESCRIPTIVE ANALYTICS ---
                 _SectionHeader(
                   title: 'Descriptive Analytics',

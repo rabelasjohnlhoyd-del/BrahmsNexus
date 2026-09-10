@@ -14,9 +14,7 @@ import 'inventory/inventory_screen.dart';
 import 'sales_payroll/sales_payroll_screen.dart';
 import 'staff_management/staff_management_screen.dart';
 import 'branch_management/branch_management_screen.dart';
-import 'bilao_management/bilao_pricing_screen.dart';
 import 'activity_log/activity_log_screen.dart';
-import 'report_export/report_export_screen.dart';
 import 'settings/system_settings_screen.dart';
 
 /// Full Admin shell — WEB (also accessible via phone browser, hence
@@ -87,9 +85,7 @@ class AdminWebShellState extends State<AdminWebShell> {
     AdminSidebarItem(icon: Icons.campaign_rounded, label: 'Announcements'),
     AdminSidebarItem(icon: Icons.insights_rounded, label: 'DSS Analytics'),
     AdminSidebarItem(icon: Icons.location_on_rounded, label: 'Branch Management'),
-    AdminSidebarItem(icon: Icons.sell_rounded, label: 'Bilao Pricing'),
     AdminSidebarItem(icon: Icons.list_alt_rounded, label: 'Activity Log'),
-    AdminSidebarItem(icon: Icons.download_rounded, label: 'Report Export'),
     AdminSidebarItem(icon: Icons.settings_rounded, label: 'System Settings'),
   ];
 
@@ -105,9 +101,7 @@ class AdminWebShellState extends State<AdminWebShell> {
     const AnnouncementsScreen(),
     const AnalyticsScreen(),
     const BranchManagementScreen(),
-    const BilaoPricingScreen(),
     const ActivityLogScreen(),
-    const ReportExportScreen(),
     const SystemSettingsScreen(),
   ];
 
@@ -196,6 +190,8 @@ class AdminWebShellState extends State<AdminWebShell> {
           }
 
           // --- PHONE BROWSER: Drawer (hamburger menu) ---
+          final pageTitle = _customTitle ?? _items[_selectedIndex].label;
+
           return Scaffold(
             backgroundColor: AdminWebColors.background,
             appBar: AppBar(
@@ -208,9 +204,59 @@ class AdminWebShellState extends State<AdminWebShell> {
                   ),
                 ),
               ),
-              elevation: 0,
+              elevation: 2,
               iconTheme: const IconThemeData(color: Colors.white),
-              titleSpacing: 0,
+              title: Text(
+                pageTitle.toUpperCase(),
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w900,
+                  color: Colors.white,
+                  letterSpacing: 0.8,
+                ),
+              ),
+              actions: [
+                IconButton(
+                  tooltip: 'Notifications',
+                  onPressed: () {},
+                  icon: Badge(
+                    label: const Text('2'),
+                    backgroundColor: AdminWebColors.warning,
+                    child: const Icon(Icons.notifications_outlined, color: Colors.white, size: 22),
+                  ),
+                ),
+                PopupMenuButton<String>(
+                  offset: const Offset(0, 45),
+                  icon: const Icon(Icons.account_circle_rounded, color: Colors.white, size: 26),
+                  onSelected: (value) {
+                    if (value == 'logout') _handleLogout();
+                  },
+                  itemBuilder: (context) => [
+                    const PopupMenuItem(
+                      value: 'profile',
+                      child: Row(
+                        children: [
+                          Icon(Icons.person_outline, size: 18, color: AdminWebColors.accent),
+                          SizedBox(width: 10),
+                          Text('Admin Profile'),
+                        ],
+                      ),
+                    ),
+                    const PopupMenuDivider(),
+                    const PopupMenuItem(
+                      value: 'logout',
+                      child: Row(
+                        children: [
+                          Icon(Icons.logout_rounded, size: 18, color: AdminWebColors.error),
+                          SizedBox(width: 10),
+                          Text('Log Out', style: TextStyle(color: AdminWebColors.error)),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(width: 8),
+              ],
             ),
             drawer: Drawer(
               child: AdminSidebar(

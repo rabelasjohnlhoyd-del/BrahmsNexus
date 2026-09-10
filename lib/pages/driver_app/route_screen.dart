@@ -396,7 +396,7 @@ class _RouteScreenState extends State<RouteScreen> {
                                       children: [
                                         Icon(CupertinoIcons.map_fill, size: 14, color: AppColors.accent),
                                         SizedBox(width: 8),
-                                        const Text(
+                                        Text(
                                           'Open Live Route Map',
                                           style: TextStyle(
                                             fontSize: 12,

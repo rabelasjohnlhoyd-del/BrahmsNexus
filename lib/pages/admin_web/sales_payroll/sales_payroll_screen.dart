@@ -3,7 +3,6 @@ import '../../../models/sales_record.dart';
 import '../admin_web_colors.dart';
 import '../admin_web_shell.dart';
 import '../admin_web_widgets/glass_card.dart';
-import '../../../widgets/primary_button.dart';
 
 /// Admin monitors daily sales per branch/employee here. Wage/commission
 /// and expected cash remittance are auto-computed from the values
@@ -164,6 +163,45 @@ class _SalesPayrollScreenState extends State<SalesPayrollScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const SizedBox(height: 24),
+                if (!isWide) ...[
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: _showSetRateDialog,
+                          icon: const Icon(Icons.tune_rounded, size: 16),
+                          label: Text(
+                            'RATE: ₱${_commissionRate.toStringAsFixed(2)}',
+                            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: AdminWebColors.accent,
+                            side: const BorderSide(color: AdminWebColors.accent),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      ElevatedButton.icon(
+                        onPressed: () {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Payroll summary exported.')),
+                          );
+                        },
+                        icon: const Icon(Icons.ios_share_rounded, size: 16),
+                        label: const Text('EXPORT'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AdminWebColors.accent,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                ],
                 isWide
                   ? Row(
                       children: [

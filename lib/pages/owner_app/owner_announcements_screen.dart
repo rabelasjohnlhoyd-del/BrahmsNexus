@@ -199,6 +199,7 @@ class _OwnerAnnouncementsScreenState extends State<OwnerAnnouncementsScreen> {
               ],
             ),
           ),
+          const SizedBox(width: 8),
           CupertinoButton(
             padding: EdgeInsets.zero,
             minimumSize: Size.zero,

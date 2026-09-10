@@ -64,11 +64,6 @@ class StaffNavBar extends StatelessWidget
   @override
   bool shouldFullyObstruct(BuildContext context) => true;
 
-  static const List<String> _months = [
-    'January', 'February', 'March', 'April', 'May', 'June',
-    'July', 'August', 'September', 'October', 'November', 'December',
-  ];
-
   String _greetingPrefix() {
     final hour = DateTime.now().hour;
     if (hour < 12) return 'Good Morning';
