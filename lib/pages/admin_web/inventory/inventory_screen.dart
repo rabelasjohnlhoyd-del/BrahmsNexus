@@ -4,6 +4,7 @@ import '../../../models/inventory_batch.dart';
 import '../admin_web_colors.dart';
 import '../admin_web_shell.dart';
 import '../admin_web_widgets/glass_card.dart';
+import 'adjust_allocation_screen.dart';
 import 'record_transfer_screen.dart';
 import 'karne_batch_detail_screen.dart';
 import 'monthly_financials_screen.dart';
@@ -222,7 +223,107 @@ class _InventoryScreenState extends State<InventoryScreen>
     );
   }
 
-  Widget _buildBranchStockTab() { return const Center(child: Text('Branch Allocation Content')); }
+  Widget _buildBranchStockTab() {
+    if (_branchStocks.isEmpty) {
+      return const Center(
+        child: Text(
+          'No branch allocations recorded yet.',
+          style: TextStyle(color: AdminWebColors.textSecondary),
+        ),
+      );
+    }
+
+    return ListView.separated(
+      itemCount: _branchStocks.length,
+      separatorBuilder: (_, __) => const SizedBox(height: 12),
+      itemBuilder: (context, index) {
+        final stock = _branchStocks[index];
+        return GlassCard(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(
+            children: [
+              CircleAvatar(
+                backgroundColor: (stock.isRunningLow
+                        ? AdminWebColors.error
+                        : AdminWebColors.accent)
+                    .withValues(alpha: 0.1),
+                child: Icon(
+                  Icons.store_rounded,
+                  color: stock.isRunningLow
+                      ? AdminWebColors.error
+                      : AdminWebColors.accent,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      stock.branchName,
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Text(
+                          '${stock.remainingKg.toStringAsFixed(1)} / ${stock.allocatedKg.toStringAsFixed(1)} KG remaining',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: AdminWebColors.textSecondary,
+                          ),
+                        ),
+                        if (stock.isRunningLow) ...[
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 6, vertical: 1),
+                            decoration: BoxDecoration(
+                              color: AdminWebColors.error.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: const Text(
+                              'LOW STOCK',
+                              style: TextStyle(
+                                fontSize: 9,
+                                fontWeight: FontWeight.w900,
+                                color: AdminWebColors.error,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              TextButton.icon(
+                onPressed: () => _adjustAllocation(index),
+                icon: const Icon(Icons.tune_rounded, size: 18),
+                label: const Text('ADJUST'),
+                style: TextButton.styleFrom(foregroundColor: AdminWebColors.accent),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _adjustAllocation(int index) async {
+    final stock = _branchStocks[index];
+    final result = await Navigator.of(context).push<double>(
+      MaterialPageRoute(
+        builder: (context) => AdjustAllocationScreen(branchStock: stock),
+      ),
+    );
+
+    if (result != null) {
+      setState(() {
+        _branchStocks[index] = stock.copyWith(allocatedKg: result);
+      });
+    }
+  }
 
   Widget _buildTransferLogsTab() {
     return Column(

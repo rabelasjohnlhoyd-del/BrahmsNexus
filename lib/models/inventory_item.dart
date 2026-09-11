@@ -23,6 +23,26 @@ class BranchStock {
   /// may need a Driver stock-transfer stop (see the Inventory
   /// Management flowchart: "Is branch running low on stock?").
   bool get isRunningLow => allocatedKg > 0 && (remainingKg / allocatedKg) < 0.15;
+
+  /// Needed so Admin Web's "Adjust Allocation" screen and the Owner
+  /// App's matching edit action can both produce an updated copy
+  /// after the person changes `allocatedKg`, without touching the
+  /// other fields.
+  BranchStock copyWith({
+    String? branchId,
+    String? branchName,
+    DateTime? date,
+    double? allocatedKg,
+    double? remainingKg,
+  }) {
+    return BranchStock(
+      branchId: branchId ?? this.branchId,
+      branchName: branchName ?? this.branchName,
+      date: date ?? this.date,
+      allocatedKg: allocatedKg ?? this.allocatedKg,
+      remainingKg: remainingKg ?? this.remainingKg,
+    );
+  }
 }
 
 /// Record of meat (or other stock) moved from one branch to another by
