@@ -1,12 +1,18 @@
 import 'package:flutter/material.dart';
 import '../../../models/financial_period.dart';
+import '../../../models/inventory_batch.dart';
 import '../../../models/procurement_list.dart';
 import '../admin_web_colors.dart';
 import '../admin_web_shell.dart';
 import '../admin_web_widgets/glass_card.dart';
 
 class MonthlyFinancialsScreen extends StatefulWidget {
-  const MonthlyFinancialsScreen({super.key});
+  const MonthlyFinancialsScreen({super.key, this.karneBatches = const []});
+
+  /// Live batches from the Warehouse tab (InventoryScreen). Production
+  /// pcs for the period is derived from these instead of being typed
+  /// in separately, so the two tabs can't drift out of sync.
+  final List<KarneBatch> karneBatches;
 
   @override
   State<MonthlyFinancialsScreen> createState() => _MonthlyFinancialsScreenState();
@@ -20,6 +26,32 @@ class _MonthlyFinancialsScreenState extends State<MonthlyFinancialsScreen> {
     super.initState();
     _initializeData();
   }
+
+  @override
+  void didUpdateWidget(covariant MonthlyFinancialsScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Recompute productionPcs from the latest batches every time the
+    // parent (InventoryScreen) rebuilds this widget — cheap sum over a
+    // short list, and avoids relying on List identity/equality (the
+    // parent mutates its list in place, so reference comparison here
+    // would silently miss real changes). Everything else the user has
+    // already edited on this screen (procurement items, labor days,
+    // overheads) is preserved as-is.
+    setState(() {
+      _period = FinancialPeriod(
+        id: _period.id,
+        monthName: _period.monthName,
+        year: _period.year,
+        productionPcs: _totalPcsFromBatches(),
+        productionLaborDays: _period.productionLaborDays,
+        dailyOverheads: _period.dailyOverheads,
+        procurementGroups: _period.procurementGroups,
+      );
+    });
+  }
+
+  int _totalPcsFromBatches() =>
+      widget.karneBatches.fold(0, (sum, b) => sum + b.totalPcsNagawa);
 
   void _initializeData() {
     final groups = [
@@ -67,7 +99,7 @@ class _MonthlyFinancialsScreenState extends State<MonthlyFinancialsScreen> {
       id: 'p1',
       monthName: 'July - August',
       year: 2026,
-      productionPcs: 3002,
+      productionPcs: _totalPcsFromBatches(),
       productionLaborDays: 7,
       dailyOverheads: overheads,
       procurementGroups: groups,

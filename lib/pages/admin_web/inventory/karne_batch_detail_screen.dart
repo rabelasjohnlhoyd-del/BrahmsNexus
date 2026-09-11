@@ -5,8 +5,14 @@ import '../admin_web_shell.dart';
 import '../admin_web_widgets/glass_card.dart';
 
 class KarneBatchDetailScreen extends StatefulWidget {
-  const KarneBatchDetailScreen({super.key, required this.batch});
+  const KarneBatchDetailScreen({super.key, required this.batch, this.onBatchChanged});
   final KarneBatch batch;
+
+  /// Called every time this batch's sessions change (add/edit/delete),
+  /// so the InventoryScreen list (and anything derived from it, like
+  /// Monthly Financials) can be kept in sync without waiting for a
+  /// pop() return value.
+  final ValueChanged<KarneBatch>? onBatchChanged;
 
   @override
   State<KarneBatchDetailScreen> createState() => _KarneBatchDetailScreenState();
@@ -70,6 +76,7 @@ class _KarneBatchDetailScreenState extends State<KarneBatchDetailScreen> {
                 final newSessions = List<KarneSession>.from(_batch.sessions)..add(session);
                 _batch = _batch.copyWith(sessions: newSessions);
               });
+              widget.onBatchChanged?.call(_batch);
               Navigator.pop(context);
             },
             child: const Text('ADD SESSION'),
@@ -113,6 +120,7 @@ class _KarneBatchDetailScreenState extends State<KarneBatchDetailScreen> {
                 newSessions[index] = updatedSession;
                 _batch = _batch.copyWith(sessions: newSessions);
               });
+              widget.onBatchChanged?.call(_batch);
               Navigator.pop(context);
             },
             child: const Text('SAVE ACTUAL'),
@@ -138,6 +146,7 @@ class _KarneBatchDetailScreenState extends State<KarneBatchDetailScreen> {
                 newSessions.removeAt(index);
                 _batch = _batch.copyWith(sessions: newSessions);
               });
+              widget.onBatchChanged?.call(_batch);
               Navigator.pop(context);
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(content: Text('Cooking session deleted.')),

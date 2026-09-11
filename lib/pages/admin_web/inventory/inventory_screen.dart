@@ -141,7 +141,7 @@ class _InventoryScreenState extends State<InventoryScreen>
                 _buildWarehouseTab(),
                 _buildBranchStockTab(),
                 _buildTransferLogsTab(),
-                const MonthlyFinancialsScreen(),
+                MonthlyFinancialsScreen(karneBatches: _karneBatches),
               ],
             ),
           ),
@@ -172,7 +172,17 @@ class _InventoryScreenState extends State<InventoryScreen>
               return GlassCard(
                 padding: EdgeInsets.zero,
                 child: ListTile(
-                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => KarneBatchDetailScreen(batch: batch))),
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => KarneBatchDetailScreen(
+                        batch: batch,
+                        onBatchChanged: (updated) {
+                          setState(() => _karneBatches[index] = updated);
+                        },
+                      ),
+                    ),
+                  ),
                   leading: const CircleAvatar(backgroundColor: AdminWebColors.accent, child: Icon(Icons.inventory_2, color: Colors.white)),
                   title: Text(batch.name, style: const TextStyle(fontWeight: FontWeight.bold)),
                   subtitle: Row(
