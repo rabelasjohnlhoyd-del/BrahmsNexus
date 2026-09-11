@@ -12,7 +12,7 @@ import '../../widgets/staff_top_actions.dart';
 class CookingSession {
   final String id;
   final String brand;
-  final double resekoPercent;
+  final double resekoPercent; // Target limit (e.g. 28%)
   final int minutesLaga;
   final double kilosToCook;
   final DateTime date;
@@ -28,14 +28,16 @@ class CookingSession {
     this.actualNagawa,
   });
 
-  double get outcome {
-    final double portionBase = minutesLaga * 10.0;
-    if (portionBase <= 0) return 0;
-    return (kilosToCook * 1000) / portionBase;
-  }
+  /// Ideal Yield = Kilos * 4 (Based on 1000g / 250g portions)
+  double get outcome => kilosToCook * 4.0;
 
-  double get kota {
-    return outcome * (1 - (resekoPercent / 100));
+  /// Quota (Kota) = Outcome - Reseko Allowance %
+  double get kota => (outcome * (1 - (resekoPercent / 100))).toInt().toDouble();
+
+  /// Actual Reseko achieved
+  double? get actualReseko {
+    if (actualNagawa == null) return null;
+    return ((outcome - actualNagawa!) / outcome) * 100;
   }
 
   double? get difference => actualNagawa != null ? actualNagawa! - kota : null;
@@ -161,7 +163,7 @@ class _OwnerInventoryScreenState extends State<OwnerInventoryScreen> {
             const SizedBox(height: 12),
             CupertinoTextField(controller: brandCtrl, placeholder: 'Brand Name'),
             const SizedBox(height: 8),
-            CupertinoTextField(controller: resekoCtrl, placeholder: 'Reseko %', keyboardType: TextInputType.number),
+            CupertinoTextField(controller: resekoCtrl, placeholder: 'Target Reseko % (Limit)', keyboardType: TextInputType.number),
             const SizedBox(height: 8),
             CupertinoTextField(controller: minutesCtrl, placeholder: 'Minutes Laga', keyboardType: TextInputType.number),
             const SizedBox(height: 8),
@@ -213,7 +215,8 @@ class _OwnerInventoryScreenState extends State<OwnerInventoryScreen> {
         content: Column(
           children: [
             const SizedBox(height: 12),
-            Text('Kota: ${session.kota.toStringAsFixed(1)} pcs'),
+            Text('Ideal Yield: ${session.outcome.toInt()} pcs'),
+            Text('Kota (Limit): ${session.kota.toInt()} pcs'),
             const SizedBox(height: 12),
             CupertinoTextField(controller: actualCtrl, placeholder: 'Actual Pcs', keyboardType: TextInputType.number),
           ],
@@ -354,7 +357,7 @@ class _OwnerInventoryScreenState extends State<OwnerInventoryScreen> {
           const Divider(height: 24),
           for (final s in batch.sessions) ...[
             _buildSessionRow(batch, s),
-            const SizedBox(height: 8),
+            const SizedBox(height: 12),
           ],
           if (batch.remainingKilos > 0)
             CupertinoButton(
@@ -368,25 +371,52 @@ class _OwnerInventoryScreenState extends State<OwnerInventoryScreen> {
   }
 
   Widget _buildSessionRow(KarneBatch batch, CookingSession s) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    final bool hasActual = s.actualNagawa != null;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text('${s.date.month}/${s.date.day} - ${s.kilosToCook}kg', style: const TextStyle(fontSize: 12)),
-            Text('Kota: ${s.kota.toStringAsFixed(0)}', style: const TextStyle(fontSize: 10, color: AppColors.textSecondary)),
+            Text('${s.date.month}/${s.date.day} - ${s.brand}', 
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+            if (!hasActual)
+              CupertinoButton(
+                padding: EdgeInsets.zero,
+                minSize: 0,
+                child: const Text('Enter Actual', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                onPressed: () => _enterActualNagawa(batch, s),
+              )
+            else
+              Text('Reseko: ${s.actualReseko?.toStringAsFixed(1)}%', 
+                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, 
+                  color: s.actualReseko! <= s.resekoPercent ? AppColors.success : AppColors.error)),
           ],
         ),
-        if (s.actualNagawa == null)
-          CupertinoButton(
-            padding: EdgeInsets.zero,
-            child: const Text('Enter Actual', style: TextStyle(fontSize: 12)),
-            onPressed: () => _enterActualNagawa(batch, s),
-          )
-        else
-          Text('Nagawa: ${s.actualNagawa!.toStringAsFixed(0)} (${s.difference! >= 0 ? '+' : ''}${s.difference!.toStringAsFixed(0)})',
-            style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: s.difference! >= 0 ? AppColors.success : AppColors.error)),
+        const SizedBox(height: 6),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            _sessionMiniStat('KILOS', '${s.kilosToCook}'),
+            _sessionMiniStat('IDEAL', '${s.outcome.toInt()}'),
+            _sessionMiniStat('KOTA', '${s.kota.toInt()}', color: AppColors.accent),
+            _sessionMiniStat('NAGAWA', hasActual ? '${s.actualNagawa!.toInt()}' : '--'),
+            _sessionMiniStat('DIFF', hasActual ? (s.difference! > 0 ? '+${s.difference!.toInt()}' : '${s.difference!.toInt()}') : '--', 
+              color: hasActual ? (s.difference! >= 0 ? AppColors.success : AppColors.error) : null),
+          ],
+        ),
+        const SizedBox(height: 8),
+        const Divider(height: 1, color: AppColors.border),
+      ],
+    );
+  }
+
+  Widget _sessionMiniStat(String label, String val, {Color? color}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: const TextStyle(fontSize: 9, color: AppColors.textSecondary, fontWeight: FontWeight.bold)),
+        Text(val, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: color ?? AppColors.textPrimary)),
       ],
     );
   }

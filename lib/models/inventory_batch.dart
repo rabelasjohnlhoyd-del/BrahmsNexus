@@ -73,24 +73,27 @@ class KarneSession {
 
   final DateTime date;
   final String brand;
-  final double resekoApplied;
+  final double resekoApplied; // The Target Reseko Limit (e.g. 28%)
   final int boilingMinutes;
   final double kilosCooked;
   final int actualPcs;
 
+  /// 1. The Basis (100% Ideal Yield)
+  /// Always 4 pieces per kilo (1000g / 250g)
+  double get idealYield => kilosCooked * 4.0;
+
+  /// 2. The Quota (Target Pieces at Quota Limit)
+  /// Formula: Ideal Yield - Reseko%
   int get kota {
-    // NEW COMPUTATION LOGIC:
-    // 1. Portion Base = Minutes * 10 (e.g., 25 mins = 250)
-    // 2. Outcome = (Kilos * 1000) / Portion Base (e.g., 150,000 / 250 = 600)
-    // 3. Kota = Outcome - Reseko% (e.g., 600 - 28% = 432)
-    
-    final double portionBase = boilingMinutes * 10.0;
-    if (portionBase <= 0) return 0;
-    
-    final double outcome = (kilosCooked * 1000) / portionBase;
-    final int finalKota = (outcome * (1 - (resekoApplied / 100))).round();
-    
-    return finalKota;
+    // Truncate to whole number as per requirements
+    return (idealYield * (1 - (resekoApplied / 100))).toInt();
+  }
+
+  /// 3. Actual Reseko achieved in the session
+  /// Formula: ((Ideal Yield - Actual Pieces) / Ideal Yield) * 100
+  double? get actualReseko {
+    if (actualPcs <= 0) return null;
+    return ((idealYield - actualPcs) / idealYield) * 100;
   }
 
   int get sobra => (actualPcs > 0 && actualPcs > kota) ? actualPcs - kota : 0;

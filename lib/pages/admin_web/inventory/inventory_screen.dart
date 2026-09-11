@@ -6,6 +6,7 @@ import '../admin_web_shell.dart';
 import '../admin_web_widgets/glass_card.dart';
 import 'record_transfer_screen.dart';
 import 'karne_batch_detail_screen.dart';
+import 'monthly_financials_screen.dart';
 
 class InventoryScreen extends StatefulWidget {
   const InventoryScreen({super.key});
@@ -17,7 +18,7 @@ class InventoryScreen extends StatefulWidget {
 class _InventoryScreenState extends State<InventoryScreen>
     with SingleTickerProviderStateMixin {
   late final TabController _tabController =
-      TabController(length: 3, vsync: this);
+      TabController(length: 4, vsync: this);
 
   final List<KarneBatch> _karneBatches = [
     KarneBatch(
@@ -129,6 +130,7 @@ class _InventoryScreenState extends State<InventoryScreen>
               Tab(text: 'Main Warehouse'),
               Tab(text: 'Branch Allocation'),
               Tab(text: 'Dispatch Logs'),
+              Tab(text: 'Monthly Financials'),
             ],
           ),
           const SizedBox(height: 24),
@@ -139,6 +141,7 @@ class _InventoryScreenState extends State<InventoryScreen>
                 _buildWarehouseTab(),
                 _buildBranchStockTab(),
                 _buildTransferLogsTab(),
+                const MonthlyFinancialsScreen(),
               ],
             ),
           ),
@@ -172,7 +175,26 @@ class _InventoryScreenState extends State<InventoryScreen>
                   onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => KarneBatchDetailScreen(batch: batch))),
                   leading: const CircleAvatar(backgroundColor: AdminWebColors.accent, child: Icon(Icons.inventory_2, color: Colors.white)),
                   title: Text(batch.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                  subtitle: Text('Status: ${batch.remainingKilos > 0 ? "Active" : "Finished"}'),
+                  subtitle: Row(
+                    children: [
+                      Text('Status: '),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: (batch.remainingKilos > 0 ? AdminWebColors.success : AdminWebColors.error).withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          batch.remainingKilos > 0 ? "ACTIVE" : "DONE",
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w900,
+                            color: batch.remainingKilos > 0 ? AdminWebColors.success : AdminWebColors.error,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                   trailing: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     crossAxisAlignment: CrossAxisAlignment.end,

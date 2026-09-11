@@ -122,6 +122,44 @@ class _KarneBatchDetailScreenState extends State<KarneBatchDetailScreen> {
     );
   }
 
+  void _deleteSession(int index) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Confirm Delete'),
+        content: const Text('Are you sure you want to delete this cooking session? This will return the kilos to the batch stock.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('CANCEL')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: AdminWebColors.error),
+            onPressed: () {
+              setState(() {
+                final newSessions = List<KarneSession>.from(_batch.sessions);
+                newSessions.removeAt(index);
+                _batch = _batch.copyWith(sessions: newSessions);
+              });
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Cooking session deleted.')),
+              );
+            },
+            child: const Text('DELETE', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _exportAsPdf() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Generating PDF Report for this batch...'),
+        duration: Duration(seconds: 2),
+      ),
+    );
+    // In a real app, we'd use the 'pdf' package here.
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -268,11 +306,23 @@ class _KarneBatchDetailScreenState extends State<KarneBatchDetailScreen> {
                     _badge('RESEKO ${s.resekoApplied}%', AdminWebColors.success),
                   ],
                 ),
-                TextButton.icon(
-                  onPressed: () => _enterActualPcs(index),
-                  icon: Icon(hasActual ? Icons.edit_rounded : Icons.add_circle_outline_rounded, size: 16),
-                  label: Text(hasActual ? 'EDIT NAGAW' : 'ENTER ACTUAL', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12)),
-                  style: TextButton.styleFrom(foregroundColor: hasActual ? AdminWebColors.textSecondary : AdminWebColors.accent),
+                Row(
+                  children: [
+                    TextButton.icon(
+                      onPressed: () => _enterActualPcs(index),
+                      icon: Icon(hasActual ? Icons.edit_rounded : Icons.add_circle_outline_rounded, size: 16),
+                      label: Text(hasActual ? 'EDIT NAGAW' : 'ENTER ACTUAL', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12)),
+                      style: TextButton.styleFrom(foregroundColor: hasActual ? AdminWebColors.textSecondary : AdminWebColors.accent),
+                    ),
+                    const SizedBox(width: 8),
+                    IconButton(
+                      onPressed: () => _deleteSession(index),
+                      icon: const Icon(Icons.delete_outline_rounded, size: 18, color: AdminWebColors.error),
+                      tooltip: 'Delete Session',
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -283,10 +333,11 @@ class _KarneBatchDetailScreenState extends State<KarneBatchDetailScreen> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 _sessionDetail('KILOS', '${s.kilosCooked}', isMain: true),
-                _sessionDetail('KOTA', '${s.kota}', color: AdminWebColors.accent, isMain: true),
+                _sessionDetail('IDEAL YIELD', '${s.idealYield.toInt()}', isMain: true),
+                _sessionDetail('KOTA (28%)', '${s.kota}', color: AdminWebColors.accent, isMain: true),
                 _sessionDetail('NAGAWA', hasActual ? '${s.actualPcs}' : '--', color: hasActual ? AdminWebColors.success : null, isMain: true),
-                _sessionDetail('SOBRA', hasActual ? '${s.sobra}' : '0', color: Colors.blue),
-                _sessionDetail('SHORT', hasActual ? '${s.short}' : '0', color: AdminWebColors.error),
+                _sessionDetail('RESULT', hasActual ? (s.sobra > 0 ? '+${s.sobra}' : (s.short > 0 ? '-${s.short}' : 'OK')) : '--', color: hasActual ? (s.sobra > 0 ? Colors.blue : (s.short > 0 ? AdminWebColors.error : AdminWebColors.success)) : null),
+                _sessionDetail('ACTUAL RESEKO', hasActual ? '${s.actualReseko?.toStringAsFixed(1)}%' : '--', color: hasActual ? (s.actualReseko! <= s.resekoApplied ? AdminWebColors.success : AdminWebColors.error) : null),
               ],
             ),
           ],
@@ -338,6 +389,21 @@ class _KarneBatchDetailScreenState extends State<KarneBatchDetailScreen> {
           _grandItem('Total Pieces Produced', '${_batch.totalPcsNagawa} PCS'),
           _grandItem('Overall Shortage', '${_batch.totalShort}', color: AdminWebColors.error),
           _grandItem('Overall Surplus', '${_batch.totalSobra}', color: Colors.blue),
+          const SizedBox(height: 24),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: _exportAsPdf,
+              icon: const Icon(Icons.picture_as_pdf_rounded),
+              label: const Text('EXPORT BATCH REPORT AS PDF', style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AdminWebColors.accent,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 20),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+          ),
         ],
       ),
     );
