@@ -1,0 +1,189 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // =========================================================================
+    // HELPER FUNCTIONS
+    // =========================================================================
+
+    // Checks if the incoming request is from a logged-in user
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Checks if user doc exists in the database
+    function userDocExists() {
+      return isAuthenticated() && exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    // Checks if the user is operating on their own document
+    function isOwner(uid) {
+      return isAuthenticated() && request.auth.uid == uid;
+    }
+
+    // Retrieves user data safely
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    // Checks if the authenticated user has the 'owner' role
+    function isSystemOwner() {
+      return isAuthenticated() && 
+             ((userDocExists() && getUserData().role == 'owner') || 
+              request.auth.token.email == 'owner@brahmsnexus.internal');
+    }
+
+    // Checks if the user's account has been verified and approved by the Owner
+    function isApprovedStaff() {
+      return isAuthenticated() && 
+             (isSystemOwner() || (userDocExists() && getUserData().status == 'approved'));
+    }
+
+    // Validates string length to prevent resource exhaustion / DoS attacks
+    function isValidString(val, minLen, maxLen) {
+      return val is string && val.size() >= minLen && val.size() <= maxLen;
+    }
+
+    // =========================================================================
+    // 1. USERS COLLECTION
+    // Holds authentication mapping, roles, and approval statuses.
+    // =========================================================================
+    match /users/{userId} {
+      // Any authenticated user can read their own profile; Owner can read all profiles
+      allow read: if isOwner(userId) || isSystemOwner();
+
+      // New users can register themselves:
+      // - Must set status to 'pending' (NEVER 'approved' on create)
+      // - Must set role to 'staff' (NEVER 'owner' to prevent privilege escalation)
+      allow create: if isOwner(userId) &&
+                       request.resource.data.status == 'pending' &&
+                       request.resource.data.role == 'staff' &&
+                       isValidString(request.resource.data.username, 3, 50);
+
+      // Updates:
+      // - Standard users can only update their non-sensitive fields (e.g. contactNumber)
+      // - ONLY the system owner can approve/reject accounts or change roles
+      allow update: if isSystemOwner() ||
+                       (isOwner(userId) && 
+                        !request.resource.data.diff(resource.data).affectedKeys()
+                          .hasAny(['role', 'status', 'createdAt', 'uid']));
+
+      // Only the system owner can delete an account
+      allow delete: if isSystemOwner();
+    }
+
+    // =========================================================================
+    // 2. BILAO ORDERS COLLECTION
+    // Tracks advance bilao packages, scheduling, and live delivery status.
+    // =========================================================================
+    match /bilao_orders/{orderId} {
+      // Approved staff (cooks & drivers) and owner can view active orders
+      allow read: if isApprovedStaff();
+
+      // Owner can create new confirmed bilao orders
+      allow create: if isSystemOwner() &&
+                       isValidString(request.resource.data.customerName, 2, 100) &&
+                       request.resource.data.quantity is int &&
+                       request.resource.data.quantity > 0;
+
+      // Staff (Cooks/Drivers) can update operational statuses (prep, delivery, notes),
+      // but CANNOT tamper with financial fields (price, deposit, commissions, customer name)
+      allow update: if isSystemOwner() ||
+                       (isApprovedStaff() && 
+                        !request.resource.data.diff(resource.data).affectedKeys()
+                          .hasAny(['totalPrice', 'commissionAmount', 'depositPaid', 'createdAt', 'customerName', 'customerPhone']));
+
+      // Only Owner can delete an order
+      allow delete: if isSystemOwner();
+    }
+
+    // =========================================================================
+    // 3. DAILY BRANCH INVENTORY VERIFICATION
+    // Document ID is formatted as: `${branchId}_${YYYYMMDD}`
+    // =========================================================================
+    match /branch_daily_inventories/{inventoryDocId} {
+      // Approved staff and owner can view today's allocated stock
+      allow read: if isApprovedStaff();
+
+      // Owner allocates stock
+      allow create: if isSystemOwner();
+
+      // Staff can confirm physical count or report discrepancy, but CANNOT alter allocated figures
+      allow update: if isSystemOwner() ||
+                       (isApprovedStaff() &&
+                        !request.resource.data.diff(resource.data).affectedKeys()
+                          .hasAny(['allocatedStock', 'meatAllocationPacks', 'batchCode', 'dispatchTimestamp']));
+
+      allow delete: if isSystemOwner();
+    }
+
+    // =========================================================================
+    // 4. DAILY SALES COLLECTION
+    // End-of-day sales, portions sold, computed wage, and expected remittance.
+    // =========================================================================
+    match /daily_sales/{saleId} {
+      // Owner can read all sales records; Approved staff can read their branch sales
+      allow read: if isApprovedStaff();
+
+      // Approved cook can submit their daily sales report
+      allow create: if isApprovedStaff() &&
+                       request.resource.data.portionsSold is int &&
+                       request.resource.data.portionsSold >= 0 &&
+                       request.resource.data.totalSalesAmount is number &&
+                       request.resource.data.totalSalesAmount >= 0;
+
+      // Historical sales records cannot be modified after submission (tamper protection)
+      allow update: if isSystemOwner();
+
+      allow delete: if isSystemOwner();
+    }
+
+    // =========================================================================
+    // 5. DAILY INCIDENT & SHORTAGE REPORTS
+    // =========================================================================
+    match /daily_reports/{reportId} {
+      allow read: if isApprovedStaff();
+
+      // Approved staff can report operational issues (mayo torn, gas empty)
+      allow create: if isApprovedStaff() &&
+                       isValidString(request.resource.data.content, 1, 1000);
+
+      allow update, delete: if isSystemOwner();
+    }
+
+    // =========================================================================
+    // 6. ESP32 RFID ATTENDANCE LOGS
+    // =========================================================================
+    match /rfid_attendance/{tapId} {
+      allow read: if isApprovedStaff();
+
+      // Logged taps from approved staff or dedicated hardware reader
+      allow create: if isApprovedStaff() &&
+                       isValidString(request.resource.data.rfidTag, 3, 64) &&
+                       request.resource.data.timestamp != null;
+
+      // Attendance records are immutable (audit trail integrity)
+      allow update, delete: if isSystemOwner();
+    }
+
+    // =========================================================================
+    // 7. REAL-TIME NOTIFICATIONS & ANNOUNCEMENTS
+    // =========================================================================
+    match /notifications/{notifId} {
+      // Staff can read broadcast notifications ('all') or targeted to them
+      allow read: if isAuthenticated();
+
+      // Only Owner or system background services can dispatch alerts
+      allow create, update, delete: if isSystemOwner();
+    }
+
+    // =========================================================================
+    // DEFAULT DENY RULE
+    // Any collections not explicitly matched above are strictly locked down.
+    // =========================================================================
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -46,3 +46,14 @@ app.*.map.json
 
 # Widget Preview related
 .widget_preview/
+
+# Environment Variables and Secrets (API Keys protection)
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.jks
+*.keystore
+service-account*.json
+firebase-adminsdk*.json
