@@ -292,7 +292,7 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
                         children: [
                           Expanded(
                             child: DropdownButtonFormField<String>(
-                              value: _branchFilter ?? 'All',
+                              initialValue: _branchFilter ?? 'All',
                               decoration: const InputDecoration(
                                 labelText: 'FILTER BY BRANCH',
                                 isDense: true,
@@ -331,7 +331,7 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
                           ),
                           const SizedBox(height: 12),
                           DropdownButtonFormField<String>(
-                            value: _branchFilter ?? 'All',
+                            initialValue: _branchFilter ?? 'All',
                             decoration: const InputDecoration(
                               labelText: 'FILTER BY BRANCH',
                               isDense: true,

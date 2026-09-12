@@ -167,7 +167,7 @@ class _InventoryScreenState extends State<InventoryScreen>
         Expanded(
           child: ListView.separated(
             itemCount: _karneBatches.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 12),
+            separatorBuilder: (_, _) => const SizedBox(height: 12),
             itemBuilder: (context, index) {
               final batch = _karneBatches[index];
               return GlassCard(
@@ -235,7 +235,7 @@ class _InventoryScreenState extends State<InventoryScreen>
 
     return ListView.separated(
       itemCount: _branchStocks.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 12),
+      separatorBuilder: (_, _) => const SizedBox(height: 12),
       itemBuilder: (context, index) {
         final stock = _branchStocks[index];
         return GlassCard(
@@ -353,7 +353,7 @@ class _InventoryScreenState extends State<InventoryScreen>
                 )
               : ListView.separated(
                   itemCount: _transferLogs.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 10),
+                  separatorBuilder: (_, _) => const SizedBox(height: 10),
                   itemBuilder: (context, index) {
                     final log = _transferLogs[index];
                     return GlassCard(

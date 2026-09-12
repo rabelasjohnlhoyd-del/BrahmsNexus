@@ -85,7 +85,6 @@ class _BranchManagementScreenState extends State<BranchManagementScreen> {
           const SizedBox(height: 20),
           LayoutBuilder(
             builder: (context, constraints) {
-              final isWide = constraints.maxWidth >= 700;
               return Column(
                 children: [
                   Align(

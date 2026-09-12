@@ -1,5 +1,6 @@
 import 'user_role.dart';
 import 'account_status.dart';
+import 'app_user.dart';
 
 /// Represents a Staff/Driver self-registration awaiting the Owner's
 /// decision on the Admin Web "Account Approvals" page.
@@ -14,6 +15,7 @@ class RegistrationRequest {
     required this.contactNumber,
     required this.role,
     this.status = AccountStatus.pending,
+    this.position = '',
     DateTime? dateRequested,
   }) : dateRequested = dateRequested ?? DateTime.now();
 
@@ -23,9 +25,33 @@ class RegistrationRequest {
   final String contactNumber;
   final UserRole role;
   final AccountStatus status;
+  final String position;
   final DateTime dateRequested;
 
-  RegistrationRequest copyWith({AccountStatus? status}) {
+  String get displayRole => position.isNotEmpty ? position : role.label;
+
+  /// Bridges a real Firestore-backed [AppUser] into this screen-side
+  /// view model, so Admin Web's and the Owner App's existing
+  /// Account Approvals UI (built against [RegistrationRequest]) can
+  /// keep working unchanged once the data source switches from a
+  /// hardcoded mock list to [AuthService.watchAllUsers].
+  factory RegistrationRequest.fromAppUser(AppUser user) {
+    return RegistrationRequest(
+      id: user.uid,
+      fullName: user.fullName,
+      username: user.username,
+      contactNumber: user.contactNumber,
+      role: user.role,
+      status: user.status,
+      position: user.position,
+      dateRequested: user.createdAt,
+    );
+  }
+
+  RegistrationRequest copyWith({
+    AccountStatus? status,
+    String? position,
+  }) {
     return RegistrationRequest(
       id: id,
       fullName: fullName,
@@ -33,6 +59,7 @@ class RegistrationRequest {
       contactNumber: contactNumber,
       role: role,
       status: status ?? this.status,
+      position: position ?? this.position,
       dateRequested: dateRequested,
     );
   }

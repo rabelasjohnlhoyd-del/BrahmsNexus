@@ -1,12 +1,11 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
-import '../../models/user_role.dart';
+import '../../services/auth_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/auth_brand_mark.dart';
 import '../../widgets/auth_card.dart';
 import '../../widgets/social_login_row.dart';
 import 'forgot_password_screen.dart';
-import 'mock_accounts.dart';
 import 'register_screen.dart';
 import 'role_router.dart';
 import 'welcome_screen.dart';
@@ -55,27 +54,29 @@ class _LoginScreenState extends State<LoginScreen> {
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _isLoading = true);
-    await Future.delayed(const Duration(milliseconds: 700));
-    final account = kMockAccounts[_usernameController.text.trim()];
 
-    if (!mounted) return;
+    final user = await AuthService.signIn(
+      username: _usernameController.text.trim(),
+      password: _passwordController.text,
+      onError: (message) {
+        if (!mounted) return;
+        setState(() {
+          _isLoading = false;
+          _authError = message;
+        });
+      },
+    );
 
-    if (account == null || account.password != _passwordController.text) {
-      setState(() {
-        _isLoading = false;
-        _authError = 'Incorrect username or password.';
-      });
-      return;
-    }
+    if (!mounted || user == null) return;
 
     setState(() => _isLoading = false);
 
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(
         builder: (_) => RoleRouter.resolveDestination(
-          role: account.role,
-          status: account.status,
-          position: account.position,
+          role: user.role,
+          status: user.status,
+          position: user.position,
         ),
       ),
     );
@@ -89,82 +90,6 @@ class _LoginScreenState extends State<LoginScreen> {
         MaterialPageRoute(builder: (_) => const WelcomeScreen()),
       );
     }
-  }
-
-  void _showComingSoon(String feature) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        backgroundColor: const Color(0xFF4A2C22),
-        behavior: SnackBarBehavior.fixed,
-        content: Text(
-          '$feature is not available yet.',
-          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500),
-        ),
-      ),
-    );
-  }
-
-  void _showDemoAccounts() {
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (sheetContext) => DraggableScrollableSheet(
-        initialChildSize: 0.5,
-        minChildSize: 0.3,
-        maxChildSize: 0.9,
-        expand: false,
-        builder: (context, scrollController) => SafeArea(
-          child: ListView(
-            controller: scrollController,
-            padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
-            children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  margin: const EdgeInsets.only(bottom: 16),
-                  decoration: BoxDecoration(
-                    color: AppColors.border,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              const Text(
-                'Dev demo accounts',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.textPrimary,
-                ),
-              ),
-              const SizedBox(height: 12),
-              ...(kIsWeb
-                      ? kMockAccounts.entries
-                          .where((e) => e.value.role == UserRole.owner)
-                      : kMockAccounts.entries)
-                  .map(
-                (e) => ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.person_outline,
-                      color: AppColors.accent),
-                  title: Text(e.key),
-                  subtitle: Text(
-                    '${e.value.role.label} · ${e.value.status.label}',
-                  ),
-                  onTap: () {
-                    _usernameController.text = e.key;
-                    _passwordController.text = e.value.password;
-                    Navigator.of(sheetContext).pop();
-                  },
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
   }
 
   @override
@@ -316,18 +241,37 @@ class _LoginScreenState extends State<LoginScreen> {
                         const SizedBox(height: 24),
                         const SocialLoginRow(),
                       ],
-                      const SizedBox(height: 32),
-                      Center(
-                        child: TextButton.icon(
-                          onPressed: _showDemoAccounts,
-                          icon: const Icon(Icons.science_outlined, size: 16),
-                          label: const Text('Dev: demo accounts'),
-                          style: TextButton.styleFrom(
-                            foregroundColor: AppColors.accent.withValues(alpha: 0.7),
-                            textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                      const SizedBox(height: 24),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Text(
+                            "Don't have an account? ",
+                            style: TextStyle(
+                              color: AppColors.textSecondary,
+                              fontSize: 13,
+                            ),
                           ),
-                        ),
+                          GestureDetector(
+                            onTap: () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) => const RegisterScreen(),
+                                ),
+                              );
+                            },
+                            child: const Text(
+                              'Register here',
+                              style: TextStyle(
+                                color: AppColors.accent,
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
+                      const SizedBox(height: 8),
                     ],
                   ),
                 ),

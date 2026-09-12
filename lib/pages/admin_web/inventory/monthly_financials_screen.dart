@@ -3,7 +3,6 @@ import '../../../models/financial_period.dart';
 import '../../../models/inventory_batch.dart';
 import '../../../models/procurement_list.dart';
 import '../admin_web_colors.dart';
-import '../admin_web_shell.dart';
 import '../admin_web_widgets/glass_card.dart';
 
 class MonthlyFinancialsScreen extends StatefulWidget {

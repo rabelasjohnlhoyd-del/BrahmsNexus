@@ -449,35 +449,6 @@ class _OwnerEmployeeReportsScreenState
     );
   }
 
-  Widget _filterChip({
-    required String label,
-    required bool selected,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: selected ? AppColors.accent : CupertinoColors.white,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: selected ? AppColors.accent : AppColors.border,
-          ),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: 12.5,
-            fontWeight: FontWeight.w600,
-            color: selected ? CupertinoColors.white : AppColors.textPrimary,
-          ),
-        ),
-      ),
-    );
-  }
-
   Widget _buildReportRow(DailyReport r) {
     return GestureDetector(
       onTap: () => _showReportDetail(r),

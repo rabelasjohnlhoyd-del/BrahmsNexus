@@ -395,7 +395,7 @@ class _EditStaffScreenState extends State<EditStaffScreen> {
                             const SizedBox(width: 16),
                             Expanded(
                               child: DropdownButtonFormField<String>(
-                                value: _selectedPosition,
+                                initialValue: _selectedPosition,
                                 decoration: const InputDecoration(
                                   labelText: 'POSITION',
                                   isDense: true,
@@ -433,7 +433,7 @@ class _EditStaffScreenState extends State<EditStaffScreen> {
                           contentPadding: EdgeInsets.zero,
                           value: _isActive,
                           onChanged: (value) => setState(() => _isActive = value),
-                          activeColor: AdminWebColors.accent,
+                          activeThumbColor: AdminWebColors.accent,
                           activeTrackColor: AdminWebColors.accent.withValues(alpha: 0.3),
                           thumbColor: WidgetStateProperty.resolveWith<Color?>(
                             (states) => states.contains(WidgetState.selected)

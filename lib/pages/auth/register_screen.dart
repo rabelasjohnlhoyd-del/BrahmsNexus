@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../models/account_status.dart';
+import '../../models/user_role.dart';
+import '../../services/auth_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/auth_brand_mark.dart';
 import '../../widgets/auth_card.dart';
@@ -46,6 +48,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
   bool _isSubmitting = false;
+  String? _registerError;
 
   @override
   void dispose() {
@@ -78,15 +81,43 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   Future<void> _handleRegister() async {
     FocusScope.of(context).unfocus();
+    setState(() => _registerError = null);
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _isSubmitting = true);
 
-    // Mock only — real save to Supabase/Firebase (status: pending)
-    // happens in the backend phase.
-    await Future.delayed(const Duration(milliseconds: 800));
+    final fullName = [
+      _firstNameController.text.trim(),
+      if (_middleNameController.text.trim().isNotEmpty)
+        _middleNameController.text.trim(),
+      _lastNameController.text.trim(),
+      ?_selectedSuffix,
+    ].join(' ');
+
+    // Registration is always UserRole.staff — there is exactly one
+    // pre-seeded Owner account and it never goes through this form
+    // (see the class doc comment above). "Driver" vs. "Branch Cook"
+    // is stored as `position`, matching how RoleRouter and the old
+    // mock_accounts.dart already distinguished them.
+    final error = await AuthService.register(
+      username: _usernameController.text.trim(),
+      password: _passwordController.text,
+      fullName: fullName,
+      contactNumber: _contactController.text.trim(),
+      role: UserRole.staff,
+      position: _selectedRoleString == 'Driver' ? 'Driver' : 'Branch Cook',
+    );
 
     if (!mounted) return;
+
+    if (error != null) {
+      setState(() {
+        _isSubmitting = false;
+        _registerError = error;
+      });
+      return;
+    }
+
     setState(() => _isSubmitting = false);
 
     Navigator.of(context).pushReplacement(
@@ -364,6 +395,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             ),
                             validator: _validateConfirmPassword,
                           ),
+                          if (_registerError != null) ...[
+                            const SizedBox(height: 12),
+                            Text(
+                              _registerError!,
+                              style: const TextStyle(
+                                color: AppColors.error,
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
                           const SizedBox(height: 28),
                           PrimaryButton(
                             label: 'SIGN UP',

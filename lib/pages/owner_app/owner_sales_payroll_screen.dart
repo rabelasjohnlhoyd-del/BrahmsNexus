@@ -1,9 +1,7 @@
 import 'package:flutter/cupertino.dart';
-import 'package:flutter/material.dart';
 import '../../models/branch.dart';
 import '../../models/sales_record.dart';
 import '../../theme/app_theme.dart';
-import '../../widgets/staff_button.dart';
 import '../../widgets/staff_card.dart';
 import '../../widgets/staff_nav_bar.dart';
 import '../../widgets/staff_section_header.dart';
@@ -18,7 +16,6 @@ class OwnerSalesPayrollScreen extends StatefulWidget {
 
 class _OwnerSalesPayrollScreenState extends State<OwnerSalesPayrollScreen> {
   String? _branchFilter; // null means "All Branches"
-  int _dateRangeFilter = 0;
 
   final List<SalesRecord> _records = [
     SalesRecord(

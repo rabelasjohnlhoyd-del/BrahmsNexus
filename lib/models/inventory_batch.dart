@@ -1,5 +1,3 @@
-import 'package:flutter/material.dart';
-
 class KarneBatch {
   KarneBatch({
     required this.id,

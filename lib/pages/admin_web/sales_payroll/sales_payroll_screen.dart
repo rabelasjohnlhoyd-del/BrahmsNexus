@@ -178,7 +178,7 @@ class _SalesPayrollScreenState extends State<SalesPayrollScreen> {
                 children: [
                   Expanded(
                     child: DropdownButtonFormField<String>(
-                      value: _branchFilter ?? 'All',
+                      initialValue: _branchFilter ?? 'All',
                       decoration: const InputDecoration(
                         labelText: 'FILTER BY BRANCH',
                         isDense: true,

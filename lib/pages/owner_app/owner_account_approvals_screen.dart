@@ -1,7 +1,9 @@
 import 'package:flutter/cupertino.dart';
 import '../../models/account_status.dart';
+import '../../models/app_user.dart';
 import '../../models/registration_request.dart';
 import '../../models/user_role.dart';
+import '../../services/auth_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/staff_button.dart';
 import '../../widgets/staff_card.dart';
@@ -10,6 +12,10 @@ import '../../widgets/staff_top_actions.dart';
 
 /// Mobile Account Approvals screen — allows the Owner to review
 /// pending Staff registration requests on the go.
+///
+/// Reads live from Firestore via [AuthService.watchAllUsers] — the
+/// same source Admin Web's Account Approvals page uses — so a
+/// decision made on either surface shows up on both immediately.
 class OwnerAccountApprovalsScreen extends StatefulWidget {
   const OwnerAccountApprovalsScreen({super.key});
 
@@ -23,50 +29,8 @@ class _OwnerAccountApprovalsScreenState
   int _filterIndex = 0; // 0 = Pending, 1 = Approved, 2 = Rejected, 3 = All
   String _searchQuery = '';
 
-  final List<RegistrationRequest> _requests = [
-    RegistrationRequest(
-      id: '1',
-      fullName: 'Juan Dela Cruz',
-      username: 'juan.delacruz',
-      contactNumber: '0917 123 4567',
-      role: UserRole.staff,
-      status: AccountStatus.pending,
-      dateRequested: DateTime.now().subtract(const Duration(hours: 2)),
-    ),
-    RegistrationRequest(
-      id: '2',
-      fullName: 'Pedro Santos',
-      username: 'pedro.santos',
-      contactNumber: '0917 987 6543',
-      role: UserRole.staff,
-      status: AccountStatus.pending,
-      dateRequested: DateTime.now().subtract(const Duration(hours: 5)),
-    ),
-    RegistrationRequest(
-      id: '3',
-      fullName: 'Maria Teresa Reyes',
-      username: 'maria.reyes',
-      contactNumber: '0918 222 3344',
-      role: UserRole.staff,
-      status: AccountStatus.approved,
-      dateRequested: DateTime.now().subtract(const Duration(days: 1)),
-    ),
-    RegistrationRequest(
-      id: '4',
-      fullName: 'Antonio Luna',
-      username: 'antonio.luna',
-      contactNumber: '0919 444 5566',
-      role: UserRole.staff,
-      status: AccountStatus.rejected,
-      dateRequested: DateTime.now().subtract(const Duration(days: 3)),
-    ),
-  ];
-
-  int get _pendingCount =>
-      _requests.where((r) => r.status == AccountStatus.pending).length;
-
-  List<RegistrationRequest> get _filteredRequests {
-    return _requests.where((r) {
+  List<RegistrationRequest> _applyFilters(List<RegistrationRequest> all) {
+    return all.where((r) {
       if (_filterIndex == 0 && r.status != AccountStatus.pending) return false;
       if (_filterIndex == 1 && r.status != AccountStatus.approved) return false;
       if (_filterIndex == 2 && r.status != AccountStatus.rejected) return false;
@@ -84,14 +48,19 @@ class _OwnerAccountApprovalsScreenState
 
   void _handleDecision(RegistrationRequest request, AccountStatus newStatus) {
     final isApprove = newStatus == AccountStatus.approved;
+    final isReset = newStatus == AccountStatus.pending;
     showCupertinoDialog<void>(
       context: context,
       builder: (ctx) => CupertinoAlertDialog(
-        title: Text(isApprove ? 'Approve Account' : 'Reject Account'),
+        title: Text(isReset
+            ? 'Reset to Pending'
+            : (isApprove ? 'Approve Account' : 'Reject Account')),
         content: Text(
-          isApprove
-              ? 'Are you sure you want to approve ${request.fullName}? They will be permitted to log in immediately.'
-              : 'Are you sure you want to reject the registration for ${request.fullName}?',
+          isReset
+              ? 'Are you sure you want to move ${request.fullName} back to Pending?'
+              : (isApprove
+                  ? 'Are you sure you want to approve ${request.fullName}? They will be permitted to log in immediately.'
+                  : 'Are you sure you want to reject the registration for ${request.fullName}?'),
         ),
         actions: [
           CupertinoDialogAction(
@@ -99,16 +68,29 @@ class _OwnerAccountApprovalsScreenState
             onPressed: () => Navigator.of(ctx).pop(),
           ),
           CupertinoDialogAction(
-            isDestructiveAction: !isApprove,
-            child: Text(isApprove ? 'Approve' : 'Reject'),
-            onPressed: () {
+            isDestructiveAction: !isApprove && !isReset,
+            child: Text(isReset ? 'Reset' : (isApprove ? 'Approve' : 'Reject')),
+            onPressed: () async {
               Navigator.of(ctx).pop();
-              setState(() {
-                final idx = _requests.indexWhere((r) => r.id == request.id);
-                if (idx != -1) {
-                  _requests[idx] = request.copyWith(status: newStatus);
-                }
-              });
+              final success =
+                  await AuthService.updateAccountStatus(request.id, newStatus);
+              if (!mounted) return;
+              if (!success) {
+                showCupertinoDialog<void>(
+                  context: context,
+                  builder: (errCtx) => CupertinoAlertDialog(
+                    title: const Text('Error'),
+                    content: const Text(
+                        'Failed to update account status. Please check your network connection and try again.'),
+                    actions: [
+                      CupertinoDialogAction(
+                        child: const Text('OK'),
+                        onPressed: () => Navigator.of(errCtx).pop(),
+                      ),
+                    ],
+                  ),
+                );
+              }
             },
           ),
         ],
@@ -116,10 +98,50 @@ class _OwnerAccountApprovalsScreenState
     );
   }
 
+  void _showChangeStatusSheet(RegistrationRequest request) {
+    showCupertinoModalPopup<void>(
+      context: context,
+      builder: (ctx) => CupertinoActionSheet(
+        title: Text('Change Status: ${request.fullName}'),
+        message: Text('Current status: ${request.status.label.toUpperCase()}'),
+        actions: [
+          if (request.status != AccountStatus.approved)
+            CupertinoActionSheetAction(
+              child: const Text('Approve Account'),
+              onPressed: () {
+                Navigator.of(ctx).pop();
+                _handleDecision(request, AccountStatus.approved);
+              },
+            ),
+          if (request.status != AccountStatus.rejected)
+            CupertinoActionSheetAction(
+              isDestructiveAction: true,
+              child: const Text('Reject Account'),
+              onPressed: () {
+                Navigator.of(ctx).pop();
+                _handleDecision(request, AccountStatus.rejected);
+              },
+            ),
+          if (request.status != AccountStatus.pending)
+            CupertinoActionSheetAction(
+              child: const Text('Reset to Pending'),
+              onPressed: () {
+                Navigator.of(ctx).pop();
+                _handleDecision(request, AccountStatus.pending);
+              },
+            ),
+        ],
+        cancelButton: CupertinoActionSheetAction(
+          isDefaultAction: true,
+          child: const Text('Cancel'),
+          onPressed: () => Navigator.of(ctx).pop(),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final items = _filteredRequests;
-
     return CupertinoPageScaffold(
       backgroundColor: AppColors.background,
       navigationBar: const StaffNavBar(
@@ -127,151 +149,178 @@ class _OwnerAccountApprovalsScreenState
         trailing: StaffTopActions(),
       ),
       child: SafeArea(
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-              child: CupertinoSearchTextField(
-                placeholder: 'Search applicant name, username, phone...',
-                style: const TextStyle(
-                  color: AppColors.textPrimary,
-                  fontSize: 13,
+        child: StreamBuilder<List<AppUser>>(
+          stream: AuthService.watchAllUsers(),
+          builder: (context, snapshot) {
+            final isLoading = !snapshot.hasData;
+
+            // Owner never appears here — there is exactly one
+            // pre-seeded Owner account and it never goes through
+            // registration, so this list is Staff/Driver applications
+            // only.
+            final allRequests = (snapshot.data ?? [])
+                .where((u) => u.role != UserRole.owner)
+                .map(RegistrationRequest.fromAppUser)
+                .toList();
+
+            final pendingCount = allRequests
+                .where((r) => r.status == AccountStatus.pending)
+                .length;
+            final items = _applyFilters(allRequests);
+
+            return Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                  child: CupertinoSearchTextField(
+                    placeholder: 'Search applicant name, username, phone...',
+                    style: const TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 13,
+                    ),
+                    onChanged: (val) => setState(() => _searchQuery = val),
+                  ),
                 ),
-                onChanged: (val) => setState(() => _searchQuery = val),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-              child: SizedBox(
-                width: double.infinity,
-                child: CupertinoSlidingSegmentedControl<int>(
-                  groupValue: _filterIndex,
-                  thumbColor: CupertinoColors.white,
-                  backgroundColor: AppColors.cardCream,
-                  children: {
-                    0: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 6),
-                      child: Text(
-                        _pendingCount > 0
-                            ? 'Pending ($_pendingCount)'
-                            : 'Pending',
-                        style: TextStyle(
-                          fontSize: 11.5,
-                          fontWeight: _filterIndex == 0
-                              ? FontWeight.w700
-                              : FontWeight.w500,
-                          color: _filterIndex == 0
-                              ? AppColors.accent
-                              : AppColors.textSecondary,
-                        ),
-                      ),
-                    ),
-                    1: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 6),
-                      child: Text(
-                        'Approved',
-                        style: TextStyle(
-                          fontSize: 11.5,
-                          fontWeight: _filterIndex == 1
-                              ? FontWeight.w700
-                              : FontWeight.w500,
-                          color: _filterIndex == 1
-                              ? AppColors.textPrimary
-                              : AppColors.textSecondary,
-                        ),
-                      ),
-                    ),
-                    2: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 6),
-                      child: Text(
-                        'Rejected',
-                        style: TextStyle(
-                          fontSize: 11.5,
-                          fontWeight: _filterIndex == 2
-                              ? FontWeight.w700
-                              : FontWeight.w500,
-                          color: _filterIndex == 2
-                              ? AppColors.textPrimary
-                              : AppColors.textSecondary,
-                        ),
-                      ),
-                    ),
-                    3: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 6),
-                      child: Text(
-                        'All',
-                        style: TextStyle(
-                          fontSize: 11.5,
-                          fontWeight: _filterIndex == 3
-                              ? FontWeight.w700
-                              : FontWeight.w500,
-                          color: _filterIndex == 3
-                              ? AppColors.textPrimary
-                              : AppColors.textSecondary,
-                        ),
-                      ),
-                    ),
-                  },
-                  onValueChanged: (val) {
-                    if (val != null) setState(() => _filterIndex = val);
-                  },
-                ),
-              ),
-            ),
-            Expanded(
-              child: items.isEmpty
-                  ? Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(24),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(
-                              CupertinoIcons.person_crop_circle_badge_checkmark,
-                              size: 44,
-                              color: AppColors.textSecondary,
+                Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: CupertinoSlidingSegmentedControl<int>(
+                      groupValue: _filterIndex,
+                      thumbColor: CupertinoColors.white,
+                      backgroundColor: AppColors.cardCream,
+                      children: {
+                        0: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 6),
+                          child: Text(
+                            pendingCount > 0
+                                ? 'Pending ($pendingCount)'
+                                : 'Pending',
+                            style: TextStyle(
+                              fontSize: 11.5,
+                              fontWeight: _filterIndex == 0
+                                  ? FontWeight.w700
+                                  : FontWeight.w500,
+                              color: _filterIndex == 0
+                                  ? AppColors.accent
+                                  : AppColors.textSecondary,
                             ),
-                            const SizedBox(height: 12),
-                            Text(
-                              _searchQuery.isNotEmpty
-                                  ? 'No matching requests'
-                                  : 'No accounts in this category',
-                              style: const TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.textPrimary,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            const Text(
-                              'Newly registered staff will appear here for approval.',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: AppColors.textSecondary,
-                              ),
-                            ),
-                          ],
+                          ),
                         ),
-                      ),
-                    )
-                  : ListView.builder(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 8),
-                      itemCount: items.length,
-                      itemBuilder: (context, index) {
-                        final req = items[index];
-                        return _ApplicantCard(
-                          request: req,
-                          onApprove: () =>
-                              _handleDecision(req, AccountStatus.approved),
-                          onReject: () =>
-                              _handleDecision(req, AccountStatus.rejected),
-                        );
+                        1: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 6),
+                          child: Text(
+                            'Approved',
+                            style: TextStyle(
+                              fontSize: 11.5,
+                              fontWeight: _filterIndex == 1
+                                  ? FontWeight.w700
+                                  : FontWeight.w500,
+                              color: _filterIndex == 1
+                                  ? AppColors.textPrimary
+                                  : AppColors.textSecondary,
+                            ),
+                          ),
+                        ),
+                        2: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 6),
+                          child: Text(
+                            'Rejected',
+                            style: TextStyle(
+                              fontSize: 11.5,
+                              fontWeight: _filterIndex == 2
+                                  ? FontWeight.w700
+                                  : FontWeight.w500,
+                              color: _filterIndex == 2
+                                  ? AppColors.textPrimary
+                                  : AppColors.textSecondary,
+                            ),
+                          ),
+                        ),
+                        3: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 6),
+                          child: Text(
+                            'All',
+                            style: TextStyle(
+                              fontSize: 11.5,
+                              fontWeight: _filterIndex == 3
+                                  ? FontWeight.w700
+                                  : FontWeight.w500,
+                              color: _filterIndex == 3
+                                  ? AppColors.textPrimary
+                                  : AppColors.textSecondary,
+                            ),
+                          ),
+                        ),
+                      },
+                      onValueChanged: (val) {
+                        if (val != null) setState(() => _filterIndex = val);
                       },
                     ),
-            ),
-          ],
+                  ),
+                ),
+                Expanded(
+                  child: isLoading
+                      ? const Center(child: CupertinoActivityIndicator())
+                      : items.isEmpty
+                          ? Center(
+                              child: Padding(
+                                padding: const EdgeInsets.all(24),
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(
+                                      CupertinoIcons
+                                          .person_crop_circle_badge_checkmark,
+                                      size: 44,
+                                      color: AppColors.textSecondary,
+                                    ),
+                                    const SizedBox(height: 12),
+                                    Text(
+                                      _searchQuery.isNotEmpty
+                                          ? 'No matching requests'
+                                          : 'No accounts in this category',
+                                      style: const TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w600,
+                                        color: AppColors.textPrimary,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    const Text(
+                                      'Newly registered staff will appear here for approval.',
+                                      textAlign: TextAlign.center,
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: AppColors.textSecondary,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            )
+                          : ListView.builder(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 16, vertical: 8),
+                              itemCount: items.length,
+                              itemBuilder: (context, index) {
+                                final req = items[index];
+                                return _ApplicantCard(
+                                  request: req,
+                                  onApprove: () => _handleDecision(
+                                      req, AccountStatus.approved),
+                                  onReject: () => _handleDecision(
+                                      req, AccountStatus.rejected),
+                                  onChangeStatus: () =>
+                                      _showChangeStatusSheet(req),
+                                );
+                              },
+                            ),
+                ),
+              ],
+            );
+          },
         ),
       ),
     );
@@ -283,11 +332,13 @@ class _ApplicantCard extends StatelessWidget {
     required this.request,
     required this.onApprove,
     required this.onReject,
+    this.onChangeStatus,
   });
 
   final RegistrationRequest request;
   final VoidCallback onApprove;
   final VoidCallback onReject;
+  final VoidCallback? onChangeStatus;
 
   @override
   Widget build(BuildContext context) {
@@ -312,8 +363,8 @@ class _ApplicantCard extends StatelessWidget {
                     shape: BoxShape.circle,
                   ),
                   child: Text(
-                    request.fullName.isNotEmpty
-                        ? request.fullName.substring(0, 1).toUpperCase()
+                    request.fullName.trim().isNotEmpty
+                        ? request.fullName.trim().substring(0, 1).toUpperCase()
                         : '?',
                     style: const TextStyle(
                       fontWeight: FontWeight.w800,
@@ -357,7 +408,7 @@ class _ApplicantCard extends StatelessWidget {
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Text(
-                    request.role.label.toUpperCase(),
+                    request.displayRole.toUpperCase(),
                     style: const TextStyle(
                       fontSize: 10,
                       fontWeight: FontWeight.w800,
@@ -439,16 +490,32 @@ class _ApplicantCard extends StatelessWidget {
                         : AppColors.error,
                   ),
                   const SizedBox(width: 6),
-                  Text(
-                    isApproved ? 'Approved Account' : 'Rejected Registration',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: isApproved
-                          ? AppColors.success
-                          : AppColors.error,
+                  Expanded(
+                    child: Text(
+                      isApproved ? 'Approved Account' : 'Rejected Registration',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: isApproved
+                            ? AppColors.success
+                            : AppColors.error,
+                      ),
                     ),
                   ),
+                  if (onChangeStatus != null)
+                    CupertinoButton(
+                      padding: EdgeInsets.zero,
+                      minimumSize: Size.zero,
+                      onPressed: onChangeStatus,
+                      child: const Text(
+                        'Change',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.accent,
+                        ),
+                      ),
+                    ),
                 ],
               ),
           ],
@@ -460,6 +527,7 @@ class _ApplicantCard extends StatelessWidget {
   String _formatTime(DateTime dt) {
     final now = DateTime.now();
     final diff = now.difference(dt);
+    if (diff.inSeconds < 60) return 'Just now';
     if (diff.inHours < 1) return '${diff.inMinutes}m ago';
     if (diff.inHours < 24) return '${diff.inHours}h ago';
     return '${dt.month}/${dt.day}/${dt.year}';

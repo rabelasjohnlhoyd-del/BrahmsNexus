@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../../models/account_status.dart';
+import '../../../models/app_user.dart';
 import '../../../models/registration_request.dart';
 import '../../../models/user_role.dart';
+import '../../../services/auth_service.dart';
 import '../admin_web_colors.dart';
 import '../admin_web_shell.dart';
 import '../admin_web_widgets/glass_card.dart';
@@ -9,10 +11,11 @@ import '../admin_web_widgets/glass_card.dart';
 /// Owner reviews new Staff/Driver registrations here and Accepts or
 /// Rejects them. Only after Accept can that account log in.
 ///
-/// NOTE: Front-end-only — uses mock in-memory data for now. Once
-/// Supabase is wired up (backend phase), this will read/write the
-/// real accounts table and the Accept/Reject actions will update the
-/// account's status there.
+/// Reads live from Firestore via [AuthService.watchAllUsers] — the
+/// same source the Owner App's mobile Account Approvals screen uses
+/// — so an application approved/rejected on either surface is
+/// reflected on both immediately, instead of each keeping its own
+/// separate hardcoded mock list.
 class AccountApprovalsScreen extends StatefulWidget {
   const AccountApprovalsScreen({super.key});
 
@@ -22,30 +25,9 @@ class AccountApprovalsScreen extends StatefulWidget {
 }
 
 class _AccountApprovalsScreenState extends State<AccountApprovalsScreen> {
-  final List<RegistrationRequest> _requests = [
-    RegistrationRequest(
-      id: '1',
-      fullName: 'Juan Dela Cruz',
-      username: 'juan.delacruz',
-      contactNumber: '0917 123 4567',
-      role: UserRole.staff,
-    ),
-    RegistrationRequest(
-      id: '2',
-      fullName: 'Pedro Santos',
-      username: 'pedro.santos',
-      contactNumber: '0917 987 6543',
-      role: UserRole.staff,
-    ),
-  ];
-
-  void _decide(RegistrationRequest request, AccountStatus status) {
-    setState(() {
-      final index = _requests.indexWhere((r) => r.id == request.id);
-      if (index != -1) {
-        _requests[index] = request.copyWith(status: status);
-      }
-    });
+  void _decide(RegistrationRequest request, AccountStatus status) async {
+    await AuthService.updateAccountStatus(request.id, status);
+    if (!mounted) return;
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -54,7 +36,6 @@ class _AccountApprovalsScreenState extends State<AccountApprovalsScreen> {
         ),
       ),
     );
-    _updateShellActions();
   }
 
   @override
@@ -76,108 +57,145 @@ class _AccountApprovalsScreenState extends State<AccountApprovalsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final pending =
-        _requests.where((r) => r.status == AccountStatus.pending).toList();
-    final decided =
-        _requests.where((r) => r.status != AccountStatus.pending).toList();
-
-    final pendingCount = pending.length;
-
     return Container(
       color: AdminWebColors.background,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (pendingCount > 0)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
-              child: Align(
-                alignment: Alignment.centerRight,
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: AdminWebColors.warning.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(20),
-                    border:
-                        Border.all(color: AdminWebColors.warning.withValues(alpha: 0.3)),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.pending_actions_rounded,
-                          size: 14, color: AdminWebColors.warning),
-                      const SizedBox(width: 8),
-                      Text(
-                        '$pendingCount PENDING',
-                        style: const TextStyle(
-                          color: AdminWebColors.warning,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+      child: StreamBuilder<List<AppUser>>(
+        stream: AuthService.watchAllUsers(),
+        builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            return const Center(
+              child: Text(
+                'Could not load accounts. Check your connection.',
+                style: TextStyle(color: AdminWebColors.textSecondary),
               ),
-            ),
-          const SizedBox(height: 10),
-          Expanded(
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
-              children: [
-                if (pending.isEmpty)
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 40),
-                    child: Center(
-                      child: Column(
+            );
+          }
+
+          if (!snapshot.hasData) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          // Owner never appears here — there is exactly one pre-seeded
+          // Owner account and it never goes through registration, so
+          // this list is Staff/Driver applications only.
+          final requests = snapshot.data!
+              .where((u) => u.role != UserRole.owner)
+              .map(RegistrationRequest.fromAppUser)
+              .toList();
+
+          final pending = requests
+              .where((r) => r.status == AccountStatus.pending)
+              .toList();
+          final decided = requests
+              .where((r) => r.status != AccountStatus.pending)
+              .toList();
+          final pendingCount = pending.length;
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (pendingCount > 0)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
+                  child: Align(
+                    alignment: Alignment.centerRight,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: AdminWebColors.warning.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                            color:
+                                AdminWebColors.warning.withValues(alpha: 0.3)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.how_to_reg_rounded, size: 48, color: AdminWebColors.border),
-                          SizedBox(height: 12),
+                          const Icon(Icons.pending_actions_rounded,
+                              size: 14, color: AdminWebColors.warning),
+                          const SizedBox(width: 8),
                           Text(
-                            'No pending registrations right now.',
-                            style: TextStyle(color: AdminWebColors.textSecondary),
+                            '$pendingCount PENDING',
+                            style: const TextStyle(
+                              color: AdminWebColors.warning,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 0.5,
+                            ),
                           ),
                         ],
                       ),
                     ),
-                  )
-                else ...[
-                  const Text(
-                    'Pending Review',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                      color: AdminWebColors.textPrimary,
-                    ),
                   ),
-                  const SizedBox(height: 12),
-                  ...pending.map(
-                    (r) => _RequestCard(
-                      request: r,
-                      onAccept: () => _decide(r, AccountStatus.approved),
-                      onReject: () => _decide(r, AccountStatus.rejected),
-                    ),
-                  ),
-                ],
-                if (decided.isNotEmpty) ...[
-                  const SizedBox(height: 32),
-                  const Text(
-                    'Recently Decided',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                      color: AdminWebColors.textPrimary,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  ...decided.map((r) => _RequestCard(request: r)),
-                ],
-              ],
-            ),
-          ),
-        ],
+                ),
+              const SizedBox(height: 10),
+              Expanded(
+                child: ListView(
+                  padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+                  children: [
+                    if (pending.isEmpty)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 40),
+                        child: Center(
+                          child: Column(
+                            children: [
+                              Icon(Icons.how_to_reg_rounded,
+                                  size: 48, color: AdminWebColors.border),
+                              SizedBox(height: 12),
+                              Text(
+                                'No pending registrations right now.',
+                                style: TextStyle(
+                                    color: AdminWebColors.textSecondary),
+                              ),
+                            ],
+                          ),
+                        ),
+                      )
+                    else ...[
+                      const Text(
+                        'Pending Review',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: AdminWebColors.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      ...pending.map(
+                        (r) => _RequestCard(
+                          request: r,
+                          onAccept: () =>
+                              _decide(r, AccountStatus.approved),
+                          onReject: () =>
+                              _decide(r, AccountStatus.rejected),
+                        ),
+                      ),
+                    ],
+                    if (decided.isNotEmpty) ...[
+                      const SizedBox(height: 32),
+                      const Text(
+                        'Recently Decided',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: AdminWebColors.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      ...decided.map(
+                        (r) => _RequestCard(
+                          request: r,
+                          onChangeStatus: (s) => _decide(r, s),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -188,11 +206,13 @@ class _RequestCard extends StatelessWidget {
     required this.request,
     this.onAccept,
     this.onReject,
+    this.onChangeStatus,
   });
 
   final RegistrationRequest request;
   final VoidCallback? onAccept;
   final VoidCallback? onReject;
+  final void Function(AccountStatus)? onChangeStatus;
 
   Color _statusColor() {
     switch (request.status) {
@@ -208,83 +228,178 @@ class _RequestCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final statusColor = _statusColor();
+    final initial = request.fullName.trim().isNotEmpty
+        ? request.fullName.trim().substring(0, 1).toUpperCase()
+        : '?';
 
     return GlassCard(
       padding: const EdgeInsets.all(16),
-      child: Row(
-        children: [
-          CircleAvatar(
-            radius: 22,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isNarrow = constraints.maxWidth < 550;
+
+          final avatar = CircleAvatar(
+            radius: 20,
             backgroundColor: AdminWebColors.accent.withValues(alpha: 0.1),
             child: Text(
-              request.fullName.substring(0, 1).toUpperCase(),
+              initial,
               style: const TextStyle(
                 color: AdminWebColors.accent,
                 fontWeight: FontWeight.bold,
               ),
             ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
+          );
+
+          final details = Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                request.fullName,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 15,
+                  color: AdminWebColors.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                '@${request.username} · ${request.displayRole} · ${request.contactNumber}',
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  color: AdminWebColors.textSecondary,
+                ),
+              ),
+            ],
+          );
+
+          final actions = onAccept != null && onReject != null
+              ? Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextButton.icon(
+                      onPressed: onReject,
+                      icon: const Icon(Icons.close_rounded, size: 16),
+                      label: const Text('REJECT'),
+                      style: TextButton.styleFrom(
+                        foregroundColor: AdminWebColors.error,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    ElevatedButton.icon(
+                      onPressed: onAccept,
+                      icon: const Icon(Icons.check_rounded, size: 16),
+                      label: const Text('APPROVE'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AdminWebColors.success,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 10),
+                      ),
+                    ),
+                  ],
+                )
+              : Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: statusColor.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                            color: statusColor.withValues(alpha: 0.2)),
+                      ),
+                      child: Text(
+                        request.status.label.toUpperCase(),
+                        style: TextStyle(
+                          color: statusColor,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 11,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ),
+                    if (onChangeStatus != null) ...[
+                      const SizedBox(width: 4),
+                      PopupMenuButton<AccountStatus>(
+                        tooltip: 'Change Decision',
+                        icon: const Icon(Icons.more_vert_rounded,
+                            size: 18, color: AdminWebColors.textSecondary),
+                        onSelected: onChangeStatus,
+                        itemBuilder: (context) => [
+                          if (request.status != AccountStatus.approved)
+                            const PopupMenuItem(
+                              value: AccountStatus.approved,
+                              child: Row(
+                                children: [
+                                  Icon(Icons.check_circle_rounded,
+                                      size: 16, color: AdminWebColors.success),
+                                  SizedBox(width: 8),
+                                  Text('Approve Account'),
+                                ],
+                              ),
+                            ),
+                          if (request.status != AccountStatus.rejected)
+                            const PopupMenuItem(
+                              value: AccountStatus.rejected,
+                              child: Row(
+                                children: [
+                                  Icon(Icons.cancel_rounded,
+                                      size: 16, color: AdminWebColors.error),
+                                  SizedBox(width: 8),
+                                  Text('Reject Account'),
+                                ],
+                              ),
+                            ),
+                          if (request.status != AccountStatus.pending)
+                            const PopupMenuItem(
+                              value: AccountStatus.pending,
+                              child: Row(
+                                children: [
+                                  Icon(Icons.pending_actions_rounded,
+                                      size: 16, color: AdminWebColors.warning),
+                                  SizedBox(width: 8),
+                                  Text('Move to Pending'),
+                                ],
+                              ),
+                            ),
+                        ],
+                      ),
+                    ],
+                  ],
+                );
+
+          if (isNarrow) {
+            return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  request.fullName,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 15,
-                    color: AdminWebColors.textPrimary,
-                  ),
+                Row(
+                  children: [
+                    avatar,
+                    const SizedBox(width: 12),
+                    Expanded(child: details),
+                  ],
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  '@${request.username} · ${request.role.label} · ${request.contactNumber}',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                    color: AdminWebColors.textSecondary,
-                  ),
+                const SizedBox(height: 12),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: actions,
                 ),
               ],
-            ),
-          ),
-          if (onAccept != null && onReject != null) ...[
-            TextButton.icon(
-              onPressed: onReject,
-              icon: const Icon(Icons.close_rounded, size: 18),
-              label: const Text('REJECT'),
-              style: TextButton.styleFrom(foregroundColor: AdminWebColors.error),
-            ),
-            const SizedBox(width: 8),
-            ElevatedButton.icon(
-              onPressed: onAccept,
-              icon: const Icon(Icons.check_rounded, size: 18),
-              label: const Text('APPROVE'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AdminWebColors.success,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              ),
-            ),
-          ] else
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(
-                color: statusColor.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: statusColor.withValues(alpha: 0.2)),
-              ),
-              child: Text(
-                request.status.label.toUpperCase(),
-                style: TextStyle(
-                  color: statusColor,
-                  fontWeight: FontWeight.w800,
-                  fontSize: 11,
-                  letterSpacing: 0.5,
-                ),
-              ),
-            ),
-        ],
+            );
+          }
+
+          return Row(
+            children: [
+              avatar,
+              const SizedBox(width: 16),
+              Expanded(child: details),
+              actions,
+            ],
+          );
+        },
       ),
     );
   }

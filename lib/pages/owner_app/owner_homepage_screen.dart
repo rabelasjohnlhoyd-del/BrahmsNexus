@@ -5,7 +5,6 @@ import '../../models/inventory_item.dart';
 import '../../models/sales_record.dart';
 import '../../theme/app_theme.dart';
 import 'package:share_plus/share_plus.dart';
-import '../../widgets/driver_stat_tile.dart';
 import '../../widgets/owner_sales_trend_chart.dart';
 import '../../widgets/staff_button.dart';
 import '../../widgets/staff_card.dart';
@@ -35,7 +34,7 @@ class _OwnerHomepageScreenState extends State<OwnerHomepageScreen> {
   double _windSpeed = 12.5;
   int _feelsLikeC = 30;
 
-  Widget _KPITile({
+  Widget _kpiTile({
     required IconData icon,
     required String label,
     required String value,
@@ -500,7 +499,7 @@ class _OwnerHomepageScreenState extends State<OwnerHomepageScreen> {
             Row(
               children: [
                 Expanded(
-                  child: _KPITile(
+                  child: _kpiTile(
                     icon: CupertinoIcons.person_2_fill,
                     label: 'On Duty',
                     value: '$_onDutyCount/${_assignments.length}',
@@ -509,7 +508,7 @@ class _OwnerHomepageScreenState extends State<OwnerHomepageScreen> {
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: _KPITile(
+                  child: _kpiTile(
                     icon: CupertinoIcons.exclamationmark_triangle_fill,
                     label: 'Low Stock',
                     value: '$_lowStockCount',
@@ -522,7 +521,7 @@ class _OwnerHomepageScreenState extends State<OwnerHomepageScreen> {
             Row(
               children: [
                 Expanded(
-                  child: _KPITile(
+                  child: _kpiTile(
                     icon: CupertinoIcons.money_dollar_circle_fill,
                     label: "Today's Sales",
                     value: '₱${_todaysSales.toStringAsFixed(0)}',
@@ -531,7 +530,7 @@ class _OwnerHomepageScreenState extends State<OwnerHomepageScreen> {
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: _KPITile(
+                  child: _kpiTile(
                     icon: CupertinoIcons.doc_text_fill,
                     label: 'Pending',
                     value: '$_pendingReportsCount',

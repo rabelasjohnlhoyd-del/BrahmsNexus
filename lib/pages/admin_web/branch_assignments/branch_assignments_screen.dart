@@ -277,7 +277,7 @@ class _AssignmentCard extends StatelessWidget {
       child: Opacity(
         opacity: isRestDay ? 0.5 : 1.0,
         child: DropdownButtonFormField<String>(
-          value: assignment.branchId,
+          initialValue: assignment.branchId,
           decoration: const InputDecoration(
             labelText: 'ASSIGNED BRANCH',
             isDense: true,

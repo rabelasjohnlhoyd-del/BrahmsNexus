@@ -531,7 +531,7 @@ class _OwnerInventoryScreenState extends State<OwnerInventoryScreen> {
               children: [
                 CupertinoButton(
                   padding: EdgeInsets.zero,
-                  minSize: 0,
+                  minimumSize: Size.zero,
                   onPressed: () => _enterActualPcs(batch, sessionIndex),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -559,7 +559,7 @@ class _OwnerInventoryScreenState extends State<OwnerInventoryScreen> {
                 // available on Web.
                 CupertinoButton(
                   padding: EdgeInsets.zero,
-                  minSize: 0,
+                  minimumSize: Size.zero,
                   onPressed: () => _deleteSession(batch, sessionIndex),
                   child: const Icon(CupertinoIcons.delete, size: 16, color: AppColors.error),
                 ),
@@ -598,7 +598,7 @@ class _OwnerInventoryScreenState extends State<OwnerInventoryScreen> {
     return ListView.separated(
       padding: const EdgeInsets.all(16),
       itemCount: _branchStocks.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 12),
+      separatorBuilder: (_, _) => const SizedBox(height: 12),
       itemBuilder: (ctx, i) {
         final s = _branchStocks[i];
         return StaffCard(
@@ -645,7 +645,7 @@ class _OwnerInventoryScreenState extends State<OwnerInventoryScreen> {
               // broken even though it worked.
               CupertinoButton(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                minSize: 0,
+                minimumSize: Size.zero,
                 onPressed: () => _adjustBranchAllocation(i),
                 child: const Row(
                   mainAxisSize: MainAxisSize.min,
@@ -725,7 +725,7 @@ class _OwnerInventoryScreenState extends State<OwnerInventoryScreen> {
           child: ListView.separated(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             itemCount: _transferLogs.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 10),
+            separatorBuilder: (_, _) => const SizedBox(height: 10),
             itemBuilder: (ctx, i) {
               final log = _transferLogs[i];
               return StaffCard(

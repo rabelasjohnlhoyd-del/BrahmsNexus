@@ -38,7 +38,6 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
       child: LayoutBuilder(
         builder: (context, constraints) {
           final isNarrow = constraints.maxWidth < 900;
-          final isMobile = constraints.maxWidth < 700;
 
           return SingleChildScrollView(
             padding: const EdgeInsets.all(24),
