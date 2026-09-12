@@ -49,6 +49,9 @@ dependencies:
   share_plus: ^13.3.0
   local_auth: ^3.0.2
 
+  # HTTP client for Address API & Validation services
+  http: ^1.2.2
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

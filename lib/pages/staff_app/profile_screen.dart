@@ -53,6 +53,13 @@ class ProfileScreen extends StatelessWidget {
             : 'Not provided';
         final position = user?.displayRole ?? 'Branch Cook';
         final initials = user?.initials ?? 'ST';
+        final email = user?.email.isNotEmpty == true
+            ? user!.email
+            : '${username.toLowerCase()}@brahmsnexus.ph';
+        final ageStr = user?.age.isNotEmpty == true ? '${user!.age} yrs old' : 'Not set';
+        final addressStr = user?.address.isNotEmpty == true
+            ? user!.address
+            : 'Not set';
         final memberSince = user?.createdAt != null
             ? '${_months[user!.createdAt!.month - 1]} ${user.createdAt!.year}'
             : 'Recently joined';
@@ -86,6 +93,15 @@ class ProfileScreen extends StatelessWidget {
                       _divider(),
                       _infoTile(
                           CupertinoIcons.person, 'Full Name', fullName),
+                      _divider(),
+                      _infoTile(
+                          CupertinoIcons.mail, 'Email', email),
+                      _divider(),
+                      _infoTile(
+                          CupertinoIcons.number, 'Age', ageStr),
+                      _divider(),
+                      _infoTile(
+                          CupertinoIcons.location, 'Address', addressStr),
                       _divider(),
                       _infoTile(
                           CupertinoIcons.phone, 'Contact Number', contactNumber),

@@ -1,7 +1,12 @@
+
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+import '../../data/philippine_address_data.dart';
 import '../../models/account_status.dart';
 import '../../models/user_role.dart';
 import '../../services/auth_service.dart';
+import '../../services/gemini_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/auth_brand_mark.dart';
 import '../../widgets/auth_card.dart';
@@ -22,10 +27,6 @@ import 'account_status_screen.dart';
 /// holding the form) rather than the old boxed/colored hero banner —
 /// so Login and Register read as two states of the same screen
 /// instead of two differently-designed pages.
-///
-/// NOTE: Front-end only — no backend yet. Submitting immediately shows
-/// the "Pending" status screen (mock); real persistence to
-/// Supabase/Firebase happens in the backend phase.
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
 
@@ -40,8 +41,24 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _lastNameController = TextEditingController();
   final _usernameController = TextEditingController();
   final _contactController = TextEditingController();
+  final _emailController = TextEditingController();
+  final _ageController = TextEditingController();
+  final _addressController = TextEditingController();
+  final _streetController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
+
+  // Philippine Address Cascading Selector (Province -> City -> Barangay)
+  String _selectedProvince = 'Laguna';
+  String? _selectedCity;
+  String? _selectedBarangay;
+
+
+  // Driver License Photo Verification fields (via Gemini AI Multimodal Vision)
+  Uint8List? _licenseImageBytes;
+  bool _isAnalyzingPhoto = false;
+  GeminiPhotoLicenseResult? _photoLicenseResult;
+  final ImagePicker _imagePicker = ImagePicker();
 
   String _selectedRoleString = 'Staff';
   String? _selectedSuffix;
@@ -57,6 +74,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
     _lastNameController.dispose();
     _usernameController.dispose();
     _contactController.dispose();
+    _emailController.dispose();
+    _ageController.dispose();
+    _addressController.dispose();
+    _streetController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     super.dispose();
@@ -79,10 +100,97 @@ class _RegisterScreenState extends State<RegisterScreen> {
     return null;
   }
 
+  void _updateFullAddress() {
+    final parts = <String>[];
+    final street = _streetController.text.trim();
+    if (street.isNotEmpty) parts.add(street);
+    if (_selectedBarangay != null && _selectedBarangay!.isNotEmpty) {
+      parts.add('Brgy. $_selectedBarangay');
+    }
+    if (_selectedCity != null && _selectedCity!.isNotEmpty) {
+      parts.add(_selectedCity!);
+    }
+    if (_selectedProvince.isNotEmpty) {
+      parts.add(_selectedProvince);
+    }
+    setState(() {
+      _addressController.text = parts.join(', ');
+    });
+  }
+
+  Future<void> _pickLicensePhoto(ImageSource source) async {
+    try {
+      final XFile? file = await _imagePicker.pickImage(
+        source: source,
+        maxWidth: 1600,
+        maxHeight: 1600,
+        imageQuality: 85,
+      );
+      if (file == null) return;
+
+      final bytes = await file.readAsBytes();
+      setState(() {
+        _licenseImageBytes = bytes;
+        _isAnalyzingPhoto = true;
+        _photoLicenseResult = null;
+      });
+
+      final fullName = [
+        _firstNameController.text.trim(),
+        if (_middleNameController.text.trim().isNotEmpty)
+          _middleNameController.text.trim(),
+        _lastNameController.text.trim(),
+      ].join(' ');
+
+      final result = await GeminiService.validateDriverLicensePhoto(
+        imageBytes: bytes,
+        mimeType: 'image/jpeg',
+        applicantName: fullName,
+      );
+
+      if (!mounted) return;
+      setState(() {
+        _isAnalyzingPhoto = false;
+        _photoLicenseResult = result;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isAnalyzingPhoto = false;
+        _photoLicenseResult = GeminiPhotoLicenseResult(
+          isValid: false,
+          isDriverLicense: false,
+          rejectionReason: 'Hindi mabasa ang litrato ($e). Mangyaring sumubok muli.',
+        );
+      });
+    }
+  }
+
   Future<void> _handleRegister() async {
     FocusScope.of(context).unfocus();
     setState(() => _registerError = null);
     if (!_formKey.currentState!.validate()) return;
+
+    final email = _emailController.text.trim();
+    final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
+    if (!emailRegex.hasMatch(email)) {
+      setState(() => _registerError = 'Please enter a valid email address.');
+      return;
+    }
+
+    final ageInt = int.tryParse(_ageController.text.trim()) ?? 0;
+    if (ageInt < 18) {
+      setState(() => _registerError = 'Applicant must be at least 18 years old.');
+      return;
+    }
+
+    if (_selectedRoleString == 'Driver') {
+      if (_photoLicenseResult == null || !_photoLicenseResult!.isValid) {
+        setState(() => _registerError =
+            'Mangyaring mag-upload ng valid na litrato ng iyong opisyal na LTO Driver\'s License.');
+        return;
+      }
+    }
 
     setState(() => _isSubmitting = true);
 
@@ -94,11 +202,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
       ?_selectedSuffix,
     ].join(' ');
 
-    // Registration is always UserRole.staff — there is exactly one
-    // pre-seeded Owner account and it never goes through this form
-    // (see the class doc comment above). "Driver" vs. "Branch Cook"
-    // is stored as `position`, matching how RoleRouter and the old
-    // mock_accounts.dart already distinguished them.
     final error = await AuthService.register(
       username: _usernameController.text.trim(),
       password: _passwordController.text,
@@ -106,6 +209,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
       contactNumber: _contactController.text.trim(),
       role: UserRole.staff,
       position: _selectedRoleString == 'Driver' ? 'Driver' : 'Branch Cook',
+      email: email,
+      age: _ageController.text.trim(),
+      address: _addressController.text.trim(),
+      driverLicenseNumber: _photoLicenseResult?.licenseNumber ?? '',
+      driverLicenseExpiry: _photoLicenseResult?.expiryDate ?? '',
+      isLicenseVerified: _selectedRoleString == 'Driver' && _photoLicenseResult?.isValid == true,
     );
 
     if (!mounted) return;
@@ -324,7 +433,469 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               ),
                             ],
                           ),
+                          const SizedBox(height: 24),
+                          const Align(
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              'PERSONAL & CONTACT DETAILS',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 1.0,
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          TextFormField(
+                            controller: _emailController,
+                            keyboardType: TextInputType.emailAddress,
+                            textInputAction: TextInputAction.next,
+                            decoration: const InputDecoration(
+                              labelText: 'EMAIL ADDRESS',
+                              hintText: 'name@example.com',
+                              isDense: true,
+                              prefixIcon: Icon(Icons.email_outlined, size: 20),
+                            ),
+                            validator: (v) {
+                              if (v == null || v.trim().isEmpty) return 'Email is required';
+                              final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
+                              if (!emailRegex.hasMatch(v.trim())) return 'Enter a valid email address';
+                              return null;
+                            },
+                          ),
                           const SizedBox(height: 16),
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              SizedBox(
+                                width: 105,
+                                child: TextFormField(
+                                  controller: _ageController,
+                                  keyboardType: TextInputType.number,
+                                  textInputAction: TextInputAction.next,
+                                  decoration: const InputDecoration(
+                                    labelText: 'AGE',
+                                    hintText: '25',
+                                    isDense: true,
+                                    prefixIcon: Icon(Icons.cake_outlined, size: 19),
+                                  ),
+                                  validator: (v) {
+                                    if (v == null || v.trim().isEmpty) return 'Required';
+                                    final a = int.tryParse(v.trim());
+                                    if (a == null || a < 18) return '18+ only';
+                                    return null;
+                                  },
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: TextFormField(
+                                  controller: _contactController,
+                                  keyboardType: TextInputType.phone,
+                                  textInputAction: TextInputAction.next,
+                                  decoration: const InputDecoration(
+                                    labelText: 'CONTACT NUMBER',
+                                    hintText: '0917 123 4567',
+                                    isDense: true,
+                                    prefixIcon: Icon(Icons.phone_outlined, size: 20),
+                                  ),
+                                  validator: (v) => _required(v, 'Contact number'),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+
+                          // ── ADDRESS SECTION HEADER ──────────────────────
+                          Row(
+                            children: const [
+                              Icon(Icons.location_on_outlined,
+                                  size: 15, color: AppColors.accent),
+                              SizedBox(width: 6),
+                              Flexible(
+                                child: Text(
+                                  'RESIDENTIAL ADDRESS',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: 0.8,
+                                    color: AppColors.textSecondary,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 10),
+
+                          // ── PROVINCE DROPDOWN ──────────────────────────
+                          DropdownButtonFormField<String>(
+                            initialValue: _selectedProvince,
+                            isExpanded: true,
+                            decoration: const InputDecoration(
+                              labelText: 'PROVINCE',
+                              isDense: true,
+                              prefixIcon: Icon(Icons.map_outlined, size: 19),
+                            ),
+                            items: PhilippineAddressData.provinces
+                                .map((p) => DropdownMenuItem(
+                                      value: p,
+                                      child: Text(p),
+                                    ))
+                                .toList(),
+                            onChanged: (value) {
+                              if (value == null) return;
+                              setState(() {
+                                _selectedProvince = value;
+                                _selectedCity = null;
+                                _selectedBarangay = null;
+                              });
+                              _updateFullAddress();
+                            },
+                            validator: (v) =>
+                                v == null ? 'Province is required' : null,
+                          ),
+                          const SizedBox(height: 12),
+
+                          // ── CITY / MUNICIPALITY DROPDOWN ───────────────
+                          DropdownButtonFormField<String>(
+                            initialValue: _selectedCity,
+                            isExpanded: true,
+                            decoration: const InputDecoration(
+                              labelText: 'CITY / MUNICIPALITY',
+                              isDense: true,
+                              prefixIcon:
+                                  Icon(Icons.location_city_outlined, size: 19),
+                            ),
+                            hint: const Text('Pumili ng lungsod o bayan'),
+                            items: PhilippineAddressData.getCities(
+                                    _selectedProvince)
+                                .map((c) => DropdownMenuItem(
+                                      value: c,
+                                      child: Text(c),
+                                    ))
+                                .toList(),
+                            onChanged: (value) {
+                              setState(() {
+                                _selectedCity = value;
+                                _selectedBarangay = null;
+                              });
+                              _updateFullAddress();
+                            },
+                            validator: (v) =>
+                                v == null ? 'City / Municipality is required' : null,
+                          ),
+                          const SizedBox(height: 12),
+
+                          // ── BARANGAY DROPDOWN ──────────────────────────
+                          DropdownButtonFormField<String>(
+                            initialValue: _selectedBarangay,
+                            isExpanded: true,
+                            decoration: const InputDecoration(
+                              labelText: 'BARANGAY',
+                              isDense: true,
+                              prefixIcon:
+                                  Icon(Icons.holiday_village_outlined, size: 19),
+                            ),
+                            hint: const Text('Pumili ng barangay'),
+                            items: (_selectedCity == null
+                                    ? <String>[]
+                                    : PhilippineAddressData.getBarangays(
+                                        _selectedCity!))
+                                .map((b) => DropdownMenuItem(
+                                      value: b,
+                                      child: Text(b),
+                                    ))
+                                .toList(),
+                            onChanged: _selectedCity == null
+                                ? null
+                                : (value) {
+                                    setState(
+                                        () => _selectedBarangay = value);
+                                    _updateFullAddress();
+                                  },
+                            validator: (v) =>
+                                v == null ? 'Barangay is required' : null,
+                          ),
+                          const SizedBox(height: 12),
+
+                          // ── STREET / HOUSE / PUROK (optional) ─────────
+                          TextFormField(
+                            controller: _streetController,
+                            textInputAction: TextInputAction.next,
+                            onChanged: (_) => _updateFullAddress(),
+                            decoration: const InputDecoration(
+                              labelText: 'STREET / HOUSE NO. / PUROK (optional)',
+                              hintText: 'e.g. 12 Sampaguita St., Purok 3',
+                              isDense: true,
+                              prefixIcon:
+                                  Icon(Icons.home_outlined, size: 19),
+                            ),
+                          ),
+
+                          // ── ADDRESS PREVIEW ────────────────────────────
+                          if (_addressController.text.isNotEmpty) ...[
+                            const SizedBox(height: 10),
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 14, vertical: 10),
+                              decoration: BoxDecoration(
+                                color: AppColors.accent
+                                    .withValues(alpha: 0.07),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                    color: AppColors.accent
+                                        .withValues(alpha: 0.25)),
+                              ),
+                              child: Row(
+                                crossAxisAlignment:
+                                    CrossAxisAlignment.start,
+                                children: [
+                                  const Icon(Icons.check_circle_outline,
+                                      size: 15,
+                                      color: AppColors.accent),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      _addressController.text,
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                        color: AppColors.textPrimary,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+
+                          // Driver-only credentials & LTO validation via Google AI Vision
+                          if (_selectedRoleString == 'Driver') ...[
+                            const SizedBox(height: 24),
+                            Row(
+                              children: const [
+                                Icon(Icons.badge_rounded, size: 16, color: AppColors.accent),
+                                SizedBox(width: 6),
+                                Flexible(
+                                  child: Text(
+                                    'DRIVER\'S LICENSE VERIFICATION (AI VISION)',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w800,
+                                      letterSpacing: 0.8,
+                                      color: AppColors.textSecondary,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            const Text(
+                              'Kumuha o mag-upload ng malinaw na litrato ng iyong opisyal na LTO Driver\'s License card. Susuriin ito ng Gemini AI.',
+                              style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                            ),
+                            const SizedBox(height: 12),
+
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: AppColors.surface,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: _photoLicenseResult?.isValid == true
+                                      ? AppColors.success.withValues(alpha: 0.5)
+                                      : (_photoLicenseResult != null && !_photoLicenseResult!.isValid)
+                                          ? AppColors.error.withValues(alpha: 0.5)
+                                          : AppColors.border,
+                                  width: 1.5,
+                                ),
+                              ),
+                              child: Column(
+                                children: [
+                                  if (_licenseImageBytes != null) ...[
+                                    ClipRRect(
+                                      borderRadius: BorderRadius.circular(8),
+                                      child: Stack(
+                                        alignment: Alignment.topRight,
+                                        children: [
+                                          Image.memory(
+                                            _licenseImageBytes!,
+                                            height: 160,
+                                            width: double.infinity,
+                                            fit: BoxFit.cover,
+                                          ),
+                                          Padding(
+                                            padding: const EdgeInsets.all(8),
+                                            child: CircleAvatar(
+                                              radius: 16,
+                                              backgroundColor: Colors.black.withValues(alpha: 0.6),
+                                              child: IconButton(
+                                                padding: EdgeInsets.zero,
+                                                icon: const Icon(Icons.refresh, size: 18, color: Colors.white),
+                                                onPressed: _isAnalyzingPhoto ? null : () => _pickLicensePhoto(ImageSource.camera),
+                                                tooltip: 'Retake',
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    const SizedBox(height: 12),
+                                  ],
+
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: ElevatedButton.icon(
+                                          onPressed: _isAnalyzingPhoto ? null : () => _pickLicensePhoto(ImageSource.camera),
+                                          icon: const Icon(Icons.camera_alt_rounded, size: 18),
+                                          label: const Text('Take Photo'),
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: AppColors.accent,
+                                            foregroundColor: Colors.white,
+                                            padding: const EdgeInsets.symmetric(vertical: 12),
+                                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 10),
+                                      Expanded(
+                                        child: OutlinedButton.icon(
+                                          onPressed: _isAnalyzingPhoto ? null : () => _pickLicensePhoto(ImageSource.gallery),
+                                          icon: const Icon(Icons.photo_library_rounded, size: 18),
+                                          label: const Text('From Gallery'),
+                                          style: OutlinedButton.styleFrom(
+                                            padding: const EdgeInsets.symmetric(vertical: 12),
+                                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+
+                                  if (_isAnalyzingPhoto) ...[
+                                    const SizedBox(height: 16),
+                                    Container(
+                                      padding: const EdgeInsets.all(12),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.accent.withValues(alpha: 0.08),
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: Row(
+                                        children: const [
+                                          SizedBox(
+                                            width: 18,
+                                            height: 18,
+                                            child: CircularProgressIndicator(strokeWidth: 2),
+                                          ),
+                                          SizedBox(width: 12),
+                                          Expanded(
+                                            child: Text(
+                                              'Sinusuri ng Gemini AI ang litrato ng lisensya...',
+                                              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.accent),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+
+                                  if (!_isAnalyzingPhoto && _photoLicenseResult != null) ...[
+                                    const SizedBox(height: 16),
+                                    if (_photoLicenseResult!.isValid)
+                                      Container(
+                                        padding: const EdgeInsets.all(14),
+                                        decoration: BoxDecoration(
+                                          color: AppColors.success.withValues(alpha: 0.1),
+                                          borderRadius: BorderRadius.circular(10),
+                                          border: Border.all(color: AppColors.success.withValues(alpha: 0.4)),
+                                        ),
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Row(
+                                              children: const [
+                                                Icon(Icons.verified_rounded, color: AppColors.success, size: 20),
+                                                SizedBox(width: 8),
+                                                Flexible(
+                                                  child: Text(
+                                                    'LTO Driver\'s License Verified',
+                                                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: AppColors.success),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                            const SizedBox(height: 8),
+                                            if (_photoLicenseResult!.licenseNumber.isNotEmpty)
+                                              Text('License No: ${_photoLicenseResult!.licenseNumber}',
+                                                  style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold)),
+                                            if (_photoLicenseResult!.expiryDate.isNotEmpty)
+                                              Text('Valid Until: ${_photoLicenseResult!.expiryDate}',
+                                                  style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                                            if (_photoLicenseResult!.cardHolderName.isNotEmpty)
+                                              Text('Cardholder: ${_photoLicenseResult!.cardHolderName}',
+                                                  style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                                            if (_photoLicenseResult!.classification.isNotEmpty)
+                                              Text('Type: ${_photoLicenseResult!.classification}',
+                                                  style: const TextStyle(fontSize: 11.5, color: AppColors.textSecondary)),
+                                          ],
+                                        ),
+                                      )
+                                    else
+                                      Container(
+                                        padding: const EdgeInsets.all(14),
+                                        decoration: BoxDecoration(
+                                          color: AppColors.error.withValues(alpha: 0.1),
+                                          borderRadius: BorderRadius.circular(10),
+                                          border: Border.all(color: AppColors.error.withValues(alpha: 0.4)),
+                                        ),
+                                        child: Row(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            const Icon(Icons.error_outline_rounded, color: AppColors.error, size: 22),
+                                            const SizedBox(width: 10),
+                                            Expanded(
+                                              child: Column(
+                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                children: [
+                                                  const Text(
+                                                    'Hindi Valid ang Litrato',
+                                                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: AppColors.error),
+                                                  ),
+                                                  const SizedBox(height: 4),
+                                                  Text(
+                                                    _photoLicenseResult!.rejectionReason,
+                                                    style: const TextStyle(fontSize: 12, color: AppColors.error),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                  ],
+                                ],
+                              ),
+                            ),
+                          ],
+
+                          const SizedBox(height: 24),
+                          const Align(
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              'ACCOUNT CREDENTIALS',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 1.0,
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
                           TextFormField(
                             controller: _usernameController,
                             textInputAction: TextInputAction.next,
@@ -334,18 +905,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               prefixIcon: Icon(Icons.alternate_email_rounded, size: 20),
                             ),
                             validator: (v) => _required(v, 'Username'),
-                          ),
-                          const SizedBox(height: 16),
-                          TextFormField(
-                            controller: _contactController,
-                            keyboardType: TextInputType.phone,
-                            textInputAction: TextInputAction.next,
-                            decoration: const InputDecoration(
-                              labelText: 'CONTACT NUMBER',
-                              isDense: true,
-                              prefixIcon: Icon(Icons.phone_outlined, size: 20),
-                            ),
-                            validator: (v) => _required(v, 'Contact number'),
                           ),
                           const SizedBox(height: 16),
                           TextFormField(

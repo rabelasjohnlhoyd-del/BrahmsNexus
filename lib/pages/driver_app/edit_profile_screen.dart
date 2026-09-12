@@ -16,8 +16,9 @@ class EditProfileScreen extends StatefulWidget {
 
 class _EditProfileScreenState extends State<EditProfileScreen> {
   String _fullName = 'Driver Partner';
-  final String _age = '32';
-  final String _address = 'San Francisco, Victoria';
+  String _age = 'Not set';
+  String _address = 'Not set';
+  String _driverLicense = 'Not registered';
   
   String _currentPhone = '';
   String _currentEmail = '';
@@ -37,9 +38,16 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     if (user != null) {
       if (user.fullName.isNotEmpty) _fullName = user.fullName;
       if (user.contactNumber.isNotEmpty) _currentPhone = user.contactNumber;
-      if (user.username.isNotEmpty) {
-        _currentUsername = user.username;
-        _currentEmail = '${user.username}@brahmsnexus.internal';
+      if (user.username.isNotEmpty) _currentUsername = user.username;
+      _currentEmail = user.email.isNotEmpty
+          ? user.email
+          : '${user.username}@brahmsnexus.ph';
+      if (user.age.isNotEmpty) _age = '${user.age} yrs old';
+      if (user.address.isNotEmpty) _address = user.address;
+      if (user.driverLicenseNumber.isNotEmpty) {
+        _driverLicense = user.isLicenseVerified
+            ? '${user.driverLicenseNumber} (LTO Verified)'
+            : user.driverLicenseNumber;
       }
     }
     _phoneController = TextEditingController(text: _currentPhone);
@@ -140,16 +148,18 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     setState(() => _isSaving = true);
     final newPhone = _phoneController.text.trim();
     final newUsername = _usernameController.text.trim();
+    final newEmail = _emailController.text.trim();
 
     await AuthService.updateProfile(
       username: newUsername,
       contactNumber: newPhone,
+      email: newEmail,
     );
 
     if (!mounted) return;
     setState(() {
       _currentPhone = newPhone;
-      _currentEmail = _emailController.text;
+      _currentEmail = newEmail;
       _currentUsername = newUsername;
       _isSaving = false;
       _editingField = null;
@@ -192,6 +202,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                         _infoRow(label: 'Age', value: _age),
                         _divider(),
                         _infoRow(label: 'Address', value: _address),
+                        _divider(),
+                        _infoRow(label: "Driver's License", value: _driverLicense),
                         _divider(),
                         _editableRow(
                           label: 'Contact Number', 

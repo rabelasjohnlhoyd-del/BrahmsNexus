@@ -24,12 +24,12 @@ class _OwnerProfileScreenState extends State<OwnerProfileScreen> {
   bool _isEditing = false;
 
   // Defaults
-  String _fullName = 'Ramon Santos';
-  final String _age = '45';
-  final String _address = 'Sta. Cruz, Laguna';
-  String _contact = '+63 917 888 1234';
+  String _fullName = 'Business Owner';
+  String _age = 'Not set';
+  String _address = 'Not set';
+  String _contact = '';
   String _email = 'owner@brahmsnexus.ph';
-  String _username = 'ramon.santos';
+  String _username = 'owner';
 
   late TextEditingController _contactController;
   late TextEditingController _emailController;
@@ -44,8 +44,12 @@ class _OwnerProfileScreenState extends State<OwnerProfileScreen> {
       if (user.contactNumber.isNotEmpty) _contact = user.contactNumber;
       if (user.username.isNotEmpty) {
         _username = user.username;
-        _email = '${user.username}@brahmsnexus.ph';
       }
+      _email = user.email.isNotEmpty
+          ? user.email
+          : '${user.username.isNotEmpty ? user.username : 'owner'}@brahmsnexus.ph';
+      if (user.age.isNotEmpty) _age = '${user.age} yrs old';
+      if (user.address.isNotEmpty) _address = user.address;
     }
     _contactController = TextEditingController(text: _contact);
     _emailController = TextEditingController(text: _email);
@@ -135,14 +139,16 @@ class _OwnerProfileScreenState extends State<OwnerProfileScreen> {
     if (confirm) {
       final newContact = _contactController.text.trim();
       final newUsername = _usernameController.text.trim();
+      final newEmail = _emailController.text.trim();
       await AuthService.updateProfile(
         username: newUsername,
         contactNumber: newContact,
+        email: newEmail,
       );
       if (mounted) {
         setState(() {
           _contact = newContact;
-          _email = _emailController.text.trim();
+          _email = newEmail;
           _username = newUsername;
           _isEditing = false;
         });
@@ -162,6 +168,8 @@ class _OwnerProfileScreenState extends State<OwnerProfileScreen> {
             : (user?.username.isNotEmpty == true ? user!.username : _fullName);
         final initials = user?.initials ?? 'BO';
         final displayRole = user?.displayRole ?? 'Business Owner';
+        final displayAge = user?.age.isNotEmpty == true ? '${user!.age} yrs old' : _age;
+        final displayAddress = user?.address.isNotEmpty == true ? user!.address : _address;
 
         // Keep controllers in sync when not editing
         if (!_isEditing) {
@@ -174,7 +182,12 @@ class _OwnerProfileScreenState extends State<OwnerProfileScreen> {
               _usernameController.text != user!.username) {
             _username = user.username;
             _usernameController.text = user.username;
-            _email = '${user.username}@brahmsnexus.ph';
+          }
+          final actualEmail = user?.email.isNotEmpty == true
+              ? user!.email
+              : '${user?.username ?? 'owner'}@brahmsnexus.ph';
+          if (_emailController.text != actualEmail) {
+            _email = actualEmail;
             _emailController.text = _email;
           }
         }
@@ -226,9 +239,9 @@ class _OwnerProfileScreenState extends State<OwnerProfileScreen> {
                 children: [
                   _infoTile(CupertinoIcons.person_fill, 'Full Name', displayName),
                   _divider(),
-                  _infoTile(CupertinoIcons.number, 'Age', _age),
+                  _infoTile(CupertinoIcons.number, 'Age', displayAge),
                   _divider(),
-                  _infoTile(CupertinoIcons.location_fill, 'Address', _address),
+                  _infoTile(CupertinoIcons.location_fill, 'Address', displayAddress),
                   _divider(),
                   _editTile(CupertinoIcons.phone_fill, 'Contact', _contactController,
                       _isEditing),

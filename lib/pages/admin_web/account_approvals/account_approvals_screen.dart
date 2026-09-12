@@ -253,23 +253,124 @@ class _RequestCard extends StatelessWidget {
           final details = Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                request.fullName,
-                style: const TextStyle(
-                  fontWeight: FontWeight.w700,
-                  fontSize: 15,
-                  color: AdminWebColors.textPrimary,
-                ),
+              Row(
+                children: [
+                  Text(
+                    request.fullName,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 15,
+                      color: AdminWebColors.textPrimary,
+                    ),
+                  ),
+                  if (request.age.isNotEmpty) ...[
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: AdminWebColors.surfaceTint,
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(color: AdminWebColors.border),
+                      ),
+                      child: Text(
+                        'Age: ${request.age}',
+                        style: const TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          color: AdminWebColors.textSecondary,
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
               ),
               const SizedBox(height: 2),
               Text(
-                '@${request.username} · ${request.displayRole} · ${request.contactNumber}',
+                '@${request.username} · ${request.displayRole} · ${request.contactNumber}${request.email.isNotEmpty ? ' · ${request.email}' : ''}',
                 style: const TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w500,
                   color: AdminWebColors.textSecondary,
                 ),
               ),
+              if (request.address.isNotEmpty) ...[
+                const SizedBox(height: 3),
+                Row(
+                  children: [
+                    const Icon(Icons.location_on_outlined, size: 13, color: AdminWebColors.accent),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Text(
+                        request.address,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 11.5,
+                          color: AdminWebColors.textSecondary,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+              if (request.driverLicenseNumber.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Wrap(
+                  spacing: 8,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: request.isLicenseVerified
+                            ? AdminWebColors.success.withValues(alpha: 0.1)
+                            : AdminWebColors.warning.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(
+                          color: request.isLicenseVerified
+                              ? AdminWebColors.success.withValues(alpha: 0.3)
+                              : AdminWebColors.warning.withValues(alpha: 0.3),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            request.isLicenseVerified
+                                ? Icons.verified_rounded
+                                : Icons.badge_outlined,
+                            size: 12,
+                            color: request.isLicenseVerified
+                                ? AdminWebColors.success
+                                : AdminWebColors.warning,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            request.isLicenseVerified
+                                ? 'LTO Verified: ${request.driverLicenseNumber}'
+                                : 'License: ${request.driverLicenseNumber}',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: request.isLicenseVerified
+                                  ? AdminWebColors.success
+                                  : AdminWebColors.warning,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (request.driverLicenseExpiry.isNotEmpty)
+                      Text(
+                        'Exp: ${request.driverLicenseExpiry}',
+                        style: const TextStyle(
+                          fontSize: 10.5,
+                          color: AdminWebColors.textSecondary,
+                        ),
+                      ),
+                  ],
+                ),
+              ],
             ],
           );
 

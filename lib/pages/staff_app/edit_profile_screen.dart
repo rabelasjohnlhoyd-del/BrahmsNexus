@@ -16,8 +16,8 @@ class EditProfileScreen extends StatefulWidget {
 
 class _EditProfileScreenState extends State<EditProfileScreen> {
   String _fullName = 'Staff Member';
-  final String _age = '28';
-  final String _address = 'Laguna, Philippines';
+  String _age = 'Not set';
+  String _address = 'Not set';
   
   String _currentPhone = '';
   String _currentEmail = '';
@@ -37,10 +37,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     if (user != null) {
       if (user.fullName.isNotEmpty) _fullName = user.fullName;
       if (user.contactNumber.isNotEmpty) _currentPhone = user.contactNumber;
-      if (user.username.isNotEmpty) {
-        _currentUsername = user.username;
-        _currentEmail = '${user.username}@brahmsnexus.internal';
-      }
+      if (user.username.isNotEmpty) _currentUsername = user.username;
+      _currentEmail = user.email.isNotEmpty
+          ? user.email
+          : '${user.username}@brahmsnexus.ph';
+      if (user.age.isNotEmpty) _age = '${user.age} yrs old';
+      if (user.address.isNotEmpty) _address = user.address;
     }
     _phoneController = TextEditingController(text: _currentPhone);
     _emailController = TextEditingController(text: _currentEmail);
@@ -140,16 +142,18 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     setState(() => _isSaving = true);
     final newPhone = _phoneController.text.trim();
     final newUsername = _usernameController.text.trim();
+    final newEmail = _emailController.text.trim();
 
     await AuthService.updateProfile(
       username: newUsername,
       contactNumber: newPhone,
+      email: newEmail,
     );
 
     if (!mounted) return;
     setState(() {
       _currentPhone = newPhone;
-      _currentEmail = _emailController.text;
+      _currentEmail = newEmail;
       _currentUsername = newUsername;
       _isSaving = false;
       _editingField = null;

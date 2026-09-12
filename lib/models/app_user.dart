@@ -21,6 +21,12 @@ class AppUser {
     required this.role,
     required this.status,
     this.position = '',
+    this.email = '',
+    this.age = '',
+    this.address = '',
+    this.driverLicenseNumber = '',
+    this.driverLicenseExpiry = '',
+    this.isLicenseVerified = false,
     this.createdAt,
   });
 
@@ -31,6 +37,12 @@ class AppUser {
   final UserRole role;
   final AccountStatus status;
   final String position;
+  final String email;
+  final String age;
+  final String address;
+  final String driverLicenseNumber;
+  final String driverLicenseExpiry;
+  final bool isLicenseVerified;
 
   /// When the account was created. Written by [AuthService.register]
   /// via `FieldValue.serverTimestamp()` (not expressible as a plain
@@ -54,6 +66,12 @@ class AppUser {
         orElse: () => AccountStatus.pending,
       ),
       position: map['position'] as String? ?? '',
+      email: map['email'] as String? ?? '',
+      age: map['age'] as String? ?? '',
+      address: map['address'] as String? ?? '',
+      driverLicenseNumber: map['driverLicenseNumber'] as String? ?? '',
+      driverLicenseExpiry: map['driverLicenseExpiry'] as String? ?? '',
+      isLicenseVerified: map['isLicenseVerified'] as bool? ?? false,
       createdAt: (map['createdAt'] as Timestamp?)?.toDate(),
     );
   }
@@ -81,6 +99,12 @@ class AppUser {
     UserRole? role,
     AccountStatus? status,
     String? position,
+    String? email,
+    String? age,
+    String? address,
+    String? driverLicenseNumber,
+    String? driverLicenseExpiry,
+    bool? isLicenseVerified,
     DateTime? createdAt,
   }) {
     return AppUser(
@@ -91,6 +115,12 @@ class AppUser {
       role: role ?? this.role,
       status: status ?? this.status,
       position: position ?? this.position,
+      email: email ?? this.email,
+      age: age ?? this.age,
+      address: address ?? this.address,
+      driverLicenseNumber: driverLicenseNumber ?? this.driverLicenseNumber,
+      driverLicenseExpiry: driverLicenseExpiry ?? this.driverLicenseExpiry,
+      isLicenseVerified: isLicenseVerified ?? this.isLicenseVerified,
       createdAt: createdAt ?? this.createdAt,
     );
   }
@@ -108,6 +138,12 @@ class AppUser {
       'role': role.name,
       'status': status.name,
       'position': position,
+      'email': email,
+      'age': age,
+      'address': address,
+      'driverLicenseNumber': driverLicenseNumber,
+      'driverLicenseExpiry': driverLicenseExpiry,
+      'isLicenseVerified': isLicenseVerified,
     };
   }
 }

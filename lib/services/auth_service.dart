@@ -71,6 +71,12 @@ class AuthService {
     required String contactNumber,
     required UserRole role,
     String position = '',
+    String email = '',
+    String age = '',
+    String address = '',
+    String driverLicenseNumber = '',
+    String driverLicenseExpiry = '',
+    bool isLicenseVerified = false,
   }) async {
     try {
       final credential = await _auth.createUserWithEmailAndPassword(
@@ -87,6 +93,12 @@ class AuthService {
         role: role,
         status: AccountStatus.pending,
         position: position,
+        email: email.trim(),
+        age: age.trim(),
+        address: address.trim(),
+        driverLicenseNumber: driverLicenseNumber.trim(),
+        driverLicenseExpiry: driverLicenseExpiry.trim(),
+        isLicenseVerified: isLicenseVerified,
       );
 
       // Lightweight auth record in Firestore
@@ -107,6 +119,9 @@ class AuthService {
         branch: 'N/A',
         position: position.isNotEmpty ? position : role.label,
         phone: contactNumber,
+        email: email.trim().isNotEmpty ? email.trim() : null,
+        address: address.trim(),
+        age: age.trim(),
       );
       await SupabaseService.createStaffProfile(staffProfile);
 
@@ -276,6 +291,10 @@ class AuthService {
     String? username,
     String? contactNumber,
     String? fullName,
+    String? email,
+    String? age,
+    String? address,
+    String? driverLicenseNumber,
   }) async {
     final uid = currentAppUser?.uid ?? _auth.currentUser?.uid;
     if (uid == null) return false;
@@ -290,12 +309,28 @@ class AuthService {
     if (fullName != null && fullName.trim().isNotEmpty) {
       updates['fullName'] = fullName.trim();
     }
+    if (email != null && email.trim().isNotEmpty) {
+      updates['email'] = email.trim();
+    }
+    if (age != null && age.trim().isNotEmpty) {
+      updates['age'] = age.trim();
+    }
+    if (address != null && address.trim().isNotEmpty) {
+      updates['address'] = address.trim();
+    }
+    if (driverLicenseNumber != null && driverLicenseNumber.trim().isNotEmpty) {
+      updates['driverLicenseNumber'] = driverLicenseNumber.trim();
+    }
 
     if (currentAppUser != null) {
       currentAppUser = currentAppUser!.copyWith(
         username: username?.trim() ?? currentAppUser!.username,
         contactNumber: contactNumber?.trim() ?? currentAppUser!.contactNumber,
         fullName: fullName?.trim() ?? currentAppUser!.fullName,
+        email: email?.trim() ?? currentAppUser!.email,
+        age: age?.trim() ?? currentAppUser!.age,
+        address: address?.trim() ?? currentAppUser!.address,
+        driverLicenseNumber: driverLicenseNumber?.trim() ?? currentAppUser!.driverLicenseNumber,
       );
     }
 

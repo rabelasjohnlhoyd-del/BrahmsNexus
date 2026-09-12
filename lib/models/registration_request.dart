@@ -16,6 +16,12 @@ class RegistrationRequest {
     required this.role,
     this.status = AccountStatus.pending,
     this.position = '',
+    this.email = '',
+    this.age = '',
+    this.address = '',
+    this.driverLicenseNumber = '',
+    this.driverLicenseExpiry = '',
+    this.isLicenseVerified = false,
     DateTime? dateRequested,
   }) : dateRequested = dateRequested ?? DateTime.now();
 
@@ -26,6 +32,12 @@ class RegistrationRequest {
   final UserRole role;
   final AccountStatus status;
   final String position;
+  final String email;
+  final String age;
+  final String address;
+  final String driverLicenseNumber;
+  final String driverLicenseExpiry;
+  final bool isLicenseVerified;
   final DateTime dateRequested;
 
   String get displayRole => position.isNotEmpty ? position : role.label;
@@ -44,6 +56,12 @@ class RegistrationRequest {
       role: user.role,
       status: user.status,
       position: user.position,
+      email: user.email,
+      age: user.age,
+      address: user.address,
+      driverLicenseNumber: user.driverLicenseNumber,
+      driverLicenseExpiry: user.driverLicenseExpiry,
+      isLicenseVerified: user.isLicenseVerified,
       dateRequested: user.createdAt,
     );
   }
@@ -51,6 +69,12 @@ class RegistrationRequest {
   RegistrationRequest copyWith({
     AccountStatus? status,
     String? position,
+    String? email,
+    String? age,
+    String? address,
+    String? driverLicenseNumber,
+    String? driverLicenseExpiry,
+    bool? isLicenseVerified,
   }) {
     return RegistrationRequest(
       id: id,
@@ -60,6 +84,12 @@ class RegistrationRequest {
       role: role,
       status: status ?? this.status,
       position: position ?? this.position,
+      email: email ?? this.email,
+      age: age ?? this.age,
+      address: address ?? this.address,
+      driverLicenseNumber: driverLicenseNumber ?? this.driverLicenseNumber,
+      driverLicenseExpiry: driverLicenseExpiry ?? this.driverLicenseExpiry,
+      isLicenseVerified: isLicenseVerified ?? this.isLicenseVerified,
       dateRequested: dateRequested,
     );
   }

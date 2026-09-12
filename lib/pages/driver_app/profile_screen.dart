@@ -35,7 +35,17 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
             : 'Not provided';
         final position = user?.displayRole ?? 'Driver';
         final initials = user?.initials ?? 'DR';
-        final workEmail = '$username@brahmsnexus.internal';
+        final userEmail = user?.email.isNotEmpty == true
+            ? user!.email
+            : '$username@brahmsnexus.ph';
+        final ageStr = user?.age.isNotEmpty == true ? '${user!.age} yrs old' : 'Not set';
+        final addressStr = user?.address.isNotEmpty == true
+            ? user!.address
+            : 'Not set';
+        final licenseStr = user?.driverLicenseNumber.isNotEmpty == true
+            ? user!.driverLicenseNumber
+            : 'Not registered';
+        final licenseVerified = user?.isLicenseVerified == true;
 
         return CupertinoPageScaffold(
           backgroundColor: AppColors.background,
@@ -70,10 +80,14 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
                       _listTile(
                           CupertinoIcons.person, 'Full Name', fullName),
                       _divider(),
+                      _listTile(CupertinoIcons.mail, 'Email Address', userEmail),
+                      _divider(),
+                      _listTile(CupertinoIcons.number, 'Age', ageStr),
+                      _divider(),
+                      _listTile(CupertinoIcons.location, 'Address', addressStr),
+                      _divider(),
                       _listTile(CupertinoIcons.phone, 'Contact Number',
                           contactNumber),
-                      _divider(),
-                      _listTile(CupertinoIcons.mail, 'Work Email', workEmail),
                     ],
                   ),
                 ),
@@ -87,6 +101,15 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
                   padding: EdgeInsets.zero,
                   child: Column(
                     children: [
+                      _listTile(
+                        CupertinoIcons.doc_text_fill,
+                        "Driver's License",
+                        licenseVerified
+                            ? '$licenseStr (LTO Verified)'
+                            : licenseStr,
+                        color: licenseVerified ? AppColors.success : null,
+                      ),
+                      _divider(),
                       _listTile(CupertinoIcons.car_detailed, 'Vehicle Type',
                           'Multicab (L300)'),
                       _divider(),

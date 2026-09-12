@@ -454,6 +454,16 @@ class _StaffTile extends StatelessWidget {
                       icon: Icons.work_outline,
                       label: member.position,
                     ),
+                    if (member.age.isNotEmpty)
+                      _InfoPill(
+                        icon: Icons.badge_outlined,
+                        label: '${member.age} YRS',
+                      ),
+                    if (member.address.isNotEmpty)
+                      _InfoPill(
+                        icon: Icons.location_on_outlined,
+                        label: member.address,
+                      ),
                   ],
                 ),
               ],
