@@ -459,3 +459,4 @@ class _OwnerProfileScreenState extends State<OwnerProfileScreen> {
         color: AppColors.border.withValues(alpha: 0.5),
       );
 }
+

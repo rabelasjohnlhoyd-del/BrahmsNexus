@@ -635,3 +635,4 @@ class _ApplicantCard extends StatelessWidget {
     return '${dt.month}/${dt.day}/${dt.year}';
   }
 }
+

@@ -17,3 +17,4 @@ class SupabaseConfig {
       !supabaseAnonKey.contains('your-anon-key');
 }
 
+

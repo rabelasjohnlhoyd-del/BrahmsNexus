@@ -568,3 +568,4 @@ Respond ONLY with raw JSON (no markdown, no explanation):
     return null; // All checks passed
   }
 }
+

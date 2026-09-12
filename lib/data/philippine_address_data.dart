@@ -835,3 +835,4 @@ class PhilippineAddressData {
     return barangaysByCity[city] ?? ['Poblacion', 'Barangay 1', 'Barangay 2', 'Central'];
   }
 }
+

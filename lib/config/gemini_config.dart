@@ -11,3 +11,4 @@ class GeminiConfig {
       apiKey != 'YOUR_GEMINI_API_KEY_HERE' &&
       !apiKey.startsWith('YOUR_GEMINI_API_KEY_HERE');
 }
+
