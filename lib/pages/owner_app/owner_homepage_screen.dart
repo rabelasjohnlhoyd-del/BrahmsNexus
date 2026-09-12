@@ -3,6 +3,7 @@ import '../../models/branch_assignment.dart';
 import '../../models/daily_report.dart';
 import '../../models/inventory_item.dart';
 import '../../models/sales_record.dart';
+import '../../services/auth_service.dart';
 import '../../theme/app_theme.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../widgets/owner_sales_trend_chart.dart';
@@ -473,9 +474,11 @@ class _OwnerHomepageScreenState extends State<OwnerHomepageScreen> {
                     ),
                   ),
                   const SizedBox(height: 2),
-                  const Text(
-                    'Owner',
-                    style: TextStyle(
+                  Text(
+                    AuthService.currentUsername,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
                       color: AppColors.textPrimary,
                       fontSize: 34,
                       fontWeight: FontWeight.w900,

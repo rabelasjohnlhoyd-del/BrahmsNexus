@@ -85,6 +85,7 @@ class _LoginScreenState extends State<LoginScreen> {
             status: mock.status,
             position: mock.position,
           );
+      AuthService.currentAppUser = user;
 
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(

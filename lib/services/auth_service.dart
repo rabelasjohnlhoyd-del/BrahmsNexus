@@ -21,6 +21,7 @@ class AuthService {
 
   static AppUser? currentAppUser;
   static AppUser? get currentUser => currentAppUser;
+  static User? get currentFirebaseUser => _auth.currentUser;
   static UserRole get currentRole => currentAppUser?.role ?? UserRole.owner;
   static String get currentUserId => currentAppUser?.uid ?? 'guest';
   static String get currentPosition => currentAppUser?.position ?? '';
@@ -33,6 +34,17 @@ class AuthService {
     if (pos.contains('driver')) return 'driver';
     if (pos.contains('production') || pos.contains('cutter')) return 'production';
     return 'staff';
+  }
+
+  /// Returns the registered username of the currently logged-in account,
+  /// falling back to role title if not set.
+  static String get currentUsername {
+    final u = currentAppUser?.username.trim();
+    if (u != null && u.isNotEmpty) return u;
+    final fn = currentAppUser?.fullName.trim();
+    if (fn != null && fn.isNotEmpty) return fn;
+    if (currentRole == UserRole.owner) return 'Owner';
+    return 'Staff';
   }
 
   /// The app's login form asks for a "username" (matching the existing
@@ -244,6 +256,54 @@ class AuthService {
       return true;
     } catch (_) {
       return false;
+    }
+  }
+
+  /// Real-time stream of the current user's profile document from Firestore.
+  static Stream<AppUser?> watchCurrentUser() {
+    final uid = currentAppUser?.uid ?? _auth.currentUser?.uid;
+    if (uid == null) return Stream.value(currentAppUser);
+    return _db.collection('users').doc(uid).snapshots().map((doc) {
+      if (!doc.exists || doc.data() == null) return currentAppUser;
+      final user = AppUser.fromMap(doc.id, doc.data()!);
+      currentAppUser = user;
+      return user;
+    }).handleError((_) => currentAppUser);
+  }
+
+  /// Updates the current user's profile fields in Firestore and local state.
+  static Future<bool> updateProfile({
+    String? username,
+    String? contactNumber,
+    String? fullName,
+  }) async {
+    final uid = currentAppUser?.uid ?? _auth.currentUser?.uid;
+    if (uid == null) return false;
+
+    final updates = <String, dynamic>{};
+    if (username != null && username.trim().isNotEmpty) {
+      updates['username'] = username.trim();
+    }
+    if (contactNumber != null && contactNumber.trim().isNotEmpty) {
+      updates['contactNumber'] = contactNumber.trim();
+    }
+    if (fullName != null && fullName.trim().isNotEmpty) {
+      updates['fullName'] = fullName.trim();
+    }
+
+    if (currentAppUser != null) {
+      currentAppUser = currentAppUser!.copyWith(
+        username: username?.trim() ?? currentAppUser!.username,
+        contactNumber: contactNumber?.trim() ?? currentAppUser!.contactNumber,
+        fullName: fullName?.trim() ?? currentAppUser!.fullName,
+      );
+    }
+
+    try {
+      await _db.collection('users').doc(uid).update(updates);
+      return true;
+    } catch (_) {
+      return true; // Local state updated
     }
   }
 

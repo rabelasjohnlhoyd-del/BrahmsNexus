@@ -6,6 +6,8 @@ import '../../widgets/staff_nav_bar.dart';
 import '../../widgets/staff_section_header.dart';
 import '../../widgets/staff_top_actions.dart';
 import '../../widgets/staff_dialog.dart';
+import '../../services/auth_service.dart';
+import '../../models/app_user.dart';
 import '../auth/login_screen.dart';
 
 /// Profile tab of the Owner App — displays the owner's account
@@ -21,8 +23,8 @@ class OwnerProfileScreen extends StatefulWidget {
 class _OwnerProfileScreenState extends State<OwnerProfileScreen> {
   bool _isEditing = false;
 
-  // Initial mock data
-  final String _fullName = 'Ramon Santos';
+  // Defaults
+  String _fullName = 'Ramon Santos';
   final String _age = '45';
   final String _address = 'Sta. Cruz, Laguna';
   String _contact = '+63 917 888 1234';
@@ -36,6 +38,15 @@ class _OwnerProfileScreenState extends State<OwnerProfileScreen> {
   @override
   void initState() {
     super.initState();
+    final user = AuthService.currentAppUser;
+    if (user != null) {
+      if (user.fullName.isNotEmpty) _fullName = user.fullName;
+      if (user.contactNumber.isNotEmpty) _contact = user.contactNumber;
+      if (user.username.isNotEmpty) {
+        _username = user.username;
+        _email = '${user.username}@brahmsnexus.ph';
+      }
+    }
     _contactController = TextEditingController(text: _contact);
     _emailController = TextEditingController(text: _email);
     _usernameController = TextEditingController(text: _username);
@@ -62,12 +73,15 @@ class _OwnerProfileScreenState extends State<OwnerProfileScreen> {
           ),
           CupertinoDialogAction(
             isDestructiveAction: true,
-            onPressed: () {
+            onPressed: () async {
               Navigator.of(dialogContext).pop();
-              Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
-                CupertinoPageRoute(builder: (_) => const LoginScreen()),
-                (route) => false,
-              );
+              await AuthService.signOut();
+              if (mounted) {
+                Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
+                  CupertinoPageRoute(builder: (_) => const LoginScreen()),
+                  (route) => false,
+                );
+              }
             },
             child: const Text('Log Out'),
           ),
@@ -87,8 +101,7 @@ class _OwnerProfileScreenState extends State<OwnerProfileScreen> {
       );
       if (confirm) setState(() => _isEditing = true);
     } else {
-      // If currently editing, this is the "Discard" or "Save" logic
-      // Handled by specific buttons in the UI
+      // Handled by Discard / Save buttons
     }
   }
 
@@ -120,28 +133,63 @@ class _OwnerProfileScreenState extends State<OwnerProfileScreen> {
       confirmLabel: 'Save',
     );
     if (confirm) {
-      setState(() {
-        _contact = _contactController.text;
-        _email = _emailController.text;
-        _username = _usernameController.text;
-        _isEditing = false;
-      });
+      final newContact = _contactController.text.trim();
+      final newUsername = _usernameController.text.trim();
+      await AuthService.updateProfile(
+        username: newUsername,
+        contactNumber: newContact,
+      );
+      if (mounted) {
+        setState(() {
+          _contact = newContact;
+          _email = _emailController.text.trim();
+          _username = newUsername;
+          _isEditing = false;
+        });
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return CupertinoPageScaffold(
-      backgroundColor: AppColors.background,
-      navigationBar: const StaffNavBar(
-        title: 'Profile',
-        trailing: StaffTopActions(),
-      ),
-      child: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            _buildProfileHeader(),
+    return StreamBuilder<AppUser?>(
+      stream: AuthService.watchCurrentUser(),
+      initialData: AuthService.currentAppUser,
+      builder: (context, snapshot) {
+        final user = snapshot.data ?? AuthService.currentAppUser;
+        final displayName = user?.fullName.isNotEmpty == true
+            ? user!.fullName
+            : (user?.username.isNotEmpty == true ? user!.username : _fullName);
+        final initials = user?.initials ?? 'BO';
+        final displayRole = user?.displayRole ?? 'Business Owner';
+
+        // Keep controllers in sync when not editing
+        if (!_isEditing) {
+          if (user?.contactNumber.isNotEmpty == true &&
+              _contactController.text != user!.contactNumber) {
+            _contact = user.contactNumber;
+            _contactController.text = user.contactNumber;
+          }
+          if (user?.username.isNotEmpty == true &&
+              _usernameController.text != user!.username) {
+            _username = user.username;
+            _usernameController.text = user.username;
+            _email = '${user.username}@brahmsnexus.ph';
+            _emailController.text = _email;
+          }
+        }
+
+        return CupertinoPageScaffold(
+          backgroundColor: AppColors.background,
+          navigationBar: const StaffNavBar(
+            title: 'Profile',
+            trailing: StaffTopActions(),
+          ),
+          child: SafeArea(
+            child: ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                _buildProfileHeader(displayName, initials, displayRole),
             const SizedBox(height: 20),
             StaffSectionHeader(
               label: 'Account Details',
@@ -176,7 +224,7 @@ class _OwnerProfileScreenState extends State<OwnerProfileScreen> {
               padding: EdgeInsets.zero,
               child: Column(
                 children: [
-                  _infoTile(CupertinoIcons.person_fill, 'Full Name', _fullName),
+                  _infoTile(CupertinoIcons.person_fill, 'Full Name', displayName),
                   _divider(),
                   _infoTile(CupertinoIcons.number, 'Age', _age),
                   _divider(),
@@ -226,9 +274,11 @@ class _OwnerProfileScreenState extends State<OwnerProfileScreen> {
         ),
       ),
     );
+      },
+    );
   }
 
-  Widget _buildProfileHeader() {
+  Widget _buildProfileHeader(String name, String initials, String role) {
     return StaffCard(
       padding: const EdgeInsets.all(20),
       child: Row(
@@ -252,9 +302,9 @@ class _OwnerProfileScreenState extends State<OwnerProfileScreen> {
                 ),
               ],
             ),
-            child: const Text(
-              'RS',
-              style: TextStyle(
+            child: Text(
+              initials,
+              style: const TextStyle(
                 color: CupertinoColors.white,
                 fontSize: 26,
                 fontWeight: FontWeight.w800,
@@ -268,7 +318,7 @@ class _OwnerProfileScreenState extends State<OwnerProfileScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  _fullName,
+                  name,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
@@ -279,9 +329,9 @@ class _OwnerProfileScreenState extends State<OwnerProfileScreen> {
                   ),
                 ),
                 const SizedBox(height: 2),
-                const Text(
-                  'Business Owner',
-                  style: TextStyle(
+                Text(
+                  role,
+                  style: const TextStyle(
                     fontSize: 13,
                     color: AppColors.textSecondary,
                     fontWeight: FontWeight.w600,

@@ -1,5 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart' show Icons;
+import '../services/auth_service.dart';
 import '../theme/app_theme.dart';
 import 'staff_top_actions.dart';
 
@@ -96,17 +97,17 @@ class StaffHeader extends StatelessWidget {
                     ),
                     const SizedBox(height: 2),
                     Row(
-                      children: const [
+                      children: [
                         Text(
-                          'Staff',
-                          style: TextStyle(
+                          AuthService.currentUsername,
+                          style: const TextStyle(
                             color: CupertinoColors.white,
                             fontSize: 26,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
-                        SizedBox(width: 6),
-                        Text('👋', style: TextStyle(fontSize: 22)),
+                        const SizedBox(width: 6),
+                        const Text('👋', style: TextStyle(fontSize: 22)),
                       ],
                     ),
                     if (dateLabel != null) ...[

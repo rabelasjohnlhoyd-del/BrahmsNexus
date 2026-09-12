@@ -1,4 +1,6 @@
 import 'package:flutter/cupertino.dart';
+import '../../models/app_user.dart';
+import '../../services/auth_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/staff_button.dart';
 import '../../widgets/staff_card.dart';
@@ -9,10 +11,7 @@ import '../auth/login_screen.dart';
 import 'edit_profile_screen.dart';
 
 /// Opened from the profile avatar at the top of every tab. Shows
-/// the logged-in cook's account details.
-///
-/// NOTE: Mock data for now — once Supabase/Firebase Auth are wired up,
-/// this reads the actual logged-in user's profile record.
+/// the actual logged-in staff member's account details.
 class ProfileScreen extends StatelessWidget {
   /// Whether this is being shown as a root tab (no back button) or
   /// pushed from the top avatar (needs back button).
@@ -23,71 +22,121 @@ class ProfileScreen extends StatelessWidget {
     this.isRootTab = false,
   });
 
+  static const List<String> _months = [
+    'January',
+    'February',
+    'March',
+    'April',
+    'May',
+    'June',
+    'July',
+    'August',
+    'September',
+    'October',
+    'November',
+    'December',
+  ];
+
   @override
   Widget build(BuildContext context) {
-    return CupertinoPageScaffold(
-      backgroundColor: AppColors.background,
-      navigationBar: StaffNavBar(
-        title: 'Profile',
-        showBackButton: !isRootTab,
-        trailing: const StaffTopActions(),
-      ),
-      child: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.all(20),
-          children: [
-            _buildProfileHeader(context),
-            
-            const SizedBox(height: 24),
+    return StreamBuilder<AppUser?>(
+      stream: AuthService.watchCurrentUser(),
+      initialData: AuthService.currentAppUser,
+      builder: (context, snapshot) {
+        final user = snapshot.data ?? AuthService.currentAppUser;
+        final username =
+            user?.username.isNotEmpty == true ? user!.username : 'Staff';
+        final fullName =
+            user?.fullName.isNotEmpty == true ? user!.fullName : username;
+        final contactNumber = user?.contactNumber.isNotEmpty == true
+            ? user!.contactNumber
+            : 'Not provided';
+        final position = user?.displayRole ?? 'Branch Cook';
+        final initials = user?.initials ?? 'ST';
+        final memberSince = user?.createdAt != null
+            ? '${_months[user!.createdAt!.month - 1]} ${user.createdAt!.year}'
+            : 'Recently joined';
 
-            const StaffSectionHeader(label: 'Account Details'),
-            const SizedBox(height: 8),
-            StaffCard(
-              padding: EdgeInsets.zero,
-              child: Column(
-                children: [
-                  _infoTile(CupertinoIcons.person, 'Username', 'juan.delacruz'),
-                  _divider(),
-                  _infoTile(CupertinoIcons.phone, 'Contact Number', '0917 123 4567'),
-                  _divider(),
-                  _infoTile(CupertinoIcons.building_2_fill, 'Current Branch', 'Sta. Cruz'),
-                  _divider(),
-                  _infoTile(CupertinoIcons.calendar, 'Member Since', 'January 2024'),
-                ],
-              ),
+        return CupertinoPageScaffold(
+          backgroundColor: AppColors.background,
+          navigationBar: StaffNavBar(
+            title: 'Profile',
+            showBackButton: !isRootTab,
+            trailing: const StaffTopActions(),
+          ),
+          child: SafeArea(
+            child: ListView(
+              padding: const EdgeInsets.all(20),
+              children: [
+                _buildProfileHeader(
+                  context: context,
+                  initials: initials,
+                  fullName: fullName,
+                  position: position,
+                ),
+                const SizedBox(height: 24),
+                const StaffSectionHeader(label: 'Account Details'),
+                const SizedBox(height: 8),
+                StaffCard(
+                  padding: EdgeInsets.zero,
+                  child: Column(
+                    children: [
+                      _infoTile(
+                          CupertinoIcons.person_crop_circle, 'Username', username),
+                      _divider(),
+                      _infoTile(
+                          CupertinoIcons.person, 'Full Name', fullName),
+                      _divider(),
+                      _infoTile(
+                          CupertinoIcons.phone, 'Contact Number', contactNumber),
+                      _divider(),
+                      _infoTile(CupertinoIcons.briefcase, 'Role / Position',
+                          position),
+                      _divider(),
+                      _infoTile(CupertinoIcons.calendar, 'Member Since',
+                          memberSince),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
+                const StaffSectionHeader(label: 'Preferences'),
+                const SizedBox(height: 12),
+                StaffCard(
+                  padding: EdgeInsets.zero,
+                  child: Column(
+                    children: [
+                      _settingsTile(
+                          CupertinoIcons.bell, 'Notifications', 'Enabled'),
+                      _divider(),
+                      _settingsTile(
+                          CupertinoIcons.lock_shield, 'Security'),
+                      _divider(),
+                      _settingsTile(
+                          CupertinoIcons.question_circle, 'Support'),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 32),
+                StaffButton(
+                  label: 'Log Out',
+                  color: AppColors.error.withValues(alpha: 0.1),
+                  textColor: AppColors.error,
+                  onPressed: () => _confirmLogout(context),
+                ),
+              ],
             ),
-            
-            const SizedBox(height: 24),
-
-            const StaffSectionHeader(label: 'Preferences'),
-            const SizedBox(height: 12),
-            StaffCard(
-              padding: EdgeInsets.zero,
-              child: Column(
-                children: [
-                  _settingsTile(CupertinoIcons.bell, 'Notifications', 'Enabled'),
-                  _divider(),
-                  _settingsTile(CupertinoIcons.lock_shield, 'Security'),
-                  _divider(),
-                  _settingsTile(CupertinoIcons.question_circle, 'Support'),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 32),
-            StaffButton(
-              label: 'Log Out',
-              color: AppColors.error.withValues(alpha: 0.1),
-              textColor: AppColors.error,
-              onPressed: () => _confirmLogout(context),
-            ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 
-  Widget _buildProfileHeader(BuildContext context) {
+  Widget _buildProfileHeader({
+    required BuildContext context,
+    required String initials,
+    required String fullName,
+    required String position,
+  }) {
     return StaffCard(
       padding: const EdgeInsets.all(24),
       child: Column(
@@ -98,7 +147,8 @@ class ProfileScreen extends StatelessWidget {
                 onTap: () {
                   Navigator.push(
                     context,
-                    CupertinoPageRoute(builder: (_) => const EditProfileScreen()),
+                    CupertinoPageRoute(
+                        builder: (_) => const EditProfileScreen()),
                   );
                 },
                 child: Stack(
@@ -110,7 +160,8 @@ class ProfileScreen extends StatelessWidget {
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         color: AppColors.accent,
-                        border: Border.all(color: AppColors.background, width: 3),
+                        border:
+                            Border.all(color: AppColors.background, width: 3),
                         boxShadow: [
                           BoxShadow(
                             color: AppColors.accentDark.withValues(alpha: 0.1),
@@ -120,9 +171,9 @@ class ProfileScreen extends StatelessWidget {
                         ],
                       ),
                       alignment: Alignment.center,
-                      child: const Text(
-                        'JD',
-                        style: TextStyle(
+                      child: Text(
+                        initials,
+                        style: const TextStyle(
                           color: CupertinoColors.white,
                           fontSize: 28,
                           fontWeight: FontWeight.bold,
@@ -149,13 +200,13 @@ class ProfileScreen extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 20),
-              const Expanded(
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Juan Dela Cruz',
-                      style: TextStyle(
+                      fullName,
+                      style: const TextStyle(
                         fontSize: 22,
                         fontWeight: FontWeight.w900,
                         color: AppColors.textPrimary,
@@ -163,20 +214,21 @@ class ProfileScreen extends StatelessWidget {
                       ),
                     ),
                     Text(
-                      'Branch Cook',
-                      style: TextStyle(
+                      position,
+                      style: const TextStyle(
                         fontSize: 13,
                         color: AppColors.textSecondary,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
-                    SizedBox(height: 8),
+                    const SizedBox(height: 8),
                     Row(
-                      children: [
-                        Icon(CupertinoIcons.checkmark_seal_fill, size: 14, color: AppColors.success),
+                      children: const [
+                        Icon(CupertinoIcons.checkmark_seal_fill,
+                            size: 14, color: AppColors.success),
                         SizedBox(width: 4),
                         Text(
-                          'Verified Staff',
+                          'Verified Account',
                           style: TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.w700,
@@ -250,13 +302,10 @@ class ProfileScreen extends StatelessWidget {
           ),
           CupertinoDialogAction(
             isDestructiveAction: true,
-            onPressed: () {
+            onPressed: () async {
               Navigator.of(dialogContext).pop();
-              // rootNavigator: true is essential here — ProfileScreen is
-              // pushed inside one tab's own nested Navigator
-              // (CupertinoTabView), so a plain Navigator.of(context)
-              // would only replace that tab's stack, leaving the outer
-              // StaffShell (and its bottom tab bar) still on screen.
+              await AuthService.signOut();
+              if (!context.mounted) return;
               Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
                 CupertinoPageRoute(builder: (_) => const LoginScreen()),
                 (route) => false,

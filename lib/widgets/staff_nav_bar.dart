@@ -1,4 +1,5 @@
 import 'package:flutter/cupertino.dart';
+import '../services/auth_service.dart';
 import '../theme/app_theme.dart';
 
 /// Which layout [StaffNavBar] renders. Every Staff screen uses the
@@ -37,7 +38,7 @@ class StaffNavBar extends StatelessWidget
     this.trailing,
     this.showBackButton = false,
     this.mode = StaffHeaderMode.compact,
-    this.greetingName = 'Staff',
+    this.greetingName,
   });
 
   final String title;
@@ -50,8 +51,9 @@ class StaffNavBar extends StatelessWidget
   final StaffHeaderMode mode;
 
   /// Name shown in the greeting block, e.g. "Good Evening, Staff".
-  /// Only used when [mode] is [StaffHeaderMode.greeting].
-  final String greetingName;
+  /// Only used when [mode] is [StaffHeaderMode.greeting]. Defaults
+  /// to [AuthService.currentUsername].
+  final String? greetingName;
 
   static const double _compactHeight = 56;
   static const double _greetingHeight = 56;
@@ -136,7 +138,8 @@ class StaffNavBar extends StatelessWidget
   Widget _buildGreeting(BuildContext context) {
     // Home greeting header — now simplified to match the compact
     // style, keeping everything clean and consistent.
-    final label = '${_greetingPrefix()}, $greetingName';
+    final name = greetingName ?? AuthService.currentUsername;
+    final label = '${_greetingPrefix()}, $name';
     return _buildHeaderContent(context, label, showBack: false);
   }
 

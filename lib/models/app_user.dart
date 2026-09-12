@@ -58,6 +58,43 @@ class AppUser {
     );
   }
 
+  String get initials {
+    final parts = fullName.trim().split(RegExp(r'\s+'));
+    if (parts.isEmpty || parts.first.isEmpty) {
+      return username.isNotEmpty ? username[0].toUpperCase() : 'U';
+    }
+    if (parts.length == 1) return parts.first[0].toUpperCase();
+    return (parts.first[0] + parts.last[0]).toUpperCase();
+  }
+
+  String get displayRole {
+    if (role == UserRole.owner) return 'Owner / Administrator';
+    if (position.isNotEmpty) return position;
+    return role.label;
+  }
+
+  AppUser copyWith({
+    String? uid,
+    String? username,
+    String? fullName,
+    String? contactNumber,
+    UserRole? role,
+    AccountStatus? status,
+    String? position,
+    DateTime? createdAt,
+  }) {
+    return AppUser(
+      uid: uid ?? this.uid,
+      username: username ?? this.username,
+      fullName: fullName ?? this.fullName,
+      contactNumber: contactNumber ?? this.contactNumber,
+      role: role ?? this.role,
+      status: status ?? this.status,
+      position: position ?? this.position,
+      createdAt: createdAt ?? this.createdAt,
+    );
+  }
+
   /// Fields written on registration. `createdAt` is deliberately NOT
   /// included here — [AuthService.register] merges in
   /// `FieldValue.serverTimestamp()` alongside this map, since a

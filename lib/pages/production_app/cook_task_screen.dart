@@ -1,5 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import '../../services/auth_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/staff_button.dart';
 import '../../widgets/staff_card.dart';
@@ -122,9 +123,11 @@ class _CookTaskScreenState extends State<CookTaskScreen> {
                     ),
                   ),
                   const SizedBox(height: 2),
-                  const Text(
-                    'Menes',
-                    style: TextStyle(
+                  Text(
+                    AuthService.currentUsername,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
                       color: AppColors.textPrimary,
                       fontSize: 34,
                       fontWeight: FontWeight.w900,

@@ -1,4 +1,6 @@
 import 'package:flutter/cupertino.dart';
+import '../../models/app_user.dart';
+import '../../services/auth_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/driver_button.dart';
 import '../../widgets/driver_card.dart';
@@ -8,7 +10,7 @@ import '../../widgets/driver_top_actions.dart';
 import '../auth/login_screen.dart';
 import 'edit_profile_screen.dart';
 
-/// Refined Driver Profile — immersive, feature-rich, and visually balanced.
+/// Refined Driver Profile — displays the logged-in driver's real account details.
 class DriverProfileScreen extends StatefulWidget {
   const DriverProfileScreen({super.key});
 
@@ -19,89 +21,129 @@ class DriverProfileScreen extends StatefulWidget {
 class _DriverProfileScreenState extends State<DriverProfileScreen> {
   @override
   Widget build(BuildContext context) {
-    return CupertinoPageScaffold(
-      backgroundColor: AppColors.background,
-      navigationBar: const DriverNavBar(
-        title: 'Profile',
-        trailing: DriverTopActions(),
-      ),
-      child: SafeArea(
-        bottom: false,
-        child: ListView(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
-          children: [
-            // --- PREMIUM HEADER ---
-            _buildProfileHeader(),
-            
-            const SizedBox(height: 20),
+    return StreamBuilder<AppUser?>(
+      stream: AuthService.watchCurrentUser(),
+      initialData: AuthService.currentAppUser,
+      builder: (context, snapshot) {
+        final user = snapshot.data ?? AuthService.currentAppUser;
+        final username =
+            user?.username.isNotEmpty == true ? user!.username : 'driver';
+        final fullName =
+            user?.fullName.isNotEmpty == true ? user!.fullName : username;
+        final contactNumber = user?.contactNumber.isNotEmpty == true
+            ? user!.contactNumber
+            : 'Not provided';
+        final position = user?.displayRole ?? 'Driver';
+        final initials = user?.initials ?? 'DR';
+        final workEmail = '$username@brahmsnexus.internal';
 
-            // --- PERSONAL DETAILS ---
-            const DriverSectionHeader(label: 'Account Information'),
-            const SizedBox(height: 8),
-            DriverCard(
-              padding: EdgeInsets.zero,
-              child: Column(
-                children: [
-                  _listTile(CupertinoIcons.person, 'Full Name', 'Ramon Santos'),
-                  _divider(),
-                  _listTile(CupertinoIcons.phone, 'Contact Number', '+63 917 555 8899'),
-                  _divider(),
-                  _listTile(CupertinoIcons.mail, 'Work Email', 'ramon.santos@brahms.ph'),
-                ],
-              ),
+        return CupertinoPageScaffold(
+          backgroundColor: AppColors.background,
+          navigationBar: const DriverNavBar(
+            title: 'Profile',
+            trailing: DriverTopActions(),
+          ),
+          child: SafeArea(
+            bottom: false,
+            child: ListView(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+              children: [
+                // --- PREMIUM HEADER ---
+                _buildProfileHeader(
+                  initials: initials,
+                  fullName: fullName,
+                  position: position,
+                ),
+
+                const SizedBox(height: 20),
+
+                // --- PERSONAL DETAILS ---
+                const DriverSectionHeader(label: 'Account Information'),
+                const SizedBox(height: 8),
+                DriverCard(
+                  padding: EdgeInsets.zero,
+                  child: Column(
+                    children: [
+                      _listTile(CupertinoIcons.person_crop_circle, 'Username',
+                          username),
+                      _divider(),
+                      _listTile(
+                          CupertinoIcons.person, 'Full Name', fullName),
+                      _divider(),
+                      _listTile(CupertinoIcons.phone, 'Contact Number',
+                          contactNumber),
+                      _divider(),
+                      _listTile(CupertinoIcons.mail, 'Work Email', workEmail),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 20),
+
+                // --- VEHICLE ---
+                const DriverSectionHeader(label: 'Vehicle & Documents'),
+                const SizedBox(height: 8),
+                DriverCard(
+                  padding: EdgeInsets.zero,
+                  child: Column(
+                    children: [
+                      _listTile(CupertinoIcons.car_detailed, 'Vehicle Type',
+                          'Multicab (L300)'),
+                      _divider(),
+                      _listTile(
+                          CupertinoIcons.number, 'Plate Number', 'ABC 1234'),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 20),
+
+                // --- SETTINGS ---
+                const DriverSectionHeader(label: 'Preferences'),
+                const SizedBox(height: 8),
+                DriverCard(
+                  padding: EdgeInsets.zero,
+                  child: Column(
+                    children: [
+                      _listTile(CupertinoIcons.bell, 'Notifications', 'Enabled',
+                          showChevron: true),
+                      _divider(),
+                      _listTile(CupertinoIcons.lock_shield,
+                          'Security & Privacy', null,
+                          showChevron: true),
+                      _divider(),
+                      _listTile(CupertinoIcons.question_circle,
+                          'Help & Support', null,
+                          showChevron: true),
+                      _divider(),
+                      _listTile(CupertinoIcons.info_circle,
+                          'About Brahms Nexus', null,
+                          showChevron: true),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 8),
+
+                DriverButton(
+                  label: 'Log Out',
+                  color: AppColors.error.withValues(alpha: 0.1),
+                  textColor: AppColors.error,
+                  onPressed: () => _confirmLogout(context),
+                ),
+              ],
             ),
-
-            const SizedBox(height: 20),
-
-            // --- VEHICLE ---
-            const DriverSectionHeader(label: 'Vehicle & Documents'),
-            const SizedBox(height: 8),
-            DriverCard(
-              padding: EdgeInsets.zero,
-              child: Column(
-                children: [
-                  _listTile(CupertinoIcons.car_detailed, 'Vehicle Type', 'Multicab (L300)'),
-                  _divider(),
-                  _listTile(CupertinoIcons.number, 'Plate Number', 'ABC 1234'),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 20),
-
-            // --- SETTINGS ---
-            const DriverSectionHeader(label: 'Preferences'),
-            const SizedBox(height: 8),
-            DriverCard(
-              padding: EdgeInsets.zero,
-              child: Column(
-                children: [
-                  _listTile(CupertinoIcons.bell, 'Notifications', 'Enabled', showChevron: true),
-                  _divider(),
-                  _listTile(CupertinoIcons.lock_shield, 'Security & Privacy', null, showChevron: true),
-                  _divider(),
-                  _listTile(CupertinoIcons.question_circle, 'Help & Support', null, showChevron: true),
-                  _divider(),
-                  _listTile(CupertinoIcons.info_circle, 'About Brahms Nexus', null, showChevron: true),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 8),
-
-            DriverButton(
-              label: 'Log Out',
-              color: AppColors.error.withValues(alpha: 0.1),
-              textColor: AppColors.error,
-              onPressed: () => _confirmLogout(context),
-            ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 
-  Widget _buildProfileHeader() {
+  Widget _buildProfileHeader({
+    required String initials,
+    required String fullName,
+    required String position,
+  }) {
     return DriverCard(
       padding: const EdgeInsets.all(24),
       child: Column(
@@ -112,7 +154,8 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
                 onTap: () {
                   Navigator.push(
                     context,
-                    CupertinoPageRoute(builder: (_) => const EditProfileScreen()),
+                    CupertinoPageRoute(
+                        builder: (_) => const EditProfileScreen()),
                   );
                 },
                 child: Stack(
@@ -124,7 +167,8 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         color: AppColors.accent,
-                        border: Border.all(color: AppColors.background, width: 3),
+                        border:
+                            Border.all(color: AppColors.background, width: 3),
                         boxShadow: [
                           BoxShadow(
                             color: AppColors.accentDark.withValues(alpha: 0.1),
@@ -134,9 +178,9 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
                         ],
                       ),
                       alignment: Alignment.center,
-                      child: const Text(
-                        'RS',
-                        style: TextStyle(
+                      child: Text(
+                        initials,
+                        style: const TextStyle(
                           color: CupertinoColors.white,
                           fontSize: 28,
                           fontWeight: FontWeight.bold,
@@ -167,18 +211,18 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'Ramon Santos',
-                      style: TextStyle(
+                    Text(
+                      fullName,
+                      style: const TextStyle(
                         fontSize: 22,
                         fontWeight: FontWeight.w900,
                         color: AppColors.textPrimary,
                         letterSpacing: -0.6,
                       ),
                     ),
-                    const Text(
-                      'Senior Delivery Partner',
-                      style: TextStyle(
+                    Text(
+                      position,
+                      style: const TextStyle(
                         fontSize: 13,
                         color: AppColors.textSecondary,
                         fontWeight: FontWeight.w600,
@@ -187,7 +231,8 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
                     const SizedBox(height: 8),
                     const Row(
                       children: [
-                        Icon(CupertinoIcons.checkmark_seal_fill, size: 14, color: AppColors.success),
+                        Icon(CupertinoIcons.checkmark_seal_fill,
+                            size: 14, color: AppColors.success),
                         SizedBox(width: 4),
                         Text(
                           'Verified Partner',
@@ -271,8 +316,10 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
           ),
           CupertinoDialogAction(
             isDestructiveAction: true,
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(ctx);
+              await AuthService.signOut();
+              if (!context.mounted) return;
               Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
                 CupertinoPageRoute(builder: (_) => const LoginScreen()),
                 (route) => false,

@@ -1,5 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import '../../services/auth_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/staff_button.dart';
 import '../../widgets/staff_card.dart';
@@ -14,13 +15,13 @@ class EditProfileScreen extends StatefulWidget {
 }
 
 class _EditProfileScreenState extends State<EditProfileScreen> {
-  final String _fullName = 'Juan Dela Cruz';
+  String _fullName = 'Staff Member';
   final String _age = '28';
-  final String _address = 'Sta. Cruz, Laguna';
+  final String _address = 'Laguna, Philippines';
   
-  String _currentPhone = '0917 123 4567';
-  String _currentEmail = 'juan.delacruz@example.com';
-  String _currentUsername = 'juan.delacruz';
+  String _currentPhone = '';
+  String _currentEmail = '';
+  String _currentUsername = '';
 
   late final TextEditingController _phoneController;
   late final TextEditingController _emailController;
@@ -32,6 +33,15 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   @override
   void initState() {
     super.initState();
+    final user = AuthService.currentAppUser;
+    if (user != null) {
+      if (user.fullName.isNotEmpty) _fullName = user.fullName;
+      if (user.contactNumber.isNotEmpty) _currentPhone = user.contactNumber;
+      if (user.username.isNotEmpty) {
+        _currentUsername = user.username;
+        _currentEmail = '${user.username}@brahmsnexus.internal';
+      }
+    }
     _phoneController = TextEditingController(text: _currentPhone);
     _emailController = TextEditingController(text: _currentEmail);
     _usernameController = TextEditingController(text: _currentUsername);
@@ -128,12 +138,19 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
   Future<void> _handleSave() async {
     setState(() => _isSaving = true);
-    await Future.delayed(const Duration(milliseconds: 1000));
+    final newPhone = _phoneController.text.trim();
+    final newUsername = _usernameController.text.trim();
+
+    await AuthService.updateProfile(
+      username: newUsername,
+      contactNumber: newPhone,
+    );
+
     if (!mounted) return;
     setState(() {
-      _currentPhone = _phoneController.text;
+      _currentPhone = newPhone;
       _currentEmail = _emailController.text;
-      _currentUsername = _usernameController.text;
+      _currentUsername = newUsername;
       _isSaving = false;
       _editingField = null;
     });

@@ -1,5 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import '../../models/branch_daily_inventory.dart';
+import '../../services/auth_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/staff_button.dart';
 import '../../widgets/staff_card.dart';
@@ -491,9 +492,11 @@ class _HomepageScreenState extends State<HomepageScreen> {
                     ),
                   ),
                   const SizedBox(height: 2),
-                  const Text(
-                    'Staff',
-                    style: TextStyle(
+                  Text(
+                    AuthService.currentUsername,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
                       color: AppColors.textPrimary,
                       fontSize: 34,
                       fontWeight: FontWeight.w900,

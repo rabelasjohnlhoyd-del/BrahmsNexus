@@ -1,4 +1,5 @@
 import 'package:flutter/cupertino.dart';
+import '../services/auth_service.dart';
 import '../theme/app_theme.dart';
 
 /// Which layout [DriverNavBar] renders. Mirrors
@@ -34,7 +35,7 @@ class DriverNavBar extends StatelessWidget
     this.trailing,
     this.showBackButton = false,
     this.mode = DriverHeaderMode.compact,
-    this.greetingName = 'Driver',
+    this.greetingName,
   });
 
   final String title;
@@ -48,8 +49,9 @@ class DriverNavBar extends StatelessWidget
   final DriverHeaderMode mode;
 
   /// Name shown in the greeting block, e.g. "Good Evening, Driver".
-  /// Only used when [mode] is [DriverHeaderMode.greeting].
-  final String greetingName;
+  /// Only used when [mode] is [DriverHeaderMode.greeting]. Defaults
+  /// to [AuthService.currentUsername].
+  final String? greetingName;
 
   static const double _compactHeight = 56;
   static const double _greetingHeight = 56;
@@ -134,7 +136,8 @@ class DriverNavBar extends StatelessWidget
   Widget _buildGreeting(BuildContext context) {
     // Home greeting header — now simplified to match the compact
     // style, keeping everything clean and consistent.
-    final label = '${_greetingPrefix()}, $greetingName';
+    final name = greetingName ?? AuthService.currentUsername;
+    final label = '${_greetingPrefix()}, $name';
     return _buildHeaderContent(context, label, showBack: false);
   }
 

@@ -1,5 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import '../../models/branch.dart';
+import '../../services/auth_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/driver_card.dart';
 import '../../widgets/driver_nav_bar.dart';
@@ -308,9 +309,11 @@ class _DriverHomepageScreenState extends State<DriverHomepageScreen> {
                     ),
                   ),
                   const SizedBox(height: 2),
-                  const Text(
-                    'Ramon',
-                    style: TextStyle(
+                  Text(
+                    AuthService.currentUsername,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
                       color: AppColors.textPrimary,
                       fontSize: 34,
                       fontWeight: FontWeight.w900,

@@ -121,17 +121,94 @@ class AdminWebShellState extends State<AdminWebShell> {
           ),
           TextButton(
             style: TextButton.styleFrom(foregroundColor: AdminWebColors.error),
-            onPressed: () {
+            onPressed: () async {
               Navigator.of(dialogContext).pop();
-              Navigator.of(context).pushAndRemoveUntil(
-                MaterialPageRoute(builder: (_) => const LoginScreen()),
-                    (route) => false,
-              );
+              await AuthService.signOut();
+              if (mounted) {
+                Navigator.of(context).pushAndRemoveUntil(
+                  MaterialPageRoute(builder: (_) => const LoginScreen()),
+                  (route) => false,
+                );
+              }
             },
             child: const Text('Log Out'),
           ),
         ],
       ),
+    );
+  }
+
+  void _showAdminProfile() {
+    final user = AuthService.currentAppUser;
+    final username = user?.username.isNotEmpty == true ? user!.username : 'admin';
+    final fullName = user?.fullName.isNotEmpty == true ? user!.fullName : 'System Administrator';
+    final role = user?.role.label ?? 'Admin / Owner';
+    final email = AuthService.currentFirebaseUser?.email ?? '$username@brahmsnexus.ph';
+    final contact = user?.contactNumber.isNotEmpty == true ? user!.contactNumber : 'N/A';
+
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            CircleAvatar(
+              backgroundColor: AdminWebColors.accent,
+              foregroundColor: Colors.white,
+              child: Text(user?.initials ?? 'A'),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(fullName, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  Text(role, style: const TextStyle(fontSize: 12, color: AdminWebColors.textSecondary)),
+                ],
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Divider(),
+            const SizedBox(height: 8),
+            _profileRow(Icons.account_circle, 'Username', username),
+            const SizedBox(height: 8),
+            _profileRow(Icons.email_outlined, 'Email', email),
+            const SizedBox(height: 8),
+            _profileRow(Icons.phone_outlined, 'Contact', contact),
+            const SizedBox(height: 8),
+            _profileRow(Icons.verified_user_outlined, 'Status', user?.status.label ?? 'Active'),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _profileRow(IconData icon, String label, String value) {
+    return Row(
+      children: [
+        Icon(icon, size: 16, color: AdminWebColors.accent),
+        const SizedBox(width: 8),
+        Text('$label: ', style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+        Expanded(
+          child: Text(
+            value,
+            textAlign: TextAlign.end,
+            style: const TextStyle(fontSize: 13, color: AdminWebColors.textPrimary),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
     );
   }
 
@@ -275,6 +352,7 @@ class AdminWebShellState extends State<AdminWebShell> {
                   icon: const Icon(Icons.account_circle_rounded, color: Colors.white, size: 26),
                   onSelected: (value) {
                     if (value == 'logout') _handleLogout();
+                    if (value == 'profile') _showAdminProfile();
                   },
                   itemBuilder: (context) => [
                     const PopupMenuItem(
