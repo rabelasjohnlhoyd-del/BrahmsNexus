@@ -636,3 +636,4 @@ class _ApplicantCard extends StatelessWidget {
   }
 }
 
+
