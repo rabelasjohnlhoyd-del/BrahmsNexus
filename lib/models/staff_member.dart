@@ -73,6 +73,48 @@ class StaffMember {
     if (firstName.isEmpty || lastName.isEmpty) return '?';
     return (firstName.substring(0, 1) + lastName.substring(0, 1)).toUpperCase();
   }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'first_name': firstName,
+      'middle_name': middleName,
+      'last_name': lastName,
+      'username': username,
+      'branch_name': branch,
+      'position': position,
+      'email': email,
+      'phone': phone,
+      'address': address,
+      'age': age,
+      'is_active': isActive,
+      'is_archived': isArchived,
+      'date_added': dateAdded.toIso8601String(),
+    };
+  }
+
+  factory StaffMember.fromMap(Map<String, dynamic> map) {
+    DateTime? parsedDate;
+    if (map['date_added'] != null) {
+      parsedDate = DateTime.tryParse(map['date_added'].toString());
+    }
+    return StaffMember(
+      id: map['id']?.toString() ?? '',
+      firstName: map['first_name']?.toString() ?? '',
+      middleName: map['middle_name']?.toString() ?? '',
+      lastName: map['last_name']?.toString() ?? '',
+      username: map['username']?.toString() ?? '',
+      branch: map['branch_name']?.toString() ?? map['branch']?.toString() ?? 'N/A',
+      position: map['position']?.toString() ?? '',
+      email: map['email']?.toString(),
+      phone: map['phone']?.toString(),
+      address: map['address']?.toString() ?? '',
+      age: map['age']?.toString() ?? '',
+      isActive: map['is_active'] as bool? ?? true,
+      isArchived: map['is_archived'] as bool? ?? false,
+      dateAdded: parsedDate,
+    );
+  }
 }
 
 final List<String> kBranchOptions = kSampleBranches.map((b) => b.fullName).toList();

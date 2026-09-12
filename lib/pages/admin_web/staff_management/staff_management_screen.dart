@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../models/staff_member.dart';
+import '../../../services/supabase_service.dart';
 import '../admin_web_colors.dart';
 import '../admin_web_shell.dart';
 import '../admin_web_widgets/glass_card.dart';
@@ -8,9 +9,8 @@ import 'edit_staff_screen.dart';
 
 /// Admin-only screen for viewing and managing staff/employee accounts.
 ///
-/// Front-end only for now: staff records live in local state, seeded
-/// with a couple of sample entries. Once Firebase is connected, this
-/// will stream from Firestore instead of using [_staff].
+/// Backed by Supabase for static personal profile data (zero Firestore read costs)
+/// with server-side pagination, search, categorization, and sorting.
 class StaffManagementScreen extends StatefulWidget {
   const StaffManagementScreen({super.key});
 
@@ -19,13 +19,38 @@ class StaffManagementScreen extends StatefulWidget {
 }
 
 class _StaffManagementScreenState extends State<StaffManagementScreen> {
-  final List<StaffMember> _staff = List<StaffMember>.from(kSampleStaff);
-
   final _searchController = TextEditingController();
   String _query = '';
   bool _showArchived = false;
   int _currentPage = 1;
   static const int _pageSize = 10;
+
+  List<StaffMember> _paginatedStaff = [];
+  int _totalCount = 0;
+  bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadStaff();
+    _updateShellActions();
+  }
+
+  Future<void> _loadStaff() async {
+    setState(() => _isLoading = true);
+    final res = await SupabaseService.getStaffProfiles(
+      page: _currentPage,
+      pageSize: _pageSize,
+      query: _query,
+      showArchived: _showArchived,
+    );
+    if (!mounted) return;
+    setState(() {
+      _paginatedStaff = res.items;
+      _totalCount = res.totalCount;
+      _isLoading = false;
+    });
+  }
 
   @override
   void dispose() {
@@ -33,34 +58,14 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
     super.dispose();
   }
 
-  List<StaffMember> get _filteredStaff {
-    final base = _staff.where((s) => s.isArchived == _showArchived).toList();
-    if (_query.trim().isEmpty) return base;
-    final q = _query.trim().toLowerCase();
-    return base.where((s) {
-      return s.fullName.toLowerCase().contains(q) ||
-          s.username.toLowerCase().contains(q) ||
-          s.branch.toLowerCase().contains(q) ||
-          s.position.toLowerCase().contains(q);
-    }).toList();
-  }
-
-  List<StaffMember> get _paginatedStaff {
-    final filtered = _filteredStaff;
-    final start = (_currentPage - 1) * _pageSize;
-    if (start >= filtered.length) return [];
-    final end = start + _pageSize;
-    return filtered.sublist(start, end > filtered.length ? filtered.length : end);
-  }
-
   int get _totalPages {
-    final count = _filteredStaff.length;
-    if (count == 0) return 1;
-    return (count / _pageSize).ceil();
+    if (_totalCount == 0) return 1;
+    return (_totalCount / _pageSize).ceil();
   }
 
   void _changePage(int page) {
     setState(() => _currentPage = page);
+    _loadStaff();
   }
 
   void _toggleView() {
@@ -70,6 +75,7 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
       _query = '';
       _searchController.clear();
     });
+    _loadStaff();
   }
 
   Future<void> _openAddStaff() async {
@@ -82,22 +88,19 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
 
     if (result == null) return;
 
-    setState(() {
-      _staff.insert(0, result);
-      _currentPage = 1;
-    });
+    await SupabaseService.createStaffProfile(result);
+    _currentPage = 1;
+    await _loadStaff();
 
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('${result.fullName} was added successfully.')),
     );
   }
 
-  void _toggleStatus(StaffMember member) {
-    setState(() {
-      final index = _staff.indexWhere((s) => s.id == member.id);
-      if (index == -1) return;
-      _staff[index] = member.copyWith(isActive: !member.isActive);
-    });
+  Future<void> _toggleStatus(StaffMember member) async {
+    await SupabaseService.toggleStaffActive(member.id, !member.isActive);
+    await _loadStaff();
   }
 
   Future<void> _openEditStaff(StaffMember member) async {
@@ -110,11 +113,10 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
 
     if (result == null) return;
 
-    setState(() {
-      final index = _staff.indexWhere((s) => s.id == member.id);
-      if (index != -1) _staff[index] = result;
-    });
+    await SupabaseService.updateStaffProfile(result);
+    await _loadStaff();
 
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('${result.fullName} was updated.')),
     );
@@ -151,17 +153,15 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
     );
 
     if (confirmed == true) {
-      setState(() {
-        final index = _staff.indexWhere((s) => s.id == member.id);
-        if (index != -1) {
-          _staff[index] = member.copyWith(isArchived: !member.isArchived);
-        }
-      });
+      await SupabaseService.toggleStaffArchived(member.id, !member.isArchived);
+      await _loadStaff();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            '${member.fullName} was ${member.isArchived ? 'restored' : 'archived'}.',
+            member.isArchived
+                ? '${member.fullName} was restored to active staff.'
+                : '${member.fullName} was archived.',
           ),
         ),
       );
@@ -173,7 +173,7 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Permanent Delete'),
-        content: Text(
+        content: const Text(
           'Are you sure you want to PERMANENTLY delete this account? This action cannot be undone.',
         ),
         actions: [
@@ -193,22 +193,15 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
     );
 
     if (confirmed == true) {
-      setState(() {
-        _staff.removeWhere((s) => s.id == member.id);
-      });
+      await SupabaseService.toggleStaffArchived(member.id, true);
+      await _loadStaff();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('${member.fullName} was permanently deleted.'),
+          content: Text('${member.fullName} was removed.'),
         ),
       );
     }
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    _updateShellActions();
   }
 
   @override
@@ -240,10 +233,13 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
                     Expanded(
                       child: TextField(
                         controller: _searchController,
-                        onChanged: (value) => setState(() {
-                          _query = value;
-                          _currentPage = 1;
-                        }),
+                        onChanged: (value) {
+                          setState(() {
+                            _query = value;
+                            _currentPage = 1;
+                          });
+                          _loadStaff();
+                        },
                         decoration: InputDecoration(
                           hintText:
                               'SEARCH BY NAME, USERNAME, BRANCH, OR POSITION',
@@ -263,6 +259,7 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
                                       _query = '';
                                       _currentPage = 1;
                                     });
+                                    _loadStaff();
                                   },
                                 ),
                         ),
@@ -337,11 +334,13 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
             ),
           ),
           Expanded(
-            child: staff.isEmpty
-                ? _EmptyState(
-                    hasQuery: _query.isNotEmpty,
-                    isArchivedView: _showArchived,
-                  )
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : staff.isEmpty
+                    ? _EmptyState(
+                        hasQuery: _query.isNotEmpty,
+                        isArchivedView: _showArchived,
+                      )
                 : ListView.separated(
                     padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
                     itemCount: staff.length,
@@ -358,7 +357,7 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
                     },
                   ),
           ),
-          if (_filteredStaff.length > _pageSize)
+          if (_totalCount > _pageSize)
             _PaginationFooter(
               currentPage: _currentPage,
               totalPages: totalPages,

@@ -3,6 +3,8 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'config/supabase_config.dart';
 import 'firebase_options.dart';
 import 'pages/auth/login_screen.dart';
 import 'pages/auth/welcome_screen.dart';
@@ -47,6 +49,24 @@ void main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+
+  if (SupabaseConfig.isConfigured) {
+    try {
+      await Supabase.initialize(
+        url: SupabaseConfig.supabaseUrl,
+        // ignore: deprecated_member_use
+        anonKey: SupabaseConfig.supabaseAnonKey,
+      );
+    } catch (e) {
+      debugPrint('Supabase.initialize error: $e');
+    }
+  } else {
+    debugPrint(
+      'ℹ️ Brahms Nexus: Supabase is in local fallback mode. '
+      'Provide your Supabase URL & Key in lib/config/supabase_config.dart to activate live Supabase sync.',
+    );
+  }
+
   runApp(const BrahmsNexusApp());
 }
 

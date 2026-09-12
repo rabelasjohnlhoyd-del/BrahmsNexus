@@ -3,7 +3,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/app_user.dart';
 import '../models/user_role.dart';
 import '../models/account_status.dart';
+import '../models/staff_member.dart';
 import 'notification_service.dart';
+import 'supabase_service.dart';
 
 /// Central place for every Firebase Auth + the `users` Firestore
 /// collection interaction. Nothing outside this file should call
@@ -47,8 +49,9 @@ class AuthService {
 
   /// Creates the Firebase Auth account and its matching
   /// `users/{uid}` Firestore record (status: pending, same as the
-  /// old mock flow). Returns a human-readable error message on
-  /// failure, or null on success.
+  /// old mock flow), and saves the heavy personal profile to Supabase
+  /// to save Firestore read and storage quotas. Returns a human-readable
+  /// error message on failure, or null on success.
   static Future<String?> register({
     required String username,
     required String password,
@@ -74,10 +77,26 @@ class AuthService {
         position: position,
       );
 
+      // Lightweight auth record in Firestore
       await _db.collection('users').doc(uid).set({
         ...user.toMap(),
         'createdAt': FieldValue.serverTimestamp(),
       });
+
+      // Split static profile info directly into Supabase (saving Firestore costs)
+      final names = fullName.trim().split(' ');
+      final firstName = names.isNotEmpty ? names.first : fullName;
+      final lastName = names.length > 1 ? names.sublist(1).join(' ') : '';
+      final staffProfile = StaffMember(
+        id: uid,
+        firstName: firstName,
+        lastName: lastName,
+        username: username.trim(),
+        branch: 'N/A',
+        position: position.isNotEmpty ? position : role.label,
+        phone: contactNumber,
+      );
+      await SupabaseService.createStaffProfile(staffProfile);
 
       // Automatically notify the Owner about this new applicant
       NotificationService.notifyOwnerOfNewRegistration(

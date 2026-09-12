@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../models/branch.dart';
+import '../../../services/supabase_service.dart';
 import '../admin_web_colors.dart';
 import '../admin_web_shell.dart';
 import '../admin_web_widgets/glass_card.dart';
@@ -13,12 +14,30 @@ class BranchManagementScreen extends StatefulWidget {
 }
 
 class _BranchManagementScreenState extends State<BranchManagementScreen> {
-  final List<Branch> _branches = List<Branch>.from(kSampleBranches);
+  List<Branch> _branches = List<Branch>.from(kSampleBranches);
   final _searchController = TextEditingController();
   String _query = '';
+  bool _isLoading = false;
 
   int _currentPage = 0;
   static const int _pageSize = 10;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadBranches();
+    _updateShellActions();
+  }
+
+  Future<void> _loadBranches() async {
+    setState(() => _isLoading = true);
+    final list = await SupabaseService.getBranches();
+    if (!mounted) return;
+    setState(() {
+      _branches = list;
+      _isLoading = false;
+    });
+  }
 
   @override
   void dispose() {
@@ -43,22 +62,11 @@ class _BranchManagementScreenState extends State<BranchManagementScreen> {
     );
 
     if (result != null) {
-      setState(() {
-        final index = _branches.indexWhere((b) => b.id == result.id);
-        if (index != -1) {
-          _branches[index] = result;
-        } else {
-          _branches.add(result);
-        }
-      });
+      await SupabaseService.saveBranch(result);
+      await _loadBranches();
+      if (!mounted) return;
       _updateShellActions();
     }
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    _updateShellActions();
   }
 
   @override
@@ -146,77 +154,79 @@ class _BranchManagementScreenState extends State<BranchManagementScreen> {
           ),
           const SizedBox(height: 20),
           Expanded(
-            child: branches.isEmpty
-                ? const Center(child: Text('No branches found.', style: TextStyle(color: AdminWebColors.textSecondary)))
-                : Column(
-                    children: [
-                      Expanded(
-                        child: ListView.separated(
-                          itemCount: (branches.length - (_currentPage * _pageSize)).clamp(0, _pageSize),
-                          separatorBuilder: (context, index) => const SizedBox(height: 12),
-                          itemBuilder: (context, index) {
-                            final b = branches[(_currentPage * _pageSize) + index];
-                            return GlassCard(
-                              padding: EdgeInsets.zero,
-                              child: Material(
-                                color: Colors.transparent,
-                                borderRadius: BorderRadius.circular(16),
-                                clipBehavior: Clip.antiAlias,
-                                child: ListTile(
-                                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                                  leading: Container(
-                                    width: 44,
-                                    height: 44,
-                                    decoration: BoxDecoration(
-                                      color: AdminWebColors.accent.withValues(alpha: 0.1),
-                                      borderRadius: BorderRadius.circular(10),
-                                    ),
-                                    alignment: Alignment.center,
-                                    child: const Icon(Icons.storefront_rounded,
-                                        color: AdminWebColors.accent),
-                                  ),
-                                  title: Text(
-                                    b.fullName,
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.w700,
-                                      color: AdminWebColors.textPrimary,
-                                      fontSize: 15,
-                                    ),
-                                  ),
-                                  subtitle: Text(
-                                    'Daily Route Priority: ${b.dailyRouteSequence}',
-                                    style: const TextStyle(
-                                      fontSize: 12.5,
-                                      color: AdminWebColors.textSecondary,
-                                    ),
-                                  ),
-                                  trailing: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      IconButton(
-                                        icon: const Icon(Icons.edit_note_rounded,
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : branches.isEmpty
+                    ? const Center(child: Text('No branches found.', style: TextStyle(color: AdminWebColors.textSecondary)))
+                    : Column(
+                        children: [
+                          Expanded(
+                            child: ListView.separated(
+                              itemCount: (branches.length - (_currentPage * _pageSize)).clamp(0, _pageSize),
+                              separatorBuilder: (context, index) => const SizedBox(height: 12),
+                              itemBuilder: (context, index) {
+                                final b = branches[(_currentPage * _pageSize) + index];
+                                return GlassCard(
+                                  padding: EdgeInsets.zero,
+                                  child: Material(
+                                    color: Colors.transparent,
+                                    borderRadius: BorderRadius.circular(16),
+                                    clipBehavior: Clip.antiAlias,
+                                    child: ListTile(
+                                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                      leading: Container(
+                                        width: 44,
+                                        height: 44,
+                                        decoration: BoxDecoration(
+                                          color: AdminWebColors.accent.withValues(alpha: 0.1),
+                                          borderRadius: BorderRadius.circular(10),
+                                        ),
+                                        alignment: Alignment.center,
+                                        child: const Icon(Icons.storefront_rounded,
                                             color: AdminWebColors.accent),
-                                        onPressed: () => _navigateToForm(b),
-                                        tooltip: 'Edit Branch',
                                       ),
-                                      IconButton(
-                                        icon: const Icon(Icons.delete_outline_rounded,
-                                            color: AdminWebColors.error),
-                                        onPressed: () => _confirmDelete(b),
-                                        tooltip: 'Delete Branch',
+                                      title: Text(
+                                        b.fullName,
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.w700,
+                                          color: AdminWebColors.textPrimary,
+                                          fontSize: 15,
+                                        ),
                                       ),
-                                    ],
+                                      subtitle: Text(
+                                        'Daily Route Priority: ${b.dailyRouteSequence}',
+                                        style: const TextStyle(
+                                          fontSize: 12.5,
+                                          color: AdminWebColors.textSecondary,
+                                        ),
+                                      ),
+                                      trailing: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          IconButton(
+                                            icon: const Icon(Icons.edit_note_rounded,
+                                                color: AdminWebColors.accent),
+                                            onPressed: () => _navigateToForm(b),
+                                            tooltip: 'Edit Branch',
+                                          ),
+                                          IconButton(
+                                            icon: const Icon(Icons.delete_outline_rounded,
+                                                color: AdminWebColors.error),
+                                            onPressed: () => _confirmDelete(b),
+                                            tooltip: 'Delete Branch',
+                                          ),
+                                        ],
+                                      ),
+                                    ),
                                   ),
-                                ),
-                              ),
-                            );
-                          },
-                        ),
+                                );
+                              },
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          _buildPagination(branches.length),
+                        ],
                       ),
-                      const SizedBox(height: 16),
-                      _buildPagination(branches.length),
-                    ],
-                  ),
           ),
         ],
       ),
@@ -226,26 +236,23 @@ class _BranchManagementScreenState extends State<BranchManagementScreen> {
   void _confirmDelete(Branch b) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogCtx) => AlertDialog(
         title: const Text('Confirm Delete'),
         content: Text('Are you sure you want to delete this branch: ${b.fullName}?'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogCtx),
             child: const Text('CANCEL'),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: AdminWebColors.error),
-            onPressed: () {
-              setState(() {
-                _branches.removeWhere((item) => item.id == b.id);
-                // Adjust current page if needed
-                if (_currentPage > 0 && (_branches.length <= _currentPage * _pageSize)) {
-                  _currentPage--;
-                }
-              });
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
+            onPressed: () async {
+              final nav = Navigator.of(dialogCtx);
+              final messenger = ScaffoldMessenger.of(context);
+              await SupabaseService.deleteBranch(b.id);
+              await _loadBranches();
+              nav.pop();
+              messenger.showSnackBar(
                 SnackBar(content: Text('Branch ${b.name} deleted.')),
               );
             },

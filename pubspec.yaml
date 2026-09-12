@@ -40,6 +40,9 @@ dependencies:
   firebase_auth: ^5.3.1
   cloud_firestore: ^5.4.4
 
+  # Supabase (Static / Master Data — Profiles, Branches, Master Pricing)
+  supabase_flutter: ^2.8.0
+
   # Camera capture — ginagamit sa Driver App (Stock Transfer at Bilao
   # Deliveries) para sa "take a picture" na confirmation proof.
   image_picker: ^1.1.2

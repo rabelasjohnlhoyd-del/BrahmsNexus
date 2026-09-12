@@ -22,6 +22,24 @@ class Branch {
   final int dailyRouteSequence;
 
   String get fullName => '$name, $municipality';
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'name': name,
+      'municipality': municipality,
+      'daily_route_sequence': dailyRouteSequence,
+    };
+  }
+
+  factory Branch.fromMap(Map<String, dynamic> map) {
+    return Branch(
+      id: map['id']?.toString() ?? '',
+      name: map['name']?.toString() ?? '',
+      municipality: map['municipality']?.toString() ?? '',
+      dailyRouteSequence: (map['daily_route_sequence'] as num?)?.toInt() ?? 1,
+    );
+  }
 }
 
 /// Actual branch list as given by the Owner (barangay-level detail).
