@@ -16,3 +16,4 @@ class SupabaseConfig {
       !supabaseUrl.contains('your-project-ref') &&
       !supabaseAnonKey.contains('your-anon-key');
 }
+
