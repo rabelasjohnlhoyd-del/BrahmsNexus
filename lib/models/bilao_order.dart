@@ -1,5 +1,7 @@
-/// Bilao package sizes and their prices, as stated by the client:
-/// Small ₱750, Medium ₱950, Large ₱1300.
+/// Bilao package sizes, prices, and cook commissions confirmed by client:
+/// - Small: 10 Pax | 1.25 kg | ₱650 | Commission: ₱62
+/// - Medium: 15 Pax | 1.75 kg | ₱900 | Commission: ₱87
+/// - Large: 20 Pax | 2.5 kg | ₱1,300 | Commission: ₱125
 enum BilaoSize {
   small,
   medium,
@@ -19,11 +21,44 @@ enum BilaoSize {
   double get price {
     switch (this) {
       case BilaoSize.small:
-        return 750;
+        return 650;
       case BilaoSize.medium:
-        return 950;
+        return 900;
       case BilaoSize.large:
         return 1300;
+    }
+  }
+
+  double get commission {
+    switch (this) {
+      case BilaoSize.small:
+        return 62;
+      case BilaoSize.medium:
+        return 87;
+      case BilaoSize.large:
+        return 125;
+    }
+  }
+
+  int get pax {
+    switch (this) {
+      case BilaoSize.small:
+        return 10;
+      case BilaoSize.medium:
+        return 15;
+      case BilaoSize.large:
+        return 20;
+    }
+  }
+
+  String get weightLabel {
+    switch (this) {
+      case BilaoSize.small:
+        return '1 Kilo and 250 Grams';
+      case BilaoSize.medium:
+        return '1 Kilo and 750 Grams';
+      case BilaoSize.large:
+        return '2 Kilos and 500 Grams';
     }
   }
 }

@@ -23,13 +23,12 @@ class SalesScreen extends StatefulWidget {
 }
 
 class _SalesScreenState extends State<SalesScreen> {
-  // From Homepage — mocked here for now, will be a single shared
-  // source once the backend is wired up.
+  // Standard daily allocation given by Owner:
+  // 20 Regular (250g) + 10 Medium (300g) + 10 B1T1 (400g) = 40 karne packs.
   static const _allocated =
-      InventoryCounts(karne: 35, mayo: 40, styro: 40, toyo: 7);
+      InventoryCounts(karne: 40, mayo: 40, styro: 40, toyo: 7);
 
-  // TODO(backend): should be editable by Owner in Admin Web (not
-  // hardcoded) — hasn't changed since launch, but should stay settable.
+  // Default price base for regular Sisig portion
   static const double _pricePerOrder = 130;
 
   final _karneController = TextEditingController();

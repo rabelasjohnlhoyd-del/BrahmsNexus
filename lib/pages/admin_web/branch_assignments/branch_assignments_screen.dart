@@ -34,8 +34,8 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
   }
 
   void _initializeAssignments() {
-    // Only include Branch Cooks
-    final branchCooks = kSampleStaff.where((s) => s.position == 'Branch Cook').toList();
+    // Include permanent Branch Cooks and Floating Cooks
+    final branchCooks = kSampleStaff.where((s) => s.position == 'Branch Cook' || s.position == 'Floating Cook').toList();
     
     _assignments = branchCooks.map((s) {
       return BranchAssignment(

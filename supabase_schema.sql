@@ -103,24 +103,26 @@ ON CONFLICT (id) DO UPDATE SET
     municipality = EXCLUDED.municipality,
     daily_route_sequence = EXCLUDED.daily_route_sequence;
 
--- Seed Bilao Packages (from Client Interview with Boss Maverick)
+-- Seed Bilao Packages (Official pricing & cook commissions from Client)
 INSERT INTO public.bilao_packages (id, size, price, description)
 VALUES
-    ('bp-small', 'Small', 750.00, 'Good for 4-6 pax with free special sauce'),
-    ('bp-medium', 'Medium', 950.00, 'Good for 8-10 pax with free special sauce'),
-    ('bp-large', 'Large', 1300.00, 'Good for 12-15 pax with free special sauce and extra condiments')
+    ('bp-small', 'Small', 650.00, 'Good for 10 Pax (1.25 kg) | Cook Commission: ₱62'),
+    ('bp-medium', 'Medium', 900.00, 'Good for 15 Pax (1.75 kg) | Cook Commission: ₱87'),
+    ('bp-large', 'Large', 1300.00, 'Good for 20 Pax (2.5 kg) | Cook Commission: ₱125')
 ON CONFLICT (id) DO UPDATE SET
     size = EXCLUDED.size,
     price = EXCLUDED.price,
     description = EXCLUDED.description;
 
--- Seed Master Inventory Items (The 4 core daily items + perishables)
+-- Seed Master Inventory Items (The 3 Karne portion types + consumables)
 INSERT INTO public.inventory_master_items (id, item_name, unit, category, default_allocation)
 VALUES
-    ('item-karne', 'Karne (Portioned Meat)', 'packs', 'Meat', 35),
+    ('item-karne-reg', 'Karne Regular (250g - ₱130)', 'pcs', 'Meat', 20),
+    ('item-karne-med', 'Karne Medium (300g - ₱160)', 'pcs', 'Meat', 10),
+    ('item-karne-b1t1', 'Karne B1T1 (400g - ₱210)', 'pcs', 'Meat', 10),
     ('item-mayo', 'Mayonnaise', 'packs', 'Sauces', 40),
     ('item-toyo', 'Special Toyo Bagnet Sauce', 'bottles', 'Sauces', 7),
-    ('item-styro', 'Styro Food Box', 'pcs', 'Packaging', 40),
+    ('item-styro', 'Styro Food Container Box', 'pcs', 'Packaging', 40),
     ('item-sibuyas', 'Sibuyas (Red Onion)', 'kg', 'Perishables', 5),
     ('item-sili', 'Sili (Green Chili)', 'kg', 'Perishables', 2)
 ON CONFLICT (id) DO UPDATE SET
@@ -129,14 +131,19 @@ ON CONFLICT (id) DO UPDATE SET
     category = EXCLUDED.category,
     default_allocation = EXCLUDED.default_allocation;
 
--- Seed Initial Staff Members
-INSERT INTO public.staff_profiles (id, first_name, middle_name, last_name, username, branch_id, branch_name, position, phone, address, age, is_active, is_archived)
+-- Seed Official Staff Members (Actual Client Personnel)
+INSERT INTO public.staff_profiles (id, first_name, middle_name, last_name, username, branch_id, branch_name, position, phone, address, is_active, is_archived)
 VALUES
-    ('emp1', 'Juan', '', 'Dela Cruz', 'juan_cruz', 'br1', 'Brgy. Gatid, Sta. Cruz', 'Branch Cook', '0917-111-2233', 'Sta. Cruz, Laguna', '28', true, false),
-    ('emp2', 'Maria', 'Clara', 'Reyes', 'maria_reyes', 'br3', 'Brgy. Sta. Clara Sur, Pila', 'Branch Cook', '0918-222-3344', 'Pila, Laguna', '25', true, false),
-    ('emp3', 'Pedro', '', 'Santos', 'pedro_s', 'br2', 'Brgy. Labuin, Pila', 'Branch Cook', '0919-333-4455', 'Pila, Laguna', '31', true, false),
-    ('emp4', 'Ricardo', '', 'Dalisay', 'carding_d', 'br5', 'Brgy. San Francisco, Victoria', 'Branch Cook', '0920-444-5566', 'Victoria, Laguna', '35', true, false),
-    ('emp5', 'Danilo', 'P', 'Ramos', 'driver_danilo', NULL, 'N/A', 'Driver', '0921-555-6677', 'Calauan, Laguna', '34', true, false),
-    ('emp6', 'Menes', '', 'Bantug', 'menes_cook', NULL, 'N/A', 'Production Area Cook', '0922-666-7788', 'Pila, Laguna', '29', true, false),
-    ('emp7', 'Abby', '', 'Torres', 'abby_cutter', NULL, 'N/A', 'Production Area Meat Cutter', '0923-777-8899', 'Sta. Cruz, Laguna', '26', true, false)
+    ('emp1', 'Leany', 'Hernandez', 'Malla', 'leany_malla', 'br6', 'Brgy. Dayap, Calauan', 'Branch Cook', '09917063234', 'San Francisco, Victoria, Laguna', true, false),
+    ('emp2', 'Jobelle', 'T', 'Fuentes', 'jobelle_fuentes', 'br2', 'Brgy. Labuin, Pila', 'Branch Cook', '09260715146', 'Linga, Pila, Laguna', true, false),
+    ('emp3', 'Virgenita', '', 'Espiritu', 'virgenita_espiritu', 'br4', 'Brgy. Nanhaya, Victoria', 'Branch Cook', '09853652758', 'San Roque, Victoria, Laguna', true, false),
+    ('emp4', 'Jovelle', 'P', 'Camila', 'jovelle_camila', 'br1', 'Brgy. Gatid, Sta. Cruz', 'Branch Cook', '09655818582', 'Gatid, Sta. Cruz, Laguna', true, false),
+    ('emp5', 'Patricia Mharie', 'M', 'Espiritu', 'patricia_espiritu', 'br3', 'Brgy. Sta. Clara Sur, Pila', 'Branch Cook', '09152319790', 'San Francisco, Victoria, Laguna', true, false),
+    ('emp6', 'Alma', 'D', 'Agonos', 'alma_agonos', 'br5', 'Brgy. San Francisco, Victoria', 'Branch Cook', '09949178538', 'San Roque, Victoria, Laguna', true, false),
+    ('emp7', 'Menes', '', 'Bantug', 'menes_cook', NULL, 'N/A', 'Production Cook', 'Pending Info', 'Production Area', true, false),
+    ('emp8', 'Abby', '', 'Torres', 'abby_cutter', NULL, 'N/A', 'Production Meat Cutter', 'Pending Info', 'Production Area', true, false),
+    ('emp9', 'Danilo', '', 'Ramos', 'danilo_driver', NULL, 'N/A', 'Driver', 'Pending Info', 'Logistics / Delivery', true, false),
+    ('emp10', 'Extra Cook 1', '', '(Floating)', 'floating_cook_1', NULL, 'Floating / Any Branch', 'Floating Cook', 'Pending Info', 'Laguna', true, false),
+    ('emp11', 'Extra Cook 2', '', '(Floating)', 'floating_cook_2', NULL, 'Floating / Any Branch', 'Floating Cook', 'Pending Info', 'Laguna', true, false),
+    ('emp12', 'Extra Cook 3', '', '(Floating)', 'floating_cook_3', NULL, 'Floating / Any Branch', 'Floating Cook', 'Pending Info', 'Laguna', true, false)
 ON CONFLICT (username) DO NOTHING;

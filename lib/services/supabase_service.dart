@@ -323,9 +323,33 @@ class SupabaseService {
     final client = _client;
     if (client == null) {
       return [
-        {'id': 'bp-small', 'size': 'Small', 'price': 750.0, 'description': 'Good for 4-6 pax'},
-        {'id': 'bp-medium', 'size': 'Medium', 'price': 950.0, 'description': 'Good for 8-10 pax'},
-        {'id': 'bp-large', 'size': 'Large', 'price': 1300.0, 'description': 'Good for 12-15 pax'},
+        {
+          'id': 'bp-small',
+          'size': 'Small',
+          'price': 650.0,
+          'commission': 62.0,
+          'pax': 10,
+          'weight': '1 Kilo and 250 Grams',
+          'description': 'Good for 10 Pax (1.25 kg)',
+        },
+        {
+          'id': 'bp-medium',
+          'size': 'Medium',
+          'price': 900.0,
+          'commission': 87.0,
+          'pax': 15,
+          'weight': '1 Kilo and 750 Grams',
+          'description': 'Good for 15 Pax (1.75 kg)',
+        },
+        {
+          'id': 'bp-large',
+          'size': 'Large',
+          'price': 1300.0,
+          'commission': 125.0,
+          'pax': 20,
+          'weight': '2 Kilos and 500 Grams',
+          'description': 'Good for 20 Pax (2.5 kg)',
+        },
       ];
     }
 

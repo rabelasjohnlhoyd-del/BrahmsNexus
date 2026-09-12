@@ -12,10 +12,10 @@ class BilaoPricingScreen extends StatefulWidget {
 }
 
 class _BilaoPricingScreenState extends State<BilaoPricingScreen> {
-  // In-memory mock prices based on enum defaults
+  // In-memory prices based on client's exact rules
   final Map<BilaoSize, double> _prices = {
-    BilaoSize.small: 750.0,
-    BilaoSize.medium: 950.0,
+    BilaoSize.small: 650.0,
+    BilaoSize.medium: 900.0,
     BilaoSize.large: 1300.0,
   };
 
@@ -124,9 +124,9 @@ class _BilaoPricingScreenState extends State<BilaoPricingScreen> {
                               color: AdminWebColors.textPrimary,
                             ),
                           ),
-                          subtitle: const Text(
-                            'Base price for a single unit',
-                            style: TextStyle(fontSize: 12, color: AdminWebColors.textSecondary),
+                          subtitle: Text(
+                            'Good for ${size.pax} Pax (${size.weightLabel}) · Cook Commission: ₱${size.commission.toStringAsFixed(0)}',
+                            style: const TextStyle(fontSize: 12, color: AdminWebColors.textSecondary),
                           ),
                           trailing: Row(
                             mainAxisSize: MainAxisSize.min,
