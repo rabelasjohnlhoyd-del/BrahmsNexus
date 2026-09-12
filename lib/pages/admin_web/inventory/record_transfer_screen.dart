@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../models/branch.dart';
 import '../../../models/inventory_item.dart';
+import '../../../services/notification_service.dart';
 import '../admin_web_colors.dart';
 import '../admin_web_shell.dart';
 import '../admin_web_widgets/glass_card.dart';
@@ -65,6 +66,12 @@ class _RecordTransferScreenState extends State<RecordTransferScreen> {
       dateTime: DateTime.now(),
     );
 
+    await NotificationService.notifyDriverOfDeliveryTask(
+      branchName: dest.fullName,
+      quantityKg: qty,
+    );
+
+    if (!mounted) return;
     Navigator.of(context).pop(log);
   }
 

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../models/announcement.dart';
+import '../../../services/notification_service.dart';
 import '../admin_web_colors.dart';
 import '../admin_web_shell.dart';
 import '../admin_web_widgets/glass_card.dart';
@@ -67,8 +68,11 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
 
     setState(() => _isPosting = true);
     _updateShellActions();
-    
+
     await Future.delayed(const Duration(milliseconds: 500));
+    await NotificationService.notifyStaffAndDriversOfAnnouncement(
+      messageContent: text,
+    );
     if (!mounted) return;
 
     setState(() {

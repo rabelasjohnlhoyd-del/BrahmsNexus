@@ -1,5 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import '../../models/announcement.dart';
+import '../../services/notification_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/staff_button.dart';
 import '../../widgets/staff_card.dart';
@@ -59,7 +60,12 @@ class _OwnerAnnouncementsScreenState extends State<OwnerAnnouncementsScreen> {
     if (text.isEmpty) return;
 
     setState(() => _isPosting = true);
-    await Future.delayed(const Duration(milliseconds: 500));
+
+    // Broadcast notification to all Staff and Drivers
+    await NotificationService.notifyStaffAndDriversOfAnnouncement(
+      messageContent: text,
+    );
+
     if (!mounted) return;
 
     setState(() {

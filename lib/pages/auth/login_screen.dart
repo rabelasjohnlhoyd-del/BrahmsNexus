@@ -1,8 +1,8 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
-import '../../_legacy/mock_accounts.dart';
 import '../../models/app_user.dart';
 import '../../models/user_role.dart';
+import 'mock_accounts.dart';
 import '../../services/auth_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/auth_brand_mark.dart';

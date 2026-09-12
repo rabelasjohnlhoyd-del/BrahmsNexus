@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import '../pages/admin_web/admin_web_colors.dart';
+import '../services/auth_service.dart';
+import '../services/notification_service.dart';
+import 'admin_notifications_dialog.dart';
 
 /// Standardized top bar for Admin Web pages. Provides consistent
 /// page labeling and access to notifications/profile.
@@ -10,12 +13,14 @@ class AdminTopBar extends StatelessWidget implements PreferredSizeWidget {
     this.subtitle,
     this.onLogout,
     this.actions = const [],
+    this.onNavigateRoute,
   });
 
   final String title;
   final String? subtitle;
   final VoidCallback? onLogout;
   final List<Widget> actions;
+  final void Function(String route)? onNavigateRoute;
 
   static const double _height = 100;
 
@@ -74,13 +79,30 @@ class AdminTopBar extends StatelessWidget implements PreferredSizeWidget {
               color: Colors.white.withValues(alpha: 0.2),
             ),
           // Notification Bell
-          IconButton(
-            onPressed: () {},
-            icon: Badge(
-              label: const Text('2'),
-              backgroundColor: AdminWebColors.warning,
-              child: const Icon(Icons.notifications_outlined, color: Colors.white),
+          StreamBuilder<int>(
+            stream: NotificationService.watchUnreadCount(
+              role: 'owner',
+              userId: AuthService.currentUserId,
             ),
+            builder: (context, snapshot) {
+              final unread = snapshot.data ?? 0;
+              return IconButton(
+                tooltip: 'Notifications',
+                onPressed: () => AdminNotificationsDialog.show(
+                  context,
+                  onNavigateRoute: onNavigateRoute,
+                ),
+                icon: unread > 0
+                    ? Badge(
+                        label: Text('$unread'),
+                        backgroundColor: AdminWebColors.warning,
+                        child: const Icon(Icons.notifications_rounded,
+                            color: Colors.white),
+                      )
+                    : const Icon(Icons.notifications_outlined,
+                        color: Colors.white),
+              );
+            },
           ),
           const SizedBox(width: 12),
           // Profile Section

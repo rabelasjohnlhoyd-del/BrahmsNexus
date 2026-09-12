@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'admin_web_colors.dart';
+import '../../services/auth_service.dart';
+import '../../services/notification_service.dart';
+import '../../widgets/admin_notifications_dialog.dart';
 import '../../widgets/admin_sidebar.dart';
 import '../../widgets/admin_top_bar.dart';
 import '../auth/login_screen.dart';
@@ -132,6 +135,31 @@ class AdminWebShellState extends State<AdminWebShell> {
     );
   }
 
+  void _handleNavigateRoute(String route) {
+    int targetIndex = 0;
+    switch (route) {
+      case 'account_approvals':
+        targetIndex = 2; // Account Approvals
+        break;
+      case 'inventory':
+        targetIndex = 4; // Inventory
+        break;
+      case 'announcements':
+        targetIndex = 8; // Announcements
+        break;
+      case 'sales':
+        targetIndex = 5; // Sales & Payroll
+        break;
+      default:
+        targetIndex = 0;
+    }
+    setState(() {
+      _selectedIndex = targetIndex;
+      _currentActions = [];
+      _customTitle = null;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Theme(
@@ -169,6 +197,7 @@ class AdminWebShellState extends State<AdminWebShell> {
                           subtitle: 'Brahms Nexus Management System',
                           onLogout: _handleLogout,
                           actions: _currentActions,
+                          onNavigateRoute: _handleNavigateRoute,
                         ),
                         Expanded(
                           child: SafeArea(
@@ -216,14 +245,30 @@ class AdminWebShellState extends State<AdminWebShell> {
                 ),
               ),
               actions: [
-                IconButton(
-                  tooltip: 'Notifications',
-                  onPressed: () {},
-                  icon: Badge(
-                    label: const Text('2'),
-                    backgroundColor: AdminWebColors.warning,
-                    child: const Icon(Icons.notifications_outlined, color: Colors.white, size: 22),
+                StreamBuilder<int>(
+                  stream: NotificationService.watchUnreadCount(
+                    role: 'owner',
+                    userId: AuthService.currentUserId,
                   ),
+                  builder: (context, snapshot) {
+                    final unread = snapshot.data ?? 0;
+                    return IconButton(
+                      tooltip: 'Notifications',
+                      onPressed: () => AdminNotificationsDialog.show(
+                        context,
+                        onNavigateRoute: _handleNavigateRoute,
+                      ),
+                      icon: unread > 0
+                          ? Badge(
+                              label: Text('$unread'),
+                              backgroundColor: AdminWebColors.warning,
+                              child: const Icon(Icons.notifications_rounded,
+                                  color: Colors.white, size: 22),
+                            )
+                          : const Icon(Icons.notifications_outlined,
+                              color: Colors.white, size: 22),
+                    );
+                  },
                 ),
                 PopupMenuButton<String>(
                   offset: const Offset(0, 45),

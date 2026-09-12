@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/app_user.dart';
 import '../models/user_role.dart';
 import '../models/account_status.dart';
+import 'notification_service.dart';
 
 /// Central place for every Firebase Auth + the `users` Firestore
 /// collection interaction. Nothing outside this file should call
@@ -15,6 +16,22 @@ class AuthService {
 
   static final FirebaseAuth _auth = FirebaseAuth.instance;
   static final FirebaseFirestore _db = FirebaseFirestore.instance;
+
+  static AppUser? currentAppUser;
+  static AppUser? get currentUser => currentAppUser;
+  static UserRole get currentRole => currentAppUser?.role ?? UserRole.owner;
+  static String get currentUserId => currentAppUser?.uid ?? 'guest';
+  static String get currentPosition => currentAppUser?.position ?? '';
+
+  /// Returns the notification audience identifier based on role and position.
+  static String get currentNotificationRole {
+    if (currentAppUser == null) return 'owner';
+    if (currentAppUser!.role == UserRole.owner) return 'owner';
+    final pos = currentAppUser!.position.toLowerCase();
+    if (pos.contains('driver')) return 'driver';
+    if (pos.contains('production') || pos.contains('cutter')) return 'production';
+    return 'staff';
+  }
 
   /// The app's login form asks for a "username" (matching the existing
   /// UI/UX and the old `mock_accounts.dart`), but Firebase Auth's
@@ -61,6 +78,13 @@ class AuthService {
         ...user.toMap(),
         'createdAt': FieldValue.serverTimestamp(),
       });
+
+      // Automatically notify the Owner about this new applicant
+      NotificationService.notifyOwnerOfNewRegistration(
+        fullName: fullName,
+        position: position.isNotEmpty ? position : role.label,
+      );
+
       return null;
     } on FirebaseAuthException catch (e) {
       return _friendlyAuthError(e);
@@ -92,7 +116,9 @@ class AuthService {
         return null;
       }
 
-      return AppUser.fromMap(uid, doc.data()!);
+      final user = AppUser.fromMap(uid, doc.data()!);
+      currentAppUser = user;
+      return user;
     } on FirebaseAuthException catch (e) {
       onError(_friendlyAuthError(e));
       return null;
@@ -139,7 +165,7 @@ class AuthService {
           'createdAt': FieldValue.serverTimestamp(),
         });
       }
-      return AppUser(
+      final user = AppUser(
         uid: uid,
         username: username,
         fullName: 'Business Owner',
@@ -147,12 +173,17 @@ class AuthService {
         role: UserRole.owner,
         status: AccountStatus.approved,
       );
+      currentAppUser = user;
+      return user;
     } catch (_) {
       return null;
     }
   }
 
-  static Future<void> signOut() => _auth.signOut();
+  static Future<void> signOut() {
+    currentAppUser = null;
+    return _auth.signOut();
+  }
 
   /// Real-time list of every registered account (all statuses) — the
   /// single source both Admin Web's and the Owner App's Account
@@ -180,6 +211,17 @@ class AuthService {
       String uid, AccountStatus status) async {
     try {
       await _db.collection('users').doc(uid).update({'status': status.name});
+      // If approved, notify staff/driver that they are approved
+      if (status == AccountStatus.approved) {
+        try {
+          final doc = await _db.collection('users').doc(uid).get();
+          final name = doc.data()?['fullName'] as String? ?? 'Staff';
+          NotificationService.notifyStaffOfAccountApproved(
+            userId: uid,
+            fullName: name,
+          );
+        } catch (_) {}
+      }
       return true;
     } catch (_) {
       return false;
