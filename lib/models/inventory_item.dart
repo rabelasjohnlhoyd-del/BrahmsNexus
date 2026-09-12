@@ -84,3 +84,4 @@ class WarehouseStock {
   double get unallocatedKg => totalKg - allocatedKg;
 }
 
+
