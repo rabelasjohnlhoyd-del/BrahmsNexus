@@ -1,5 +1,8 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import '../../_legacy/mock_accounts.dart';
+import '../../models/app_user.dart';
+import '../../models/user_role.dart';
 import '../../services/auth_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/auth_brand_mark.dart';
@@ -55,9 +58,49 @@ class _LoginScreenState extends State<LoginScreen> {
 
     setState(() => _isLoading = true);
 
+    final username = _usernameController.text.trim();
+    final password = _passwordController.text;
+
+    // Check if it's a known demo account (e.g. owner / owner123)
+    final mock = kMockAccounts[username];
+    if (mock != null && mock.password == password) {
+      AppUser? liveUser;
+      if (mock.role == UserRole.owner) {
+        liveUser = await AuthService.signInOrSeedOwner(
+          username: username,
+          password: password,
+        );
+      }
+
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+
+      final user = liveUser ??
+          AppUser(
+            uid: 'demo_$username',
+            username: username,
+            fullName: username == 'owner' ? 'Business Owner' : username,
+            contactNumber: '09123456789',
+            role: mock.role,
+            status: mock.status,
+            position: mock.position,
+          );
+
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (_) => RoleRouter.resolveDestination(
+            role: user.role,
+            status: user.status,
+            position: user.position,
+          ),
+        ),
+      );
+      return;
+    }
+
     final user = await AuthService.signIn(
-      username: _usernameController.text.trim(),
-      password: _passwordController.text,
+      username: username,
+      password: password,
       onError: (message) {
         if (!mounted) return;
         setState(() {
@@ -77,6 +120,90 @@ class _LoginScreenState extends State<LoginScreen> {
           role: user.role,
           status: user.status,
           position: user.position,
+        ),
+      ),
+    );
+  }
+
+  void _showDemoAccounts() {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetContext) => DraggableScrollableSheet(
+        initialChildSize: 0.5,
+        minChildSize: 0.3,
+        maxChildSize: 0.9,
+        expand: false,
+        builder: (context, scrollController) => SafeArea(
+          child: ListView(
+            controller: scrollController,
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: AppColors.border,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const Text(
+                'Dev demo accounts',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textPrimary,
+                  fontSize: 16,
+                ),
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                'Tap any account to populate the login credentials.',
+                style: TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 12,
+                ),
+              ),
+              const SizedBox(height: 12),
+              ...(kIsWeb
+                      ? kMockAccounts.entries
+                          .where((e) => e.value.role == UserRole.owner)
+                      : kMockAccounts.entries)
+                  .map(
+                (e) => ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: CircleAvatar(
+                    backgroundColor: AppColors.accent.withValues(alpha: 0.1),
+                    child: Icon(
+                      e.value.role == UserRole.owner
+                          ? Icons.admin_panel_settings_rounded
+                          : Icons.person_outline,
+                      color: AppColors.accent,
+                    ),
+                  ),
+                  title: Text(
+                    e.key,
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  subtitle: Text(
+                    '${e.value.role.label} · ${e.value.status.label}${e.value.position.isNotEmpty ? " (${e.value.position})" : ""}',
+                  ),
+                  trailing: const Icon(Icons.arrow_forward_ios_rounded,
+                      size: 14, color: AppColors.textSecondary),
+                  onTap: () {
+                    _usernameController.text = e.key;
+                    _passwordController.text = e.value.password;
+                    Navigator.of(sheetContext).pop();
+                  },
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -270,6 +397,20 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                           ),
                         ],
+                      ),
+                      const SizedBox(height: 24),
+                      Center(
+                        child: TextButton.icon(
+                          onPressed: _showDemoAccounts,
+                          icon: const Icon(Icons.science_outlined, size: 16),
+                          label: const Text('Dev: demo accounts'),
+                          style: TextButton.styleFrom(
+                            foregroundColor:
+                                AppColors.accent.withValues(alpha: 0.7),
+                            textStyle: const TextStyle(
+                                fontSize: 12, fontWeight: FontWeight.w600),
+                          ),
+                        ),
                       ),
                       const SizedBox(height: 8),
                     ],

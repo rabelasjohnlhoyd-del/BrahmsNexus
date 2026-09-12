@@ -1,5 +1,5 @@
-import '../../models/account_status.dart';
-import '../../models/user_role.dart';
+import '../models/account_status.dart';
+import '../models/user_role.dart';
 
 /// TEMPORARY, DEV-ONLY stand-in for a backend.
 ///

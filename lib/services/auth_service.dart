@@ -102,6 +102,56 @@ class AuthService {
     }
   }
 
+  /// Signs in or automatically seeds the Owner account into Firebase Auth +
+  /// Firestore if it does not exist yet.
+  static Future<AppUser?> signInOrSeedOwner({
+    required String username,
+    required String password,
+  }) async {
+    try {
+      final email = _usernameToEmail(username);
+      UserCredential credential;
+      try {
+        credential = await _auth.signInWithEmailAndPassword(
+          email: email,
+          password: password,
+        );
+      } on FirebaseAuthException catch (e) {
+        if (e.code == 'user-not-found' || e.code == 'invalid-credential') {
+          credential = await _auth.createUserWithEmailAndPassword(
+            email: email,
+            password: password,
+          );
+        } else {
+          return null;
+        }
+      }
+
+      final uid = credential.user!.uid;
+      final doc = await _db.collection('users').doc(uid).get();
+      if (!doc.exists) {
+        await _db.collection('users').doc(uid).set({
+          'username': username,
+          'fullName': 'Business Owner',
+          'contactNumber': '09123456789',
+          'role': 'owner',
+          'status': 'approved',
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+      }
+      return AppUser(
+        uid: uid,
+        username: username,
+        fullName: 'Business Owner',
+        contactNumber: '09123456789',
+        role: UserRole.owner,
+        status: AccountStatus.approved,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
   static Future<void> signOut() => _auth.signOut();
 
   /// Real-time list of every registered account (all statuses) — the
