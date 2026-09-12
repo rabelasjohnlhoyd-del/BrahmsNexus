@@ -8,13 +8,13 @@ class SupabaseConfig {
   /// Supabase project URL loaded via --dart-define=SUPABASE_URL=... or fallback.
   static const String supabaseUrl = String.fromEnvironment(
     'SUPABASE_URL',
-    defaultValue: 'https://your-project-ref.supabase.co/',
+    defaultValue: 'https://kumasxtsfkjjvlkptsyz.supabase.co/rest/v1/',
   );
 
   /// Supabase anon public key loaded via --dart-define=SUPABASE_ANON_KEY=... or fallback.
   static const String supabaseAnonKey = String.fromEnvironment(
     'SUPABASE_ANON_KEY',
-    defaultValue: 'your-anon-key-here',
+    defaultValue: 'sb_publishable_Q20Rci63zBGFfU8BhB-Vnw_Fa1kWWYT',
   );
 
   /// Returns true if the configuration has been updated with real project credentials.
