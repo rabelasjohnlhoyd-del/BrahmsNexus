@@ -332,6 +332,84 @@ class AuthService {
     }
   }
 
+  /// Permanently deactivates (freezes) a staff account.
+  /// Persists `status: 'deactivated'` AND `is_active: false` to Firestore
+  /// so the login screen can check it on the next sign-in attempt, even
+  /// after an app restart. Also updates Supabase in-memory state.
+  static Future<bool> deactivateStaffAccount(String uid, String staffId) async {
+    try {
+      // 1) Persist to Firestore users collection (survives restarts)
+      await _db.collection('users').doc(uid).update({
+        'status': AccountStatus.deactivated.name,
+        'is_active': false,
+      });
+      // 2) Also update Supabase static profile (for Branch Assignments display)
+      await SupabaseService.toggleStaffActive(staffId, false);
+      return true;
+    } catch (e) {
+      // Even if Firestore UID lookup fails (e.g. staff not yet in Firestore),
+      // fall back to just Supabase in-memory toggle so UI still reflects it.
+      await SupabaseService.toggleStaffActive(staffId, false);
+      return false;
+    }
+  }
+
+  /// Re-activates a previously frozen staff account.
+  /// Restores `status: 'approved'` and `is_active: true` in Firestore.
+  static Future<bool> reactivateStaffAccount(String uid, String staffId) async {
+    try {
+      await _db.collection('users').doc(uid).update({
+        'status': AccountStatus.approved.name,
+        'is_active': true,
+      });
+      await SupabaseService.toggleStaffActive(staffId, true);
+      return true;
+    } catch (e) {
+      await SupabaseService.toggleStaffActive(staffId, true);
+      return false;
+    }
+  }
+
+  /// Looks up a staff account in Firestore by username to find their UID.
+  /// Returns null if not found (e.g. staff never signed in).
+  static Future<String?> findUidByUsername(String username) async {
+    try {
+      final snapshot = await _db
+          .collection('users')
+          .where('username', isEqualTo: username.trim().toLowerCase())
+          .limit(1)
+          .get();
+      if (snapshot.docs.isEmpty) return null;
+      return snapshot.docs.first.id;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Checks Firestore if a staff account is deactivated by username.
+  /// Returns true if the account is deactivated/frozen, false otherwise.
+  /// Falls back to false (allow) if the user has no Firestore record yet.
+  static Future<bool> isAccountDeactivated(String username) async {
+    try {
+      final snapshot = await _db
+          .collection('users')
+          .where('username', isEqualTo: username.trim().toLowerCase())
+          .limit(1)
+          .get();
+      if (snapshot.docs.isEmpty) {
+        // No Firestore record → check Supabase in-memory
+        return !SupabaseService.isStaffActive(username: username);
+      }
+      final data = snapshot.docs.first.data();
+      final status = data['status'] as String? ?? 'approved';
+      final isActive = data['is_active'] as bool? ?? true;
+      return status == 'deactivated' || !isActive;
+    } catch (_) {
+      // On network error, fall back to Supabase in-memory check
+      return !SupabaseService.isStaffActive(username: username);
+    }
+  }
+
   /// Real-time stream of the current user's profile document from Firestore.
   static Stream<AppUser?> watchCurrentUser() {
     final uid = currentAppUser?.uid ?? _auth.currentUser?.uid;

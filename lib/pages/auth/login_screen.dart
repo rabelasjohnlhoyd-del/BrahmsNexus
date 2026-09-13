@@ -4,7 +4,6 @@ import '../../models/app_user.dart';
 import '../../models/user_role.dart';
 import 'mock_accounts.dart';
 import '../../services/auth_service.dart';
-import '../../services/supabase_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/auth_brand_mark.dart';
 import '../../widgets/auth_card.dart';
@@ -62,14 +61,18 @@ class _LoginScreenState extends State<LoginScreen> {
     final username = _usernameController.text.trim();
     final password = _passwordController.text;
 
-    // Check if account is frozen / deactivated by Owner
-    if (username.toLowerCase() != 'owner' && !SupabaseService.isStaffActive(username: username)) {
-      if (!mounted) return;
-      setState(() {
-        _isLoading = false;
-        _authError = 'Ang account na ito ay kasalukuyang NAKA-DEACTIVATE (Frozen). Makipag-ugnayan sa Owner para ma-reactivate.';
-      });
-      return;
+    // Check if account is frozen / deactivated by Owner (checks Firestore,
+    // so the deactivation state survives app restarts and is always accurate).
+    if (username.toLowerCase() != 'owner' && username.toLowerCase() != 'admin') {
+      final isDeactivated = await AuthService.isAccountDeactivated(username);
+      if (isDeactivated) {
+        if (!mounted) return;
+        setState(() {
+          _isLoading = false;
+          _authError = 'Ang account na ito ay kasalukuyang NAKA-DEACTIVATE (Frozen). Makipag-ugnayan sa Owner para ma-reactivate.';
+        });
+        return;
+      }
     }
 
     // Check if it's a known staff / owner account

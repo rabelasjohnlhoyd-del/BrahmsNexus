@@ -222,6 +222,8 @@ class _RequestCard extends StatelessWidget {
         return AdminWebColors.success;
       case AccountStatus.rejected:
         return AdminWebColors.error;
+      case AccountStatus.deactivated:
+        return AdminWebColors.textSecondary;
     }
   }
 

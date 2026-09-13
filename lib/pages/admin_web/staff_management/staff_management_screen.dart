@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../models/staff_member.dart';
+import '../../../services/auth_service.dart';
 import '../../../services/supabase_service.dart';
 import '../admin_web_colors.dart';
 import '../admin_web_shell.dart';
@@ -99,7 +100,28 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
   }
 
   Future<void> _toggleStatus(StaffMember member) async {
-    await SupabaseService.toggleStaffActive(member.id, !member.isActive);
+    final willDeactivate = member.isActive;
+
+    // Find the staff's Firebase UID by looking up their username in Firestore
+    final uid = await AuthService.findUidByUsername(member.username);
+
+    if (willDeactivate) {
+      // Deactivate: persist to Firestore (status = deactivated, is_active = false)
+      // and to Supabase in-memory (for Branch Assignments UI)
+      if (uid != null) {
+        await AuthService.deactivateStaffAccount(uid, member.id);
+      } else {
+        // Staff hasn't logged in yet — update Supabase only for now
+        await SupabaseService.toggleStaffActive(member.id, false);
+      }
+    } else {
+      // Reactivate: restore to approved
+      if (uid != null) {
+        await AuthService.reactivateStaffAccount(uid, member.id);
+      } else {
+        await SupabaseService.toggleStaffActive(member.id, true);
+      }
+    }
     await _loadStaff();
   }
 
