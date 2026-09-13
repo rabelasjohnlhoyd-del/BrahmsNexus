@@ -505,8 +505,6 @@ class FirestoreService {
   ];
 
   /// Seeds the default batches to Firestore once if the collection is empty.
-  /// Call this ONCE from initState (both Admin Web and Owner App) — separate
-  /// from the stream so real-time updates are never delayed or dropped.
   static Future<void> seedDefaultBatchesIfEmpty() async {
     try {
       final snapshot = await _db
@@ -531,22 +529,43 @@ class FirestoreService {
   }
 
   /// Streams real-time production batches from Firestore.
-  /// Uses plain .map() (NOT asyncMap) to guarantee every Firestore update
-  /// is delivered to the UI without delay.
-  /// Call [seedDefaultBatchesIfEmpty] once in initState before listening.
-  static Stream<List<KarneBatch>> watchProductionBatches({int limit = 20}) {
+  /// Does NOT use orderBy('createdAt') on the server query so documents
+  /// with pending timestamps or missing fields are never silently dropped,
+  /// and composite index errors never occur.
+  static Stream<List<KarneBatch>> watchProductionBatches({int limit = 50}) {
     return _db
         .collection('production_batches')
-        .orderBy('createdAt', descending: true)
         .limit(limit)
         .snapshots()
         .map((snapshot) {
       if (snapshot.docs.isEmpty) {
         return _defaultBatches;
       }
-      return snapshot.docs
+      final list = snapshot.docs
           .map((doc) => KarneBatch.fromMap(doc.data(), doc.id))
           .toList();
+      return list;
+    }).handleError((error) {
+      debugPrint('FirestoreService.watchProductionBatches stream error: $error');
+      return _defaultBatches;
+    });
+  }
+
+  /// Streams real-time updates for a SINGLE production batch document.
+  /// Used by KarneBatchDetailScreen (Admin Web) so any session changes
+  /// made by either Admin Web or Owner App are reflected live without
+  /// needing a page reload.
+  static Stream<KarneBatch?> watchSingleBatch(String batchId) {
+    return _db
+        .collection('production_batches')
+        .doc(batchId)
+        .snapshots()
+        .map((doc) {
+      if (!doc.exists || doc.data() == null) return null;
+      return KarneBatch.fromMap(doc.data()!, doc.id);
+    }).handleError((error) {
+      debugPrint('FirestoreService.watchSingleBatch($batchId) error: $error');
+      return null;
     });
   }
 
@@ -557,12 +576,8 @@ class FirestoreService {
       final data = batch.toMap();
       data['updatedAt'] = FieldValue.serverTimestamp();
 
-      final existing = await docRef.get();
-      if (!existing.exists) {
-        data['createdAt'] = FieldValue.serverTimestamp();
-      }
-
       await docRef.set(data, SetOptions(merge: true));
+      debugPrint('FirestoreService: Successfully saved batch ${batch.id} (${batch.name})');
       return true;
     } catch (e) {
       debugPrint('FirestoreService.saveProductionBatch error: $e');
@@ -574,6 +589,7 @@ class FirestoreService {
   static Future<bool> deleteProductionBatch(String batchId) async {
     try {
       await _db.collection('production_batches').doc(batchId).delete();
+      debugPrint('FirestoreService: Successfully deleted batch $batchId');
       return true;
     } catch (e) {
       debugPrint('FirestoreService.deleteProductionBatch error: $e');

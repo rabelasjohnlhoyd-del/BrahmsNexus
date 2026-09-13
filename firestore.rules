@@ -53,13 +53,12 @@ service cloud.firestore {
       // Any authenticated user can read their own profile; Owner can read all profiles
       allow read: if isOwner(userId) || isSystemOwner();
 
-      // New users can register themselves:
-      // - Must set status to 'pending' (NEVER 'approved' on create)
-      // - Must set role to 'staff' (NEVER 'owner' to prevent privilege escalation)
+      // Users can register as pending staff, or Owner can auto-seed/create profiles
       allow create: if isOwner(userId) &&
-                       request.resource.data.status == 'pending' &&
-                       request.resource.data.role == 'staff' &&
-                       isValidString(request.resource.data.username, 3, 50);
+                       ((request.resource.data.status == 'pending' &&
+                         request.resource.data.role == 'staff' &&
+                         isValidString(request.resource.data.username, 3, 50)) ||
+                        isSystemOwner());
 
       // Updates:
       // - Standard users can only update their non-sensitive fields (e.g. contactNumber)
@@ -100,7 +99,7 @@ service cloud.firestore {
 
     // =========================================================================
     // 3. DAILY BRANCH INVENTORY VERIFICATION
-    // Document ID is formatted as: `${branchId}_${YYYYMMDD}`
+    // Document ID is formatted as: ${branchId}_${YYYYMMDD}
     // =========================================================================
     match /branch_daily_inventories/{inventoryDocId} {
       // Approved staff and owner can view today's allocated stock
@@ -179,28 +178,30 @@ service cloud.firestore {
     }
 
     // =========================================================================
-    // 8. DEACTIVATED / FROZEN STAFF REGISTRY
-    // Keyed by lowercase username to freeze staff accounts instantly
-    // =========================================================================
-    match /deactivated_staff/{username} {
-      // Any client can check if a username is deactivated before login;
-      // DeactivationGuard also streams this in real-time.
-      allow read, write: if true;
-    }
-
-    // =========================================================================
-    // 9. PRODUCTION BATCHES
-    // Meat portioning and cook batches logged by production crew
+    // 8. PRODUCTION BATCHES & SESSIONS (Main Warehouse Inventory)
+    // Tracks carne batches, portioning sessions, boiling, and yield metrics.
     // =========================================================================
     match /production_batches/{batchId} {
       allow read: if isApprovedStaff();
       allow create, update: if isApprovedStaff();
       allow delete: if isSystemOwner();
+
+      match /{document=**} {
+        allow read, write: if isApprovedStaff();
+      }
+    }
+
+    // =========================================================================
+    // 9. DEACTIVATED / FROZEN STAFF REGISTRY
+    // Keyed by lowercase username to freeze staff accounts instantly upon login.
+    // =========================================================================
+    match /deactivated_staff/{username} {
+      allow read, write: if true;
     }
 
     // =========================================================================
     // 10. ANNOUNCEMENTS
-    // Broadcast notices shown to all active staff members
+    // Broadcast notices shown to all active staff members.
     // =========================================================================
     match /announcements/{announcementId} {
       allow read: if isAuthenticated();
@@ -208,7 +209,8 @@ service cloud.firestore {
     }
 
     // =========================================================================
-    // 11. STAFF ASSIGNMENTS & SCHEDULES (Rest Day & Duty Status)
+    // 11. STAFF ASSIGNMENTS & SCHEDULES
+    // Daily rest day and duty status assignments managed by the Owner.
     // =========================================================================
     match /staff_assignments/{username} {
       allow read, write: if true;

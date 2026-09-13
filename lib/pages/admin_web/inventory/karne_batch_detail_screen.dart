@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import '../../../models/inventory_batch.dart';
 import '../../../services/firestore_service.dart';
@@ -21,12 +23,27 @@ class KarneBatchDetailScreen extends StatefulWidget {
 
 class _KarneBatchDetailScreenState extends State<KarneBatchDetailScreen> {
   late KarneBatch _batch;
+  StreamSubscription<KarneBatch?>? _batchSub;
 
   @override
   void initState() {
     super.initState();
     _batch = widget.batch;
     _updateHeader();
+    // Subscribe to real-time updates for this specific batch document
+    // so that any change (from Admin Web or Owner App) is reflected live.
+    _batchSub = FirestoreService.watchSingleBatch(_batch.id).listen((updated) {
+      if (updated != null && mounted) {
+        setState(() => _batch = updated);
+        widget.onBatchChanged?.call(updated);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _batchSub?.cancel();
+    super.dispose();
   }
 
   void _updateHeader() {

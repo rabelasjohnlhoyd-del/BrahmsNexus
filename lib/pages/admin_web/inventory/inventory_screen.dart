@@ -104,20 +104,33 @@ class _InventoryScreenState extends State<InventoryScreen>
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('CANCEL')),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
               final double? kilos = double.tryParse(kilosCtrl.text);
               if (nameCtrl.text.isEmpty || kilos == null) return;
 
+              final messenger = ScaffoldMessenger.of(context);
               final newBatch = KarneBatch(
                 id: 'kb_${DateTime.now().millisecondsSinceEpoch}',
                 name: nameCtrl.text.toUpperCase(),
                 totalKilos: kilos,
               );
-              FirestoreService.saveProductionBatch(newBatch);
-              setState(() {
-                _karneBatches.insert(0, newBatch);
-              });
               Navigator.pop(context);
+              final success = await FirestoreService.saveProductionBatch(newBatch);
+              if (mounted) {
+                setState(() {
+                  _karneBatches.removeWhere((b) => b.id == newBatch.id);
+                  _karneBatches.insert(0, newBatch);
+                });
+                messenger.showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      success
+                          ? 'Batch "${newBatch.name}" was saved and synced!'
+                          : 'Notice: Batch "${newBatch.name}" was saved locally.',
+                    ),
+                  ),
+                );
+              }
             },
             child: const Text('CREATE BATCH'),
           ),
