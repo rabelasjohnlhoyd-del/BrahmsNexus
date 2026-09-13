@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../../models/bilao_order.dart';
+import '../../../services/firestore_service.dart';
 import '../admin_web_colors.dart';
 import '../admin_web_shell.dart';
 import '../admin_web_widgets/glass_card.dart';
@@ -9,8 +11,7 @@ import 'add_bilao_order_screen.dart';
 /// via Messenger/phone — customers never order directly in-app), then
 /// tracks their Preparation and Delivery status through to completion.
 ///
-/// NOTE: Mock data for now — once Supabase is wired up, this reads/
-/// writes the real `bilao_orders` table.
+/// Backed by live real-time Firestore sync.
 class BilaoOrderScreen extends StatefulWidget {
   const BilaoOrderScreen({super.key});
 
@@ -23,6 +24,7 @@ class _BilaoOrderScreenState extends State<BilaoOrderScreen> {
 
   int _currentPage = 0;
   static const int _pageSize = 10;
+  StreamSubscription<List<BilaoOrder>>? _ordersSub;
 
   final List<BilaoOrder> _orders = [
     BilaoOrder(
@@ -85,16 +87,22 @@ class _BilaoOrderScreenState extends State<BilaoOrderScreen> {
   }
 
   void _updatePreparation(String id, PreparationStatus status) {
+    FirestoreService.updateBilaoStatus(orderId: id, preparationStatus: status);
     setState(() {
       final index = _orders.indexWhere((o) => o.id == id);
-      _orders[index] = _orders[index].copyWith(preparationStatus: status);
+      if (index >= 0) {
+        _orders[index] = _orders[index].copyWith(preparationStatus: status);
+      }
     });
   }
 
   void _updateDelivery(String id, DeliveryStatus status) {
+    FirestoreService.updateBilaoStatus(orderId: id, deliveryStatus: status);
     setState(() {
       final index = _orders.indexWhere((o) => o.id == id);
-      _orders[index] = _orders[index].copyWith(deliveryStatus: status);
+      if (index >= 0) {
+        _orders[index] = _orders[index].copyWith(deliveryStatus: status);
+      }
     });
   }
 
@@ -108,7 +116,14 @@ class _BilaoOrderScreenState extends State<BilaoOrderScreen> {
 
     if (result == null) return;
 
-    setState(() => _orders.insert(0, result));
+    setState(() {
+      final existingIdx = _orders.indexWhere((o) => o.id == result.id);
+      if (existingIdx >= 0) {
+        _orders[existingIdx] = result;
+      } else {
+        _orders.insert(0, result);
+      }
+    });
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('Order for ${result.customerName} recorded.')),
@@ -141,6 +156,21 @@ class _BilaoOrderScreenState extends State<BilaoOrderScreen> {
   void initState() {
     super.initState();
     _updateShellActions();
+    _ordersSub = FirestoreService.watchAllBilaoOrders().listen((orders) {
+      if (mounted) {
+        setState(() {
+          _orders
+            ..clear()
+            ..addAll(orders);
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _ordersSub?.cancel();
+    super.dispose();
   }
 
   @override

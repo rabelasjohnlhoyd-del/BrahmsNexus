@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'package:flutter/cupertino.dart';
 import '../../models/branch.dart';
 import '../../models/daily_report.dart';
+import '../../services/firestore_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/staff_card.dart';
 import '../../widgets/staff_nav_bar.dart';
@@ -10,15 +12,7 @@ import '../../widgets/staff_nav_bar.dart';
 /// status (Submitted/Missing/Incomplete) at a glance. Replaces the
 /// client's old group-chat-based reporting.
 ///
-/// Migrated from the old `admin_web/employee_reports` screen. That
-/// screen filtered by `branchName` string; here it filters by
-/// `branchId` and resolves the display name through [kSampleBranches],
-/// same duplicate-data fix already applied to Inventory and Sales &
-/// Payroll.
-///
-/// NOTE: Mock data for now — once Supabase is wired up, this reads
-/// the real `daily_reports` table (with pagination once the dataset
-/// grows past what's comfortable to load at once).
+/// Backed by live real-time Firestore sync.
 class OwnerEmployeeReportsScreen extends StatefulWidget {
   const OwnerEmployeeReportsScreen({super.key});
 
@@ -30,10 +24,31 @@ class OwnerEmployeeReportsScreen extends StatefulWidget {
 class _OwnerEmployeeReportsScreenState
     extends State<OwnerEmployeeReportsScreen> {
   static String _branchName(String id) =>
-      kSampleBranches.firstWhere((b) => b.id == id).fullName;
+      kSampleBranches.firstWhere((b) => b.id == id, orElse: () => kSampleBranches.first).fullName;
 
   // Store replies in memory during the session
   final Map<String, String> _ownerReplies = {};
+  StreamSubscription<List<DailyReport>>? _reportsSub;
+
+  @override
+  void initState() {
+    super.initState();
+    _reportsSub = FirestoreService.watchDailyReports().listen((list) {
+      if (mounted) {
+        setState(() {
+          _reports
+            ..clear()
+            ..addAll(list);
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _reportsSub?.cancel();
+    super.dispose();
+  }
 
   final List<DailyReport> _reports = [
     DailyReport(

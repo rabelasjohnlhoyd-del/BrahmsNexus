@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../models/branch.dart';
 import '../../../models/branch_assignment.dart';
-import '../../../models/staff_member.dart';
+import '../../../services/supabase_service.dart';
 import '../admin_web_colors.dart';
 import '../admin_web_shell.dart';
 import '../admin_web_widgets/glass_card.dart';
@@ -34,18 +34,20 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
   }
 
   void _initializeAssignments() {
-    // Include permanent Branch Cooks and Floating Cooks
-    final branchCooks = kSampleStaff.where((s) => s.position == 'Branch Cook' || s.position == 'Floating Cook').toList();
+    // Read from live/in-memory staff profiles to always reflect active/deactivated status
+    final allStaff = SupabaseService.getAllStaff();
+    final branchCooks = allStaff.where((s) => s.position == 'Branch Cook' || s.position == 'Floating Cook').toList();
     
     _assignments = branchCooks.map((s) {
+      final isDeactivated = !s.isActive || s.isArchived;
       return BranchAssignment(
         id: 'ba-${s.id}',
         employeeId: s.id,
         employeeName: s.fullName,
         branchId: s.branch != 'N/A' ? kSampleBranches.firstWhere((b) => b.fullName == s.branch, orElse: () => kSampleBranches.first).id : kSampleBranches.first.id,
-        branchName: s.branch != 'N/A' ? s.branch : kSampleBranches.first.fullName,
+        branchName: isDeactivated ? 'NOT ASSIGNABLE (FROZEN)' : (s.branch != 'N/A' ? s.branch : kSampleBranches.first.fullName),
         date: _today,
-        workStatus: s.isActive ? WorkStatus.onDuty : WorkStatus.restDay,
+        workStatus: isDeactivated ? WorkStatus.restDay : (s.isActive ? WorkStatus.onDuty : WorkStatus.restDay),
       );
     }).toList();
   }
@@ -53,6 +55,7 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
   @override
   void didUpdateWidget(BranchAssignmentsScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
+    _initializeAssignments();
     _updateShellActions();
   }
 
@@ -62,9 +65,11 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
   }
 
   void _updateBranch(int index, Branch branch) {
+    final a = _filteredAssignments[index];
+    if (!SupabaseService.isStaffActive(staffId: a.employeeId, fullName: a.employeeName)) {
+      return; // Locked if deactivated / frozen
+    }
     setState(() {
-      final a = _filteredAssignments[index];
-      // find original index in _assignments
       final originalIndex = _assignments.indexWhere((item) => item.id == a.id);
       if (originalIndex != -1) {
         _assignments[originalIndex] = a.copyWith(
@@ -76,8 +81,11 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
   }
 
   void _updateStatus(int index, WorkStatus status) {
+    final a = _filteredAssignments[index];
+    if (!SupabaseService.isStaffActive(staffId: a.employeeId, fullName: a.employeeName)) {
+      return; // Locked if deactivated / frozen
+    }
     setState(() {
-      final a = _filteredAssignments[index];
       final originalIndex = _assignments.indexWhere((item) => item.id == a.id);
       if (originalIndex != -1) {
         _assignments[originalIndex] = a.copyWith(workStatus: status);
@@ -197,12 +205,17 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
                     separatorBuilder: (context, index) => const SizedBox(height: 12),
                     itemBuilder: (context, index) {
                       final a = list[index];
+                      final isDeactivated = !SupabaseService.isStaffActive(
+                        staffId: a.employeeId,
+                        fullName: a.employeeName,
+                      );
                       return LayoutBuilder(
                         builder: (context, constraints) {
                           final isWide = constraints.maxWidth >= 700;
                           return _AssignmentCard(
                             assignment: a,
                             isWide: isWide,
+                            isDeactivated: isDeactivated,
                             onBranchChanged: (branch) => _updateBranch(index, branch),
                             onStatusChanged: (status) => _updateStatus(index, status),
                           );
@@ -223,18 +236,20 @@ class _AssignmentCard extends StatelessWidget {
   const _AssignmentCard({
     required this.assignment,
     required this.isWide,
+    required this.isDeactivated,
     required this.onBranchChanged,
     required this.onStatusChanged,
   });
 
   final BranchAssignment assignment;
   final bool isWide;
+  final bool isDeactivated;
   final ValueChanged<Branch> onBranchChanged;
   final ValueChanged<WorkStatus> onStatusChanged;
 
   @override
   Widget build(BuildContext context) {
-    final bool isRestDay = assignment.workStatus == WorkStatus.restDay;
+    final bool isRestDay = isDeactivated || assignment.workStatus == WorkStatus.restDay;
 
     final avatarAndName = Row(
       children: [
@@ -242,17 +257,21 @@ class _AssignmentCard extends StatelessWidget {
           width: 44,
           height: 44,
           decoration: BoxDecoration(
-            color: AdminWebColors.accent.withValues(alpha: 0.1),
+            color: isDeactivated
+                ? Colors.grey.withValues(alpha: 0.15)
+                : AdminWebColors.accent.withValues(alpha: 0.1),
             shape: BoxShape.circle,
             border: Border.all(
-              color: AdminWebColors.accent.withValues(alpha: 0.2),
+              color: isDeactivated
+                  ? Colors.grey.withValues(alpha: 0.3)
+                  : AdminWebColors.accent.withValues(alpha: 0.2),
             ),
           ),
           alignment: Alignment.center,
           child: Text(
             assignment.employeeName.substring(0, 1),
-            style: const TextStyle(
-              color: AdminWebColors.accent,
+            style: TextStyle(
+              color: isDeactivated ? Colors.grey : AdminWebColors.accent,
               fontWeight: FontWeight.bold,
               fontSize: 18,
             ),
@@ -260,77 +279,149 @@ class _AssignmentCard extends StatelessWidget {
         ),
         const SizedBox(width: 14),
         Expanded(
-          child: Text(
-            assignment.employeeName,
-            style: const TextStyle(
-              fontWeight: FontWeight.w700,
-              fontSize: 15,
-              color: AdminWebColors.textPrimary,
-            ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                assignment.employeeName,
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 15,
+                  color: isDeactivated
+                      ? AdminWebColors.textSecondary
+                      : AdminWebColors.textPrimary,
+                ),
+              ),
+              if (isDeactivated) ...[
+                const SizedBox(height: 4),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: AdminWebColors.error.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(
+                        color: AdminWebColors.error.withValues(alpha: 0.3)),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.lock_clock_outlined,
+                          size: 12, color: AdminWebColors.error),
+                      SizedBox(width: 4),
+                      Text(
+                        'FROZEN / DEACTIVATED',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                          color: AdminWebColors.error,
+                          letterSpacing: 0.4,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ],
           ),
         ),
       ],
     );
 
     final branchDropdown = IgnorePointer(
-      ignoring: isRestDay,
+      ignoring: isRestDay || isDeactivated,
       child: Opacity(
-        opacity: isRestDay ? 0.5 : 1.0,
+        opacity: isDeactivated ? 0.35 : (isRestDay ? 0.5 : 1.0),
         child: DropdownButtonFormField<String>(
           initialValue: assignment.branchId,
-          decoration: const InputDecoration(
-            labelText: 'ASSIGNED BRANCH',
+          decoration: InputDecoration(
+            labelText: isDeactivated
+                ? 'ASSIGNED BRANCH (FROZEN - CANNOT ASSIGN)'
+                : 'ASSIGNED BRANCH',
             isDense: true,
-            labelStyle: TextStyle(
+            labelStyle: const TextStyle(
               fontWeight: FontWeight.w800,
               fontSize: 11,
               letterSpacing: 1.0,
               color: AdminWebColors.textSecondary,
             ),
-            prefixIcon: Icon(Icons.storefront_rounded, size: 20, color: AdminWebColors.accent),
+            prefixIcon: Icon(
+              Icons.storefront_rounded,
+              size: 20,
+              color: isDeactivated ? Colors.grey : AdminWebColors.accent,
+            ),
           ),
           items: kSampleBranches
               .map((b) => DropdownMenuItem(
                     value: b.id,
                     child: Text(
-                      b.fullName.toUpperCase(),
-                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                      isDeactivated
+                          ? 'NOT ASSIGNABLE (ACCOUNT FROZEN)'
+                          : b.fullName.toUpperCase(),
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: isDeactivated ? Colors.grey : null,
+                      ),
                     ),
                   ))
               .toList(),
-          onChanged: (branchId) {
-            if (branchId != null) {
-              final branch = kSampleBranches.firstWhere((b) => b.id == branchId);
-              onBranchChanged(branch);
-            }
-          },
+          onChanged: isDeactivated
+              ? null
+              : (branchId) {
+                  if (branchId != null) {
+                    final branch =
+                        kSampleBranches.firstWhere((b) => b.id == branchId);
+                    onBranchChanged(branch);
+                  }
+                },
         ),
       ),
     );
 
-    final statusSelector = SegmentedButton<WorkStatus>(
-      showSelectedIcon: false,
-      style: SegmentedButton.styleFrom(
-        selectedBackgroundColor: isRestDay ? AdminWebColors.error : AdminWebColors.success,
-        selectedForegroundColor: Colors.white,
-        side: const BorderSide(color: AdminWebColors.border),
+    final statusSelector = IgnorePointer(
+      ignoring: isDeactivated,
+      child: Opacity(
+        opacity: isDeactivated ? 0.4 : 1.0,
+        child: SegmentedButton<WorkStatus>(
+          showSelectedIcon: false,
+          style: SegmentedButton.styleFrom(
+            selectedBackgroundColor: isDeactivated
+                ? Colors.grey.shade400
+                : (isRestDay ? AdminWebColors.error : AdminWebColors.success),
+            selectedForegroundColor: Colors.white,
+            side: BorderSide(
+                color: isDeactivated
+                    ? Colors.grey.shade300
+                    : AdminWebColors.border),
+          ),
+          segments: const [
+            ButtonSegment(
+              value: WorkStatus.onDuty,
+              label: Text('ON DUTY'),
+            ),
+            ButtonSegment(
+              value: WorkStatus.restDay,
+              label: Text('REST DAY'),
+            ),
+          ],
+          selected: {isDeactivated ? WorkStatus.restDay : assignment.workStatus},
+          onSelectionChanged: isDeactivated
+              ? null
+              : (value) => onStatusChanged(value.first),
+        ),
       ),
-      segments: const [
-        ButtonSegment(
-          value: WorkStatus.onDuty,
-          label: Text('ON DUTY'),
-        ),
-        ButtonSegment(
-          value: WorkStatus.restDay,
-          label: Text('REST DAY'),
-        ),
-      ],
-      selected: {assignment.workStatus},
-      onSelectionChanged: (value) => onStatusChanged(value.first),
     );
 
     return GlassCard(
       padding: const EdgeInsets.all(16),
+      color: isDeactivated
+          ? const Color(0xFFF1F5F9).withValues(alpha: 0.9)
+          : null,
+      borderColor: isDeactivated
+          ? Colors.grey.withValues(alpha: 0.35)
+          : null,
       child: isWide
           ? Row(
               children: [

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../models/bilao_order.dart';
+import '../../../services/firestore_service.dart';
 import '../admin_web_colors.dart';
 import '../admin_web_shell.dart';
 import '../admin_web_widgets/glass_card.dart';
@@ -48,11 +49,6 @@ class _AddBilaoOrderScreenState extends State<AddBilaoOrderScreen> {
       _updateShellActions();
     });
 
-    // Simulate save delay
-    await Future.delayed(const Duration(milliseconds: 500));
-
-    if (!mounted) return;
-
     final newOrder = BilaoOrder(
       id: 'ord${DateTime.now().millisecondsSinceEpoch}',
       customerName: _nameController.text.trim(),
@@ -62,7 +58,12 @@ class _AddBilaoOrderScreenState extends State<AddBilaoOrderScreen> {
       scheduledDateTime: _scheduledDateTime,
     );
 
-    Navigator.of(context).pop(newOrder);
+    final orderId = await FirestoreService.createBilaoOrder(newOrder);
+
+    if (!mounted) return;
+
+    final savedOrder = orderId != null ? newOrder.copyWith(id: orderId) : newOrder;
+    Navigator.of(context).pop(savedOrder);
   }
 
   @override

@@ -53,7 +53,7 @@ void main() async {
   if (SupabaseConfig.isConfigured) {
     try {
       await Supabase.initialize(
-        url: SupabaseConfig.supabaseUrl,
+        url: SupabaseConfig.cleanSupabaseUrl,
         // ignore: deprecated_member_use
         anonKey: SupabaseConfig.supabaseAnonKey,
       );

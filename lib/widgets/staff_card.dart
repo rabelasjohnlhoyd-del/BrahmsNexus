@@ -15,12 +15,14 @@ class StaffCard extends StatelessWidget {
     required this.child,
     this.padding = const EdgeInsets.all(16),
     this.borderColor,
+    this.backgroundColor,
     this.highlighted = false,
   });
 
   final Widget child;
   final EdgeInsetsGeometry padding;
   final Color? borderColor;
+  final Color? backgroundColor;
 
   /// When true, draws a stronger accent-colored border — used to show
   /// selected/active state (e.g. a checked checklist item) without
@@ -33,7 +35,7 @@ class StaffCard extends StatelessWidget {
       width: double.infinity,
       padding: padding,
       decoration: BoxDecoration(
-        color: CupertinoColors.white,
+        color: backgroundColor ?? CupertinoColors.white,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: highlighted ? AppColors.accent : (borderColor ?? AppColors.border),

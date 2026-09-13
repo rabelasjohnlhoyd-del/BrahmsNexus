@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../../models/inventory_item.dart';
 import '../../../models/inventory_batch.dart';
+import '../../../services/firestore_service.dart';
 import '../admin_web_colors.dart';
 import '../admin_web_shell.dart';
 import '../admin_web_widgets/glass_card.dart';
@@ -21,6 +23,8 @@ class _InventoryScreenState extends State<InventoryScreen>
   late final TabController _tabController =
       TabController(length: 4, vsync: this);
 
+  StreamSubscription<List<KarneBatch>>? _batchesSub;
+
   final List<KarneBatch> _karneBatches = [
     KarneBatch(
       id: 'kb1',
@@ -40,6 +44,22 @@ class _InventoryScreenState extends State<InventoryScreen>
   void initState() {
     super.initState();
     _updateShellActions();
+    _batchesSub = FirestoreService.watchProductionBatches().listen((batches) {
+      if (mounted) {
+        setState(() {
+          _karneBatches
+            ..clear()
+            ..addAll(batches);
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _batchesSub?.cancel();
+    _tabController.dispose();
+    super.dispose();
   }
 
   void _updateShellActions() {
@@ -84,12 +104,14 @@ class _InventoryScreenState extends State<InventoryScreen>
               final double? kilos = double.tryParse(kilosCtrl.text);
               if (nameCtrl.text.isEmpty || kilos == null) return;
 
+              final newBatch = KarneBatch(
+                id: 'kb_${DateTime.now().millisecondsSinceEpoch}',
+                name: nameCtrl.text.toUpperCase(),
+                totalKilos: kilos,
+              );
+              FirestoreService.saveProductionBatch(newBatch);
               setState(() {
-                _karneBatches.insert(0, KarneBatch(
-                  id: DateTime.now().millisecondsSinceEpoch.toString(),
-                  name: nameCtrl.text.toUpperCase(),
-                  totalKilos: kilos,
-                ));
+                _karneBatches.insert(0, newBatch);
               });
               Navigator.pop(context);
             },
@@ -179,6 +201,7 @@ class _InventoryScreenState extends State<InventoryScreen>
                       builder: (_) => KarneBatchDetailScreen(
                         batch: batch,
                         onBatchChanged: (updated) {
+                          FirestoreService.saveProductionBatch(updated);
                           setState(() => _karneBatches[index] = updated);
                         },
                       ),

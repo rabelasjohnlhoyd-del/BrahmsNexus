@@ -1,7 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import '../../models/branch.dart';
 import '../../models/branch_assignment.dart';
-import '../../models/staff_member.dart';
+import '../../services/supabase_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/staff_button.dart';
 import '../../widgets/staff_card.dart';
@@ -13,20 +13,6 @@ import '../../widgets/staff_top_actions.dart';
 /// and sets their work status (On Duty / Rest Day) for a chosen date.
 /// This is what the Staff app reads for "Today's Assignment" and what
 /// the Driver app reads to build the day's route.
-///
-/// Migrated from the old `admin_web/branch_assignments` screen, with
-/// three gaps fixed along the way:
-///  1. Employee list now comes from [kSampleStaff] (same source as
-///     Staff Management) instead of its own separate hardcoded list.
-///  2. Branch list now comes from [kSampleBranches] (same source as
-///     the Driver app's Route tab) instead of a second hardcoded list.
-///  3. The date picker actually changes what's shown now — each date
-///     has its own assignment records, and a date with nothing
-///     assigned yet shows an empty state instead of always displaying
-///     the same 3 rows.
-///
-/// NOTE: Mock data for now — once Supabase is wired up, this reads/
-/// writes the real `branch_assignments` table.
 class OwnerAssignmentsScreen extends StatefulWidget {
   const OwnerAssignmentsScreen({super.key});
 
@@ -39,34 +25,41 @@ class _OwnerAssignmentsScreenState extends State<OwnerAssignmentsScreen> {
   final DateTime _selectedDate = DateTime.now();
   String _searchQuery = '';
 
-  // Mock per-date assignment records, keyed by "yyyy-M-d". Only today
-  // is seeded with data — other dates start with nothing, so picking a
-  // different date visibly changes the screen instead of always
-  // showing the same 3 rows (see gap #3 above).
-  final Map<String, List<BranchAssignment>> _assignmentsByDate = {
-    _dateKey(DateTime.now()): [
-      BranchAssignment(
-        id: 'a1',
-        employeeId: 'sample-1',
-        employeeName: 'Maria Santos',
-        branchId: 'br1',
-        branchName: 'Brgy. Gatid, Sta. Cruz',
-        date: DateTime.now(),
-        workStatus: WorkStatus.onDuty,
-      ),
-      BranchAssignment(
-        id: 'a2',
-        employeeId: 'sample-2',
-        employeeName: 'Juan Dela Cruz',
-        branchId: 'br2',
-        branchName: 'Brgy. Labuin, Pila',
-        date: DateTime.now(),
-        workStatus: WorkStatus.onDuty,
-      ),
-    ],
-  };
+  // Mock per-date assignment records, keyed by "yyyy-M-d".
+  final Map<String, List<BranchAssignment>> _assignmentsByDate = {};
 
   static String _dateKey(DateTime d) => '${d.year}-${d.month}-${d.day}';
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeTodayAssignments();
+  }
+
+  void _initializeTodayAssignments() {
+    final key = _dateKey(_selectedDate);
+    if (!_assignmentsByDate.containsKey(key)) {
+      final staffList = SupabaseService.getAllStaff()
+          .where((s) => s.position == 'Branch Cook' || s.position == 'Floating Cook')
+          .toList();
+      _assignmentsByDate[key] = staffList.map((s) {
+        final isDeactivated = !SupabaseService.isStaffActive(staffId: s.id, fullName: s.fullName);
+        final branch = kSampleBranches.firstWhere(
+          (b) => b.fullName == s.branch,
+          orElse: () => kSampleBranches.first,
+        );
+        return BranchAssignment(
+          id: '${key}_${s.id}',
+          employeeId: s.id,
+          employeeName: s.fullName,
+          branchId: branch.id,
+          branchName: isDeactivated ? 'NOT ASSIGNABLE (ACCOUNT FROZEN)' : branch.fullName,
+          date: _selectedDate,
+          workStatus: isDeactivated ? WorkStatus.restDay : WorkStatus.onDuty,
+        );
+      }).toList();
+    }
+  }
 
   List<BranchAssignment> get _assignments {
     final list = _assignmentsByDate[_dateKey(_selectedDate)] ?? const [];
@@ -76,17 +69,15 @@ class _OwnerAssignmentsScreenState extends State<OwnerAssignmentsScreen> {
         .toList();
   }
 
-  /// Staff who can actually be assigned — deactivated accounts (see
-  /// Staff Management) are excluded.
-  List<StaffMember> get _assignableStaff =>
-      kSampleStaff.where((s) => s.isActive && s.position == 'Branch Cook').toList();
-
-  /// Seeds default assignments (On Duty, at each staff member's usual
-  /// branch) for the currently selected date.
+  /// Seeds default assignments for the currently selected date.
   void _generateForDate() {
     final key = _dateKey(_selectedDate);
     setState(() {
-      _assignmentsByDate[key] = _assignableStaff.map((staff) {
+      final staffList = SupabaseService.getAllStaff()
+          .where((s) => s.position == 'Branch Cook' || s.position == 'Floating Cook')
+          .toList();
+      _assignmentsByDate[key] = staffList.map((staff) {
+        final isDeactivated = !SupabaseService.isStaffActive(staffId: staff.id, fullName: staff.fullName);
         final branch = kSampleBranches.firstWhere(
           (b) => b.fullName == staff.branch,
           orElse: () => kSampleBranches.first,
@@ -96,18 +87,22 @@ class _OwnerAssignmentsScreenState extends State<OwnerAssignmentsScreen> {
           employeeId: staff.id,
           employeeName: staff.fullName,
           branchId: branch.id,
-          branchName: branch.fullName,
+          branchName: isDeactivated ? 'NOT ASSIGNABLE (ACCOUNT FROZEN)' : branch.fullName,
           date: _selectedDate,
-          workStatus: WorkStatus.onDuty,
+          workStatus: isDeactivated ? WorkStatus.restDay : WorkStatus.onDuty,
         );
       }).toList();
     });
   }
 
   void _updateBranch(int index, Branch branch) {
+    final list = _assignmentsByDate[_dateKey(_selectedDate)];
+    if (list == null || index >= list.length) return;
+    final a = list[index];
+    if (!SupabaseService.isStaffActive(staffId: a.employeeId, fullName: a.employeeName)) {
+      return; // Frozen: non-modifiable
+    }
     setState(() {
-      final list = _assignmentsByDate[_dateKey(_selectedDate)]!;
-      final a = list[index];
       list[index] = BranchAssignment(
         id: a.id,
         employeeId: a.employeeId,
@@ -121,9 +116,13 @@ class _OwnerAssignmentsScreenState extends State<OwnerAssignmentsScreen> {
   }
 
   void _updateStatus(int index, WorkStatus status) {
+    final list = _assignmentsByDate[_dateKey(_selectedDate)];
+    if (list == null || index >= list.length) return;
+    final a = list[index];
+    if (!SupabaseService.isStaffActive(staffId: a.employeeId, fullName: a.employeeName)) {
+      return; // Frozen: non-modifiable
+    }
     setState(() {
-      final list = _assignmentsByDate[_dateKey(_selectedDate)]!;
-      final a = list[index];
       list[index] = BranchAssignment(
         id: a.id,
         employeeId: a.employeeId,
@@ -265,11 +264,13 @@ class _OwnerAssignmentsScreenState extends State<OwnerAssignmentsScreen> {
                         const SizedBox(height: 16),
                         ...List.generate(assignments.length, (index) {
                           final a = assignments[index];
+                          final isDeactivated = !SupabaseService.isStaffActive(staffId: a.employeeId, fullName: a.employeeName);
                           return Padding(
                             padding: const EdgeInsets.only(bottom: 10),
                             child: _AssignmentRow(
                               assignment: a,
-                              onBranchTap: a.workStatus == WorkStatus.restDay
+                              isDeactivated: isDeactivated,
+                              onBranchTap: (isDeactivated || a.workStatus == WorkStatus.restDay)
                                   ? null
                                   : () => _pickBranch(index, a),
                               onStatusChanged: (status) =>
@@ -322,19 +323,24 @@ class _OwnerAssignmentsScreenState extends State<OwnerAssignmentsScreen> {
 class _AssignmentRow extends StatelessWidget {
   const _AssignmentRow({
     required this.assignment,
+    required this.isDeactivated,
     required this.onBranchTap,
     required this.onStatusChanged,
   });
 
   final BranchAssignment assignment;
+  final bool isDeactivated;
   final VoidCallback? onBranchTap;
   final ValueChanged<WorkStatus> onStatusChanged;
 
   @override
   Widget build(BuildContext context) {
-    final isRestDay = assignment.workStatus == WorkStatus.restDay;
+    final effectiveStatus = isDeactivated ? WorkStatus.restDay : assignment.workStatus;
+    final isRestDay = effectiveStatus == WorkStatus.restDay;
 
     return StaffCard(
+      backgroundColor: isDeactivated ? const Color(0xFFF1F5F9) : CupertinoColors.white,
+      borderColor: isDeactivated ? const Color(0xFFCBD5E1) : null,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -345,101 +351,160 @@ class _AssignmentRow extends StatelessWidget {
                 height: 36,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  color: AppColors.accent.withValues(alpha: 0.12),
+                  color: isDeactivated
+                      ? CupertinoColors.systemGrey.withValues(alpha: 0.18)
+                      : AppColors.accent.withValues(alpha: 0.12),
                   shape: BoxShape.circle,
                 ),
                 child: Text(
-                  assignment.employeeName.substring(0, 1),
-                  style: const TextStyle(
-                    color: AppColors.accent,
+                  assignment.employeeName.isNotEmpty ? assignment.employeeName.substring(0, 1) : '?',
+                  style: TextStyle(
+                    color: isDeactivated ? CupertinoColors.systemGrey : AppColors.accent,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: Text(
-                  assignment.employeeName,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textPrimary,
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      assignment.employeeName,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: isDeactivated
+                            ? CupertinoColors.systemGrey
+                            : AppColors.textPrimary,
+                      ),
+                    ),
+                    if (isDeactivated) ...[
+                      const SizedBox(height: 3),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: CupertinoColors.systemGrey.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(CupertinoIcons.lock_fill, size: 10, color: CupertinoColors.systemGrey),
+                            SizedBox(width: 3),
+                            Text(
+                              'FROZEN / DEACTIVATED',
+                              style: TextStyle(
+                                fontSize: 9.5,
+                                fontWeight: FontWeight.bold,
+                                color: CupertinoColors.systemGrey,
+                                letterSpacing: 0.3,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ),
             ],
           ),
           const SizedBox(height: 12),
-          Opacity(
-            opacity: isRestDay ? 0.4 : 1.0,
-            child: GestureDetector(
-              onTap: onBranchTap,
-              child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                decoration: BoxDecoration(
-                  color: AppColors.background,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: AppColors.border),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(CupertinoIcons.location_solid,
-                        size: 15, color: AppColors.textSecondary),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        assignment.branchName,
-                        style: const TextStyle(
-                          fontSize: 13,
-                          color: AppColors.textPrimary,
+          // Branch selection container
+          IgnorePointer(
+            ignoring: isDeactivated,
+            child: Opacity(
+              opacity: isDeactivated ? 0.35 : (isRestDay ? 0.4 : 1.0),
+              child: GestureDetector(
+                onTap: onBranchTap,
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: isDeactivated
+                        ? const Color(0xFFE2E8F0)
+                        : AppColors.background,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: isDeactivated
+                          ? const Color(0xFFCBD5E1)
+                          : AppColors.border,
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        isDeactivated ? CupertinoIcons.lock : CupertinoIcons.location_solid,
+                        size: 15,
+                        color: AppColors.textSecondary,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          isDeactivated ? 'NOT ASSIGNABLE (ACCOUNT FROZEN)' : assignment.branchName,
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: isDeactivated ? FontWeight.w600 : FontWeight.normal,
+                            color: isDeactivated ? CupertinoColors.systemGrey : AppColors.textPrimary,
+                          ),
                         ),
                       ),
-                    ),
-                    const Icon(CupertinoIcons.chevron_down,
-                        size: 14, color: AppColors.textSecondary),
-                  ],
+                      if (!isDeactivated)
+                        const Icon(CupertinoIcons.chevron_down,
+                            size: 14, color: AppColors.textSecondary),
+                    ],
+                  ),
                 ),
               ),
             ),
           ),
           const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-            child: CupertinoSlidingSegmentedControl<WorkStatus>(
-              groupValue: assignment.workStatus,
-              backgroundColor: AppColors.background,
-              thumbColor: AppColors.accent,
-              children: {
-                WorkStatus.onDuty: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 7),
-                  child: Text(
-                    'On Duty',
-                    style: TextStyle(
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w600,
-                      color: assignment.workStatus == WorkStatus.onDuty
-                          ? CupertinoColors.white
-                          : AppColors.textPrimary,
+          // Duty status toggle
+          IgnorePointer(
+            ignoring: isDeactivated,
+            child: Opacity(
+              opacity: isDeactivated ? 0.45 : 1.0,
+              child: SizedBox(
+                width: double.infinity,
+                child: CupertinoSlidingSegmentedControl<WorkStatus>(
+                  groupValue: effectiveStatus,
+                  backgroundColor: AppColors.background,
+                  thumbColor: isDeactivated
+                      ? CupertinoColors.systemGrey
+                      : AppColors.accent,
+                  children: {
+                    WorkStatus.onDuty: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 7),
+                      child: Text(
+                        'On Duty',
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w600,
+                          color: effectiveStatus == WorkStatus.onDuty
+                              ? CupertinoColors.white
+                              : AppColors.textPrimary,
+                        ),
+                      ),
                     ),
-                  ),
-                ),
-                WorkStatus.restDay: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 7),
-                  child: Text(
-                    'Rest Day',
-                    style: TextStyle(
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w600,
-                      color: assignment.workStatus == WorkStatus.restDay
-                          ? CupertinoColors.white
-                          : AppColors.textPrimary,
+                    WorkStatus.restDay: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 7),
+                      child: Text(
+                        'Rest Day',
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w600,
+                          color: effectiveStatus == WorkStatus.restDay
+                              ? CupertinoColors.white
+                              : AppColors.textPrimary,
+                        ),
+                      ),
                     ),
-                  ),
+                  },
+                  onValueChanged: (value) {
+                    if (!isDeactivated && value != null) onStatusChanged(value);
+                  },
                 ),
-              },
-              onValueChanged: (value) {
-                if (value != null) onStatusChanged(value);
-              },
+              ),
             ),
           ),
         ],

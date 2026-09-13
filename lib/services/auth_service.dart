@@ -226,6 +226,64 @@ class AuthService {
     }
   }
 
+  /// Signs in or automatically seeds a pre-approved Staff/Driver account into
+  /// Firebase Auth + Firestore if it does not exist yet.
+  static Future<AppUser?> signInOrSeedStaff({
+    required String username,
+    required String password,
+    required String fullName,
+    required String contactNumber,
+    required String position,
+    UserRole role = UserRole.staff,
+  }) async {
+    try {
+      final email = _usernameToEmail(username);
+      UserCredential credential;
+      try {
+        credential = await _auth.signInWithEmailAndPassword(
+          email: email,
+          password: password,
+        );
+      } on FirebaseAuthException catch (e) {
+        if (e.code == 'user-not-found' || e.code == 'invalid-credential') {
+          credential = await _auth.createUserWithEmailAndPassword(
+            email: email,
+            password: password,
+          );
+        } else {
+          return null;
+        }
+      }
+
+      final uid = credential.user!.uid;
+      final doc = await _db.collection('users').doc(uid).get();
+      if (!doc.exists) {
+        await _db.collection('users').doc(uid).set({
+          'username': username,
+          'fullName': fullName,
+          'contactNumber': contactNumber,
+          'role': role.label.toLowerCase(),
+          'status': 'approved',
+          'position': position,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+      }
+      final user = AppUser(
+        uid: uid,
+        username: username,
+        fullName: fullName,
+        contactNumber: contactNumber,
+        role: role,
+        status: AccountStatus.approved,
+        position: position,
+      );
+      currentAppUser = user;
+      return user;
+    } catch (_) {
+      return null;
+    }
+  }
+
   static Future<void> signOut() {
     currentAppUser = null;
     return _auth.signOut();

@@ -1,11 +1,14 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../../models/sales_record.dart';
 import '../../../models/branch.dart';
+import '../../../services/firestore_service.dart';
 import '../admin_web_colors.dart';
 import '../admin_web_shell.dart';
 import '../admin_web_widgets/glass_card.dart';
 
 /// Admin monitors daily sales per branch/employee here.
+/// Backed by live real-time Firestore sync.
 class SalesPayrollScreen extends StatefulWidget {
   const SalesPayrollScreen({super.key});
 
@@ -15,6 +18,8 @@ class SalesPayrollScreen extends StatefulWidget {
 
 class _SalesPayrollScreenState extends State<SalesPayrollScreen> {
   static const double _wideBreakpoint = 700;
+
+  StreamSubscription<List<SalesRecord>>? _salesSub;
 
   final List<SalesRecord> _records = [
     SalesRecord(
@@ -70,6 +75,21 @@ class _SalesPayrollScreenState extends State<SalesPayrollScreen> {
   void initState() {
     super.initState();
     _updateShellActions();
+    _salesSub = FirestoreService.watchRecentSales().listen((records) {
+      if (mounted) {
+        setState(() {
+          _records
+            ..clear()
+            ..addAll(records);
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _salesSub?.cancel();
+    super.dispose();
   }
 
   @override

@@ -4,6 +4,7 @@ import '../../models/app_user.dart';
 import '../../models/user_role.dart';
 import 'mock_accounts.dart';
 import '../../services/auth_service.dart';
+import '../../services/supabase_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/auth_brand_mark.dart';
 import '../../widgets/auth_card.dart';
@@ -61,7 +62,17 @@ class _LoginScreenState extends State<LoginScreen> {
     final username = _usernameController.text.trim();
     final password = _passwordController.text;
 
-    // Check if it's a known demo account (e.g. owner / owner123)
+    // Check if account is frozen / deactivated by Owner
+    if (username.toLowerCase() != 'owner' && !SupabaseService.isStaffActive(username: username)) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _authError = 'Ang account na ito ay kasalukuyang NAKA-DEACTIVATE (Frozen). Makipag-ugnayan sa Owner para ma-reactivate.';
+      });
+      return;
+    }
+
+    // Check if it's a known staff / owner account
     final mock = kMockAccounts[username];
     if (mock != null && mock.password == password) {
       AppUser? liveUser;
@@ -69,6 +80,15 @@ class _LoginScreenState extends State<LoginScreen> {
         liveUser = await AuthService.signInOrSeedOwner(
           username: username,
           password: password,
+        );
+      } else {
+        liveUser = await AuthService.signInOrSeedStaff(
+          username: username,
+          password: password,
+          fullName: mock.fullName.isNotEmpty ? mock.fullName : username,
+          contactNumber: mock.phone.isNotEmpty ? mock.phone : '09123456789',
+          position: mock.position,
+          role: mock.role,
         );
       }
 
@@ -79,8 +99,10 @@ class _LoginScreenState extends State<LoginScreen> {
           AppUser(
             uid: 'demo_$username',
             username: username,
-            fullName: username == 'owner' ? 'Business Owner' : username,
-            contactNumber: '09123456789',
+            fullName: mock.fullName.isNotEmpty
+                ? mock.fullName
+                : (username == 'owner' ? 'Business Owner' : username),
+            contactNumber: mock.phone.isNotEmpty ? mock.phone : '09123456789',
             role: mock.role,
             status: mock.status,
             position: mock.position,
@@ -121,90 +143,6 @@ class _LoginScreenState extends State<LoginScreen> {
           role: user.role,
           status: user.status,
           position: user.position,
-        ),
-      ),
-    );
-  }
-
-  void _showDemoAccounts() {
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (sheetContext) => DraggableScrollableSheet(
-        initialChildSize: 0.5,
-        minChildSize: 0.3,
-        maxChildSize: 0.9,
-        expand: false,
-        builder: (context, scrollController) => SafeArea(
-          child: ListView(
-            controller: scrollController,
-            padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
-            children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  margin: const EdgeInsets.only(bottom: 16),
-                  decoration: BoxDecoration(
-                    color: AppColors.border,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              const Text(
-                'Dev demo accounts',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.textPrimary,
-                  fontSize: 16,
-                ),
-              ),
-              const SizedBox(height: 4),
-              const Text(
-                'Tap any account to populate the login credentials.',
-                style: TextStyle(
-                  color: AppColors.textSecondary,
-                  fontSize: 12,
-                ),
-              ),
-              const SizedBox(height: 12),
-              ...(kIsWeb
-                      ? kMockAccounts.entries
-                          .where((e) => e.value.role == UserRole.owner)
-                      : kMockAccounts.entries)
-                  .map(
-                (e) => ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: CircleAvatar(
-                    backgroundColor: AppColors.accent.withValues(alpha: 0.1),
-                    child: Icon(
-                      e.value.role == UserRole.owner
-                          ? Icons.admin_panel_settings_rounded
-                          : Icons.person_outline,
-                      color: AppColors.accent,
-                    ),
-                  ),
-                  title: Text(
-                    e.key,
-                    style: const TextStyle(fontWeight: FontWeight.w700),
-                  ),
-                  subtitle: Text(
-                    '${e.value.role.label} · ${e.value.status.label}${e.value.position.isNotEmpty ? " (${e.value.position})" : ""}',
-                  ),
-                  trailing: const Icon(Icons.arrow_forward_ios_rounded,
-                      size: 14, color: AppColors.textSecondary),
-                  onTap: () {
-                    _usernameController.text = e.key;
-                    _passwordController.text = e.value.password;
-                    Navigator.of(sheetContext).pop();
-                  },
-                ),
-              ),
-            ],
-          ),
         ),
       ),
     );
@@ -399,21 +337,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                         ],
                       ),
-                      const SizedBox(height: 24),
-                      Center(
-                        child: TextButton.icon(
-                          onPressed: _showDemoAccounts,
-                          icon: const Icon(Icons.science_outlined, size: 16),
-                          label: const Text('Dev: demo accounts'),
-                          style: TextButton.styleFrom(
-                            foregroundColor:
-                                AppColors.accent.withValues(alpha: 0.7),
-                            textStyle: const TextStyle(
-                                fontSize: 12, fontWeight: FontWeight.w600),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 16),
                     ],
                   ),
                 ),

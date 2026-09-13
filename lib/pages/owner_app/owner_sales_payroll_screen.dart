@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'package:flutter/cupertino.dart';
 import '../../models/branch.dart';
 import '../../models/sales_record.dart';
+import '../../services/firestore_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/staff_card.dart';
 import '../../widgets/staff_nav_bar.dart';
@@ -16,6 +18,7 @@ class OwnerSalesPayrollScreen extends StatefulWidget {
 
 class _OwnerSalesPayrollScreenState extends State<OwnerSalesPayrollScreen> {
   String? _branchFilter; // null means "All Branches"
+  StreamSubscription<List<SalesRecord>>? _salesSub;
 
   final List<SalesRecord> _records = [
     SalesRecord(
@@ -73,6 +76,26 @@ class _OwnerSalesPayrollScreenState extends State<OwnerSalesPayrollScreen> {
         ),
       ),
     );
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _salesSub = FirestoreService.watchRecentSales().listen((records) {
+      if (mounted) {
+        setState(() {
+          _records
+            ..clear()
+            ..addAll(records);
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _salesSub?.cancel();
+    super.dispose();
   }
 
   @override

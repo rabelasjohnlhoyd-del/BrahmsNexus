@@ -388,6 +388,12 @@ class _StaffTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return GlassCard(
       padding: const EdgeInsets.all(16),
+      color: !member.isActive
+          ? const Color(0xFFF1F5F9).withValues(alpha: 0.9)
+          : null,
+      borderColor: !member.isActive
+          ? Colors.grey.withValues(alpha: 0.35)
+          : null,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
@@ -395,17 +401,21 @@ class _StaffTile extends StatelessWidget {
             width: 48,
             height: 48,
             decoration: BoxDecoration(
-              color: AdminWebColors.accent.withValues(alpha: 0.1),
+              color: !member.isActive
+                  ? Colors.grey.withValues(alpha: 0.15)
+                  : AdminWebColors.accent.withValues(alpha: 0.1),
               shape: BoxShape.circle,
               border: Border.all(
-                color: AdminWebColors.accent.withValues(alpha: 0.2),
+                color: !member.isActive
+                    ? Colors.grey.withValues(alpha: 0.3)
+                    : AdminWebColors.accent.withValues(alpha: 0.2),
               ),
             ),
             alignment: Alignment.center,
             child: Text(
               member.initials,
-              style: const TextStyle(
-                color: AdminWebColors.accent,
+              style: TextStyle(
+                color: !member.isActive ? Colors.grey : AdminWebColors.accent,
                 fontWeight: FontWeight.bold,
                 fontSize: 16,
               ),
@@ -421,10 +431,12 @@ class _StaffTile extends StatelessWidget {
                     Expanded(
                       child: Text(
                         member.fullName,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontWeight: FontWeight.w700,
                           fontSize: 15,
-                          color: AdminWebColors.textPrimary,
+                          color: !member.isActive
+                              ? AdminWebColors.textSecondary
+                              : AdminWebColors.textPrimary,
                         ),
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -441,31 +453,62 @@ class _StaffTile extends StatelessWidget {
                     color: AdminWebColors.textSecondary,
                   ),
                 ),
-                const SizedBox(height: 10),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 6,
-                  children: [
-                    _InfoPill(
-                      icon: Icons.store_mall_directory_outlined,
-                      label: member.branch,
+                if (!member.isActive) ...[
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: AdminWebColors.error.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(
+                          color: AdminWebColors.error.withValues(alpha: 0.25)),
                     ),
-                    _InfoPill(
-                      icon: Icons.work_outline,
-                      label: member.position,
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.lock_clock_outlined,
+                            size: 14, color: AdminWebColors.error),
+                        SizedBox(width: 6),
+                        Text(
+                          'ACCOUNT TEMPORARILY FROZEN / DEACTIVATED (DETAILS HIDDEN)',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            color: AdminWebColors.error,
+                            letterSpacing: 0.3,
+                          ),
+                        ),
+                      ],
                     ),
-                    if (member.age.isNotEmpty)
+                  ),
+                ] else ...[
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 6,
+                    children: [
                       _InfoPill(
-                        icon: Icons.badge_outlined,
-                        label: '${member.age} YRS',
+                        icon: Icons.store_mall_directory_outlined,
+                        label: member.branch,
                       ),
-                    if (member.address.isNotEmpty)
                       _InfoPill(
-                        icon: Icons.location_on_outlined,
-                        label: member.address,
+                        icon: Icons.work_outline,
+                        label: member.position,
                       ),
-                  ],
-                ),
+                      if (member.age.isNotEmpty)
+                        _InfoPill(
+                          icon: Icons.badge_outlined,
+                          label: '${member.age} YRS',
+                        ),
+                      if (member.address.isNotEmpty)
+                        _InfoPill(
+                          icon: Icons.location_on_outlined,
+                          label: member.address,
+                        ),
+                    ],
+                  ),
+                ],
               ],
             ),
           ),

@@ -126,17 +126,24 @@ class BilaoOrder {
   double get totalAmount => size.price * quantity;
 
   BilaoOrder copyWith({
+    String? id,
+    String? customerName,
+    String? contactNumber,
+    BilaoSize? size,
+    int? quantity,
+    DateTime? scheduledDateTime,
+    String? deliveryAddress,
     PreparationStatus? preparationStatus,
     DeliveryStatus? deliveryStatus,
   }) {
     return BilaoOrder(
-      id: id,
-      customerName: customerName,
-      contactNumber: contactNumber,
-      size: size,
-      quantity: quantity,
-      scheduledDateTime: scheduledDateTime,
-      deliveryAddress: deliveryAddress,
+      id: id ?? this.id,
+      customerName: customerName ?? this.customerName,
+      contactNumber: contactNumber ?? this.contactNumber,
+      size: size ?? this.size,
+      quantity: quantity ?? this.quantity,
+      scheduledDateTime: scheduledDateTime ?? this.scheduledDateTime,
+      deliveryAddress: deliveryAddress ?? this.deliveryAddress,
       preparationStatus: preparationStatus ?? this.preparationStatus,
       deliveryStatus: deliveryStatus ?? this.deliveryStatus,
     );

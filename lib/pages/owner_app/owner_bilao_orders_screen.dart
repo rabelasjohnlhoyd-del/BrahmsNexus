@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'package:flutter/cupertino.dart';
 import '../../models/bilao_order.dart';
+import '../../services/firestore_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/staff_button.dart';
 import '../../widgets/staff_card.dart';
@@ -10,14 +12,7 @@ import '../../widgets/staff_nav_bar.dart';
 /// in-app) and tracks Preparation and Delivery status through to
 /// completion.
 ///
-/// Migrated from the old `admin_web/bilao_orders` screen — same
-/// model and filtering logic, rebuilt with Cupertino widgets
-/// (action sheets instead of dropdowns, a date/time wheel picker
-/// instead of Material date+time dialogs) to match the rest of the
-/// Owner app.
-///
-/// NOTE: Mock data for now — once Supabase is wired up, this reads/
-/// writes the real `bilao_orders` table.
+/// Backed by live real-time Firestore sync.
 class OwnerBilaoOrdersScreen extends StatefulWidget {
   const OwnerBilaoOrdersScreen({super.key});
 
@@ -27,6 +22,8 @@ class OwnerBilaoOrdersScreen extends StatefulWidget {
 }
 
 class _OwnerBilaoOrdersScreenState extends State<OwnerBilaoOrdersScreen> {
+  StreamSubscription<List<BilaoOrder>>? _ordersSub;
+
   final List<BilaoOrder> _orders = [
     BilaoOrder(
       id: 'ord1',
@@ -109,16 +106,22 @@ class _OwnerBilaoOrdersScreenState extends State<OwnerBilaoOrdersScreen> {
   }
 
   void _updatePreparation(String id, PreparationStatus status) {
+    FirestoreService.updateBilaoStatus(orderId: id, preparationStatus: status);
     setState(() {
       final index = _orders.indexWhere((o) => o.id == id);
-      _orders[index] = _orders[index].copyWith(preparationStatus: status);
+      if (index >= 0) {
+        _orders[index] = _orders[index].copyWith(preparationStatus: status);
+      }
     });
   }
 
   void _updateDelivery(String id, DeliveryStatus status) {
+    FirestoreService.updateBilaoStatus(orderId: id, deliveryStatus: status);
     setState(() {
       final index = _orders.indexWhere((o) => o.id == id);
-      _orders[index] = _orders[index].copyWith(deliveryStatus: status);
+      if (index >= 0) {
+        _orders[index] = _orders[index].copyWith(deliveryStatus: status);
+      }
     });
   }
 
@@ -317,17 +320,17 @@ class _OwnerBilaoOrdersScreenState extends State<OwnerBilaoOrdersScreen> {
                 if (name.isEmpty || contact.isEmpty || quantity == null) {
                   return;
                 }
+                final newOrder = BilaoOrder(
+                  id: 'ord${DateTime.now().millisecondsSinceEpoch}',
+                  customerName: name,
+                  contactNumber: contact,
+                  size: selectedSize,
+                  quantity: quantity,
+                  scheduledDateTime: scheduledDateTime,
+                );
+                FirestoreService.createBilaoOrder(newOrder);
                 setState(() {
-                  _orders.add(
-                    BilaoOrder(
-                      id: 'ord${_orders.length + 1}',
-                      customerName: name,
-                      contactNumber: contact,
-                      size: selectedSize,
-                      quantity: quantity,
-                      scheduledDateTime: scheduledDateTime,
-                    ),
-                  );
+                  _orders.insert(0, newOrder);
                 });
                 Navigator.of(dialogContext).pop();
               },
@@ -337,6 +340,26 @@ class _OwnerBilaoOrdersScreenState extends State<OwnerBilaoOrdersScreen> {
         ),
       ),
     );
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _ordersSub = FirestoreService.watchAllBilaoOrders().listen((orders) {
+      if (mounted) {
+        setState(() {
+          _orders
+            ..clear()
+            ..addAll(orders);
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _ordersSub?.cancel();
+    super.dispose();
   }
 
   @override

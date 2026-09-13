@@ -46,15 +46,41 @@ class KarneBatch {
   }
 
   KarneBatch copyWith({
+    String? id,
+    String? name,
+    double? totalKilos,
     List<KarneSession>? sessions,
     bool? isFinished,
   }) {
     return KarneBatch(
-      id: id,
-      name: name,
-      totalKilos: totalKilos,
+      id: id ?? this.id,
+      name: name ?? this.name,
+      totalKilos: totalKilos ?? this.totalKilos,
       sessions: sessions ?? this.sessions,
       isFinished: isFinished ?? this.isFinished,
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'name': name,
+      'totalKilos': totalKilos,
+      'sessions': sessions.map((s) => s.toMap()).toList(),
+      'isFinished': isFinished,
+    };
+  }
+
+  factory KarneBatch.fromMap(Map<String, dynamic> map, [String? docId]) {
+    final rawSessions = map['sessions'] as List<dynamic>? ?? [];
+    return KarneBatch(
+      id: docId ?? map['id']?.toString() ?? '',
+      name: map['name']?.toString() ?? 'Batch',
+      totalKilos: (map['totalKilos'] as num?)?.toDouble() ?? 0.0,
+      sessions: rawSessions
+          .map((s) => KarneSession.fromMap(Map<String, dynamic>.from(s as Map)))
+          .toList(),
+      isFinished: map['isFinished'] as bool? ?? false,
     );
   }
 }
@@ -96,4 +122,34 @@ class KarneSession {
 
   int get sobra => (actualPcs > 0 && actualPcs > kota) ? actualPcs - kota : 0;
   int get short => (actualPcs > 0 && actualPcs < kota) ? kota - actualPcs : 0;
+
+  Map<String, dynamic> toMap() {
+    return {
+      'date': date.toIso8601String(),
+      'brand': brand,
+      'resekoApplied': resekoApplied,
+      'boilingMinutes': boilingMinutes,
+      'kilosCooked': kilosCooked,
+      'actualPcs': actualPcs,
+    };
+  }
+
+  factory KarneSession.fromMap(Map<String, dynamic> map) {
+    DateTime parsedDate;
+    final rawDate = map['date'];
+    if (rawDate is String) {
+      parsedDate = DateTime.tryParse(rawDate) ?? DateTime.now();
+    } else {
+      parsedDate = DateTime.now();
+    }
+
+    return KarneSession(
+      date: parsedDate,
+      brand: map['brand']?.toString() ?? '',
+      resekoApplied: (map['resekoApplied'] as num?)?.toDouble() ?? 28.0,
+      boilingMinutes: (map['boilingMinutes'] as num?)?.toInt() ?? 25,
+      kilosCooked: (map['kilosCooked'] as num?)?.toDouble() ?? 0.0,
+      actualPcs: (map['actualPcs'] as num?)?.toInt() ?? 0,
+    );
+  }
 }

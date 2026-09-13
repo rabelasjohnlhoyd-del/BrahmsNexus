@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart' show Divider;
 import '../../models/branch.dart';
@@ -5,6 +6,7 @@ import '../../models/financial_period.dart';
 import '../../models/inventory_batch.dart';
 import '../../models/inventory_item.dart';
 import '../../models/procurement_list.dart';
+import '../../services/firestore_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/staff_button.dart';
 import '../../widgets/staff_card.dart';
@@ -19,8 +21,7 @@ import '../../widgets/staff_top_actions.dart';
 /// instead of a separate locally-defined copy with slightly different
 /// field names. Same reason the Financials tab exists here now too:
 /// both surfaces should show the same numbers computed the same way,
-/// even though each still keeps its own in-memory mock data until the
-/// backend phase (no shared storage between web and mobile yet).
+/// backed by live Firestore sync.
 class OwnerInventoryScreen extends StatefulWidget {
   const OwnerInventoryScreen({super.key});
 
@@ -30,6 +31,8 @@ class OwnerInventoryScreen extends StatefulWidget {
 
 class _OwnerInventoryScreenState extends State<OwnerInventoryScreen> {
   int _section = 0; // 0 = Warehouse, 1 = Branches, 2 = Dispatch, 3 = Finance
+
+  StreamSubscription<List<KarneBatch>>? _batchesSub;
 
   final List<KarneBatch> _batches = [
     KarneBatch(
@@ -71,6 +74,22 @@ class _OwnerInventoryScreenState extends State<OwnerInventoryScreen> {
   void initState() {
     super.initState();
     _initializeFinancials();
+    _batchesSub = FirestoreService.watchProductionBatches().listen((batches) {
+      if (mounted) {
+        setState(() {
+          _batches
+            ..clear()
+            ..addAll(batches);
+        });
+        _refreshFinancialsFromBatches();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _batchesSub?.cancel();
+    super.dispose();
   }
 
   // --- FINANCIALS SETUP -----------------------------------------------
@@ -206,13 +225,16 @@ class _OwnerInventoryScreenState extends State<OwnerInventoryScreen> {
             onPressed: () {
               final k = double.tryParse(kilosController.text);
               if (nameController.text.isNotEmpty && k != null) {
+                final newBatch = KarneBatch(
+                  id: 'kb_${DateTime.now().millisecondsSinceEpoch}',
+                  name: nameController.text,
+                  totalKilos: k,
+                );
+                FirestoreService.saveProductionBatch(newBatch);
                 setState(() {
-                  _batches.insert(0, KarneBatch(
-                    id: 'kb${DateTime.now().millisecondsSinceEpoch}',
-                    name: nameController.text,
-                    totalKilos: k,
-                  ));
+                  _batches.insert(0, newBatch);
                 });
+                _refreshFinancialsFromBatches();
               }
               Navigator.pop(ctx);
             },
@@ -253,8 +275,8 @@ class _OwnerInventoryScreenState extends State<OwnerInventoryScreen> {
               final m = int.tryParse(minutesCtrl.text);
               final k = double.tryParse(kilosCtrl.text);
               if (brandCtrl.text.isNotEmpty && r != null && m != null && k != null) {
-                setState(() {
-                  final idx = _batches.indexWhere((b) => b.id == batch.id);
+                final idx = _batches.indexWhere((b) => b.id == batch.id);
+                if (idx >= 0) {
                   final newSessions = List<KarneSession>.from(_batches[idx].sessions)
                     ..add(KarneSession(
                       date: DateTime.now(),
@@ -263,9 +285,13 @@ class _OwnerInventoryScreenState extends State<OwnerInventoryScreen> {
                       boilingMinutes: m,
                       kilosCooked: k,
                     ));
-                  _batches[idx] = _batches[idx].copyWith(sessions: newSessions);
-                });
-                _refreshFinancialsFromBatches();
+                  final updated = _batches[idx].copyWith(sessions: newSessions);
+                  FirestoreService.saveProductionBatch(updated);
+                  setState(() {
+                    _batches[idx] = updated;
+                  });
+                  _refreshFinancialsFromBatches();
+                }
               }
               Navigator.pop(ctx);
             },
@@ -301,8 +327,8 @@ class _OwnerInventoryScreenState extends State<OwnerInventoryScreen> {
             onPressed: () {
               final val = int.tryParse(actualCtrl.text);
               if (val != null) {
-                setState(() {
-                  final bIdx = _batches.indexWhere((b) => b.id == batch.id);
+                final bIdx = _batches.indexWhere((b) => b.id == batch.id);
+                if (bIdx >= 0) {
                   final newSessions = List<KarneSession>.from(_batches[bIdx].sessions);
                   final old = newSessions[sessionIndex];
                   newSessions[sessionIndex] = KarneSession(
@@ -313,9 +339,13 @@ class _OwnerInventoryScreenState extends State<OwnerInventoryScreen> {
                     kilosCooked: old.kilosCooked,
                     actualPcs: val,
                   );
-                  _batches[bIdx] = _batches[bIdx].copyWith(sessions: newSessions);
-                });
-                _refreshFinancialsFromBatches();
+                  final updated = _batches[bIdx].copyWith(sessions: newSessions);
+                  FirestoreService.saveProductionBatch(updated);
+                  setState(() {
+                    _batches[bIdx] = updated;
+                  });
+                  _refreshFinancialsFromBatches();
+                }
               }
               Navigator.pop(ctx);
             },
@@ -340,13 +370,17 @@ class _OwnerInventoryScreenState extends State<OwnerInventoryScreen> {
           CupertinoDialogAction(
             isDestructiveAction: true,
             onPressed: () {
-              setState(() {
-                final bIdx = _batches.indexWhere((b) => b.id == batch.id);
+              final bIdx = _batches.indexWhere((b) => b.id == batch.id);
+              if (bIdx >= 0) {
                 final newSessions = List<KarneSession>.from(_batches[bIdx].sessions)
                   ..removeAt(sessionIndex);
-                _batches[bIdx] = _batches[bIdx].copyWith(sessions: newSessions);
-              });
-              _refreshFinancialsFromBatches();
+                final updated = _batches[bIdx].copyWith(sessions: newSessions);
+                FirestoreService.saveProductionBatch(updated);
+                setState(() {
+                  _batches[bIdx] = updated;
+                });
+                _refreshFinancialsFromBatches();
+              }
               Navigator.pop(ctx);
             },
             child: const Text('Delete'),

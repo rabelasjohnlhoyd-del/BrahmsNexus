@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../models/inventory_batch.dart';
+import '../../../services/firestore_service.dart';
 import '../admin_web_colors.dart';
 import '../admin_web_shell.dart';
 import '../admin_web_widgets/glass_card.dart';
@@ -77,6 +78,7 @@ class _KarneBatchDetailScreenState extends State<KarneBatchDetailScreen> {
                 _batch = _batch.copyWith(sessions: newSessions);
               });
               widget.onBatchChanged?.call(_batch);
+              FirestoreService.saveProductionBatch(_batch);
               Navigator.pop(context);
             },
             child: const Text('ADD SESSION'),
@@ -121,6 +123,7 @@ class _KarneBatchDetailScreenState extends State<KarneBatchDetailScreen> {
                 _batch = _batch.copyWith(sessions: newSessions);
               });
               widget.onBatchChanged?.call(_batch);
+              FirestoreService.saveProductionBatch(_batch);
               Navigator.pop(context);
             },
             child: const Text('SAVE ACTUAL'),
@@ -147,6 +150,7 @@ class _KarneBatchDetailScreenState extends State<KarneBatchDetailScreen> {
                 _batch = _batch.copyWith(sessions: newSessions);
               });
               widget.onBatchChanged?.call(_batch);
+              FirestoreService.saveProductionBatch(_batch);
               Navigator.pop(context);
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(content: Text('Cooking session deleted.')),

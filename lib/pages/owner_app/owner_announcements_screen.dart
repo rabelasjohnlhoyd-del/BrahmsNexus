@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'package:flutter/cupertino.dart';
 import '../../models/announcement.dart';
+import '../../services/firestore_service.dart';
 import '../../services/notification_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/staff_button.dart';
@@ -14,12 +16,7 @@ import '../../widgets/staff_section_header.dart';
 /// notification bell like Staff/Driver, since Owner is the one
 /// COMPOSING these, not just receiving them.
 ///
-/// Migrated from the old `admin_web/announcements` screen — same
-/// model, rebuilt with Cupertino widgets and [StaffDialog] for the
-/// delete confirmation instead of a bare delete icon button.
-///
-/// NOTE: Mock data for now — once Supabase/Firebase are wired up,
-/// posting here writes to the real `announcements` table.
+/// Backed by live real-time Firestore sync.
 class OwnerAnnouncementsScreen extends StatefulWidget {
   const OwnerAnnouncementsScreen({super.key});
 
@@ -31,6 +28,7 @@ class OwnerAnnouncementsScreen extends StatefulWidget {
 class _OwnerAnnouncementsScreenState extends State<OwnerAnnouncementsScreen> {
   final _messageController = TextEditingController();
   bool _isPosting = false;
+  StreamSubscription<List<Announcement>>? _announcementsSub;
 
   final List<Announcement> _announcements = [
     Announcement(
@@ -50,7 +48,22 @@ class _OwnerAnnouncementsScreenState extends State<OwnerAnnouncementsScreen> {
   ];
 
   @override
+  void initState() {
+    super.initState();
+    _announcementsSub = FirestoreService.watchAnnouncements().listen((list) {
+      if (mounted) {
+        setState(() {
+          _announcements
+            ..clear()
+            ..addAll(list);
+        });
+      }
+    });
+  }
+
+  @override
   void dispose() {
+    _announcementsSub?.cancel();
     _messageController.dispose();
     super.dispose();
   }
@@ -60,6 +73,8 @@ class _OwnerAnnouncementsScreenState extends State<OwnerAnnouncementsScreen> {
     if (text.isEmpty) return;
 
     setState(() => _isPosting = true);
+
+    final docId = await FirestoreService.postAnnouncement(text);
 
     // Broadcast notification to all Staff and Drivers
     await NotificationService.notifyStaffAndDriversOfAnnouncement(
@@ -72,7 +87,7 @@ class _OwnerAnnouncementsScreenState extends State<OwnerAnnouncementsScreen> {
       _announcements.insert(
         0,
         Announcement(
-          id: 'an${_announcements.length + 1}',
+          id: docId ?? 'an${_announcements.length + 1}',
           messageContent: text,
           datePosted: DateTime.now(),
         ),
@@ -93,7 +108,10 @@ class _OwnerAnnouncementsScreenState extends State<OwnerAnnouncementsScreen> {
       confirmLabel: 'Delete',
     );
     if (confirmed) {
-      setState(() => _announcements.removeWhere((x) => x.id == a.id));
+      await FirestoreService.deleteAnnouncement(a.id);
+      if (mounted) {
+        setState(() => _announcements.removeWhere((x) => x.id == a.id));
+      }
     }
   }
 

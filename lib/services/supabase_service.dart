@@ -136,40 +136,13 @@ class SupabaseService {
   }) async {
     final client = _client;
     if (client == null) {
-      // Local in-memory filtering + pagination
-      var filtered = _inMemoryStaff.where((s) => s.isArchived == showArchived).toList();
-      if (query.trim().isNotEmpty) {
-        final q = query.trim().toLowerCase();
-        filtered = filtered.where((s) {
-          return s.fullName.toLowerCase().contains(q) ||
-              s.username.toLowerCase().contains(q) ||
-              s.branch.toLowerCase().contains(q) ||
-              s.position.toLowerCase().contains(q);
-        }).toList();
-      }
-      if (branchFilter != null && branchFilter != 'All') {
-        filtered = filtered.where((s) => s.branch == branchFilter).toList();
-      }
-      if (positionFilter != null && positionFilter != 'All') {
-        filtered = filtered.where((s) => s.position == positionFilter).toList();
-      }
-
-      final total = filtered.length;
-      final start = (page - 1) * pageSize;
-      if (start >= total) {
-        return PaginatedResponse(
-          items: [],
-          totalCount: total,
-          currentPage: page,
-          pageSize: pageSize,
-        );
-      }
-      final end = (start + pageSize) > total ? total : (start + pageSize);
-      return PaginatedResponse(
-        items: filtered.sublist(start, end),
-        totalCount: total,
-        currentPage: page,
+      return _localPaginatedStaff(
+        page: page,
         pageSize: pageSize,
+        query: query,
+        showArchived: showArchived,
+        branchFilter: branchFilter,
+        positionFilter: positionFilter,
       );
     }
 
@@ -203,6 +176,18 @@ class SupabaseService {
           .map((map) => StaffMember.fromMap(map as Map<String, dynamic>))
           .toList();
 
+      // If remote Supabase table is empty or has not been seeded yet, fallback to in-memory staff
+      if (items.isEmpty && _inMemoryStaff.isNotEmpty && !showArchived && query.isEmpty && branchFilter == null) {
+        return _localPaginatedStaff(
+          page: page,
+          pageSize: pageSize,
+          query: query,
+          showArchived: showArchived,
+          branchFilter: branchFilter,
+          positionFilter: positionFilter,
+        );
+      }
+
       int totalCount = items.length;
       try {
         final countRes = await client
@@ -223,14 +208,60 @@ class SupabaseService {
         pageSize: pageSize,
       );
     } catch (e) {
-      debugPrint('SupabaseService.getStaffProfiles error: $e');
+      debugPrint('SupabaseService.getStaffProfiles error: $e. Falling back to local staff directory.');
+      return _localPaginatedStaff(
+        page: page,
+        pageSize: pageSize,
+        query: query,
+        showArchived: showArchived,
+        branchFilter: branchFilter,
+        positionFilter: positionFilter,
+      );
+    }
+  }
+
+  static PaginatedResponse<StaffMember> _localPaginatedStaff({
+    int page = 1,
+    int pageSize = 10,
+    String query = '',
+    bool showArchived = false,
+    String? branchFilter,
+    String? positionFilter,
+  }) {
+    var filtered = _inMemoryStaff.where((s) => s.isArchived == showArchived).toList();
+    if (query.trim().isNotEmpty) {
+      final q = query.trim().toLowerCase();
+      filtered = filtered.where((s) {
+        return s.fullName.toLowerCase().contains(q) ||
+            s.username.toLowerCase().contains(q) ||
+            s.branch.toLowerCase().contains(q) ||
+            s.position.toLowerCase().contains(q);
+      }).toList();
+    }
+    if (branchFilter != null && branchFilter != 'All') {
+      filtered = filtered.where((s) => s.branch == branchFilter).toList();
+    }
+    if (positionFilter != null && positionFilter != 'All') {
+      filtered = filtered.where((s) => s.position == positionFilter).toList();
+    }
+
+    final total = filtered.length;
+    final start = (page - 1) * pageSize;
+    if (start >= total) {
       return PaginatedResponse(
         items: [],
-        totalCount: 0,
+        totalCount: total,
         currentPage: page,
         pageSize: pageSize,
       );
     }
+    final end = (start + pageSize) > total ? total : (start + pageSize);
+    return PaginatedResponse(
+      items: filtered.sublist(start, end),
+      totalCount: total,
+      currentPage: page,
+      pageSize: pageSize,
+    );
   }
 
   /// Inserts a new staff member profile into Supabase.
@@ -271,11 +302,39 @@ class SupabaseService {
     }
   }
 
+  /// Returns all staff in the in-memory cache.
+  static List<StaffMember> getAllStaff() => List.unmodifiable(_inMemoryStaff);
+
+  /// Checks if a staff member is active and not archived by username, ID, or full name.
+  static bool isStaffActive({String? username, String? staffId, String? fullName}) {
+    final member = _inMemoryStaff.firstWhere(
+      (s) => (username != null && s.username.toLowerCase() == username.toLowerCase().trim()) ||
+             (staffId != null && s.id == staffId) ||
+             (fullName != null && s.fullName.toLowerCase() == fullName.toLowerCase().trim()),
+      orElse: () => StaffMember(
+        id: '',
+        firstName: '',
+        lastName: '',
+        username: '',
+        branch: '',
+        position: '',
+        isActive: true,
+        isArchived: false,
+      ),
+    );
+    if (member.id.isEmpty) return true;
+    return member.isActive && !member.isArchived;
+  }
+
   /// Toggles active status for staff.
   static Future<bool> toggleStaffActive(String staffId, bool isActive) async {
     final index = _inMemoryStaff.indexWhere((s) => s.id == staffId);
     if (index >= 0) {
       _inMemoryStaff[index] = _inMemoryStaff[index].copyWith(isActive: isActive);
+    }
+    final sampleIndex = kSampleStaff.indexWhere((s) => s.id == staffId);
+    if (sampleIndex >= 0) {
+      kSampleStaff[sampleIndex] = kSampleStaff[sampleIndex].copyWith(isActive: isActive);
     }
 
     final client = _client;
@@ -298,6 +357,10 @@ class SupabaseService {
     final index = _inMemoryStaff.indexWhere((s) => s.id == staffId);
     if (index >= 0) {
       _inMemoryStaff[index] = _inMemoryStaff[index].copyWith(isArchived: isArchived);
+    }
+    final sampleIndex = kSampleStaff.indexWhere((s) => s.id == staffId);
+    if (sampleIndex >= 0) {
+      kSampleStaff[sampleIndex] = kSampleStaff[sampleIndex].copyWith(isArchived: isArchived);
     }
 
     final client = _client;

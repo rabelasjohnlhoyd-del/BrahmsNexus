@@ -16,11 +16,15 @@ class GlassCard extends StatelessWidget {
     required this.child,
     this.borderRadius = 16,
     this.padding = const EdgeInsets.all(24),
+    this.color,
+    this.borderColor,
   });
 
   final Widget child;
   final double borderRadius;
   final EdgeInsetsGeometry padding;
+  final Color? color;
+  final Color? borderColor;
 
   @override
   Widget build(BuildContext context) {
@@ -31,9 +35,9 @@ class GlassCard extends StatelessWidget {
         child: Container(
           padding: padding,
           decoration: BoxDecoration(
-            color: AdminWebColors.glassFill,
+            color: color ?? AdminWebColors.glassFill,
             borderRadius: BorderRadius.circular(borderRadius),
-            border: Border.all(color: AdminWebColors.glassBorder),
+            border: Border.all(color: borderColor ?? AdminWebColors.glassBorder),
             boxShadow: [
               BoxShadow(
                 color: AdminWebColors.accentDark.withValues(alpha: 0.08),

@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../../models/announcement.dart';
+import '../../../services/firestore_service.dart';
 import '../../../services/notification_service.dart';
 import '../admin_web_colors.dart';
 import '../admin_web_shell.dart';
@@ -9,8 +11,7 @@ import '../admin_web_widgets/glass_card.dart';
 /// Driver on their respective apps (see staff_app/announcements_screen
 /// and driver_app home).
 ///
-/// NOTE: Mock data for now — once Supabase/Firebase are wired up,
-/// posting here writes to the real `announcements` table.
+/// Backed by live real-time Firestore sync.
 class AnnouncementsScreen extends StatefulWidget {
   const AnnouncementsScreen({super.key});
 
@@ -21,6 +22,7 @@ class AnnouncementsScreen extends StatefulWidget {
 class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
   final _messageController = TextEditingController();
   bool _isPosting = false;
+  StreamSubscription<List<Announcement>>? _announcementsSub;
 
   final List<Announcement> _announcements = [
     Announcement(
@@ -43,6 +45,16 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
   void initState() {
     super.initState();
     _updateShellActions();
+    _announcementsSub =
+        FirestoreService.watchAnnouncements().listen((list) {
+      if (mounted) {
+        setState(() {
+          _announcements
+            ..clear()
+            ..addAll(list);
+        });
+      }
+    });
   }
 
   @override
@@ -58,6 +70,7 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
 
   @override
   void dispose() {
+    _announcementsSub?.cancel();
     _messageController.dispose();
     super.dispose();
   }
@@ -69,7 +82,7 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
     setState(() => _isPosting = true);
     _updateShellActions();
 
-    await Future.delayed(const Duration(milliseconds: 500));
+    final docId = await FirestoreService.postAnnouncement(text);
     await NotificationService.notifyStaffAndDriversOfAnnouncement(
       messageContent: text,
     );
@@ -79,7 +92,7 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
       _announcements.insert(
         0,
         Announcement(
-          id: 'an${_announcements.length + 1}',
+          id: docId ?? 'an${_announcements.length + 1}',
           messageContent: text,
           datePosted: DateTime.now(),
         ),
@@ -108,6 +121,7 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: AdminWebColors.error),
             onPressed: () {
+              FirestoreService.deleteAnnouncement(id);
               setState(() => _announcements.removeWhere((a) => a.id == id));
               Navigator.pop(context);
               ScaffoldMessenger.of(context).showSnackBar(

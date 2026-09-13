@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../../models/daily_report.dart';
+import '../../../services/firestore_service.dart';
 import '../admin_web_colors.dart';
 import '../admin_web_shell.dart';
 import '../admin_web_widgets/glass_card.dart';
@@ -9,9 +11,7 @@ import '../admin_web_widgets/glass_card.dart';
 /// status (Submitted/Missing/Incomplete) at a glance. Replaces the
 /// client's old group-chat-based reporting.
 ///
-/// NOTE: Mock data for now — once Supabase is wired up, this reads
-/// the real `daily_reports` table (with pagination once the dataset
-/// grows past what's comfortable to load at once).
+/// Backed by live real-time Firestore sync.
 class EmployeeReportsScreen extends StatefulWidget {
   const EmployeeReportsScreen({super.key});
 
@@ -25,6 +25,7 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
   int _currentPage = 0;
   static const int _pageSize = 10;
   DateTime? _dateFilter;
+  StreamSubscription<List<DailyReport>>? _reportsSub;
 
   final List<DailyReport> _reports = [
     DailyReport(
@@ -77,6 +78,15 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
   void initState() {
     super.initState();
     _updateShellActions();
+    _reportsSub = FirestoreService.watchDailyReports().listen((list) {
+      if (mounted) {
+        setState(() {
+          _reports
+            ..clear()
+            ..addAll(list);
+        });
+      }
+    });
   }
 
   @override
@@ -88,6 +98,12 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
   void _updateShellActions() {
     final shell = context.findAncestorStateOfType<AdminWebShellState>();
     shell?.setActions([]);
+  }
+
+  @override
+  void dispose() {
+    _reportsSub?.cancel();
+    super.dispose();
   }
 
   Color _statusColor(ReportSubmissionStatus status) {

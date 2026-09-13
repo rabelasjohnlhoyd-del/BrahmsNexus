@@ -1,9 +1,11 @@
+import 'dart:async';
 import 'package:flutter/cupertino.dart';
 import '../../models/branch_assignment.dart';
 import '../../models/daily_report.dart';
 import '../../models/inventory_item.dart';
 import '../../models/sales_record.dart';
 import '../../services/auth_service.dart';
+import '../../services/firestore_service.dart';
 import '../../theme/app_theme.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../widgets/owner_sales_trend_chart.dart';
@@ -28,6 +30,38 @@ class OwnerHomepageScreen extends StatefulWidget {
 class _OwnerHomepageScreenState extends State<OwnerHomepageScreen> {
   bool _isRefreshing = false;
   bool _isCelsius = true;
+  StreamSubscription<List<SalesRecord>>? _salesSub;
+  StreamSubscription<List<DailyReport>>? _reportsSub;
+
+  @override
+  void initState() {
+    super.initState();
+    _salesSub = FirestoreService.watchRecentSales().listen((list) {
+      if (mounted) {
+        setState(() {
+          _salesRecords
+            ..clear()
+            ..addAll(list);
+        });
+      }
+    });
+    _reportsSub = FirestoreService.watchDailyReports().listen((list) {
+      if (mounted) {
+        setState(() {
+          _reports
+            ..clear()
+            ..addAll(list);
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _salesSub?.cancel();
+    _reportsSub?.cancel();
+    super.dispose();
+  }
 
   // Mock data for functional simulation
   int _tempC = 28;
@@ -375,7 +409,7 @@ class _OwnerHomepageScreenState extends State<OwnerHomepageScreen> {
     ),
   ];
 
-  static final List<SalesRecord> _salesRecords = [
+  final List<SalesRecord> _salesRecords = [
     SalesRecord(
       id: 's1',
       branchId: 'br1',
@@ -400,7 +434,7 @@ class _OwnerHomepageScreenState extends State<OwnerHomepageScreen> {
     ),
   ];
 
-  static final List<DailyReport> _reports = [
+  final List<DailyReport> _reports = [
     DailyReport(
       id: 'r1',
       employeeId: 'emp1',
