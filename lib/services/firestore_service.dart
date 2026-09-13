@@ -503,28 +503,44 @@ class FirestoreService {
     ),
   ];
 
+  /// Seeds the default batches to Firestore once if the collection is empty.
+  /// Call this ONCE from initState (both Admin Web and Owner App) — separate
+  /// from the stream so real-time updates are never delayed or dropped.
+  static Future<void> seedDefaultBatchesIfEmpty() async {
+    try {
+      final snapshot = await _db
+          .collection('production_batches')
+          .limit(1)
+          .get();
+      if (snapshot.docs.isNotEmpty) return; // Already seeded
+
+      for (final batch in _defaultBatches) {
+        final data = batch.toMap();
+        data['createdAt'] = FieldValue.serverTimestamp();
+        data['updatedAt'] = FieldValue.serverTimestamp();
+        await _db
+            .collection('production_batches')
+            .doc(batch.id)
+            .set(data, SetOptions(merge: true));
+        debugPrint('FirestoreService: Seeded default batch ${batch.id}');
+      }
+    } catch (e) {
+      debugPrint('FirestoreService.seedDefaultBatchesIfEmpty error: $e');
+    }
+  }
+
   /// Streams real-time production batches from Firestore.
-  /// On first launch (empty collection), seeds the default batches to Firestore
-  /// so that BOTH the Admin Web and Owner App always read from the same live
-  /// source — no more split between hardcoded in-memory and real Firestore data.
+  /// Uses plain .map() (NOT asyncMap) to guarantee every Firestore update
+  /// is delivered to the UI without delay.
+  /// Call [seedDefaultBatchesIfEmpty] once in initState before listening.
   static Stream<List<KarneBatch>> watchProductionBatches({int limit = 20}) {
     return _db
         .collection('production_batches')
         .orderBy('createdAt', descending: true)
         .limit(limit)
         .snapshots()
-        .asyncMap((snapshot) async {
+        .map((snapshot) {
       if (snapshot.docs.isEmpty) {
-        // Seed default batch to Firestore so all devices see the same data.
-        for (final batch in _defaultBatches) {
-          try {
-            final ref = _db.collection('production_batches').doc(batch.id);
-            final data = batch.toMap();
-            data['createdAt'] = FieldValue.serverTimestamp();
-            data['updatedAt'] = FieldValue.serverTimestamp();
-            await ref.set(data, SetOptions(merge: true));
-          } catch (_) {}
-        }
         return _defaultBatches;
       }
       return snapshot.docs

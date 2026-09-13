@@ -101,26 +101,14 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
 
   Future<void> _toggleStatus(StaffMember member) async {
     final willDeactivate = member.isActive;
-
-    // Find the staff's Firebase UID by looking up their username in Firestore
-    final uid = await AuthService.findUidByUsername(member.username);
-
+    // deactivateStaffAccount / reactivateStaffAccount now handle everything:
+    // - writes to deactivated_staff/{username} (no UID needed, persists always)
+    // - updates users/{uid} in Firestore if the staff has ever signed in
+    // - updates Supabase in-memory for Branch Assignments UI
     if (willDeactivate) {
-      // Deactivate: persist to Firestore (status = deactivated, is_active = false)
-      // and to Supabase in-memory (for Branch Assignments UI)
-      if (uid != null) {
-        await AuthService.deactivateStaffAccount(uid, member.id);
-      } else {
-        // Staff hasn't logged in yet — update Supabase only for now
-        await SupabaseService.toggleStaffActive(member.id, false);
-      }
+      await AuthService.deactivateStaffAccount(member.id, member.username);
     } else {
-      // Reactivate: restore to approved
-      if (uid != null) {
-        await AuthService.reactivateStaffAccount(uid, member.id);
-      } else {
-        await SupabaseService.toggleStaffActive(member.id, true);
-      }
+      await AuthService.reactivateStaffAccount(member.id, member.username);
     }
     await _loadStaff();
   }
