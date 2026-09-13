@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/deactivation_guard.dart';
 import '../staff_app/profile_screen.dart';
 import 'cook_task_screen.dart';
 import 'cook_inventory_screen.dart';
@@ -61,60 +62,62 @@ class ProductionShell extends StatelessWidget {
   Widget build(BuildContext context) {
     final isCook = position == 'Production Area Cook';
 
-    return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: _systemBarStyle,
-      child: CupertinoTheme(
-        data: const CupertinoThemeData(
-          brightness: Brightness.light,
-          primaryColor: AppColors.accent,
-          scaffoldBackgroundColor: AppColors.background,
-          barBackgroundColor: CupertinoColors.white,
-        ),
-        child: Builder(
-          builder: (context) => DefaultTextStyle(
-            style: CupertinoTheme.of(context).textTheme.textStyle,
-            child: CupertinoTabScaffold(
-              tabBar: CupertinoTabBar(
-                backgroundColor: CupertinoColors.white,
-                height: 62,
-                border: const Border(
-                  top: BorderSide(color: AppColors.border, width: 1),
+    return DeactivationGuard(
+      child: AnnotatedRegion<SystemUiOverlayStyle>(
+        value: _systemBarStyle,
+        child: CupertinoTheme(
+          data: const CupertinoThemeData(
+            brightness: Brightness.light,
+            primaryColor: AppColors.accent,
+            scaffoldBackgroundColor: AppColors.background,
+            barBackgroundColor: CupertinoColors.white,
+          ),
+          child: Builder(
+            builder: (context) => DefaultTextStyle(
+              style: CupertinoTheme.of(context).textTheme.textStyle,
+              child: CupertinoTabScaffold(
+                tabBar: CupertinoTabBar(
+                  backgroundColor: CupertinoColors.white,
+                  height: 62,
+                  border: const Border(
+                    top: BorderSide(color: AppColors.border, width: 1),
+                  ),
+                  items: [
+                    BottomNavigationBarItem(
+                      icon: _tabItem(CupertinoIcons.house_fill, 'Home', active: false),
+                      activeIcon: _tabItem(CupertinoIcons.house_fill, 'Home', active: true),
+                    ),
+                    BottomNavigationBarItem(
+                      icon: _tabItem(CupertinoIcons.archivebox_fill, 'Inventory', active: false),
+                      activeIcon: _tabItem(CupertinoIcons.archivebox_fill, 'Inventory', active: true),
+                    ),
+                    BottomNavigationBarItem(
+                      icon: _tabItem(CupertinoIcons.person_fill, 'Profile', active: false),
+                      activeIcon: _tabItem(CupertinoIcons.person_fill, 'Profile', active: true),
+                    ),
+                  ],
                 ),
-                items: [
-                  BottomNavigationBarItem(
-                    icon: _tabItem(CupertinoIcons.house_fill, 'Home', active: false),
-                    activeIcon: _tabItem(CupertinoIcons.house_fill, 'Home', active: true),
-                  ),
-                  BottomNavigationBarItem(
-                    icon: _tabItem(CupertinoIcons.archivebox_fill, 'Inventory', active: false),
-                    activeIcon: _tabItem(CupertinoIcons.archivebox_fill, 'Inventory', active: true),
-                  ),
-                  BottomNavigationBarItem(
-                    icon: _tabItem(CupertinoIcons.person_fill, 'Profile', active: false),
-                    activeIcon: _tabItem(CupertinoIcons.person_fill, 'Profile', active: true),
-                  ),
-                ],
+                tabBuilder: (context, index) {
+                  switch (index) {
+                    case 0:
+                      return CupertinoTabView(
+                        builder: (context) => isCook ? const CookTaskScreen() : const CutterPortioningScreen(),
+                      );
+                    case 1:
+                      return CupertinoTabView(
+                        builder: (context) => isCook ? const CookInventoryScreen() : const CutterInventoryScreen(),
+                      );
+                    case 2:
+                      return CupertinoTabView(
+                        builder: (context) => const ProfileScreen(isRootTab: true),
+                      );
+                    default:
+                      return CupertinoTabView(
+                        builder: (context) => isCook ? const CookTaskScreen() : const CutterPortioningScreen(),
+                      );
+                  }
+                },
               ),
-              tabBuilder: (context, index) {
-                switch (index) {
-                  case 0:
-                    return CupertinoTabView(
-                      builder: (context) => isCook ? const CookTaskScreen() : const CutterPortioningScreen(),
-                    );
-                  case 1:
-                    return CupertinoTabView(
-                      builder: (context) => isCook ? const CookInventoryScreen() : const CutterInventoryScreen(),
-                    );
-                  case 2:
-                    return CupertinoTabView(
-                      builder: (context) => const ProfileScreen(isRootTab: true),
-                    );
-                  default:
-                    return CupertinoTabView(
-                      builder: (context) => isCook ? const CookTaskScreen() : const CutterPortioningScreen(),
-                    );
-                }
-              },
             ),
           ),
         ),

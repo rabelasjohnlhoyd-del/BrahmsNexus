@@ -163,7 +163,20 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
     );
 
     if (confirmed == true) {
-      await SupabaseService.toggleStaffArchived(member.id, !member.isArchived);
+      final willArchive = !member.isArchived;
+      // Archive in Supabase (for Staff Management list display)
+      await SupabaseService.toggleStaffArchived(member.id, willArchive);
+
+      if (willArchive) {
+        // Archiving → also deactivate so the staff is immediately logged out
+        // (writes to deactivated_staff/{username} in Firestore — picked up
+        // in real-time by DeactivationGuard in all staff/driver/production shells)
+        await AuthService.deactivateStaffAccount(member.id, member.username);
+      } else {
+        // Restoring from archive → reactivate so they can log in again
+        await AuthService.reactivateStaffAccount(member.id, member.username);
+      }
+
       await _loadStaff();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -171,7 +184,7 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
           content: Text(
             member.isArchived
                 ? '${member.fullName} was restored to active staff.'
-                : '${member.fullName} was archived.',
+                : '${member.fullName} was archived and account deactivated.',
           ),
         ),
       );

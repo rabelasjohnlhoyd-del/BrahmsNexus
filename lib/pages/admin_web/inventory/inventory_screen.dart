@@ -44,19 +44,18 @@ class _InventoryScreenState extends State<InventoryScreen>
   void initState() {
     super.initState();
     _updateShellActions();
-    // Seed default batch to Firestore once if empty, THEN start listening.
-    // This ensures both Admin Web and Owner App read from the same Firestore
-    // source — never from split in-memory state.
-    FirestoreService.seedDefaultBatchesIfEmpty().then((_) {
-      _batchesSub = FirestoreService.watchProductionBatches().listen((batches) {
-        if (mounted) {
-          setState(() {
-            _karneBatches
-              ..clear()
-              ..addAll(batches);
-          });
-        }
-      });
+    // Start listening to real-time Firestore updates IMMEDIATELY.
+    // Seed the default batch in the background (unawaited) — this only runs
+    // once when the collection is empty and does NOT block the stream.
+    FirestoreService.seedDefaultBatchesIfEmpty();
+    _batchesSub = FirestoreService.watchProductionBatches().listen((batches) {
+      if (mounted) {
+        setState(() {
+          _karneBatches
+            ..clear()
+            ..addAll(batches);
+        });
+      }
     });
   }
 

@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/deactivation_guard.dart';
 import 'bilao_deliveries_screen.dart';
 import 'homepage_screen.dart';
 import 'route_screen.dart';
@@ -90,76 +91,69 @@ class DriverShell extends StatelessWidget {
       barBackgroundColor: CupertinoColors.white,
     );
 
-    return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: _systemBarStyle,
-      child: CupertinoTheme(
-        data: cupertinoThemeData,
-        // Builder + DefaultTextStyle: needed so ALL plain Text
-        // widgets inside inherit the correct font size (without
-        // this, font sizes come out wrong/too large since we're
-        // nested inside a MaterialApp, not a CupertinoApp).
-        child: Builder(
-          builder: (context) => DefaultTextStyle(
-            style: CupertinoTheme.of(context).textTheme.textStyle,
-            child: CupertinoTabScaffold(
-              tabBar: CupertinoTabBar(
-                backgroundColor: CupertinoColors.white,
-                // A little taller than the iOS default 50px so the
-                // icon+label pill has room to breathe without clipping.
-                height: 62,
-                // Explicit top hairline so the bar reads as a clearly
-                // separate, solid surface from whatever is scrolling
-                // behind it, instead of the default near-invisible one.
-                border: const Border(
-                  top: BorderSide(color: AppColors.border, width: 1),
+    return DeactivationGuard(
+      child: AnnotatedRegion<SystemUiOverlayStyle>(
+        value: _systemBarStyle,
+        child: CupertinoTheme(
+          data: cupertinoThemeData,
+          child: Builder(
+            builder: (context) => DefaultTextStyle(
+              style: CupertinoTheme.of(context).textTheme.textStyle,
+              child: CupertinoTabScaffold(
+                tabBar: CupertinoTabBar(
+                  backgroundColor: CupertinoColors.white,
+                  height: 62,
+                  border: const Border(
+                    top: BorderSide(color: AppColors.border, width: 1),
+                  ),
+                  items: [
+                    BottomNavigationBarItem(
+                      icon: _tabItem(CupertinoIcons.house_fill, 'Home', active: false),
+                      activeIcon: _tabItem(CupertinoIcons.house_fill, 'Home', active: true),
+                    ),
+                    BottomNavigationBarItem(
+                      icon: _tabItem(CupertinoIcons.map_fill, 'Route', active: false),
+                      activeIcon: _tabItem(CupertinoIcons.map_fill, 'Route', active: true),
+                    ),
+                    BottomNavigationBarItem(
+                      icon: _tabItem(CupertinoIcons.arrow_2_squarepath, 'Transfer', active: false),
+                      activeIcon: _tabItem(CupertinoIcons.arrow_2_squarepath, 'Transfer', active: true),
+                    ),
+                    BottomNavigationBarItem(
+                      icon: _tabItem(CupertinoIcons.bag_fill, 'Deliveries', active: false),
+                      activeIcon: _tabItem(CupertinoIcons.bag_fill, 'Deliveries', active: true),
+                    ),
+                    BottomNavigationBarItem(
+                      icon: _tabItem(CupertinoIcons.person_fill, 'Profile', active: false),
+                      activeIcon: _tabItem(CupertinoIcons.person_fill, 'Profile', active: true),
+                    ),
+                  ],
                 ),
-                items: [
-                  BottomNavigationBarItem(
-                    icon: _tabItem(CupertinoIcons.house_fill, 'Home', active: false),
-                    activeIcon: _tabItem(CupertinoIcons.house_fill, 'Home', active: true),
-                  ),
-                  BottomNavigationBarItem(
-                    icon: _tabItem(CupertinoIcons.map_fill, 'Route', active: false),
-                    activeIcon: _tabItem(CupertinoIcons.map_fill, 'Route', active: true),
-                  ),
-                  BottomNavigationBarItem(
-                    icon: _tabItem(CupertinoIcons.arrow_2_squarepath, 'Transfer', active: false),
-                    activeIcon: _tabItem(CupertinoIcons.arrow_2_squarepath, 'Transfer', active: true),
-                  ),
-                  BottomNavigationBarItem(
-                    icon: _tabItem(CupertinoIcons.bag_fill, 'Deliveries', active: false),
-                    activeIcon: _tabItem(CupertinoIcons.bag_fill, 'Deliveries', active: true),
-                  ),
-                  BottomNavigationBarItem(
-                    icon: _tabItem(CupertinoIcons.person_fill, 'Profile', active: false),
-                    activeIcon: _tabItem(CupertinoIcons.person_fill, 'Profile', active: true),
-                  ),
-                ],
+                tabBuilder: (context, index) {
+                  switch (index) {
+                    case 0:
+                      return CupertinoTabView(
+                        builder: (context) => const DriverHomepageScreen(),
+                      );
+                    case 1:
+                      return CupertinoTabView(
+                        builder: (context) => const RouteScreen(),
+                      );
+                    case 2:
+                      return CupertinoTabView(
+                        builder: (context) => const StockTransferScreen(),
+                      );
+                    case 3:
+                      return CupertinoTabView(
+                        builder: (context) => const BilaoDeliveriesScreen(),
+                      );
+                    default:
+                      return CupertinoTabView(
+                        builder: (context) => const DriverProfileScreen(),
+                      );
+                  }
+                },
               ),
-              tabBuilder: (context, index) {
-                switch (index) {
-                  case 0:
-                    return CupertinoTabView(
-                      builder: (context) => const DriverHomepageScreen(),
-                    );
-                  case 1:
-                    return CupertinoTabView(
-                      builder: (context) => const RouteScreen(),
-                    );
-                  case 2:
-                    return CupertinoTabView(
-                      builder: (context) => const StockTransferScreen(),
-                    );
-                  case 3:
-                    return CupertinoTabView(
-                      builder: (context) => const BilaoDeliveriesScreen(),
-                    );
-                  default:
-                    return CupertinoTabView(
-                      builder: (context) => const DriverProfileScreen(),
-                    );
-                }
-              },
             ),
           ),
         ),

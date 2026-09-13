@@ -74,20 +74,18 @@ class _OwnerInventoryScreenState extends State<OwnerInventoryScreen> {
   void initState() {
     super.initState();
     _initializeFinancials();
-    // Seed default batch to Firestore once if empty, THEN start listening.
-    // This ensures the Owner App always reads from the same Firestore source
-    // as the Admin Web — real-time sessions added on Admin Web appear here.
-    FirestoreService.seedDefaultBatchesIfEmpty().then((_) {
-      _batchesSub = FirestoreService.watchProductionBatches().listen((batches) {
-        if (mounted) {
-          setState(() {
-            _batches
-              ..clear()
-              ..addAll(batches);
-          });
-          _refreshFinancialsFromBatches();
-        }
-      });
+    // Start listening to real-time Firestore updates IMMEDIATELY.
+    // Seed default batch in background (unawaited) — does NOT block the stream.
+    FirestoreService.seedDefaultBatchesIfEmpty();
+    _batchesSub = FirestoreService.watchProductionBatches().listen((batches) {
+      if (mounted) {
+        setState(() {
+          _batches
+            ..clear()
+            ..addAll(batches);
+        });
+        _refreshFinancialsFromBatches();
+      }
     });
   }
 
