@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import '../models/announcement.dart';
 import '../models/bilao_order.dart';
+import '../models/branch_assignment.dart';
 import '../models/branch_daily_inventory.dart';
 import '../models/daily_report.dart';
 import '../models/inventory_batch.dart';
@@ -645,6 +646,110 @@ class FirestoreService {
       return true;
     } catch (e) {
       debugPrint('FirestoreService.deleteAnnouncement error: $e');
+      return false;
+    }
+  }
+
+  // ===========================================================================
+  // 6. STAFF BRANCH ASSIGNMENTS & REST DAY SCHEDULES
+  // ===========================================================================
+
+  /// Real-time stream of all staff assignments and rest day statuses.
+  static Stream<Map<String, BranchAssignment>> watchStaffAssignmentsMap() {
+    return _db.collection('staff_assignments').snapshots().map((snap) {
+      final map = <String, BranchAssignment>{};
+      for (final doc in snap.docs) {
+        final data = doc.data();
+        final isRestDay = data['isRestDay'] as bool? ?? (data['workStatus'] == 'restDay');
+        final a = BranchAssignment(
+          id: doc.id,
+          employeeId: data['employeeId'] as String? ?? doc.id,
+          employeeName: data['employeeName'] as String? ?? '',
+          branchId: data['branchId'] as String? ?? '',
+          branchName: data['branchName'] as String? ?? '',
+          date: DateTime.now(),
+          workStatus: isRestDay ? WorkStatus.restDay : WorkStatus.onDuty,
+        );
+        map[doc.id.toLowerCase()] = a;
+        if (data['employeeId'] != null) {
+          map[data['employeeId'].toString()] = a;
+        }
+      }
+      return map;
+    });
+  }
+
+  /// Fetches the latest staff assignments and rest day status snapshot.
+  static Future<Map<String, BranchAssignment>> getStaffAssignmentsMap() async {
+    try {
+      final snap = await _db.collection('staff_assignments').get();
+      final map = <String, BranchAssignment>{};
+      for (final doc in snap.docs) {
+        final data = doc.data();
+        final isRestDay = data['isRestDay'] as bool? ?? (data['workStatus'] == 'restDay');
+        final a = BranchAssignment(
+          id: doc.id,
+          employeeId: data['employeeId'] as String? ?? doc.id,
+          employeeName: data['employeeName'] as String? ?? '',
+          branchId: data['branchId'] as String? ?? '',
+          branchName: data['branchName'] as String? ?? '',
+          date: DateTime.now(),
+          workStatus: isRestDay ? WorkStatus.restDay : WorkStatus.onDuty,
+        );
+        map[doc.id.toLowerCase()] = a;
+        if (data['employeeId'] != null) {
+          map[data['employeeId'].toString()] = a;
+        }
+      }
+      return map;
+    } catch (e) {
+      debugPrint('FirestoreService.getStaffAssignmentsMap error: $e');
+      return {};
+    }
+  }
+
+  /// Sets or updates a staff member's branch assignment and rest day status in Firestore.
+  static Future<bool> setStaffAssignment({
+    required String username,
+    required String employeeId,
+    required String employeeName,
+    required String branchId,
+    required String branchName,
+    required WorkStatus workStatus,
+  }) async {
+    try {
+      final usernameKey = username.trim().toLowerCase();
+      await _db.collection('staff_assignments').doc(usernameKey).set({
+        'username': usernameKey,
+        'employeeId': employeeId,
+        'employeeName': employeeName,
+        'branchId': branchId,
+        'branchName': branchName,
+        'workStatus': workStatus.name,
+        'isRestDay': workStatus == WorkStatus.restDay,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+      return true;
+    } catch (e) {
+      debugPrint('FirestoreService.setStaffAssignment error: $e');
+      return false;
+    }
+  }
+
+  /// Checks if a staff member is currently on Rest Day in Firestore.
+  static Future<bool> isStaffOnRestDay(String username) async {
+    try {
+      final usernameKey = username.trim().toLowerCase();
+      final doc = await _db.collection('staff_assignments').doc(usernameKey).get();
+      if (doc.exists) {
+        final data = doc.data();
+        final isRestDay = data?['isRestDay'] as bool? ?? false;
+        final workStatus = data?['workStatus'] as String? ?? '';
+        return isRestDay || workStatus == 'restDay';
+      }
+      return false;
+    } catch (e) {
+      debugPrint('FirestoreService.isStaffOnRestDay error: $e');
       return false;
     }
   }

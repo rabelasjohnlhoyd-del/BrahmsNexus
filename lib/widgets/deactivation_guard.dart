@@ -3,13 +3,15 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../pages/auth/login_screen.dart';
+import '../services/assignment_service.dart';
 import '../services/auth_service.dart';
+import '../services/supabase_service.dart';
 
 /// Wraps any staff/driver/production shell and listens to the
-/// `deactivated_staff/{username}` Firestore document in real-time.
+/// `deactivated_staff/{username}` Firestore document and Supabase profile in real-time.
 ///
-/// If the Owner deactivates OR archives the logged-in staff's account,
-/// this widget automatically signs them out and redirects to [LoginScreen]
+/// If the Owner deactivates OR archives the logged-in staff's account, or puts them on
+/// Rest Day, this widget automatically signs them out and redirects to [LoginScreen]
 /// — even while the staff is actively using the app on another device.
 ///
 /// Usage: Wrap the root widget of each staff/driver/production shell with
@@ -25,6 +27,9 @@ class DeactivationGuard extends StatefulWidget {
 
 class _DeactivationGuardState extends State<DeactivationGuard> {
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _sub;
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _assignmentSub;
+  StreamSubscription<List<dynamic>>? _supabaseSub;
+  VoidCallback? _assignmentListener;
   bool _isHandlingLogout = false;
 
   @override
@@ -39,8 +44,33 @@ class _DeactivationGuardState extends State<DeactivationGuard> {
 
     final usernameKey = username.trim().toLowerCase();
 
-    // Watch the deactivated_staff/{username} document in real-time.
-    // This fires immediately on open AND whenever the document changes.
+    // 1) Watch Supabase profiles in real-time
+    _supabaseSub = SupabaseService.watchStaffProfiles().listen((staffList) {
+      if (!mounted || _isHandlingLogout) return;
+      for (final s in staffList) {
+        if (s.username.toLowerCase() == usernameKey || s.id.toLowerCase() == usernameKey) {
+          if (!s.isActive || s.isArchived) {
+            _forceLogout(isRestDay: false);
+            return;
+          }
+          if (s.isRestDay) {
+            _forceLogout(isRestDay: true);
+            return;
+          }
+        }
+      }
+    });
+
+    // 2) Listen to AssignmentService change notifier
+    _assignmentListener = () {
+      if (!mounted || _isHandlingLogout) return;
+      if (AssignmentService.isRestDay(usernameKey)) {
+        _forceLogout(isRestDay: true);
+      }
+    };
+    AssignmentService.changeNotifier.addListener(_assignmentListener!);
+
+    // 3) Watch the deactivated_staff/{username} document in real-time (Firestore).
     _sub = FirebaseFirestore.instance
         .collection('deactivated_staff')
         .doc(usernameKey)
@@ -48,23 +78,46 @@ class _DeactivationGuardState extends State<DeactivationGuard> {
         .listen((snap) {
       if (!mounted || _isHandlingLogout) return;
 
-      // If the document exists and isDeactivated is true → force logout
       if (snap.exists) {
         final isDeactivated = snap.data()?['isDeactivated'] as bool? ?? false;
         if (isDeactivated) {
-          _forceLogout();
+          _forceLogout(isRestDay: false);
+        }
+      }
+    });
+
+    // 4) Watch the staff_assignments/{username} document in real-time for Rest Day.
+    _assignmentSub = FirebaseFirestore.instance
+        .collection('staff_assignments')
+        .doc(usernameKey)
+        .snapshots()
+        .listen((snap) {
+      if (!mounted || _isHandlingLogout) return;
+
+      if (snap.exists) {
+        final isRestDay = snap.data()?['isRestDay'] as bool? ?? (snap.data()?['workStatus'] == 'restDay');
+        if (isRestDay) {
+          _forceLogout(isRestDay: true);
         }
       }
     });
   }
 
-  Future<void> _forceLogout() async {
+  Future<void> _forceLogout({bool isRestDay = false}) async {
     if (_isHandlingLogout) return;
     _isHandlingLogout = true;
 
-    // Cancel the watcher first so it doesn't fire again during logout
+    // Cancel watchers first
+    if (_assignmentListener != null) {
+      AssignmentService.changeNotifier.removeListener(_assignmentListener!);
+      _assignmentListener = null;
+    }
+    await _supabaseSub?.cancel();
+    _supabaseSub = null;
     await _sub?.cancel();
     _sub = null;
+    await _assignmentSub?.cancel();
+    _assignmentSub = null;
 
     // Sign out from Firebase Auth
     try {
@@ -76,28 +129,29 @@ class _DeactivationGuardState extends State<DeactivationGuard> {
 
     if (!mounted) return;
 
-    // Show a brief notice then redirect to login screen
-    _showLoggedOutDialog();
+    // Show notice then redirect to login screen
+    _showLoggedOutDialog(isRestDay: isRestDay);
   }
 
-  void _showLoggedOutDialog() {
-    // Use a post-frame callback to avoid calling navigator during build
+  void _showLoggedOutDialog({bool isRestDay = false}) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       showDialog(
         context: context,
         barrierDismissible: false,
         builder: (ctx) => AlertDialog(
-          title: const Text('Account Deactivated'),
-          content: const Text(
-            'Ang iyong account ay na-DEACTIVATE ng Owner. '
-            'Makipag-ugnayan sa Owner para ma-reactivate ang iyong account.',
+          title: Text(isRestDay ? 'Naka-Rest Day Ka Ngayon' : 'Account Deactivated'),
+          content: Text(
+            isRestDay
+                ? 'Naka-REST DAY po kayo ngayon ayon sa iskedyul ng Owner. '
+                    'Mag-log out muna ang app upang makapagpahinga kayo. Salamat!'
+                : 'Ang iyong account ay na-DEACTIVATE ng Owner. '
+                    'Makipag-ugnayan sa Owner para ma-reactivate ang iyong account.',
           ),
           actions: [
             TextButton(
               onPressed: () {
                 Navigator.of(ctx).pop();
-                // Navigate to login, clearing the entire navigation stack
                 Navigator.of(context).pushAndRemoveUntil(
                   MaterialPageRoute(builder: (_) => const LoginScreen()),
                   (route) => false,
@@ -113,7 +167,13 @@ class _DeactivationGuardState extends State<DeactivationGuard> {
 
   @override
   void dispose() {
+    if (_assignmentListener != null) {
+      AssignmentService.changeNotifier.removeListener(_assignmentListener!);
+      _assignmentListener = null;
+    }
+    _supabaseSub?.cancel();
     _sub?.cancel();
+    _assignmentSub?.cancel();
     super.dispose();
   }
 

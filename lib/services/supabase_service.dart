@@ -326,6 +326,46 @@ class SupabaseService {
     return member.isActive && !member.isArchived;
   }
 
+  /// Asynchronously checks if a staff member is active in the remote Supabase database.
+  /// Falls back to local in-memory cache if offline or unconfigured.
+  static Future<bool> isStaffActiveAsync({String? username, String? staffId, String? fullName}) async {
+    final client = _client;
+    if (client != null) {
+      try {
+        var queryBuilder = client.from('staff_profiles').select('is_active, is_archived');
+        if (username != null && username.trim().isNotEmpty) {
+          queryBuilder = queryBuilder.eq('username', username.trim().toLowerCase());
+        } else if (staffId != null && staffId.trim().isNotEmpty) {
+          queryBuilder = queryBuilder.eq('id', staffId.trim());
+        }
+        final res = await queryBuilder.limit(1);
+        if (res.isNotEmpty) {
+          final row = res.first;
+          final isActive = row['is_active'] as bool? ?? true;
+          final isArchived = row['is_archived'] as bool? ?? false;
+          final active = isActive && !isArchived;
+
+          // Keep in-memory cache synchronized with remote DB
+          if (username != null) {
+            final uKey = username.trim().toLowerCase();
+            for (int i = 0; i < _inMemoryStaff.length; i++) {
+              if (_inMemoryStaff[i].username.toLowerCase() == uKey) {
+                _inMemoryStaff[i] = _inMemoryStaff[i].copyWith(isActive: active);
+                break;
+              }
+            }
+          }
+          return active;
+        }
+      } catch (e) {
+        debugPrint('SupabaseService.isStaffActiveAsync query error: $e');
+      }
+    }
+
+    // Fallback to in-memory check
+    return isStaffActive(username: username, staffId: staffId, fullName: fullName);
+  }
+
   /// Toggles active status for staff.
   static Future<bool> toggleStaffActive(String staffId, bool isActive) async {
     final index = _inMemoryStaff.indexWhere((s) => s.id == staffId);
@@ -341,13 +381,180 @@ class SupabaseService {
     if (client == null) return true;
 
     try {
-      await client
+      // 1. Try updating existing row in remote Supabase
+      final updateRes = await client
           .from('staff_profiles')
           .update({'is_active': isActive})
-          .eq('id', staffId);
+          .eq('id', staffId)
+          .select('id');
+
+      // 2. If row was not present in remote DB (e.g. static/sample staff),
+      // upsert the full profile so it is permanently stored in Supabase!
+      if (updateRes.isEmpty && index >= 0) {
+        final staffToPersist = _inMemoryStaff[index].copyWith(isActive: isActive);
+        await client.from('staff_profiles').upsert(staffToPersist.toMap());
+      }
       return true;
     } catch (e) {
       debugPrint('SupabaseService.toggleStaffActive error: $e');
+      return false;
+    }
+  }
+
+  /// Toggles active status for staff by username (covers staff not yet linked by UID).
+  static Future<bool> toggleStaffActiveByUsername(String username, bool isActive) async {
+    final usernameKey = username.trim().toLowerCase();
+
+    // Update in-memory cache
+    int foundIndex = -1;
+    for (int i = 0; i < _inMemoryStaff.length; i++) {
+      if (_inMemoryStaff[i].username.toLowerCase() == usernameKey) {
+        _inMemoryStaff[i] = _inMemoryStaff[i].copyWith(isActive: isActive);
+        foundIndex = i;
+        break;
+      }
+    }
+
+    final client = _client;
+    if (client == null) return true;
+
+    try {
+      final updateRes = await client
+          .from('staff_profiles')
+          .update({'is_active': isActive})
+          .eq('username', usernameKey)
+          .select('id');
+
+      // If row not present in remote DB, upsert it from in-memory cache
+      if (updateRes.isEmpty && foundIndex >= 0) {
+        final staffToPersist = _inMemoryStaff[foundIndex].copyWith(isActive: isActive);
+        await client.from('staff_profiles').upsert(staffToPersist.toMap());
+      }
+      return true;
+    } catch (e) {
+      debugPrint('SupabaseService.toggleStaffActiveByUsername error: $e');
+      return false;
+    }
+  }
+
+  /// Refreshes all staff profiles from remote Supabase table into in-memory cache.
+  static Future<List<StaffMember>> refreshStaffFromRemote() async {
+    final client = _client;
+    if (client == null) return List.from(_inMemoryStaff);
+    try {
+      final data = await client.from('staff_profiles').select();
+      final list = (data as List).map((row) => StaffMember.fromMap(row as Map<String, dynamic>)).toList();
+      if (list.isNotEmpty) {
+        _inMemoryStaff
+          ..clear()
+          ..addAll(list);
+      }
+      return list;
+    } catch (e) {
+      debugPrint('SupabaseService.refreshStaffFromRemote error: $e');
+      return List.from(_inMemoryStaff);
+    }
+  }
+
+  /// Real-time stream of all staff profiles from Supabase.
+  static Stream<List<StaffMember>> watchStaffProfiles() {
+    final client = _client;
+    if (client == null) {
+      return const Stream.empty();
+    }
+    try {
+      return client.from('staff_profiles').stream(primaryKey: ['id']).map((rows) {
+        final list = rows.map((r) => StaffMember.fromMap(r)).toList();
+        if (list.isNotEmpty) {
+          _inMemoryStaff
+            ..clear()
+            ..addAll(list);
+        }
+        return list;
+      });
+    } catch (e) {
+      debugPrint('SupabaseService.watchStaffProfiles error: $e');
+      return const Stream.empty();
+    }
+  }
+
+  /// Looks up staff member by username or ID in memory cache, falling back to remote Supabase.
+  static Future<StaffMember?> getStaffByUsernameOrId(String usernameOrId) async {
+    final key = usernameOrId.trim().toLowerCase();
+    for (final s in _inMemoryStaff) {
+      if (s.username.toLowerCase() == key || s.id.toLowerCase() == key) {
+        return s;
+      }
+    }
+    final client = _client;
+    if (client != null) {
+      try {
+        final res = await client
+            .from('staff_profiles')
+            .select()
+            .or('username.ilike.$key,id.eq.$key')
+            .limit(1);
+        if ((res as List).isNotEmpty) {
+          final s = StaffMember.fromMap(res.first);
+          final idx = _inMemoryStaff.indexWhere((m) => m.id == s.id);
+          if (idx >= 0) {
+            _inMemoryStaff[idx] = s;
+          } else {
+            _inMemoryStaff.add(s);
+          }
+          return s;
+        }
+      } catch (_) {}
+    }
+    return null;
+  }
+
+  /// Sets branch and Rest Day (rfid_tag) assignment in Supabase for cross-device synchronization.
+  static Future<bool> updateStaffAssignment({
+    required String staffIdOrUsername,
+    required String branchName,
+    required bool isRestDay,
+  }) async {
+    final key = staffIdOrUsername.trim().toLowerCase();
+
+    // 1. Update in-memory cache
+    String targetId = '';
+    for (int i = 0; i < _inMemoryStaff.length; i++) {
+      final s = _inMemoryStaff[i];
+      if (s.id.toLowerCase() == key || s.username.toLowerCase() == key) {
+        targetId = s.id;
+        final newTag = isRestDay ? 'REST_DAY_${s.id}' : 'DUTY_${s.id}';
+        _inMemoryStaff[i] = s.copyWith(
+          branch: branchName.isNotEmpty ? branchName : s.branch,
+          rfidTag: newTag,
+          isActive: isRestDay ? s.isActive : true,
+        );
+        break;
+      }
+    }
+
+    final client = _client;
+    if (client == null) return true;
+
+    try {
+      final resolvedId = targetId.isNotEmpty ? targetId : key;
+      final updateData = <String, dynamic>{
+        'rfid_tag': isRestDay ? 'REST_DAY_$resolvedId' : 'DUTY_$resolvedId',
+      };
+      if (branchName.isNotEmpty) {
+        updateData['branch_name'] = branchName;
+      }
+      if (!isRestDay) {
+        updateData['is_active'] = true;
+      }
+
+      await client
+          .from('staff_profiles')
+          .update(updateData)
+          .or('id.eq.$key,username.ilike.$key');
+      return true;
+    } catch (e) {
+      debugPrint('SupabaseService.updateStaffAssignment error: $e');
       return false;
     }
   }

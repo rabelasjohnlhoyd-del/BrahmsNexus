@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import '../../models/account_status.dart';
 import '../../models/app_user.dart';
 import '../../models/user_role.dart';
 import 'mock_accounts.dart';
@@ -73,6 +74,17 @@ class _LoginScreenState extends State<LoginScreen> {
         });
         return;
       }
+
+      // Check if employee is scheduled on Rest Day today by the Owner
+      final isOnRestDay = await AuthService.isAccountOnRestDay(username);
+      if (isOnRestDay) {
+        if (!mounted) return;
+        setState(() {
+          _isLoading = false;
+          _authError = 'Naka-REST DAY po kayo ngayon ayon sa iskedyul ng Owner kaya hindi maaaring mag-login. Magpahinga po muna kayo!';
+        });
+        return;
+      }
     }
 
     // Check if it's a known staff / owner account
@@ -110,6 +122,16 @@ class _LoginScreenState extends State<LoginScreen> {
             status: mock.status,
             position: mock.position,
           );
+
+      if (user.status == AccountStatus.deactivated) {
+        if (!mounted) return;
+        setState(() {
+          _isLoading = false;
+          _authError = 'Ang account na ito ay kasalukuyang NAKA-DEACTIVATE (Frozen). Makipag-ugnayan sa Owner para ma-reactivate.';
+        });
+        return;
+      }
+
       AuthService.currentAppUser = user;
 
       Navigator.of(context).pushReplacement(

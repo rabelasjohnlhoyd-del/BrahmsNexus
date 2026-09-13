@@ -14,6 +14,7 @@ class StaffMember {
     this.phone,
     this.address = '',
     this.age = '',
+    this.rfidTag = '',
     this.isActive = true,
     this.isArchived = false,
     DateTime? dateAdded,
@@ -30,9 +31,13 @@ class StaffMember {
   final String? phone;
   final String address;
   final String age;
+  final String rfidTag;
   final bool isActive;
   final bool isArchived;
   final DateTime dateAdded;
+
+  /// Whether employee is on Rest Day (stored in Supabase rfid_tag column)
+  bool get isRestDay => rfidTag.toUpperCase().startsWith('REST_DAY');
 
   String get fullName => '$firstName ${middleName.isNotEmpty ? '$middleName ' : ''}$lastName';
 
@@ -47,6 +52,7 @@ class StaffMember {
     String? phone,
     String? address,
     String? age,
+    String? rfidTag,
     bool? isActive,
     bool? isArchived,
   }) {
@@ -62,6 +68,7 @@ class StaffMember {
       phone: phone ?? this.phone,
       address: address ?? this.address,
       age: age ?? this.age,
+      rfidTag: rfidTag ?? this.rfidTag,
       isActive: isActive ?? this.isActive,
       isArchived: isArchived ?? this.isArchived,
       dateAdded: dateAdded,
@@ -87,6 +94,7 @@ class StaffMember {
       'phone': phone,
       'address': address,
       'age': age,
+      'rfid_tag': rfidTag,
       'is_active': isActive,
       'is_archived': isArchived,
       'date_added': dateAdded.toIso8601String(),
@@ -110,6 +118,7 @@ class StaffMember {
       phone: map['phone']?.toString(),
       address: map['address']?.toString() ?? '',
       age: map['age']?.toString() ?? '',
+      rfidTag: map['rfid_tag']?.toString() ?? '',
       isActive: map['is_active'] as bool? ?? true,
       isArchived: map['is_archived'] as bool? ?? false,
       dateAdded: parsedDate,

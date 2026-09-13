@@ -168,7 +168,7 @@ service cloud.firestore {
     }
 
     // =========================================================================
-    // 7. REAL-TIME NOTIFICATIONS & ANNOUNCEMENTS
+    // 7. REAL-TIME NOTIFICATIONS
     // =========================================================================
     match /notifications/{notifId} {
       // Staff can read broadcast notifications ('all') or targeted to them
@@ -176,6 +176,42 @@ service cloud.firestore {
 
       // Only Owner or system background services can dispatch alerts
       allow create, update, delete: if isSystemOwner();
+    }
+
+    // =========================================================================
+    // 8. DEACTIVATED / FROZEN STAFF REGISTRY
+    // Keyed by lowercase username to freeze staff accounts instantly
+    // =========================================================================
+    match /deactivated_staff/{username} {
+      // Any client can check if a username is deactivated before login;
+      // DeactivationGuard also streams this in real-time.
+      allow read, write: if true;
+    }
+
+    // =========================================================================
+    // 9. PRODUCTION BATCHES
+    // Meat portioning and cook batches logged by production crew
+    // =========================================================================
+    match /production_batches/{batchId} {
+      allow read: if isApprovedStaff();
+      allow create, update: if isApprovedStaff();
+      allow delete: if isSystemOwner();
+    }
+
+    // =========================================================================
+    // 10. ANNOUNCEMENTS
+    // Broadcast notices shown to all active staff members
+    // =========================================================================
+    match /announcements/{announcementId} {
+      allow read: if isAuthenticated();
+      allow create, update, delete: if isSystemOwner();
+    }
+
+    // =========================================================================
+    // 11. STAFF ASSIGNMENTS & SCHEDULES (Rest Day & Duty Status)
+    // =========================================================================
+    match /staff_assignments/{username} {
+      allow read, write: if true;
     }
 
     // =========================================================================

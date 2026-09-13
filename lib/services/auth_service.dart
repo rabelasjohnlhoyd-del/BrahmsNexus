@@ -5,6 +5,7 @@ import '../models/app_user.dart';
 import '../models/user_role.dart';
 import '../models/account_status.dart';
 import '../models/staff_member.dart';
+import 'assignment_service.dart';
 import 'notification_service.dart';
 import 'supabase_service.dart';
 
@@ -258,27 +259,43 @@ class AuthService {
 
       final uid = credential.user!.uid;
       final doc = await _db.collection('users').doc(uid).get();
-      if (!doc.exists) {
+
+      // Check if account has been deactivated (via Firestore, Supabase, etc.)
+      final isDeact = await isAccountDeactivated(username);
+      AccountStatus resolvedStatus = isDeact ? AccountStatus.deactivated : AccountStatus.approved;
+
+      if (doc.exists) {
+        final existingStatus = doc.data()?['status'] as String? ?? '';
+        final isActive = doc.data()?['is_active'] as bool? ?? true;
+        if (existingStatus == 'deactivated' || !isActive || isDeact) {
+          resolvedStatus = AccountStatus.deactivated;
+        }
+      } else {
         await _db.collection('users').doc(uid).set({
           'username': username,
           'fullName': fullName,
           'contactNumber': contactNumber,
           'role': role.label.toLowerCase(),
-          'status': 'approved',
+          'status': resolvedStatus.name,
+          'is_active': resolvedStatus == AccountStatus.approved,
           'position': position,
           'createdAt': FieldValue.serverTimestamp(),
         });
       }
+
       final user = AppUser(
         uid: uid,
         username: username,
         fullName: fullName,
         contactNumber: contactNumber,
         role: role,
-        status: AccountStatus.approved,
+        status: resolvedStatus,
         position: position,
       );
-      currentAppUser = user;
+
+      if (resolvedStatus == AccountStatus.approved) {
+        currentAppUser = user;
+      }
       return user;
     } catch (_) {
       return null;
@@ -343,7 +360,7 @@ class AuthService {
   /// Deactivates (freezes) a staff account.
   /// Writes to BOTH `deactivated_staff/{username}` (always works, no UID needed)
   /// AND `users/{uid}` (if the staff has ever signed in). Also updates
-  /// Supabase in-memory for the Branch Assignments display.
+  /// Supabase persistently by both staffId and username.
   static Future<bool> deactivateStaffAccount(String staffId, String username) async {
     final usernameKey = username.trim().toLowerCase();
 
@@ -371,8 +388,11 @@ class AuthService {
       }
     } catch (_) {}
 
-    // 3) Update Supabase in-memory for Branch Assignments UI.
-    await SupabaseService.toggleStaffActive(staffId, false);
+    // 3) Update Supabase persistently — by staffId if available, AND by username.
+    if (staffId.isNotEmpty) {
+      await SupabaseService.toggleStaffActive(staffId, false);
+    }
+    await SupabaseService.toggleStaffActiveByUsername(usernameKey, false);
     return true;
   }
 
@@ -398,8 +418,11 @@ class AuthService {
       }
     } catch (_) {}
 
-    // 3) Update Supabase in-memory.
-    await SupabaseService.toggleStaffActive(staffId, true);
+    // 3) Update Supabase persistently — by staffId if available, AND by username.
+    if (staffId.isNotEmpty) {
+      await SupabaseService.toggleStaffActive(staffId, true);
+    }
+    await SupabaseService.toggleStaffActiveByUsername(usernameKey, true);
     return true;
   }
 
@@ -455,10 +478,50 @@ class AuthService {
         }
       }
 
-      // Final fallback: Supabase in-memory (volatile but covers same-session deactivation)
-      return !SupabaseService.isStaffActive(username: username);
+      // Tertiary check: remote Supabase database (staff_profiles table)
+      final isSupabaseActive = await SupabaseService.isStaffActiveAsync(username: usernameKey);
+      if (!isSupabaseActive) return true;
+
+      return false;
     } catch (_) {
       return !SupabaseService.isStaffActive(username: username);
+    }
+  }
+
+  /// Checks if a staff account is scheduled on Rest Day today.
+  /// When on Rest Day, staff members are barred from logging in until put back on duty.
+  static Future<bool> isAccountOnRestDay(String username) async {
+    final usernameKey = username.trim().toLowerCase();
+
+    // 1. Check local/memory cache via AssignmentService first (instant, 0 latency)
+    try {
+      await AssignmentService.ensureInitialized();
+      if (AssignmentService.isRestDay(usernameKey)) {
+        return true;
+      }
+    } catch (_) {}
+
+    // 2. Check Supabase staff_profiles (cloud source of truth)
+    try {
+      final staff = await SupabaseService.getStaffByUsernameOrId(usernameKey);
+      if (staff != null && staff.isRestDay) {
+        return true;
+      }
+    } catch (_) {}
+
+    // 3. Check Firestore staff_assignments
+    try {
+      final doc = await _db.collection('staff_assignments').doc(usernameKey).get();
+      if (doc.exists) {
+        final data = doc.data();
+        final isRestDay = data?['isRestDay'] as bool? ?? false;
+        final workStatus = data?['workStatus'] as String? ?? '';
+        return isRestDay || workStatus == 'restDay';
+      }
+      return false;
+    } catch (e) {
+      debugPrint('AuthService.isAccountOnRestDay error: $e');
+      return AssignmentService.isRestDay(usernameKey);
     }
   }
 
