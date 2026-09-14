@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
@@ -50,6 +51,13 @@ void main() async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
 
+  // I-enable ang Firestore Local Caching / Offline Persistence
+  // para hindi paulit-ulit na mag-request sa server habang nagte-test.
+  FirebaseFirestore.instance.settings = const Settings(
+    persistenceEnabled: true,
+    cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
+  );
+
   if (SupabaseConfig.isConfigured) {
     try {
       await Supabase.initialize(
@@ -63,7 +71,7 @@ void main() async {
   } else {
     debugPrint(
       'ℹ️ Brahms Nexus: Supabase is in local fallback mode. '
-      'Provide your Supabase URL & Key in lib/config/supabase_config.dart to activate live Supabase sync.',
+          'Provide your Supabase URL & Key in lib/config/supabase_config.dart to activate live Supabase sync.',
     );
   }
 
