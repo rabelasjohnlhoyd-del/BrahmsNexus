@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../models/branch.dart';
-import '../../../models/inventory_item.dart';
+import '../../../models/meat_dispatch.dart';
+import '../../../services/firestore_service.dart';
 import '../../../services/notification_service.dart';
 import '../admin_web_colors.dart';
 import '../admin_web_shell.dart';
@@ -16,11 +17,13 @@ class RecordTransferScreen extends StatefulWidget {
 class _RecordTransferScreenState extends State<RecordTransferScreen> {
   final _formKey = GlobalKey<FormState>();
   
-  // Logic updated: Source is always Main Warehouse (Owner's House)
+  // Source is always Main Warehouse (Owner's House)
   final String _sourceName = 'Main Warehouse (Owner\'s House)';
   
   String _destId = kSampleBranches.first.id;
-  final _qtyController = TextEditingController();
+  final _regController = TextEditingController();
+  final _medController = TextEditingController();
+  final _b1t1Controller = TextEditingController();
   bool _isSaving = false;
 
   @override
@@ -31,7 +34,9 @@ class _RecordTransferScreenState extends State<RecordTransferScreen> {
 
   @override
   void dispose() {
-    _qtyController.dispose();
+    _regController.dispose();
+    _medController.dispose();
+    _b1t1Controller.dispose();
     super.dispose();
   }
 
@@ -42,37 +47,44 @@ class _RecordTransferScreenState extends State<RecordTransferScreen> {
   }
 
   Future<void> _handleSave() async {
-    if (!_formKey.currentState!.validate()) return;
+    final reg = int.tryParse(_regController.text.trim()) ?? 0;
+    final med = int.tryParse(_medController.text.trim()) ?? 0;
+    final b1t1 = int.tryParse(_b1t1Controller.text.trim()) ?? 0;
+
+    if (reg == 0 && med == 0 && b1t1 == 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Pakiusap maglagay ng kahit isang bilang ng pcs (250g, 300g, o 400g).')),
+      );
+      return;
+    }
 
     setState(() {
       _isSaving = true;
       _updateShellActions();
     });
 
-    await Future.delayed(const Duration(milliseconds: 500));
-
-    if (!mounted) return;
-
     final dest = kSampleBranches.firstWhere((b) => b.id == _destId);
-    final qty = double.parse(_qtyController.text);
 
-    final log = StockTransferLog(
-      id: 'tl_${DateTime.now().millisecondsSinceEpoch}',
-      sourceBranchId: 'warehouse',
-      sourceBranchName: _sourceName,
+    final dispatch = MeatDispatch(
+      id: '',
       destinationBranchId: dest.id,
       destinationBranchName: dest.fullName,
-      quantityKg: qty,
-      dateTime: DateTime.now(),
+      regular250gPcs: reg,
+      medium300gPcs: med,
+      b1t1_400gPcs: b1t1,
+      status: 'pending',
+      createdAt: DateTime.now(),
     );
+
+    await FirestoreService.createMeatDispatch(dispatch);
 
     await NotificationService.notifyDriverOfDeliveryTask(
       branchName: dest.fullName,
-      quantityKg: qty,
+      quantityKg: (reg * 0.25) + (med * 0.30) + (b1t1 * 0.40),
     );
 
     if (!mounted) return;
-    Navigator.of(context).pop(log);
+    Navigator.of(context).pop(dispatch);
   }
 
   @override
@@ -95,7 +107,7 @@ class _RecordTransferScreenState extends State<RecordTransferScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const Text(
-                          'DISPATCH DETAILS',
+                          'DISPATCH DETAILS (PCS)',
                           style: TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.w800,
@@ -128,7 +140,7 @@ class _RecordTransferScreenState extends State<RecordTransferScreen> {
                           decoration: const InputDecoration(
                             labelText: 'DESTINATION BRANCH',
                             isDense: true,
-                            prefixIcon: Icon(Icons.login_rounded, size: 20),
+                            prefixIcon: Icon(Icons.storefront_rounded, size: 20),
                           ),
                           items: kSampleBranches
                               .map((b) =>
@@ -138,21 +150,46 @@ class _RecordTransferScreenState extends State<RecordTransferScreen> {
                             if (v != null) setState(() => _destId = v);
                           },
                         ),
-                        const SizedBox(height: 20),
+                        const SizedBox(height: 24),
+                        const Text(
+                          'BILANG NG PCS NA IPAPADALA:',
+                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: AdminWebColors.accent),
+                        ),
+                        const SizedBox(height: 12),
                         TextFormField(
-                          controller: _qtyController,
+                          controller: _regController,
                           keyboardType: TextInputType.number,
                           decoration: const InputDecoration(
-                            labelText: 'QUANTITY (KG)',
+                            labelText: '250 grams - Regular',
+                            hintText: 'e.g. 20',
                             isDense: true,
-                            prefixIcon: Icon(Icons.scale_rounded, size: 20),
-                            suffixText: 'KG',
+                            prefixIcon: Icon(Icons.fastfood_rounded, size: 20),
+                            suffixText: 'PCS',
                           ),
-                          validator: (v) {
-                            if (v == null || v.trim().isEmpty) return 'Required';
-                            if (double.tryParse(v) == null) return 'Must be a number';
-                            return null;
-                          },
+                        ),
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: _medController,
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(
+                            labelText: '300 grams - Medium',
+                            hintText: 'e.g. 10',
+                            isDense: true,
+                            prefixIcon: Icon(Icons.lunch_dining_rounded, size: 20),
+                            suffixText: 'PCS',
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: _b1t1Controller,
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(
+                            labelText: '400 grams - B1T1 (Buy 1 Take 1)',
+                            hintText: 'e.g. 10',
+                            isDense: true,
+                            prefixIcon: Icon(Icons.dinner_dining_rounded, size: 20),
+                            suffixText: 'PCS',
+                          ),
                         ),
                       ],
                     ),

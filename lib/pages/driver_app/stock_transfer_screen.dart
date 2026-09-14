@@ -1,14 +1,18 @@
+import 'dart:async';
 import 'package:flutter/cupertino.dart';
-import 'package:flutter/material.dart';
-import '../../models/transfer_request.dart';
+import 'package:flutter/material.dart' show Divider, ScaffoldMessenger, SnackBar;
+import '../../models/meat_dispatch.dart';
+import '../../services/firestore_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/driver_card.dart';
 import '../../widgets/driver_nav_bar.dart';
 import '../../widgets/driver_section_header.dart';
 import '../../widgets/driver_top_actions.dart';
 
-/// StockTransferPage — handles requests from branches for extra stock.
-/// Logic: Staff requests -> Owner approves -> Driver picks up from Warehouse (Owner's house) -> Delivers to Branch.
+/// StockTransferPage — shows pending meat dispatches from Owner/Admin.
+/// Driver sees the list, then taps "Delivered" once stock is handed over.
+/// Real-time: once delivered, the branch inventory updates instantly on
+/// all connected apps (Owner, Admin Web, Staff).
 class StockTransferScreen extends StatefulWidget {
   const StockTransferScreen({super.key});
 
@@ -17,68 +21,75 @@ class StockTransferScreen extends StatefulWidget {
 }
 
 class _StockTransferScreenState extends State<StockTransferScreen> {
-  final List<TransferRequest> _requests = [
-    const TransferRequest(
-      id: 'tr1',
-      branchId: 'br1',
-      branchName: 'Brgy. Gatid, Sta. Cruz',
-      type: TransferRequestType.meat,
-      suggestedSourceBranchName: 'Main Warehouse (Owner\'s House)',
-    ),
-    const TransferRequest(
-      id: 'tr2',
-      branchId: 'br2',
-      branchName: 'Brgy. Labuin, Pila',
-      type: TransferRequestType.gas,
-      suggestedSourceBranchName: 'Main Warehouse (Owner\'s House)',
-    ),
-  ];
+  StreamSubscription<List<MeatDispatch>>? _dispatchesSub;
+  List<MeatDispatch> _dispatches = [];
+  final Set<String> _processingIds = {};
 
-  void _confirmAction(String id, String action, TransferRequestStatus nextStatus) {
-    showCupertinoDialog(
+  @override
+  void initState() {
+    super.initState();
+    _dispatchesSub = FirestoreService.watchMeatDispatches().listen((all) {
+      if (mounted) {
+        setState(() {
+          // Show pending dispatches first, then recently delivered ones
+          _dispatches = all;
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _dispatchesSub?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _markDelivered(MeatDispatch dispatch) async {
+    final confirmed = await showCupertinoDialog<bool>(
       context: context,
-      builder: (context) => CupertinoAlertDialog(
-        title: const Text('Confirm Action'),
-        content: Text('Sigurado ka bang na-execute mo na ang step: "$action"?'),
+      builder: (ctx) => CupertinoAlertDialog(
+        title: const Text('I-confirm ang Delivery?'),
+        content: Text(
+          'Naihatid na ba ang karne sa ${dispatch.destinationBranchName}?\n\n${dispatch.itemsSummary}',
+        ),
         actions: [
           CupertinoDialogAction(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Hindi pa'),
           ),
           CupertinoDialogAction(
             isDefaultAction: true,
-            onPressed: () {
-              Navigator.pop(context);
-              setState(() {
-                final index = _requests.indexWhere((r) => r.id == id);
-                if (index != -1) {
-                  _requests[index] = _requests[index].copyWith(status: nextStatus);
-                }
-              });
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Step "$action" recorded.')),
-              );
-            },
-            child: const Text('Yes'),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Oo, Naihatid na!'),
           ),
         ],
       ),
     );
-  }
 
-  Color _statusColor(TransferRequestStatus status) {
-    switch (status) {
-      case TransferRequestStatus.pending:
-        return AppColors.warning;
-      case TransferRequestStatus.photoTaken:
-        return AppColors.accent;
-      case TransferRequestStatus.submitted:
-        return AppColors.success;
+    if (confirmed != true) return;
+
+    setState(() => _processingIds.add(dispatch.id));
+    final success = await FirestoreService.markDispatchAsDelivered(dispatch);
+    if (mounted) {
+      setState(() => _processingIds.remove(dispatch.id));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            success
+                ? 'Na-deliver na! Nag-update na ang inventory ng ${dispatch.destinationBranchName}.'
+                : 'May error. Subukan ulit.',
+          ),
+          backgroundColor: success ? AppColors.success : AppColors.error,
+        ),
+      );
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final pending = _dispatches.where((d) => !d.isDelivered).toList();
+    final delivered = _dispatches.where((d) => d.isDelivered).toList();
+
     return CupertinoPageScaffold(
       backgroundColor: AppColors.background,
       navigationBar: const DriverNavBar(
@@ -86,17 +97,28 @@ class _StockTransferScreenState extends State<StockTransferScreen> {
         trailing: DriverTopActions(),
       ),
       child: SafeArea(
-        child: _requests.isEmpty
+        child: _dispatches.isEmpty
             ? _buildEmptyState()
             : ListView(
                 padding: const EdgeInsets.all(16),
                 children: [
-                  const DriverSectionHeader(
-                    label: 'Active Transfers',
-                    icon: CupertinoIcons.arrow_2_squarepath,
-                  ),
-                  const SizedBox(height: 12),
-                  ..._requests.map((request) => _buildRequestCard(request)),
+                  if (pending.isNotEmpty) ...[
+                    const DriverSectionHeader(
+                      label: 'Pending Deliveries',
+                      icon: CupertinoIcons.arrow_up_bin_fill,
+                    ),
+                    const SizedBox(height: 12),
+                    ...pending.map((d) => _buildDispatchCard(d)),
+                  ],
+                  if (delivered.isNotEmpty) ...[
+                    const SizedBox(height: 20),
+                    const DriverSectionHeader(
+                      label: 'Naihatid Na',
+                      icon: CupertinoIcons.checkmark_shield_fill,
+                    ),
+                    const SizedBox(height: 12),
+                    ...delivered.map((d) => _buildDispatchCard(d)),
+                  ],
                 ],
               ),
       ),
@@ -120,40 +142,45 @@ class _StockTransferScreenState extends State<StockTransferScreen> {
               child: const Icon(CupertinoIcons.checkmark_shield_fill, size: 32, color: AppColors.accent),
             ),
             const SizedBox(height: 20),
-            const Text('All Clear', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
+            const Text('Walang Dispatch', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
             const SizedBox(height: 8),
-            const Text('No pending stock transfer requests from Owner.', textAlign: TextAlign.center, style: TextStyle(fontSize: 14, color: AppColors.textSecondary, height: 1.4)),
+            const Text(
+              'Wala pang pending na meat dispatch mula sa Owner.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 14, color: AppColors.textSecondary, height: 1.4),
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildRequestCard(TransferRequest request) {
-    final bool isPending = request.status == TransferRequestStatus.pending;
-    final bool isPickedUp = request.status == TransferRequestStatus.photoTaken;
-    final bool isDone = request.status == TransferRequestStatus.submitted;
+  Widget _buildDispatchCard(MeatDispatch dispatch) {
+    final isDelivered = dispatch.isDelivered;
+    final isProcessing = _processingIds.contains(dispatch.id);
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: DriverCard(
-        highlighted: isDone,
-        borderColor: isDone ? AppColors.accent : null, // Brown border when all steps are done
+        highlighted: isDelivered,
+        borderColor: isDelivered ? AppColors.success : null,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Header row
             Row(
               children: [
                 Container(
                   width: 38, height: 38,
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
-                    color: _statusColor(request.status).withValues(alpha: 0.1),
+                    color: (isDelivered ? AppColors.success : AppColors.accent).withValues(alpha: 0.1),
                     shape: BoxShape.circle,
                   ),
                   child: Icon(
-                    request.type == TransferRequestType.meat ? CupertinoIcons.square_stack_3d_up_fill : CupertinoIcons.flame_fill,
-                    size: 18, color: _statusColor(request.status),
+                    CupertinoIcons.square_stack_3d_up_fill,
+                    size: 18,
+                    color: isDelivered ? AppColors.success : AppColors.accent,
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -161,68 +188,97 @@ class _StockTransferScreenState extends State<StockTransferScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(request.branchName, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: AppColors.textPrimary)),
-                      Text('Request: ${request.type.label}', style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                      Text(
+                        dispatch.destinationBranchName,
+                        style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: AppColors.textPrimary),
+                      ),
+                      Text(
+                        '${dispatch.createdAt.month}/${dispatch.createdAt.day} · ${dispatch.createdAt.hour.toString().padLeft(2, '0')}:${dispatch.createdAt.minute.toString().padLeft(2, '0')}',
+                        style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                      ),
                     ],
                   ),
                 ),
-                if (isDone)
+                if (isDelivered)
                   const Icon(CupertinoIcons.check_mark_circled_solid, color: AppColors.success, size: 22),
               ],
             ),
-            const SizedBox(height: 16),
-            const Divider(height: 1, color: AppColors.border),
-            const SizedBox(height: 16),
-            
-            // Workflow Steps
-            _buildStepRow(
-              label: 'Pick up from Warehouse',
-              isCompleted: isPickedUp || isDone,
-              isActive: isPending,
-              onTap: () => _confirmAction(request.id, 'Picked up from Warehouse', TransferRequestStatus.photoTaken),
-            ),
+
             const SizedBox(height: 12),
-            _buildStepRow(
-              label: 'Deliver to Branch',
-              isCompleted: isDone,
-              isActive: isPickedUp,
-              onTap: () => _confirmAction(request.id, 'Delivered to Branch', TransferRequestStatus.submitted),
+            const Divider(height: 1, color: AppColors.border),
+            const SizedBox(height: 12),
+
+            // Meat variant breakdown
+            _buildVariantRow('250g Regular', dispatch.regular250gPcs),
+            if (dispatch.medium300gPcs > 0) ...[
+              const SizedBox(height: 6),
+              _buildVariantRow('300g Medium', dispatch.medium300gPcs),
+            ],
+            if (dispatch.b1t1_400gPcs > 0) ...[
+              const SizedBox(height: 6),
+              _buildVariantRow('400g B1T1', dispatch.b1t1_400gPcs),
+            ],
+
+            const SizedBox(height: 10),
+
+            // Total + status
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Total: ${dispatch.totalPcs} pcs',
+                  style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13, color: AppColors.accent),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: (isDelivered ? AppColors.success : AppColors.warning).withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    isDelivered ? 'DELIVERED' : 'PENDING',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w900,
+                      color: isDelivered ? AppColors.success : AppColors.warning,
+                    ),
+                  ),
+                ),
+              ],
             ),
+
+            // Deliver button (only for pending)
+            if (!isDelivered) ...[
+              const SizedBox(height: 14),
+              SizedBox(
+                width: double.infinity,
+                child: CupertinoButton(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  color: isProcessing ? CupertinoColors.systemGrey3 : AppColors.accent,
+                  borderRadius: BorderRadius.circular(10),
+                  onPressed: isProcessing ? null : () => _markDelivered(dispatch),
+                  child: isProcessing
+                      ? const CupertinoActivityIndicator(color: CupertinoColors.white)
+                      : const Text(
+                          'Naihatid na ✓',
+                          style: TextStyle(color: CupertinoColors.white, fontWeight: FontWeight.w700, fontSize: 14),
+                        ),
+                ),
+              ),
+            ],
           ],
         ),
       ),
     );
   }
 
-  Widget _buildStepRow({required String label, required bool isCompleted, required bool isActive, required VoidCallback onTap}) {
-    return GestureDetector(
-      onTap: isActive ? onTap : null,
-      child: Opacity(
-        opacity: (isActive || isCompleted) ? 1.0 : 0.4,
-        child: Row(
-          children: [
-            Icon(
-              isCompleted ? CupertinoIcons.check_mark_circled_solid : CupertinoIcons.circle,
-              size: 20, color: isCompleted ? AppColors.success : (isActive ? AppColors.accent : AppColors.textSecondary),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                label,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
-                  color: isActive ? AppColors.textPrimary : AppColors.textSecondary,
-                  decoration: isCompleted ? TextDecoration.lineThrough : null,
-                ),
-              ),
-            ),
-            if (isActive)
-              const Icon(CupertinoIcons.chevron_right, size: 14, color: AppColors.accent),
-          ],
-        ),
-      ),
+  Widget _buildVariantRow(String label, int pcs) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(label, style: const TextStyle(fontSize: 13, color: AppColors.textSecondary, fontWeight: FontWeight.w500)),
+        Text('$pcs pcs', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
+      ],
     );
   }
 }
-

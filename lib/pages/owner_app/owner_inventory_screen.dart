@@ -2,9 +2,10 @@ import 'dart:async';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart' show Divider;
 import '../../models/branch.dart';
+import '../../models/branch_meat_inventory.dart';
 import '../../models/financial_period.dart';
 import '../../models/inventory_batch.dart';
-import '../../models/inventory_item.dart';
+import '../../models/meat_dispatch.dart';
 import '../../models/procurement_list.dart';
 import '../../services/firestore_service.dart';
 import '../../theme/app_theme.dart';
@@ -33,6 +34,8 @@ class _OwnerInventoryScreenState extends State<OwnerInventoryScreen> {
   int _section = 0; // 0 = Warehouse, 1 = Branches, 2 = Dispatch, 3 = Finance
 
   StreamSubscription<List<KarneBatch>>? _batchesSub;
+  StreamSubscription<List<BranchMeatStock>>? _meatStocksSub;
+  StreamSubscription<List<MeatDispatch>>? _dispatchesSub;
 
   final List<KarneBatch> _batches = [
     KarneBatch(
@@ -42,31 +45,11 @@ class _OwnerInventoryScreenState extends State<OwnerInventoryScreen> {
     ),
   ];
 
-  final List<BranchStock> _branchStocks = [
-    BranchStock(
-      branchId: 'br1',
-      branchName: 'Brgy. Gatid, Sta. Cruz',
-      date: DateTime.now(),
-      allocatedKg: 25,
-      remainingKg: 3,
-    ),
-    BranchStock(
-      branchId: 'br2',
-      branchName: 'Brgy. Labuin, Pila',
-      date: DateTime.now(),
-      allocatedKg: 15,
-      remainingKg: 1,
-    ),
-    BranchStock(
-      branchId: 'br3',
-      branchName: 'Brgy. Sta. Clara Sur, Pila',
-      date: DateTime.now(),
-      allocatedKg: 18,
-      remainingKg: 18,
-    ),
-  ];
+  List<BranchMeatStock> _branchMeatStocks = kSampleBranches
+      .map((b) => BranchMeatStock.defaultForBranch(b))
+      .toList();
 
-  final List<StockTransferLog> _transferLogs = [];
+  List<MeatDispatch> _meatDispatches = [];
 
   late FinancialPeriod _period;
 
@@ -75,8 +58,9 @@ class _OwnerInventoryScreenState extends State<OwnerInventoryScreen> {
     super.initState();
     _initializeFinancials();
     // Start listening to real-time Firestore updates IMMEDIATELY.
-    // Seed default batch in background (unawaited) — does NOT block the stream.
     FirestoreService.seedDefaultBatchesIfEmpty();
+    FirestoreService.seedDefaultBranchMeatStocksIfEmpty();
+
     _batchesSub = FirestoreService.watchProductionBatches().listen((batches) {
       if (mounted) {
         setState(() {
@@ -87,11 +71,29 @@ class _OwnerInventoryScreenState extends State<OwnerInventoryScreen> {
         _refreshFinancialsFromBatches();
       }
     });
+
+    _meatStocksSub = FirestoreService.watchBranchMeatStocks().listen((stocks) {
+      if (mounted) {
+        setState(() {
+          _branchMeatStocks = stocks;
+        });
+      }
+    });
+
+    _dispatchesSub = FirestoreService.watchMeatDispatches().listen((dispatches) {
+      if (mounted) {
+        setState(() {
+          _meatDispatches = dispatches;
+        });
+      }
+    });
   }
 
   @override
   void dispose() {
     _batchesSub?.cancel();
+    _meatStocksSub?.cancel();
+    _dispatchesSub?.cancel();
     super.dispose();
   }
 
@@ -394,57 +396,86 @@ class _OwnerInventoryScreenState extends State<OwnerInventoryScreen> {
   }
 
   void _showAddDispatchDialog() {
-    final qtyCtrl = TextEditingController();
+    final regCtrl = TextEditingController();
+    final medCtrl = TextEditingController();
+    final b1t1Ctrl = TextEditingController();
     int destIdx = 0;
 
     showCupertinoDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) => CupertinoAlertDialog(
-          title: const Text('Record Dispatch'),
-          content: Column(
-            children: [
-              const SizedBox(height: 12),
-              const Text('Source: Main Warehouse', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-              CupertinoButton(
-                child: Text('To: ${kSampleBranches[destIdx].name}'),
-                onPressed: () {
-                  showCupertinoModalPopup(
-                    context: context,
-                    builder: (_) => Container(
-                      height: 250,
-                      color: CupertinoColors.white,
-                      child: CupertinoPicker(
-                        itemExtent: 32,
-                        onSelectedItemChanged: (i) => setDialogState(() => destIdx = i),
-                        children: kSampleBranches.map((b) => Center(child: Text(b.name))).toList(),
+          title: const Text('Record Dispatch (Pcs)'),
+          content: SingleChildScrollView(
+            child: Column(
+              children: [
+                const SizedBox(height: 10),
+                const Text('Source: Main Warehouse', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 4),
+                CupertinoButton(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Text('To: ${kSampleBranches[destIdx].fullName}', textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.bold)),
+                  onPressed: () {
+                    showCupertinoModalPopup(
+                      context: context,
+                      builder: (_) => Container(
+                        height: 250,
+                        color: CupertinoColors.white,
+                        child: CupertinoPicker(
+                          itemExtent: 32,
+                          onSelectedItemChanged: (i) => setDialogState(() => destIdx = i),
+                          children: kSampleBranches.map((b) => Center(child: Text(b.name))).toList(),
+                        ),
                       ),
-                    ),
-                  );
-                },
-              ),
-              CupertinoTextField(controller: qtyCtrl, placeholder: 'Qty (KG)', keyboardType: TextInputType.number),
-            ],
+                    );
+                  },
+                ),
+                const SizedBox(height: 8),
+                const Text('Ilagay ang bilang ng Pcs:', style: TextStyle(fontSize: 11, color: CupertinoColors.systemGrey)),
+                const SizedBox(height: 8),
+                CupertinoTextField(
+                  controller: regCtrl,
+                  placeholder: '250 grams - Regular (Pcs)',
+                  keyboardType: TextInputType.number,
+                ),
+                const SizedBox(height: 8),
+                CupertinoTextField(
+                  controller: medCtrl,
+                  placeholder: '300 grams - Medium (Pcs)',
+                  keyboardType: TextInputType.number,
+                ),
+                const SizedBox(height: 8),
+                CupertinoTextField(
+                  controller: b1t1Ctrl,
+                  placeholder: '400 grams - B1T1 (Pcs)',
+                  keyboardType: TextInputType.number,
+                ),
+              ],
+            ),
           ),
           actions: [
             CupertinoDialogAction(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
             CupertinoDialogAction(
-              onPressed: () {
-                final q = double.tryParse(qtyCtrl.text);
-                if (q != null) {
-                  setState(() {
-                    _transferLogs.insert(0, StockTransferLog(
-                      id: 'tl${_transferLogs.length + 1}',
-                      sourceBranchId: 'warehouse',
-                      sourceBranchName: 'Main Warehouse',
-                      destinationBranchId: kSampleBranches[destIdx].id,
-                      destinationBranchName: kSampleBranches[destIdx].fullName,
-                      quantityKg: q,
-                      dateTime: DateTime.now(),
-                    ));
-                  });
+              onPressed: () async {
+                final reg = int.tryParse(regCtrl.text) ?? 0;
+                final med = int.tryParse(medCtrl.text) ?? 0;
+                final b1t1 = int.tryParse(b1t1Ctrl.text) ?? 0;
+
+                if (reg > 0 || med > 0 || b1t1 > 0) {
+                  final dest = kSampleBranches[destIdx];
+                  final dispatch = MeatDispatch(
+                    id: '',
+                    destinationBranchId: dest.id,
+                    destinationBranchName: dest.fullName,
+                    regular250gPcs: reg,
+                    medium300gPcs: med,
+                    b1t1_400gPcs: b1t1,
+                    status: 'pending',
+                    createdAt: DateTime.now(),
+                  );
+                  await FirestoreService.createMeatDispatch(dispatch);
                 }
-                Navigator.pop(ctx);
+                if (ctx.mounted) Navigator.pop(ctx);
               },
               child: const Text('Record'),
             ),
@@ -634,71 +665,113 @@ class _OwnerInventoryScreenState extends State<OwnerInventoryScreen> {
   Widget _buildBranchesTab() {
     return ListView.separated(
       padding: const EdgeInsets.all(16),
-      itemCount: _branchStocks.length,
+      itemCount: _branchMeatStocks.length,
       separatorBuilder: (_, _) => const SizedBox(height: 12),
       itemBuilder: (ctx, i) {
-        final s = _branchStocks[i];
+        final s = _branchMeatStocks[i];
         return StaffCard(
-          child: Row(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(s.branchName, style: const TextStyle(fontWeight: FontWeight.w600)),
-                    const SizedBox(height: 4),
-                    Row(
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          '${s.remainingKg} / ${s.allocatedKg} KG',
-                          style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                          s.branchName,
+                          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
                         ),
-                        if (s.isRunningLow) ...[
-                          const SizedBox(width: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                            decoration: BoxDecoration(
-                              color: AppColors.error.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: const Text(
-                              'LOW STOCK',
-                              style: TextStyle(
-                                fontSize: 9,
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Text(
+                              '${s.totalRemainingPcs} / ${s.totalAllocatedPcs} PCS',
+                              style: const TextStyle(
+                                color: AppColors.accent,
                                 fontWeight: FontWeight.w800,
-                                color: AppColors.error,
+                                fontSize: 13,
                               ),
                             ),
-                          ),
-                        ],
+                            const SizedBox(width: 6),
+                            const Text(
+                              '(Natitirang Dala / Total)',
+                              style: TextStyle(color: AppColors.textSecondary, fontSize: 11),
+                            ),
+                            if (s.isRunningLow) ...[
+                              const SizedBox(width: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                                decoration: BoxDecoration(
+                                  color: AppColors.error.withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: const Text(
+                                  'LOW STOCK',
+                                  style: TextStyle(
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.w800,
+                                    color: AppColors.error,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
                       ],
                     ),
-                  ],
-                ),
-              ),
-              // Explicit labeled button, matching Admin Web's "ADJUST"
-              // button — not a whole-card tap, since Cupertino gives no
-              // press/ripple feedback and made the old version feel
-              // broken even though it worked.
-              CupertinoButton(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                minimumSize: Size.zero,
-                onPressed: () => _adjustBranchAllocation(i),
-                child: const Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(CupertinoIcons.slider_horizontal_3, size: 16, color: AppColors.accent),
-                    SizedBox(width: 6),
-                    Text(
-                      'Adjust',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.accent,
-                      ),
+                  ),
+                  CupertinoButton(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    minimumSize: Size.zero,
+                    onPressed: () => _adjustBranchAllocation(i),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(CupertinoIcons.slider_horizontal_3, size: 16, color: AppColors.accent),
+                        SizedBox(width: 6),
+                        Text(
+                          'Adjust',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.accent,
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              const Divider(height: 1, color: AppColors.border),
+              const SizedBox(height: 8),
+              // Itemized Meat Portions
+              Row(
+                children: [
+                  Expanded(
+                    child: _meatVariantChip(
+                      '250g Regular',
+                      '${s.regular250gRemaining} / ${s.regular250gTotal} pcs',
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: _meatVariantChip(
+                      '300g Medium',
+                      '${s.medium300gRemaining} / ${s.medium300gTotal} pcs',
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: _meatVariantChip(
+                      '400g B1T1',
+                      '${s.b1t1_400gRemaining} / ${s.b1t1_400gTotal} pcs',
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -707,42 +780,103 @@ class _OwnerInventoryScreenState extends State<OwnerInventoryScreen> {
     );
   }
 
-  /// Same capability as Admin Web's "Adjust Allocation" screen — lets
-  /// the Owner update a branch's allocated kilos straight from the
-  /// Branches tab instead of it being view-only.
-  void _adjustBranchAllocation(int index) {
-    final stock = _branchStocks[index];
-    final allocationCtrl = TextEditingController(
-      text: stock.allocatedKg.toStringAsFixed(0),
+  Widget _meatVariantChip(String label, String value) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 5),
+      decoration: BoxDecoration(
+        color: AppColors.background,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.textSecondary)),
+          const SizedBox(height: 2),
+          Text(value, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
+        ],
+      ),
     );
+  }
+
+  /// Lets the Owner update a branch's allocated and remaining pieces per variant.
+  void _adjustBranchAllocation(int index) {
+    final stock = _branchMeatStocks[index];
+    final regTotalCtrl = TextEditingController(text: stock.regular250gTotal.toString());
+    final regRemCtrl = TextEditingController(text: stock.regular250gRemaining.toString());
+    final medTotalCtrl = TextEditingController(text: stock.medium300gTotal.toString());
+    final medRemCtrl = TextEditingController(text: stock.medium300gRemaining.toString());
+    final b1t1TotalCtrl = TextEditingController(text: stock.b1t1_400gTotal.toString());
+    final b1t1RemCtrl = TextEditingController(text: stock.b1t1_400gRemaining.toString());
 
     showCupertinoDialog(
       context: context,
       builder: (ctx) => CupertinoAlertDialog(
-        title: const Text('Adjust Allocation'),
-        content: Column(
-          children: [
-            const SizedBox(height: 4),
-            Text(stock.branchName, style: const TextStyle(fontSize: 12, color: CupertinoColors.systemGrey)),
-            const SizedBox(height: 12),
-            CupertinoTextField(
-              controller: allocationCtrl,
-              placeholder: 'Allocated Stock (KG)',
-              keyboardType: TextInputType.number,
-            ),
-          ],
+        title: const Text('Adjust Meat Stocks (Pcs)'),
+        content: SingleChildScrollView(
+          child: Column(
+            children: [
+              const SizedBox(height: 4),
+              Text(stock.branchName, style: const TextStyle(fontSize: 12, color: CupertinoColors.systemGrey)),
+              const SizedBox(height: 12),
+              const Text('250 grams (Regular):', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 4),
+              Row(
+                children: [
+                  Expanded(child: CupertinoTextField(controller: regTotalCtrl, placeholder: 'Total Pcs', keyboardType: TextInputType.number)),
+                  const SizedBox(width: 8),
+                  Expanded(child: CupertinoTextField(controller: regRemCtrl, placeholder: 'Natitira', keyboardType: TextInputType.number)),
+                ],
+              ),
+              const SizedBox(height: 10),
+              const Text('300 grams (Medium):', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 4),
+              Row(
+                children: [
+                  Expanded(child: CupertinoTextField(controller: medTotalCtrl, placeholder: 'Total Pcs', keyboardType: TextInputType.number)),
+                  const SizedBox(width: 8),
+                  Expanded(child: CupertinoTextField(controller: medRemCtrl, placeholder: 'Natitira', keyboardType: TextInputType.number)),
+                ],
+              ),
+              const SizedBox(height: 10),
+              const Text('400 grams (B1T1):', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 4),
+              Row(
+                children: [
+                  Expanded(child: CupertinoTextField(controller: b1t1TotalCtrl, placeholder: 'Total Pcs', keyboardType: TextInputType.number)),
+                  const SizedBox(width: 8),
+                  Expanded(child: CupertinoTextField(controller: b1t1RemCtrl, placeholder: 'Natitira', keyboardType: TextInputType.number)),
+                ],
+              ),
+            ],
+          ),
         ),
         actions: [
           CupertinoDialogAction(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
           CupertinoDialogAction(
-            onPressed: () {
-              final value = double.tryParse(allocationCtrl.text);
-              if (value != null) {
-                setState(() {
-                  _branchStocks[index] = stock.copyWith(allocatedKg: value);
-                });
-              }
-              Navigator.pop(ctx);
+            onPressed: () async {
+              final regT = int.tryParse(regTotalCtrl.text) ?? stock.regular250gTotal;
+              final regR = int.tryParse(regRemCtrl.text) ?? stock.regular250gRemaining;
+              final medT = int.tryParse(medTotalCtrl.text) ?? stock.medium300gTotal;
+              final medR = int.tryParse(medRemCtrl.text) ?? stock.medium300gRemaining;
+              final b1t1T = int.tryParse(b1t1TotalCtrl.text) ?? stock.b1t1_400gTotal;
+              final b1t1R = int.tryParse(b1t1RemCtrl.text) ?? stock.b1t1_400gRemaining;
+
+              final updated = stock.copyWith(
+                regular250gTotal: regT,
+                regular250gRemaining: regR,
+                medium300gTotal: medT,
+                medium300gRemaining: medR,
+                b1t1_400gTotal: b1t1T,
+                b1t1_400gRemaining: b1t1R,
+                date: DateTime.now(),
+              );
+
+              await FirestoreService.saveBranchMeatStock(updated);
+              setState(() {
+                _branchMeatStocks[index] = updated;
+              });
+              if (ctx.mounted) Navigator.pop(ctx);
             },
             child: const Text('Save'),
           ),
@@ -759,17 +893,66 @@ class _OwnerInventoryScreenState extends State<OwnerInventoryScreen> {
           child: StaffButton(label: 'Record Dispatch', icon: CupertinoIcons.bus, onPressed: _showAddDispatchDialog),
         ),
         Expanded(
-          child: ListView.separated(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            itemCount: _transferLogs.length,
-            separatorBuilder: (_, _) => const SizedBox(height: 10),
-            itemBuilder: (ctx, i) {
-              final log = _transferLogs[i];
-              return StaffCard(
-                child: Text('Warehouse -> ${log.destinationBranchName}: ${log.quantityKg}kg'),
-              );
-            },
-          ),
+          child: _meatDispatches.isEmpty
+              ? const Center(
+                  child: Text(
+                    'No meat dispatches recorded yet.',
+                    style: TextStyle(color: AppColors.textSecondary),
+                  ),
+                )
+              : ListView.separated(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  itemCount: _meatDispatches.length,
+                  separatorBuilder: (_, _) => const SizedBox(height: 10),
+                  itemBuilder: (ctx, i) {
+                    final dispatch = _meatDispatches[i];
+                    final isDelivered = dispatch.isDelivered;
+
+                    return StaffCard(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  dispatch.destinationBranchName,
+                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                                ),
+                              ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: (isDelivered ? AppColors.success : AppColors.warning).withValues(alpha: 0.15),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Text(
+                                  isDelivered ? 'DELIVERED' : 'PENDING DELIVERY',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w800,
+                                    color: isDelivered ? AppColors.success : AppColors.warning,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            dispatch.itemsSummary,
+                            style: const TextStyle(fontSize: 12, color: AppColors.textPrimary, fontWeight: FontWeight.w600),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Total: ${dispatch.totalPcs} pcs \u2022 ${dispatch.createdAt.month}/${dispatch.createdAt.day} ${dispatch.createdAt.hour.toString().padLeft(2, '0')}:${dispatch.createdAt.minute.toString().padLeft(2, '0')}',
+                            style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
         ),
       ],
     );

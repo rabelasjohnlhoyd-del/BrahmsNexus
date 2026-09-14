@@ -2,10 +2,13 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import '../models/announcement.dart';
 import '../models/bilao_order.dart';
+import '../models/branch.dart';
 import '../models/branch_assignment.dart';
 import '../models/branch_daily_inventory.dart';
+import '../models/branch_meat_inventory.dart';
 import '../models/daily_report.dart';
 import '../models/inventory_batch.dart';
+import '../models/meat_dispatch.dart';
 import '../models/sales_record.dart';
 
 /// Service dedicated to handling high-frequency, operational, and real-time
@@ -769,5 +772,189 @@ class FirestoreService {
       return false;
     }
   }
+
+  // ===========================================================================
+  // 12. BRANCH MEAT INVENTORY (PCS) & REAL-TIME DISPATCH
+  // ===========================================================================
+
+  static final List<BranchMeatStock> _defaultBranchMeatStocks = kSampleBranches
+      .map((b) => BranchMeatStock.defaultForBranch(b))
+      .toList();
+
+  /// Streams real-time branch meat stocks for all 6 branches.
+  /// Automatically falls back to standard 6-branch defaults if collection is loading.
+  static Stream<List<BranchMeatStock>> watchBranchMeatStocks() {
+    return _db.collection('branch_meat_stocks').snapshots().map((snapshot) {
+      if (snapshot.docs.isEmpty) {
+        return _defaultBranchMeatStocks;
+      }
+      final map = <String, BranchMeatStock>{};
+      for (final doc in snapshot.docs) {
+        final stock = BranchMeatStock.fromMap(doc.data(), id: doc.id);
+        map[stock.branchId] = stock;
+      }
+
+      // Ensure all 6 branches are always present in the returned list
+      return kSampleBranches.map((b) {
+        return map[b.id] ?? BranchMeatStock.defaultForBranch(b);
+      }).toList();
+    });
+  }
+
+  /// Seeds default meat inventory for all 6 branches if not yet present in Firestore.
+  static Future<void> seedDefaultBranchMeatStocksIfEmpty() async {
+    try {
+      final snapshot = await _db.collection('branch_meat_stocks').limit(1).get();
+      if (snapshot.docs.isEmpty) {
+        final batch = _db.batch();
+        for (final b in kSampleBranches) {
+          final stock = BranchMeatStock.defaultForBranch(b);
+          final docRef = _db.collection('branch_meat_stocks').doc(b.id);
+          batch.set(docRef, {
+            ...stock.toMap(),
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
+        }
+        await batch.commit();
+        debugPrint('FirestoreService: Default branch meat stocks seeded.');
+      }
+    } catch (e) {
+      debugPrint('FirestoreService.seedDefaultBranchMeatStocksIfEmpty error: $e');
+    }
+  }
+
+  /// Saves or updates the meat stock counts for a specific branch.
+  static Future<bool> saveBranchMeatStock(BranchMeatStock stock) async {
+    try {
+      await _db.collection('branch_meat_stocks').doc(stock.branchId).set({
+        ...stock.toMap(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+      return true;
+    } catch (e) {
+      debugPrint('FirestoreService.saveBranchMeatStock error: $e');
+      return false;
+    }
+  }
+
+  /// Streams all meat dispatches sorted with most recent first.
+  static Stream<List<MeatDispatch>> watchMeatDispatches({int limit = 50}) {
+    return _db
+        .collection('meat_dispatches')
+        .orderBy('createdAt', descending: true)
+        .limit(limit)
+        .snapshots()
+        .map((snapshot) {
+      return snapshot.docs
+          .map((doc) => MeatDispatch.fromMap(doc.data(), docId: doc.id))
+          .toList();
+    });
+  }
+
+  /// Creates a new meat dispatch record from Main Warehouse to a target branch.
+  static Future<String?> createMeatDispatch(MeatDispatch dispatch) async {
+    try {
+      final docRef = await _db.collection('meat_dispatches').add({
+        'destinationBranchId': dispatch.destinationBranchId,
+        'destinationBranchName': dispatch.destinationBranchName,
+        'regular250gPcs': dispatch.regular250gPcs,
+        'medium300gPcs': dispatch.medium300gPcs,
+        'b1t1_400gPcs': dispatch.b1t1_400gPcs,
+        'status': 'pending',
+        'createdAt': dispatch.createdAt.toIso8601String(),
+        'deliveredAt': null,
+        'driverName': dispatch.driverName,
+        'serverCreatedAt': FieldValue.serverTimestamp(),
+      });
+      return docRef.id;
+    } catch (e) {
+      debugPrint('FirestoreService.createMeatDispatch error: $e');
+      return null;
+    }
+  }
+
+  /// Marks a meat dispatch as delivered by the Driver.
+  /// Automatically increases the destination branch's stock (both total and remaining)
+  /// and updates the daily staff inventory so all apps reflect the delivery instantly.
+  static Future<bool> markDispatchAsDelivered(MeatDispatch dispatch, {String? driverName}) async {
+    try {
+      final now = DateTime.now();
+
+      // 1. Update the dispatch record status to 'delivered'
+      final updateData = <String, dynamic>{
+        'status': 'delivered',
+        'deliveredAt': now.toIso8601String(),
+        'serverDeliveredAt': FieldValue.serverTimestamp(),
+      };
+      if (driverName != null) {
+        updateData['driverName'] = driverName;
+      }
+      await _db.collection('meat_dispatches').doc(dispatch.id).update(updateData);
+
+      // 2. Fetch current branch meat stock and add the delivered pcs
+      final branchDocRef = _db.collection('branch_meat_stocks').doc(dispatch.destinationBranchId);
+      final branchDoc = await branchDocRef.get();
+
+      BranchMeatStock currentStock;
+      if (branchDoc.exists && branchDoc.data() != null) {
+        currentStock = BranchMeatStock.fromMap(branchDoc.data()!, id: dispatch.destinationBranchId);
+      } else {
+        final b = kSampleBranches.firstWhere(
+          (item) => item.id == dispatch.destinationBranchId,
+          orElse: () => kSampleBranches.first,
+        );
+        currentStock = BranchMeatStock.defaultForBranch(b);
+      }
+
+      final updatedStock = currentStock.copyWith(
+        regular250gTotal: currentStock.regular250gTotal + dispatch.regular250gPcs,
+        regular250gRemaining: currentStock.regular250gRemaining + dispatch.regular250gPcs,
+        medium300gTotal: currentStock.medium300gTotal + dispatch.medium300gPcs,
+        medium300gRemaining: currentStock.medium300gRemaining + dispatch.medium300gPcs,
+        b1t1_400gTotal: currentStock.b1t1_400gTotal + dispatch.b1t1_400gPcs,
+        b1t1_400gRemaining: currentStock.b1t1_400gRemaining + dispatch.b1t1_400gPcs,
+        date: now,
+      );
+
+      await branchDocRef.set({
+        ...updatedStock.toMap(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
+      // 3. Update staff daily inventory for this branch today
+      final docId = _dailyInventoryDocId(dispatch.destinationBranchId, now);
+      final staffInvDoc = await _db.collection('branch_daily_inventories').doc(docId).get();
+      if (staffInvDoc.exists && staffInvDoc.data() != null) {
+        final data = staffInvDoc.data()!;
+        final alloc = data['allocated'] as Map<String, dynamic>? ?? {};
+        final currentKarne = (alloc['karne'] as num?)?.toInt() ?? 0;
+        await _db.collection('branch_daily_inventories').doc(docId).update({
+          'allocated.karne': currentKarne + dispatch.totalPcs,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      } else {
+        await _db.collection('branch_daily_inventories').doc(docId).set({
+          'branchId': dispatch.destinationBranchId,
+          'branchName': dispatch.destinationBranchName,
+          'date': Timestamp.fromDate(now),
+          'allocated': {
+            'karne': dispatch.totalPcs,
+            'mayo': 40,
+            'styro': 40,
+            'toyo': 7,
+          },
+          'status': 'pending',
+          'discrepancyNote': null,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      }
+
+      return true;
+    } catch (e) {
+      debugPrint('FirestoreService.markDispatchAsDelivered error: $e');
+      return false;
+    }
+  }
 }
+
 

@@ -72,14 +72,18 @@ class BranchDailyInventory {
   final String? discrepancyNote;
 
   BranchDailyInventory copyWith({
+    String? branchId,
+    String? branchName,
+    DateTime? date,
+    InventoryCounts? allocated,
     InventoryVerificationStatus? status,
     String? discrepancyNote,
   }) {
     return BranchDailyInventory(
-      branchId: branchId,
-      branchName: branchName,
-      date: date,
-      allocated: allocated,
+      branchId: branchId ?? this.branchId,
+      branchName: branchName ?? this.branchName,
+      date: date ?? this.date,
+      allocated: allocated ?? this.allocated,
       status: status ?? this.status,
       discrepancyNote: discrepancyNote ?? this.discrepancyNote,
     );

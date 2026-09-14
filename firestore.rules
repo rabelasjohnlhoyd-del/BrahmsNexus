@@ -217,6 +217,22 @@ service cloud.firestore {
     }
 
     // =========================================================================
+    // 12. BRANCH MEAT INVENTORY (PCS)
+    // Tracks 250g Regular, 300g Medium, and 400g B1T1 stock per branch.
+    // =========================================================================
+    match /branch_meat_stocks/{branchId} {
+      allow read, write: if true;
+    }
+
+    // =========================================================================
+    // 13. MEAT DISPATCHES
+    // Real-time dispatches from Main Warehouse to branches with Driver delivery updates.
+    // =========================================================================
+    match /meat_dispatches/{dispatchId} {
+      allow read, write: if true;
+    }
+
+    // =========================================================================
     // DEFAULT DENY RULE
     // Any collections not explicitly matched above are strictly locked down.
     // =========================================================================

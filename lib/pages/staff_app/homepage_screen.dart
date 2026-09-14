@@ -1,6 +1,11 @@
+import 'dart:async';
 import 'package:flutter/cupertino.dart';
+import '../../models/branch.dart';
 import '../../models/branch_daily_inventory.dart';
+import '../../models/branch_meat_inventory.dart';
+import '../../services/assignment_service.dart';
 import '../../services/auth_service.dart';
+import '../../services/firestore_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/staff_button.dart';
 import '../../widgets/staff_card.dart';
@@ -249,11 +254,16 @@ class _HomepageScreenState extends State<HomepageScreen> {
   }
 
   BranchDailyInventory _inventory = BranchDailyInventory(
-    branchId: 'br2',
-    branchName: 'Sta. Cruz',
+    branchId: 'br1',
+    branchName: 'Brgy. Gatid, Sta. Cruz',
     date: DateTime.now(),
-    allocated: const InventoryCounts(karne: 35, mayo: 40, styro: 40, toyo: 7),
+    allocated: const InventoryCounts(karne: 40, mayo: 40, styro: 40, toyo: 7),
   );
+
+  BranchMeatStock? _branchMeatStock;
+  StreamSubscription<BranchDailyInventory?>? _inventorySub;
+  StreamSubscription<List<BranchMeatStock>>? _meatStocksSub;
+  String _currentBranchId = 'br1';
 
   final _karneController = TextEditingController();
   final _mayoController = TextEditingController();
@@ -268,7 +278,71 @@ class _HomepageScreenState extends State<HomepageScreen> {
   ];
 
   @override
+  void initState() {
+    super.initState();
+    _setupBranchAndStreams();
+    AssignmentService.changeNotifier.addListener(_onAssignmentChanged);
+  }
+
+  void _onAssignmentChanged() {
+    if (mounted) {
+      _setupBranchAndStreams();
+    }
+  }
+
+  void _setupBranchAndStreams() {
+    final assignedBranchName = AssignmentService.getAssignedBranch(AuthService.currentUsername);
+    Branch? matchedBranch;
+    if (assignedBranchName.isNotEmpty) {
+      for (final b in kSampleBranches) {
+        if (b.fullName.toLowerCase().contains(assignedBranchName.toLowerCase()) ||
+            b.name.toLowerCase().contains(assignedBranchName.toLowerCase()) ||
+            assignedBranchName.toLowerCase().contains(b.name.toLowerCase())) {
+          matchedBranch = b;
+          break;
+        }
+      }
+    }
+    matchedBranch ??= kSampleBranches.first;
+    _currentBranchId = matchedBranch.id;
+
+    _inventory = _inventory.copyWith(
+      branchId: matchedBranch.id,
+      branchName: matchedBranch.fullName,
+    );
+
+    _inventorySub?.cancel();
+    _inventorySub = FirestoreService.watchTodayBranchInventory(
+      branchId: matchedBranch.id,
+      branchName: matchedBranch.fullName,
+      date: DateTime.now(),
+    ).listen((inv) {
+      if (mounted && inv != null) {
+        setState(() {
+          _inventory = inv;
+        });
+      }
+    });
+
+    _meatStocksSub?.cancel();
+    _meatStocksSub = FirestoreService.watchBranchMeatStocks().listen((stocks) {
+      if (mounted) {
+        final match = stocks.firstWhere(
+          (s) => s.branchId == _currentBranchId,
+          orElse: () => BranchMeatStock.defaultForBranch(matchedBranch!),
+        );
+        setState(() {
+          _branchMeatStock = match;
+        });
+      }
+    });
+  }
+
+  @override
   void dispose() {
+    AssignmentService.changeNotifier.removeListener(_onAssignmentChanged);
+    _inventorySub?.cancel();
+    _meatStocksSub?.cancel();
     _karneController.dispose();
     _mayoController.dispose();
     _styroController.dispose();
@@ -292,8 +366,6 @@ class _HomepageScreenState extends State<HomepageScreen> {
         int.tryParse(_toyoController.text) == a.toyo;
   }
 
-
-
   void _confirm() {
     showCupertinoDialog(
       context: context,
@@ -309,11 +381,13 @@ class _HomepageScreenState extends State<HomepageScreen> {
             isDefaultAction: true,
             onPressed: () {
               Navigator.pop(context);
+              final updated = _inventory.copyWith(
+                status: InventoryVerificationStatus.confirmed,
+              );
               setState(() {
-                _inventory = _inventory.copyWith(
-                  status: InventoryVerificationStatus.confirmed,
-                );
+                _inventory = updated;
               });
+              FirestoreService.saveDailyInventory(updated);
               _showToast('Inventory confirmed!');
             },
             child: const Text('Yes, Confirm'),
@@ -361,12 +435,14 @@ class _HomepageScreenState extends State<HomepageScreen> {
           CupertinoDialogAction(
             isDestructiveAction: true,
             onPressed: () {
+              final updated = _inventory.copyWith(
+                status: InventoryVerificationStatus.discrepancyReported,
+                discrepancyNote: _discrepancyController.text.trim(),
+              );
               setState(() {
-                _inventory = _inventory.copyWith(
-                  status: InventoryVerificationStatus.discrepancyReported,
-                  discrepancyNote: _discrepancyController.text.trim(),
-                );
+                _inventory = updated;
               });
+              FirestoreService.saveDailyInventory(updated);
               Navigator.of(dialogContext).pop();
               _showToast('Report sent to Owner.');
             },
@@ -453,6 +529,39 @@ class _HomepageScreenState extends State<HomepageScreen> {
               fontSize: 11,
               fontWeight: FontWeight.w600,
               color: AppColors.accentDark,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _meatVariantChip(String label, String value) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+      decoration: BoxDecoration(
+        color: CupertinoColors.white,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.bold,
+              color: AppColors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            value,
+            style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+              color: AppColors.textPrimary,
             ),
           ),
         ],
@@ -572,6 +681,33 @@ class _HomepageScreenState extends State<HomepageScreen> {
                 Expanded(child: StaffDisplayTile(label: 'Toyo', value: '${a.toyo}', dark: true)),
               ],
             ),
+            if (_branchMeatStock != null) ...[
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: _meatVariantChip(
+                      '250g Regular',
+                      '${_branchMeatStock!.regular250gRemaining} / ${_branchMeatStock!.regular250gTotal} pcs',
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: _meatVariantChip(
+                      '300g Medium',
+                      '${_branchMeatStock!.medium300gRemaining} / ${_branchMeatStock!.medium300gTotal} pcs',
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: _meatVariantChip(
+                      '400g B1T1',
+                      '${_branchMeatStock!.b1t1_400gRemaining} / ${_branchMeatStock!.b1t1_400gTotal} pcs',
+                    ),
+                  ),
+                ],
+              ),
+            ],
             const SizedBox(height: 26),
 
             // Recount — 2x2 grid of input fields
