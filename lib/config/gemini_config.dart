@@ -2,14 +2,16 @@
 class GeminiConfig {
   const GeminiConfig._();
 
-  /// 👉 DITO MO LANG I-PASTE ANG IYONG API KEY:
-  static const String apiKey = 'YOUR_GEMINI_API_KEY_HERE';
+  // ===========================================================================
+  // 👉 I-PASTE DITO ANG IYONG API KEY MULA SA GOOGLE AI STUDIO:
+  //    Palitan ang 'PASTE_YOUR_API_KEY_HERE' ng iyong key (hal. 'AQ...' o 'AIza...')
+  // ===========================================================================
+  static const String key = 'PASTE_YOUR_API_KEY_HERE';
+
+  /// The active API key — just reads from the single [key] above.
+  static String get apiKey => key.trim();
 
   /// Checks if the API key has been configured (not the placeholder default)
   static bool get isConfigured =>
-      apiKey.trim().isNotEmpty &&
-      apiKey != 'YOUR_GEMINI_API_KEY_HERE' &&
-      !apiKey.startsWith('YOUR_GEMINI_API_KEY_HERE');
+      key.isNotEmpty && key != 'PASTE_YOUR_API_KEY_HERE';
 }
-
-

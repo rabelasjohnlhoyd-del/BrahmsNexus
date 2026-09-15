@@ -76,7 +76,7 @@ class GeminiService {
   const GeminiService._();
 
   static const String _baseUrl =
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent';
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
 
   /// Validates a Philippine residential address using Google AI Studio.
   static Future<GeminiAddressResult> validateAddress(String rawAddress) async {
@@ -355,22 +355,16 @@ Raw JSON only.
       return const GeminiPhotoLicenseResult(
         isValid: false,
         isDriverLicense: false,
-        rejectionReason: 'Walang litratong natanggap. Mangyaring mag-upload ng malinaw na litrato ng lisensya.',
+        rejectionReason: 'No image received. Please upload a clear photo of your driver\'s license.',
       );
     }
 
     if (!GeminiConfig.isConfigured) {
-      // Graceful fallback simulation when Gemini API key is not yet pasted in GeminiConfig
       return const GeminiPhotoLicenseResult(
-        isValid: true,
-        isDriverLicense: true,
-        licenseNumber: 'D01-23-456789',
-        expiryDate: '2028-10-15',
-        cardHolderName: 'Driver Applicant',
-        classification: 'Professional Driver (DL Codes: A, A1, B, B1, B2)',
-        dlCodes: 'A, A1, B, B1, B2',
-        message: 'LTO License Verified (Local Engine - I-paste ang key sa lib/config/gemini_config.dart para sa live AI)',
-        source: 'LTO Verification Engine',
+        isValid: false,
+        isDriverLicense: false,
+        rejectionReason:
+            'AI verification is not set up. Please contact the administrator to configure the Gemini API key before registering as a driver.',
       );
     }
 
@@ -382,37 +376,37 @@ Your ONLY job is to determine if the uploaded image is an authentic, physical Ph
 You MUST set "isDriverLicense": false and "isValid": false if the image is ANY of the following:
 - A human face, selfie, portrait, or person photo
 - An animal, pet, or any living creature
-- Food, beverage, or any object that is not an ID card
-- A receipt, bill, invoice, or printed paper document
-- A school ID, company ID, postal ID, PhilSys National ID, SSS card, GSIS card, Pag-IBIG card, PhilHealth card, voter's ID, passport, or any NON-LTO ID
-- A screenshot, screen capture, or digital display of any ID
-- A blurry, too-dark, or unreadable image where the full card details cannot be seen
-- A blank or nearly blank image
-- Any random object, scenery, or background photo
-- Anything that does not look exactly like a physical LTO plastic Driver's License card
+- Food, beverage, tableware, or any object that is not an ID card
+- A receipt, bill, invoice, letter, book, or printed paper document
+- A school ID, company ID, postal ID, PhilSys National ID, SSS card, GSIS card, Pag-IBIG card, PhilHealth card, voter's ID, passport, or any NON-LTO ID card
+- A screenshot, screen capture, monitor display, or phone screen displaying an ID
+- A blurry, too-dark, glary, or unreadable image where card details cannot be clearly seen
+- A blank, black, white, or nearly blank image
+- Any random object, scenery, room, wall, desk, or background photo
+- Anything that does not look like an official, authentic Philippine LTO Driver's License card
 
 == LTO DRIVER'S LICENSE REQUIRED FEATURES ==
 A valid Philippine LTO Driver's License card MUST visibly have ALL of the following:
-1. The text "Land Transportation Office" or "LTO" printed on the card
-2. A License Number in format: letter + 2 digits + hyphen + 2 digits + hyphen + 6 digits (e.g. D01-22-123456)
-3. An expiration/validity date
-4. A photo of the card holder embedded on the card
-5. The words "DRIVER'S LICENSE" or "Non-Professional" or "Professional"
+1. The text "Land Transportation Office" or "LTO" or "REPUBLIKA NG PILIPINAS" printed on the card
+2. A License Number in the format: 1 capital letter + 2 digits + hyphen + 2 digits + hyphen + 6 digits (e.g., D01-22-123456)
+3. An expiration/validity date in the future
+4. A photo of the cardholder printed directly on the card
+5. The words "DRIVER'S LICENSE" with classification ("Non-Professional" or "Professional")
 
-If ANY of these features are missing or unclear, set "isDriverLicense": false.
+If ANY of these features are missing, unreadable, or not an authentic LTO Driver's License card, you MUST set "isDriverLicense": false and "isValid": false.
 
 == OUTPUT ==
-Respond ONLY with raw JSON (no markdown, no explanation):
+Respond ONLY with raw JSON (do not include markdown codeblocks or quotes):
 {
   "isDriverLicense": boolean,
   "isValid": boolean,
   "licenseNumber": string (or "" if not found),
-  "expiryDate": string in YYYY-MM-DD (or "" if not found),
+  "expiryDate": string in YYYY-MM-DD format (or "" if not found),
   "cardHolderName": string (or "" if not found),
   "classification": string ("Professional" | "Non-Professional" | ""),
   "dlCodes": string (e.g. "A, A1, B, B1, B2" or ""),
-  "message": string (short success message if valid, or "" if not),
-  "rejectionReason": string (in Filipino — reason for rejection if isValid is false, or "")
+  "message": string (short success message in English if valid, or "" if not),
+  "rejectionReason": string (clear explanation in English of why the image was rejected if isValid is false, or "")
 }
 ''';
 
@@ -445,8 +439,18 @@ Respond ONLY with raw JSON (no markdown, no explanation):
         final data = jsonDecode(response.body) as Map<String, dynamic>;
         final candidates = data['candidates'] as List<dynamic>?;
         if (candidates != null && candidates.isNotEmpty) {
-          final text = candidates.first['content']['parts'][0]['text'] as String;
-          final json = jsonDecode(text) as Map<String, dynamic>;
+          var rawText = candidates.first['content']['parts'][0]['text'] as String;
+          rawText = rawText.trim();
+          if (rawText.startsWith('```json')) {
+            rawText = rawText.substring(7);
+          } else if (rawText.startsWith('```')) {
+            rawText = rawText.substring(3);
+          }
+          if (rawText.endsWith('```')) {
+            rawText = rawText.substring(0, rawText.length - 3);
+          }
+          rawText = rawText.trim();
+          final json = jsonDecode(rawText) as Map<String, dynamic>;
           final isDL = json['isDriverLicense'] as bool? ?? false;
           final isValid = json['isValid'] as bool? ?? false;
           final licNum = (json['licenseNumber'] as String? ?? '').trim();
@@ -458,16 +462,14 @@ Respond ONLY with raw JSON (no markdown, no explanation):
           final dlCodes = (json['dlCodes'] as String? ?? '').trim();
 
           // --- LAYER 2: Hard data plausibility check ---
-          // Even if Gemini says isValid:true, reject if the data it
-          // extracted looks hallucinated (impossible date, wrong format).
           if (isDL && isValid) {
             final plausibilityError = _validateLicenseData(licNum, expiry);
             if (plausibilityError != null) {
               return GeminiPhotoLicenseResult(
                 isValid: false,
                 isDriverLicense: false,
-                rejectionReason: 'Hindi ito totoong LTO Driver\'s License. '
-                    'Mangyaring kumuha ng malinaw na litrato ng iyong opisyal na LTO card.',
+                rejectionReason: 'This image does not appear to be an authentic LTO Driver\'s License. '
+                    'Please take a clear photo of your official LTO plastic card ($plausibilityError).',
                 source: 'Gemini 1.5 Flash Vision AI',
               );
             }
@@ -485,7 +487,7 @@ Respond ONLY with raw JSON (no markdown, no explanation):
               message: msg,
               rejectionReason: reason.isNotEmpty
                   ? reason
-                  : 'Hindi kinilala ang imahe bilang opisyal na Philippine Driver\'s License.',
+                  : 'The image was not recognized as an official Philippine LTO Driver\'s License card.',
               source: 'Gemini 1.5 Flash Vision AI',
             );
           }
@@ -503,25 +505,31 @@ Respond ONLY with raw JSON (no markdown, no explanation):
             source: 'Gemini 1.5 Flash Vision AI',
           );
         }
+      } else if (response.statusCode == 400 || response.statusCode == 403 || response.statusCode == 401) {
+        return const GeminiPhotoLicenseResult(
+          isValid: false,
+          isDriverLicense: false,
+          rejectionReason: 'Invalid Google AI Studio API key. Please check the API key in lib/config/gemini_config.dart.',
+        );
       } else {
         return GeminiPhotoLicenseResult(
           isValid: false,
           isDriverLicense: false,
-          rejectionReason: 'AI service error (${response.statusCode}). Tiyaking tama ang API key sa gemini_config.dart.',
+          rejectionReason: 'AI service error (${response.statusCode}). Please check your Gemini API key in lib/config/gemini_config.dart.',
         );
       }
     } catch (e) {
       return GeminiPhotoLicenseResult(
         isValid: false,
         isDriverLicense: false,
-        rejectionReason: 'Hindi maka-konekta sa AI vision service. Pakisuri ang internet connection.',
+        rejectionReason: 'Unable to connect to AI vision service ($e). Please check your internet connection.',
       );
     }
 
     return const GeminiPhotoLicenseResult(
       isValid: false,
       isDriverLicense: false,
-      rejectionReason: 'Hindi ma-verify ang imahe. Mangyaring kumuha ng mas malinaw na litrato ng lisensya.',
+      rejectionReason: 'Unable to verify image. Please take a clearer photo of your official LTO Driver\'s License card.',
     );
   }
 

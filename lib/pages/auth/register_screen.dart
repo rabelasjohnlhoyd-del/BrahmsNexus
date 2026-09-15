@@ -160,7 +160,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         _photoLicenseResult = GeminiPhotoLicenseResult(
           isValid: false,
           isDriverLicense: false,
-          rejectionReason: 'Hindi mabasa ang litrato ($e). Mangyaring sumubok muli.',
+          rejectionReason: 'Unable to process the image ($e). Please try again.',
         );
       });
     }
@@ -187,7 +187,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     if (_selectedRoleString == 'Driver') {
       if (_photoLicenseResult == null || !_photoLicenseResult!.isValid) {
         setState(() => _registerError =
-            'Mangyaring mag-upload ng valid na litrato ng iyong opisyal na LTO Driver\'s License.');
+            'Please upload a valid photo of your official LTO Driver\'s License.');
         return;
       }
     }
@@ -567,7 +567,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               prefixIcon:
                                   Icon(Icons.location_city_outlined, size: 19),
                             ),
-                            hint: const Text('Pumili ng lungsod o bayan'),
+                            hint: const Text('Select city or municipality'),
                             items: PhilippineAddressData.getCities(
                                     _selectedProvince)
                                 .map((c) => DropdownMenuItem(
@@ -597,7 +597,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               prefixIcon:
                                   Icon(Icons.holiday_village_outlined, size: 19),
                             ),
-                            hint: const Text('Pumili ng barangay'),
+                            hint: const Text('Select barangay'),
                             items: (_selectedCity == null
                                     ? <String>[]
                                     : PhilippineAddressData.getBarangays(
@@ -693,7 +693,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             ),
                             const SizedBox(height: 4),
                             const Text(
-                              'Kumuha o mag-upload ng malinaw na litrato ng iyong opisyal na LTO Driver\'s License card. Susuriin ito ng Gemini AI.',
+                              'Take or upload a clear photo of your official LTO Driver\'s License card. It will be verified by Google AI Studio (Gemini).',
                               style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
                             ),
                             const SizedBox(height: 12),
@@ -794,7 +794,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                           SizedBox(width: 12),
                                           Expanded(
                                             child: Text(
-                                              'Sinusuri ng Gemini AI ang litrato ng lisensya...',
+                                              'Gemini AI is analyzing the driver\'s license photo...',
                                               style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.accent),
                                             ),
                                           ),
@@ -844,6 +844,39 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                           ],
                                         ),
                                       )
+                                    else if (_photoLicenseResult!.rejectionReason.contains('administrator') ||
+                                        _photoLicenseResult!.rejectionReason.contains('API key'))
+                                      Container(
+                                        padding: const EdgeInsets.all(14),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFFFFF8E1),
+                                          borderRadius: BorderRadius.circular(10),
+                                          border: Border.all(color: const Color(0xFFFFB300).withValues(alpha: 0.6)),
+                                        ),
+                                        child: Row(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            const Icon(Icons.warning_amber_rounded, color: Color(0xFFFFB300), size: 22),
+                                            const SizedBox(width: 10),
+                                            Expanded(
+                                              child: Column(
+                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                children: [
+                                                  const Text(
+                                                    'AI Verification Unavailable',
+                                                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Color(0xFFE65100)),
+                                                  ),
+                                                  const SizedBox(height: 4),
+                                                  Text(
+                                                    _photoLicenseResult!.rejectionReason,
+                                                    style: const TextStyle(fontSize: 12, color: Color(0xFF6D4C41)),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      )
                                     else
                                       Container(
                                         padding: const EdgeInsets.all(14),
@@ -862,7 +895,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                                 crossAxisAlignment: CrossAxisAlignment.start,
                                                 children: [
                                                   const Text(
-                                                    'Hindi Valid ang Litrato',
+                                                    'Invalid Driver\'s License Photo',
                                                     style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: AppColors.error),
                                                   ),
                                                   const SizedBox(height: 4),
@@ -877,6 +910,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                         ),
                                       ),
                                   ],
+
                                 ],
                               ),
                             ),
