@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../config/gemini_config.dart';
 
@@ -70,13 +70,13 @@ class GeminiPhotoLicenseResult {
   final String source;
 }
 
-/// Service that utilizes Google AI Studio's Gemini 1.5 Flash API
+/// Service that utilizes Google AI Studio's Gemini 3.1 Flash Lite API
 /// to properly validate and verify addresses and driver licenses.
 class GeminiService {
   const GeminiService._();
 
   static const String _baseUrl =
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent';
 
   /// Validates a Philippine residential address using Google AI Studio.
   static Future<GeminiAddressResult> validateAddress(String rawAddress) async {
@@ -143,7 +143,7 @@ Do not wrap in markdown quotes if possible, output raw JSON only.
             barangay: json['barangay'] as String? ?? '',
             city: json['city'] as String? ?? '',
             province: json['province'] as String? ?? '',
-            source: 'Gemini 1.5 Flash (Google AI Studio)',
+            source: 'Gemini 3.1 Flash Lite (Google AI Studio)',
           );
         }
       }
@@ -254,7 +254,7 @@ Raw JSON only.
             classification: json['classification'] as String? ??
                 'Professional Driver (Light Commercial / Delivery)',
             dlCodes: json['dlCodes'] as String? ?? 'A, A1, B, B1, B2',
-            source: 'Gemini 1.5 Flash (Google AI Studio)',
+            source: 'Gemini 3.1 Flash Lite (Google AI Studio)',
           );
         }
       }
@@ -386,56 +386,83 @@ You MUST set "isDriverLicense": false and "isValid": false if the image is ANY o
 - Anything that does not look like an official, authentic Philippine LTO Driver's License card
 
 == LTO DRIVER'S LICENSE REQUIRED FEATURES ==
-A valid Philippine LTO Driver's License card MUST visibly have ALL of the following:
-1. The text "Land Transportation Office" or "LTO" or "REPUBLIKA NG PILIPINAS" printed on the card
-2. A License Number in the format: 1 capital letter + 2 digits + hyphen + 2 digits + hyphen + 6 digits (e.g., D01-22-123456)
-3. An expiration/validity date in the future
-4. A photo of the cardholder printed directly on the card
-5. The words "DRIVER'S LICENSE" with classification ("Non-Professional" or "Professional")
+An authentic Philippine LTO Driver's License card visibly has:
+1. "REPUBLIKA NG PILIPINAS" and/or "LAND TRANSPORTATION OFFICE" (LTO)
+2. The card title "DRIVER'S LICENSE"
+3. An LTO License Number (e.g. format like D01-22-123456 or 1 letter + 10 digits)
+4. A photo of the cardholder printed on the card
+5. Expiration / validity date
+6. Cardholder name and details
 
-If ANY of these features are missing, unreadable, or not an authentic LTO Driver's License card, you MUST set "isDriverLicense": false and "isValid": false.
+IMPORTANT NOTE:
+Modern Philippine LTO cards DO NOT print the full words "Professional" or "Non-Professional".
+Do NOT require or reject cards for missing the words "Professional" or "Non-Professional".
+Classification is based on DL Codes (e.g., A, A1, B, B1, B2) or may simply say "PRO" / "NON-PRO" or be omitted.
 
 == OUTPUT ==
 Respond ONLY with raw JSON (do not include markdown codeblocks or quotes):
 {
   "isDriverLicense": boolean,
   "isValid": boolean,
-  "licenseNumber": string (or "" if not found),
+  "licenseNumber": string (standardized e.g. D01-22-123456 or as printed, or "" if not found),
   "expiryDate": string in YYYY-MM-DD format (or "" if not found),
   "cardHolderName": string (or "" if not found),
-  "classification": string ("Professional" | "Non-Professional" | ""),
-  "dlCodes": string (e.g. "A, A1, B, B1, B2" or ""),
+  "classification": string ("Professional" | "Non-Professional" | "Standard" | ""),
+  "dlCodes": string (e.g. "A, A1, B, B1, B2" or restrictions, or ""),
   "message": string (short success message in English if valid, or "" if not),
-  "rejectionReason": string (clear explanation in English of why the image was rejected if isValid is false, or "")
+  "rejectionReason": string (clear explanation in English if rejected, or "")
 }
 ''';
 
-    try {
-      final response = await http.post(
-        Uri.parse('$_baseUrl?key=${GeminiConfig.apiKey}'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'contents': [
+    final requestBody = jsonEncode({
+      'contents': [
+        {
+          'parts': [
             {
-              'parts': [
-                {
-                  'inline_data': {
-                    'mime_type': mimeType,
-                    'data': base64Encode(imageBytes),
-                  }
-                },
-                {'text': prompt}
-              ]
-            }
-          ],
-          'generationConfig': {
-            'responseMimeType': 'application/json',
-            'temperature': 0.0,
-          }
-        }),
-      ).timeout(const Duration(seconds: 20));
+              'inline_data': {
+                'mime_type': mimeType,
+                'data': base64Encode(imageBytes),
+              }
+            },
+            {'text': prompt}
+          ]
+        }
+      ],
+      'generationConfig': {
+        'responseMimeType': 'application/json',
+        'temperature': 0.0,
+      }
+    });
 
-      if (response.statusCode == 200) {
+    try {
+      http.Response? response;
+
+      // Retry up to 3 times if Google AI servers return 503 (High demand) or 429 (Rate limit)
+      for (int attempt = 1; attempt <= 3; attempt++) {
+        try {
+          response = await http.post(
+            Uri.parse('$_baseUrl?key=${GeminiConfig.apiKey}'),
+            headers: {'Content-Type': 'application/json'},
+            body: requestBody,
+          ).timeout(const Duration(seconds: 25));
+
+          if (response.statusCode == 200) break;
+
+          debugPrint('[GeminiService] Attempt $attempt: Status ${response.statusCode}');
+
+          if ((response.statusCode == 503 || response.statusCode == 429) && attempt < 3) {
+            debugPrint('[GeminiService] Server busy (503/429). Retrying in ${attempt * 1500}ms...');
+            await Future.delayed(Duration(milliseconds: 1500 * attempt));
+            continue;
+          }
+          break;
+        } catch (e) {
+          if (attempt == 3) rethrow;
+          await Future.delayed(Duration(milliseconds: 1500 * attempt));
+        }
+      }
+
+      if (response != null && response.statusCode == 200) {
         final data = jsonDecode(response.body) as Map<String, dynamic>;
         final candidates = data['candidates'] as List<dynamic>?;
         if (candidates != null && candidates.isNotEmpty) {
@@ -470,7 +497,7 @@ Respond ONLY with raw JSON (do not include markdown codeblocks or quotes):
                 isDriverLicense: false,
                 rejectionReason: 'This image does not appear to be an authentic LTO Driver\'s License. '
                     'Please take a clear photo of your official LTO plastic card ($plausibilityError).',
-                source: 'Gemini 1.5 Flash Vision AI',
+                source: 'Gemini 3.1 Flash Lite Vision AI',
               );
             }
           }
@@ -488,7 +515,7 @@ Respond ONLY with raw JSON (do not include markdown codeblocks or quotes):
               rejectionReason: reason.isNotEmpty
                   ? reason
                   : 'The image was not recognized as an official Philippine LTO Driver\'s License card.',
-              source: 'Gemini 1.5 Flash Vision AI',
+              source: 'Gemini 3.1 Flash Lite Vision AI',
             );
           }
 
@@ -502,21 +529,36 @@ Respond ONLY with raw JSON (do not include markdown codeblocks or quotes):
             dlCodes: dlCodes.isNotEmpty ? dlCodes : 'A, A1, B, B1, B2',
             message: msg.isNotEmpty ? msg : 'Official LTO Driver\'s License Verified',
             rejectionReason: '',
-            source: 'Gemini 1.5 Flash Vision AI',
+            source: 'Gemini 3.1 Flash Lite Vision AI',
           );
         }
-      } else if (response.statusCode == 400 || response.statusCode == 403 || response.statusCode == 401) {
-        return const GeminiPhotoLicenseResult(
-          isValid: false,
-          isDriverLicense: false,
-          rejectionReason: 'Invalid Google AI Studio API key. Please check the API key in lib/config/gemini_config.dart.',
-        );
-      } else {
-        return GeminiPhotoLicenseResult(
-          isValid: false,
-          isDriverLicense: false,
-          rejectionReason: 'AI service error (${response.statusCode}). Please check your Gemini API key in lib/config/gemini_config.dart.',
-        );
+      } else if (response != null) {
+        debugPrint('[GeminiService] HTTP Error ${response.statusCode}: ${response.body}');
+        if (response.statusCode == 503) {
+          return const GeminiPhotoLicenseResult(
+            isValid: false,
+            isDriverLicense: false,
+            rejectionReason: 'Google AI is experiencing high demand right now. Please tap Retake or wait a few seconds and try again.',
+          );
+        } else if (response.statusCode == 429) {
+          return const GeminiPhotoLicenseResult(
+            isValid: false,
+            isDriverLicense: false,
+            rejectionReason: 'API request limit reached. Please wait a moment and try again.',
+          );
+        } else if (response.statusCode == 400 || response.statusCode == 403 || response.statusCode == 401) {
+          return const GeminiPhotoLicenseResult(
+            isValid: false,
+            isDriverLicense: false,
+            rejectionReason: 'Invalid Google AI Studio API key. Please check the API key in lib/config/gemini_config.dart.',
+          );
+        } else {
+          return GeminiPhotoLicenseResult(
+            isValid: false,
+            isDriverLicense: false,
+            rejectionReason: 'AI service error (${response.statusCode}). Please try again in a moment.',
+          );
+        }
       }
     } catch (e) {
       return GeminiPhotoLicenseResult(
@@ -536,30 +578,43 @@ Respond ONLY with raw JSON (do not include markdown codeblocks or quotes):
   /// Validates extracted license data for plausibility.
   /// Returns an error string if suspicious/hallucinated, null if looks real.
   static String? _validateLicenseData(String licNum, String expiry) {
-    // 1. License number must match LTO format: letter + 2d + hyphen + 2d + hyphen + 6d
+    // 1. License number check (standard LTO is 1 letter + 10 digits e.g. D01-22-123456)
     if (licNum.isNotEmpty) {
-      final ltoRegex = RegExp(r'^[A-Z]\d{2}-\d{2}-\d{6}$');
-      if (!ltoRegex.hasMatch(licNum)) {
-        return 'Invalid license number format: $licNum';
+      final cleanLic = licNum.replaceAll(RegExp(r'[\s-]'), '').toUpperCase();
+      final ltoFlexible = RegExp(r'^[A-Z]\d{8,11}$');
+      if (!ltoFlexible.hasMatch(cleanLic)) {
+        return 'License number format not recognized: $licNum';
       }
     } else {
-      // No license number extracted — suspicious for a "verified" card
       return 'No license number extracted';
     }
 
-    // 2. Expiry date must be a real, future calendar date
+    // 2. Expiry date check
     if (expiry.isNotEmpty) {
       try {
-        final parts = expiry.split('-');
+        final sanitized = expiry.replaceAll('/', '-');
+        final parts = sanitized.split('-');
         if (parts.length != 3) return 'Bad expiry format: $expiry';
-        final year = int.parse(parts[0]);
-        final month = int.parse(parts[1]);
-        final day = int.parse(parts[2]);
 
-        // Month must be 1-12, day 1-31, year reasonable
-        if (month < 1 || month > 12) return 'Impossible month: $month';
-        if (day < 1 || day > 31) return 'Impossible day: $day';
-        if (year < 2024 || year > 2040) return 'Suspicious year: $year';
+        int year;
+        int month;
+        int day;
+
+        if (parts[0].length == 4) {
+          // YYYY-MM-DD
+          year = int.parse(parts[0]);
+          month = int.parse(parts[1]);
+          day = int.parse(parts[2]);
+        } else {
+          // DD-MM-YYYY or MM-DD-YYYY
+          day = int.parse(parts[0]);
+          month = int.parse(parts[1]);
+          year = int.parse(parts[2]);
+        }
+
+        if (month < 1 || month > 12) return 'Invalid month: $month';
+        if (day < 1 || day > 31) return 'Invalid day: $day';
+        if (year < 2024 || year > 2045) return 'Invalid year: $year';
 
         final expiryDate = DateTime(year, month, day);
         if (expiryDate.isBefore(DateTime.now())) {
@@ -569,7 +624,6 @@ Respond ONLY with raw JSON (do not include markdown codeblocks or quotes):
         return 'Unparseable expiry date: $expiry';
       }
     } else {
-      // No expiry date — suspicious
       return 'No expiry date extracted';
     }
 
