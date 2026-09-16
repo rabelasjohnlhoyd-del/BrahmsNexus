@@ -1,16 +1,22 @@
 import 'dart:async';
 import 'package:flutter/cupertino.dart';
 import '../../models/branch.dart';
+import '../../models/branch_daily_inventory.dart';
 import '../../models/daily_report.dart';
 import '../../services/firestore_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/staff_card.dart';
 import '../../widgets/staff_nav_bar.dart';
+import '../../widgets/staff_section_header.dart';
 
 /// Employee Reports — Owner monitors all submitted daily reports here,
 /// filterable by branch, searchable by employee, with submission
 /// status (Submitted/Missing/Incomplete) at a glance. Replaces the
 /// client's old group-chat-based reporting.
+///
+/// Also shows today's Inventory Verification status for all branches —
+/// which staff confirmed, who reported discrepancies, and the exact
+/// actual counts they submitted vs what was allocated.
 ///
 /// Backed by live real-time Firestore sync.
 class OwnerEmployeeReportsScreen extends StatefulWidget {
@@ -30,6 +36,10 @@ class _OwnerEmployeeReportsScreenState
   final Map<String, String> _ownerReplies = {};
   StreamSubscription<List<DailyReport>>? _reportsSub;
 
+  // Inventory verification stream
+  final List<BranchDailyInventory> _verifications = [];
+  StreamSubscription<List<BranchDailyInventory>>? _verifSub;
+
   @override
   void initState() {
     super.initState();
@@ -42,11 +52,25 @@ class _OwnerEmployeeReportsScreenState
         });
       }
     });
+
+    _verifSub = FirestoreService.watchAllBranchDailyInventories(
+      branches: kSampleBranches,
+      date: DateTime.now(),
+    ).listen((list) {
+      if (mounted) {
+        setState(() {
+          _verifications
+            ..clear()
+            ..addAll(list);
+        });
+      }
+    });
   }
 
   @override
   void dispose() {
     _reportsSub?.cancel();
+    _verifSub?.cancel();
     super.dispose();
   }
 
@@ -196,47 +220,49 @@ class _OwnerEmployeeReportsScreenState
     showCupertinoDialog(
       context: context,
       builder: (dialogContext) => StatefulBuilder(
-        builder: (dialogContext, setDialogState) => CupertinoAlertDialog(
-          title: Text(report.employeeName),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(height: 6),
-              Text(
-                '${report.branchName} \u00b7 ${_formatDate(report.date)}',
-                style: const TextStyle(
-                    fontSize: 12, color: AppColors.textSecondary),
-              ),
-              const SizedBox(height: 10),
-              Text(
-                report.content.isEmpty
-                    ? 'Wala pang naisusumiteng report.'
-                    : report.content,
-                style: const TextStyle(fontSize: 13.5),
-              ),
-              const SizedBox(height: 20),
-              const Text(
-                'OWNER RESPONSE',
-                style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 0.5,
-                  color: AppColors.textSecondary,
+        builder: (dialogContext, setDialogState) {
+          final effectiveReply = report.ownerReply ?? _ownerReplies[report.id];
+          return CupertinoAlertDialog(
+            title: Text(report.employeeName),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 6),
+                Text(
+                  '${report.branchName} \u00b7 ${_formatDate(report.date)}',
+                  style: const TextStyle(
+                      fontSize: 12, color: AppColors.textSecondary),
                 ),
-              ),
-              const SizedBox(height: 8),
-              if (_ownerReplies[report.id] != null)
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: AppColors.accent.withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(8),
+                const SizedBox(height: 10),
+                Text(
+                  report.content.isEmpty
+                      ? 'Wala pang naisusumiteng report.'
+                      : report.content,
+                  style: const TextStyle(fontSize: 13.5),
+                ),
+                const SizedBox(height: 20),
+                const Text(
+                  'OWNER RESPONSE',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.5,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                if (effectiveReply != null && effectiveReply.isNotEmpty)
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: AppColors.accent.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(8),
                     border: Border.all(color: AppColors.accent.withValues(alpha: 0.2)),
                   ),
                   child: Text(
-                    _ownerReplies[report.id]!,
+                    effectiveReply,
                     style: const TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
@@ -257,6 +283,7 @@ class _OwnerEmployeeReportsScreenState
                 children: [
                   _replyChip('Noted', report.id, setDialogState),
                   _replyChip('Linawin natin', report.id, setDialogState),
+                  _replyChip('Approved', report.id, setDialogState),
                 ],
               ),
             ],
@@ -267,20 +294,25 @@ class _OwnerEmployeeReportsScreenState
               child: const Text('Close'),
             ),
           ],
-        ),
-      ),
-    );
-  }
+        );
+      },
+    ),
+  );
+}
 
   Widget _replyChip(String label, String reportId, StateSetter setDialogState) {
-    final isSelected = _ownerReplies[reportId] == label;
+    final effective = _ownerReplies[reportId];
+    final isSelected = effective == label;
     return GestureDetector(
-      onTap: () {
+      onTap: () async {
         setState(() => _ownerReplies[reportId] = label);
         setDialogState(() {});
+        if (reportId.isNotEmpty) {
+          await FirestoreService.replyToDailyReport(reportId: reportId, reply: label);
+        }
       },
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
           color: isSelected ? AppColors.accent : CupertinoColors.white,
           borderRadius: BorderRadius.circular(16),
@@ -312,113 +344,343 @@ class _OwnerEmployeeReportsScreenState
         ),
       ),
       child: SafeArea(
-        child: Column(
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
           children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: _statusCountCard(
-                      'Submitted',
-                      _countByStatus(ReportSubmissionStatus.submitted),
-                      AppColors.success,
-                      CupertinoIcons.checkmark_circle_fill,
-                    ),
+            // ── REPORT SUMMARY CARDS ─────────────────────────────────────
+            Row(
+              children: [
+                Expanded(
+                  child: _statusCountCard(
+                    'Submitted',
+                    _countByStatus(ReportSubmissionStatus.submitted),
+                    AppColors.success,
+                    CupertinoIcons.checkmark_circle_fill,
                   ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: _statusCountCard(
-                      'Incomplete',
-                      _countByStatus(ReportSubmissionStatus.incomplete),
-                      AppColors.warning,
-                      CupertinoIcons.exclamationmark_circle_fill,
-                    ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _statusCountCard(
+                    'Incomplete',
+                    _countByStatus(ReportSubmissionStatus.incomplete),
+                    AppColors.warning,
+                    CupertinoIcons.exclamationmark_circle_fill,
                   ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: _statusCountCard(
-                      'Missing',
-                      _countByStatus(ReportSubmissionStatus.missing),
-                      AppColors.error,
-                      CupertinoIcons.xmark_circle_fill,
-                    ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _statusCountCard(
+                    'Missing',
+                    _countByStatus(ReportSubmissionStatus.missing),
+                    AppColors.error,
+                    CupertinoIcons.xmark_circle_fill,
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-              child: CupertinoSearchTextField(
-                placeholder: 'Search by employee name',
-                onChanged: (v) => setState(() => _searchQuery = v),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: CupertinoButton(
-                      padding: EdgeInsets.zero,
-                      onPressed: _showBranchPicker,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: CupertinoColors.white,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: AppColors.border),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              _branchFilter == null
-                                  ? 'All Branches'
-                                  : kSampleBranches
-                                      .firstWhere((b) => b.id == _branchFilter)
-                                      .fullName,
-                              style: const TextStyle(
-                                  fontSize: 13,
-                                  color: AppColors.textPrimary,
-                                  fontWeight: FontWeight.w600),
-                            ),
-                            const Icon(CupertinoIcons.chevron_down,
-                                size: 14, color: AppColors.textSecondary),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  CupertinoButton(
-                    padding: EdgeInsets.zero,
-                    onPressed: () => setState(() => _newestFirst = !_newestFirst),
-                    child: Icon(
-                      _newestFirst ? CupertinoIcons.arrow_down : CupertinoIcons.arrow_up,
-                      size: 18,
-                      color: AppColors.accent,
-                    ),
-                  ),
-                ],
-              ),
+            const SizedBox(height: 20),
+
+            // ── INVENTORY VERIFICATION SECTION ───────────────────────────
+            const StaffSectionHeader(
+              label: 'Inventory Verification — Today',
+              icon: CupertinoIcons.checkmark_seal_fill,
+              subtitle: 'Actual counts submitted by each branch',
+              large: true,
             ),
             const SizedBox(height: 12),
-            Expanded(
-              child: _visibleReports.isEmpty
-                  ? const Center(
-                      child: Text(
-                        'Walang report na tumutugma.',
-                        style: TextStyle(color: AppColors.textSecondary),
-                      ),
-                    )
-                  : ListView.separated(
-                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                      itemCount: _visibleReports.length,
-                      separatorBuilder: (_, _) => const SizedBox(height: 10),
-                      itemBuilder: (context, index) =>
-                          _buildReportRow(_visibleReports[index]),
+            if (_verifications.isEmpty)
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppColors.pastelBrown.withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(CupertinoIcons.clock, size: 16, color: AppColors.textSecondary),
+                    SizedBox(width: 8),
+                    Text(
+                      'Walang branch na nag-verify pa ngayong araw.',
+                      style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
                     ),
+                  ],
+                ),
+              )
+            else
+              ..._verifications.map((v) => Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: _buildVerificationRow(v),
+                  )),
+
+            const SizedBox(height: 20),
+
+            // ── SEARCH & FILTER ───────────────────────────────────────────
+            CupertinoSearchTextField(
+              placeholder: 'Search by employee name',
+              onChanged: (v) => setState(() => _searchQuery = v),
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: CupertinoButton(
+                    padding: EdgeInsets.zero,
+                    onPressed: _showBranchPicker,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: CupertinoColors.white,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: AppColors.border),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            _branchFilter == null
+                                ? 'All Branches'
+                                : kSampleBranches
+                                    .firstWhere((b) => b.id == _branchFilter)
+                                    .fullName,
+                            style: const TextStyle(
+                                fontSize: 13,
+                                color: AppColors.textPrimary,
+                                fontWeight: FontWeight.w600),
+                          ),
+                          const Icon(CupertinoIcons.chevron_down,
+                              size: 14, color: AppColors.textSecondary),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                CupertinoButton(
+                  padding: EdgeInsets.zero,
+                  onPressed: () => setState(() => _newestFirst = !_newestFirst),
+                  child: Icon(
+                    _newestFirst ? CupertinoIcons.arrow_down : CupertinoIcons.arrow_up,
+                    size: 18,
+                    color: AppColors.accent,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+
+            // ── REPORTS LIST ──────────────────────────────────────────────
+            if (_visibleReports.isEmpty)
+              const Center(
+                child: Padding(
+                  padding: EdgeInsets.symmetric(vertical: 24),
+                  child: Text(
+                    'Walang report na tumutugma.',
+                    style: TextStyle(color: AppColors.textSecondary),
+                  ),
+                ),
+              )
+            else
+              ..._visibleReports.map((r) => Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: _buildReportRow(r),
+                  )),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Color _verifColor(InventoryVerificationStatus s) {
+    switch (s) {
+      case InventoryVerificationStatus.confirmed:
+        return AppColors.success;
+      case InventoryVerificationStatus.discrepancyReported:
+        return AppColors.error;
+      case InventoryVerificationStatus.pending:
+        return AppColors.warning;
+    }
+  }
+
+  IconData _verifIcon(InventoryVerificationStatus s) {
+    switch (s) {
+      case InventoryVerificationStatus.confirmed:
+        return CupertinoIcons.checkmark_seal_fill;
+      case InventoryVerificationStatus.discrepancyReported:
+        return CupertinoIcons.exclamationmark_triangle_fill;
+      case InventoryVerificationStatus.pending:
+        return CupertinoIcons.clock_fill;
+    }
+  }
+
+  Widget _verifRow(String label, int? allocated, int? actual, Color color) {
+    final mismatch = allocated != null && actual != null && allocated != actual;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Row(
+        children: [
+          Expanded(child: Text(label, style: const TextStyle(fontSize: 12.5))),
+          const SizedBox(width: 8),
+          SizedBox(
+            width: 40,
+            child: Text(
+              allocated != null ? '$allocated' : '—',
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 12.5, color: AppColors.textSecondary),
+            ),
+          ),
+          const SizedBox(width: 16),
+          SizedBox(
+            width: 40,
+            child: Text(
+              actual != null ? '$actual' : '—',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w700,
+                color: mismatch ? AppColors.error : color,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showVerificationDetail(BranchDailyInventory v) {
+    final ar = v.actualReceived;
+    final color = _verifColor(v.status);
+
+    showCupertinoDialog<void>(
+      context: context,
+      builder: (ctx) => CupertinoAlertDialog(
+        title: Text(v.branchName),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(height: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                v.status.label,
+                style: TextStyle(color: color, fontWeight: FontWeight.w700, fontSize: 13),
+              ),
+            ),
+            if (v.discrepancyNote != null && v.discrepancyNote!.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              const Text('Discrepancy Note:',
+                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textSecondary)),
+              const SizedBox(height: 4),
+              Text('"${v.discrepancyNote}"',
+                  style: const TextStyle(fontSize: 12.5, color: AppColors.error)),
+            ],
+            const SizedBox(height: 14),
+            Row(
+              children: const [
+                Expanded(child: Text('Item', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: AppColors.textSecondary))),
+                SizedBox(width: 8),
+                Text('Alloc.', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: AppColors.textSecondary)),
+                SizedBox(width: 16),
+                Text('Actual', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: AppColors.textSecondary)),
+              ],
+            ),
+            const SizedBox(height: 6),
+            _verifRow('Mayo',    v.allocated.mayo,  ar?.mayo,    color),
+            _verifRow('Toyo',    v.allocated.toyo,  ar?.toyo,    color),
+            _verifRow('Styro',   v.allocated.styro, ar?.styro,   color),
+            _verifRow('Regular', v.allocated.karne, ar?.regular, color),
+            _verifRow('Medium',  null,              ar?.medium,  color),
+            _verifRow('B1T1',    null,              ar?.b1t1,    color),
+          ],
+        ),
+        actions: [
+          CupertinoDialogAction(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildVerificationRow(BranchDailyInventory v) {
+    final color = _verifColor(v.status);
+    final icon = _verifIcon(v.status);
+    final ar = v.actualReceived;
+
+    return GestureDetector(
+      onTap: () => _showVerificationDetail(v),
+      child: StaffCard(
+        child: Row(
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.14),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, color: color, size: 18),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    v.branchName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 14,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  if (ar != null)
+                    Text(
+                      'Reg ${ar.regular}  Med ${ar.medium}  B1T1 ${ar.b1t1}  Mayo ${ar.mayo}  Styro ${ar.styro}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                    )
+                  else
+                    const Text(
+                      'Hindi pa nag-verify',
+                      style: TextStyle(fontSize: 11, color: AppColors.textSecondary, fontStyle: FontStyle.italic),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    v.status.label,
+                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: color),
+                  ),
+                ),
+                if (ar != null) ...[
+                  const SizedBox(height: 3),
+                  const Text(
+                    'Tap para sa detalye',
+                    style: TextStyle(fontSize: 10, color: AppColors.textSecondary),
+                  ),
+                ],
+              ],
             ),
           ],
         ),
@@ -512,21 +774,41 @@ class _OwnerEmployeeReportsScreenState
               ),
             ),
             const SizedBox(width: 8),
-            Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: _statusColor(r.status).withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Text(
-                r.status.label,
-                style: TextStyle(
-                  color: _statusColor(r.status),
-                  fontWeight: FontWeight.w600,
-                  fontSize: 11.5,
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: _statusColor(r.status).withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    r.status.label,
+                    style: TextStyle(
+                      color: _statusColor(r.status),
+                      fontWeight: FontWeight.w600,
+                      fontSize: 11.5,
+                    ),
+                  ),
                 ),
-              ),
+                if ((r.ownerReply ?? _ownerReplies[r.id]) != null) ...[
+                  const SizedBox(height: 3),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(CupertinoIcons.reply, size: 10, color: AppColors.accent),
+                      const SizedBox(width: 3),
+                      Text(
+                        r.ownerReply ?? _ownerReplies[r.id]!,
+                        style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.accent),
+                      ),
+                    ],
+                  ),
+                ],
+              ],
             ),
           ],
         ),

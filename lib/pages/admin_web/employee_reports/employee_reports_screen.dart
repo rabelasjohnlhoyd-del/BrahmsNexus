@@ -1,5 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import '../../../models/branch.dart';
+import '../../../models/branch_daily_inventory.dart';
 import '../../../models/daily_report.dart';
 import '../../../services/firestore_service.dart';
 import '../admin_web_colors.dart';
@@ -10,6 +12,9 @@ import '../admin_web_widgets/glass_card.dart';
 /// branch, searchable by employee, sortable by date, with submission
 /// status (Submitted/Missing/Incomplete) at a glance. Replaces the
 /// client's old group-chat-based reporting.
+///
+/// Also shows today's Inventory Verification status per branch —
+/// actual counts submitted by staff vs what was allocated.
 ///
 /// Backed by live real-time Firestore sync.
 class EmployeeReportsScreen extends StatefulWidget {
@@ -26,6 +31,10 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
   static const int _pageSize = 10;
   DateTime? _dateFilter;
   StreamSubscription<List<DailyReport>>? _reportsSub;
+
+  // Inventory verification
+  final List<BranchDailyInventory> _verifications = [];
+  StreamSubscription<List<BranchDailyInventory>>? _verifSub;
 
   final List<DailyReport> _reports = [
     DailyReport(
@@ -87,6 +96,19 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
         });
       }
     });
+
+    _verifSub = FirestoreService.watchAllBranchDailyInventories(
+      branches: kSampleBranches,
+      date: DateTime.now(),
+    ).listen((list) {
+      if (mounted) {
+        setState(() {
+          _verifications
+            ..clear()
+            ..addAll(list);
+        });
+      }
+    });
   }
 
   @override
@@ -103,8 +125,10 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
   @override
   void dispose() {
     _reportsSub?.cancel();
+    _verifSub?.cancel();
     super.dispose();
   }
+
 
   Color _statusColor(ReportSubmissionStatus status) {
     switch (status) {
@@ -154,37 +178,165 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
       _reports.where((r) => r.status == status).length;
 
   void _showReportDetail(DailyReport report) {
+    String? currentReply = report.ownerReply;
+
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text(report.employeeName),
-        content: SizedBox(
-          width: 380,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
+      builder: (dialogCtx) => StatefulBuilder(
+        builder: (dialogCtx, setDialogState) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Row(
             children: [
-              Text(
-                '${report.branchName} · ${_formatDate(report.date)}',
-                style: const TextStyle(color: AdminWebColors.textSecondary),
+              CircleAvatar(
+                radius: 16,
+                backgroundColor: AdminWebColors.accent,
+                child: Text(
+                  report.employeeName.isNotEmpty ? report.employeeName.substring(0, 1) : 'E',
+                  style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
+                ),
               ),
-              const SizedBox(height: 12),
-              Text(
-                report.content.isEmpty
-                    ? 'Wala pang naisusumiteng report.'
-                    : report.content,
-                style: const TextStyle(color: AdminWebColors.textPrimary),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(report.employeeName, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: _statusColor(report.status).withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  report.status.label,
+                  style: TextStyle(
+                    color: _statusColor(report.status),
+                    fontWeight: FontWeight.w700,
+                    fontSize: 11.5,
+                  ),
+                ),
               ),
             ],
           ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Close'),
+          content: SizedBox(
+            width: 440,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '${report.branchName} · ${_formatDate(report.date)}',
+                  style: const TextStyle(color: AdminWebColors.textSecondary, fontSize: 12),
+                ),
+                const SizedBox(height: 14),
+                const Text(
+                  'REPORT CONTENT',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.5,
+                    color: AdminWebColors.textSecondary,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AdminWebColors.surfaceTint.withValues(alpha: 0.5),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: AdminWebColors.border),
+                  ),
+                  child: Text(
+                    report.content.isEmpty ? 'Wala pang naisusumiteng report.' : report.content,
+                    style: const TextStyle(color: AdminWebColors.textPrimary, fontSize: 13.5, height: 1.4),
+                  ),
+                ),
+                const SizedBox(height: 18),
+                const Text(
+                  'OWNER / ADMIN RESPONSE',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.5,
+                    color: AdminWebColors.textSecondary,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                if (currentReply != null && currentReply!.isNotEmpty)
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: AdminWebColors.accent.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: AdminWebColors.accent.withValues(alpha: 0.3)),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.check_circle_outline_rounded, size: 16, color: AdminWebColors.accent),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            currentReply!,
+                            style: const TextStyle(fontWeight: FontWeight.w600, color: AdminWebColors.textPrimary, fontSize: 13),
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                else
+                  const Text(
+                    'No response recorded yet.',
+                    style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic, color: AdminWebColors.textSecondary),
+                  ),
+                const SizedBox(height: 16),
+                const Text('Quick Reply:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    _webReplyButton('Noted', report.id, currentReply, (newVal) {
+                      setDialogState(() => currentReply = newVal);
+                    }),
+                    const SizedBox(width: 8),
+                    _webReplyButton('Linawin natin', report.id, currentReply, (newVal) {
+                      setDialogState(() => currentReply = newVal);
+                    }),
+                    const SizedBox(width: 8),
+                    _webReplyButton('Approved', report.id, currentReply, (newVal) {
+                      setDialogState(() => currentReply = newVal);
+                    }),
+                  ],
+                ),
+              ],
+            ),
           ),
-        ],
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogCtx).pop(),
+              child: const Text('CLOSE'),
+            ),
+          ],
+        ),
       ),
+    );
+  }
+
+  Widget _webReplyButton(String label, String reportId, String? currentReply, ValueChanged<String> onSelected) {
+    final isSelected = currentReply == label;
+    return OutlinedButton(
+      onPressed: () async {
+        onSelected(label);
+        if (reportId.isNotEmpty) {
+          await FirestoreService.replyToDailyReport(reportId: reportId, reply: label);
+        }
+      },
+      style: OutlinedButton.styleFrom(
+        foregroundColor: isSelected ? Colors.white : AdminWebColors.accent,
+        backgroundColor: isSelected ? AdminWebColors.accent : Colors.transparent,
+        side: const BorderSide(color: AdminWebColors.accent),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      ),
+      child: Text(label, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
     );
   }
 
@@ -248,6 +400,76 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
                         ],
                       ),
                 const SizedBox(height: 20),
+
+                // ── INVENTORY VERIFICATION SECTION ────────────────────────
+                Row(
+                  children: [
+                    const Icon(Icons.verified_rounded, size: 18, color: AdminWebColors.accent),
+                    const SizedBox(width: 8),
+                    const Text(
+                      'INVENTORY VERIFICATION — TODAY',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.5,
+                        color: AdminWebColors.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: AdminWebColors.accent.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        '${_verifications.length} branch${_verifications.length == 1 ? '' : 'es'}',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: AdminWebColors.accent,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                if (_verifications.isEmpty)
+                  GlassCard(
+                    padding: const EdgeInsets.all(16),
+                    child: Row(
+                      children: [
+                        Icon(Icons.schedule_rounded, size: 18, color: AdminWebColors.textSecondary.withValues(alpha: 0.6)),
+                        const SizedBox(width: 10),
+                        const Text(
+                          'Walang branch na nag-verify pa ngayong araw.',
+                          style: TextStyle(color: AdminWebColors.textSecondary),
+                        ),
+                      ],
+                    ),
+                  )
+                else
+                  isWide
+                      ? Wrap(
+                          spacing: 12,
+                          runSpacing: 12,
+                          children: _verifications
+                              .map((v) => SizedBox(
+                                    width: (constraints.maxWidth - 48 - 12) / 2,
+                                    child: _buildVerifCard(v),
+                                  ))
+                              .toList(),
+                        )
+                      : Column(
+                          children: _verifications
+                              .map((v) => Padding(
+                                    padding: const EdgeInsets.only(bottom: 10),
+                                    child: _buildVerifCard(v),
+                                  ))
+                              .toList(),
+                        ),
+                const SizedBox(height: 20),
+
                 Row(
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
@@ -404,25 +626,51 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
                                           ),
                                         ),
                                         title: Text(r.employeeName),
-                                        subtitle: Text(
-                                          '${r.branchName} · ${_formatDate(r.date)}',
+                                        subtitle: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text('${r.branchName} · ${_formatDate(r.date)}'),
+                                            if (r.ownerReply != null && r.ownerReply!.isNotEmpty) ...[
+                                              const SizedBox(height: 3),
+                                              Row(
+                                                children: [
+                                                  const Icon(Icons.reply_rounded, size: 13, color: AdminWebColors.accent),
+                                                  const SizedBox(width: 4),
+                                                  Text(
+                                                    'Response: ${r.ownerReply}',
+                                                    style: const TextStyle(
+                                                      fontSize: 11.5,
+                                                      fontWeight: FontWeight.w600,
+                                                      color: AdminWebColors.accent,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ],
+                                          ],
                                         ),
-                                        trailing: Container(
-                                          padding: const EdgeInsets.symmetric(
-                                              horizontal: 10, vertical: 4),
-                                          decoration: BoxDecoration(
-                                            color: _statusColor(r.status)
-                                                .withValues(alpha: 0.15),
-                                            borderRadius: BorderRadius.circular(8),
-                                          ),
-                                          child: Text(
-                                            r.status.label,
-                                            style: TextStyle(
-                                              color: _statusColor(r.status),
-                                              fontWeight: FontWeight.w600,
-                                              fontSize: 11.5,
+                                        trailing: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.end,
+                                          mainAxisAlignment: MainAxisAlignment.center,
+                                          children: [
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(
+                                                  horizontal: 10, vertical: 4),
+                                              decoration: BoxDecoration(
+                                                color: _statusColor(r.status)
+                                                    .withValues(alpha: 0.15),
+                                                borderRadius: BorderRadius.circular(8),
+                                              ),
+                                              child: Text(
+                                                r.status.label,
+                                                style: TextStyle(
+                                                  color: _statusColor(r.status),
+                                                  fontWeight: FontWeight.w600,
+                                                  fontSize: 11.5,
+                                                ),
+                                              ),
                                             ),
-                                          ),
+                                          ],
                                         ),
                                       ),
                                     ),
@@ -440,6 +688,220 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
           ),
         );
       },
+    );
+  }
+
+  Color _verifColor(InventoryVerificationStatus s) {
+    switch (s) {
+      case InventoryVerificationStatus.confirmed:
+        return AdminWebColors.success;
+      case InventoryVerificationStatus.discrepancyReported:
+        return AdminWebColors.error;
+      case InventoryVerificationStatus.pending:
+        return AdminWebColors.warning;
+    }
+  }
+
+  IconData _verifIcon(InventoryVerificationStatus s) {
+    switch (s) {
+      case InventoryVerificationStatus.confirmed:
+        return Icons.verified_rounded;
+      case InventoryVerificationStatus.discrepancyReported:
+        return Icons.warning_amber_rounded;
+      case InventoryVerificationStatus.pending:
+        return Icons.schedule_rounded;
+    }
+  }
+
+  void _showVerifDetail(BranchDailyInventory v) {
+    final ar = v.actualReceived;
+    final color = _verifColor(v.status);
+
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(_verifIcon(v.status), color: color, size: 20),
+            const SizedBox(width: 8),
+            Expanded(child: Text(v.branchName, style: const TextStyle(fontSize: 16))),
+          ],
+        ),
+        content: SizedBox(
+          width: 380,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  v.status.label,
+                  style: TextStyle(color: color, fontWeight: FontWeight.w700),
+                ),
+              ),
+              if (v.discrepancyNote != null && v.discrepancyNote!.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                const Text('DISCREPANCY NOTE',
+                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800,
+                        letterSpacing: 0.5, color: AdminWebColors.textSecondary)),
+                const SizedBox(height: 4),
+                Text('"${v.discrepancyNote}"',
+                    style: const TextStyle(color: AdminWebColors.error)),
+              ],
+              const SizedBox(height: 16),
+              // Table header
+              Row(
+                children: const [
+                  Expanded(child: Text('ITEM', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: AdminWebColors.textSecondary))),
+                  SizedBox(width: 8),
+                  SizedBox(width: 60, child: Text('ALLOC.', textAlign: TextAlign.center, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: AdminWebColors.textSecondary))),
+                  SizedBox(width: 60, child: Text('ACTUAL', textAlign: TextAlign.center, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: AdminWebColors.textSecondary))),
+                ],
+              ),
+              const Divider(),
+              _verifDetailRow('Mayo',    v.allocated.mayo,  ar?.mayo,    color),
+              _verifDetailRow('Toyo',    v.allocated.toyo,  ar?.toyo,    color),
+              _verifDetailRow('Styro',   v.allocated.styro, ar?.styro,   color),
+              _verifDetailRow('Regular', v.allocated.karne, ar?.regular, color),
+              _verifDetailRow('Medium',  null,              ar?.medium,  color),
+              _verifDetailRow('B1T1',    null,              ar?.b1t1,    color),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('CLOSE'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _verifDetailRow(String label, int? allocated, int? actual, Color color) {
+    final mismatch = allocated != null && actual != null && allocated != actual;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 5),
+      child: Row(
+        children: [
+          Expanded(child: Text(label, style: const TextStyle(fontSize: 13))),
+          const SizedBox(width: 8),
+          SizedBox(
+            width: 60,
+            child: Text(
+              allocated != null ? '$allocated' : '—',
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: AdminWebColors.textSecondary, fontSize: 13),
+            ),
+          ),
+          SizedBox(
+            width: 60,
+            child: Text(
+              actual != null ? '$actual' : '—',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: mismatch ? AdminWebColors.error : color,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildVerifCard(BranchDailyInventory v) {
+    final color = _verifColor(v.status);
+    final icon = _verifIcon(v.status);
+    final ar = v.actualReceived;
+
+    return GlassCard(
+      padding: EdgeInsets.zero,
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(16),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: () => _showVerifDetail(v),
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.14),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(icon, color: color, size: 20),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        v.branchName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 14,
+                          color: AdminWebColors.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      if (ar != null)
+                        Text(
+                          'Reg ${ar.regular}  Med ${ar.medium}  B1T1 ${ar.b1t1}  Mayo ${ar.mayo}  Styro ${ar.styro}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontSize: 11.5, color: AdminWebColors.textSecondary),
+                        )
+                      else
+                        const Text(
+                          'Hindi pa nag-verify',
+                          style: TextStyle(fontSize: 11.5, color: AdminWebColors.textSecondary,
+                              fontStyle: FontStyle.italic),
+                        ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: color.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        v.status.label,
+                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: color),
+                      ),
+                    ),
+                    if (ar != null) ...[
+                      const SizedBox(height: 4),
+                      const Text('Click for detail',
+                          style: TextStyle(fontSize: 10, color: AdminWebColors.textSecondary)),
+                    ],
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 

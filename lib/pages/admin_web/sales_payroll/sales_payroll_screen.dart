@@ -369,33 +369,66 @@ class _SalesRecordCard extends StatelessWidget {
 
     return GlassCard(
       padding: const EdgeInsets.all(16),
-      child: isWide
-          ? Row(
-              children: [
-                Expanded(flex: 3, child: avatarAndName),
-                ...stats.map((s) => Expanded(flex: 2, child: s)),
-              ],
-            )
-          : Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                avatarAndName,
-                const SizedBox(height: 20),
-                Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          isWide
+              ? Row(
                   children: [
-                    Expanded(child: stats[0]),
-                    Expanded(child: stats[1]),
+                    Expanded(flex: 3, child: avatarAndName),
+                    ...stats.map((s) => Expanded(flex: 2, child: s)),
+                  ],
+                )
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    avatarAndName,
+                    const SizedBox(height: 20),
+                    Row(
+                      children: [
+                        Expanded(child: stats[0]),
+                        Expanded(child: stats[1]),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(child: stats[2]),
+                        Expanded(child: stats[3]),
+                      ],
+                    ),
                   ],
                 ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(child: stats[2]),
-                    Expanded(child: stats[3]),
-                  ],
-                ),
-              ],
+          if (r.remainingStock != null) ...[
+            const SizedBox(height: 14),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: AdminWebColors.accent.withValues(alpha: 0.06),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: AdminWebColors.accent.withValues(alpha: 0.15)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.inventory_2_outlined, size: 16, color: AdminWebColors.accent),
+                  const SizedBox(width: 8),
+                  const Text(
+                    'REMAINING STOCK: ',
+                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: AdminWebColors.textSecondary),
+                  ),
+                  Expanded(
+                    child: Text(
+                      'Regular: ${r.remainingStock!.regular}  |  Medium: ${r.remainingStock!.medium}  |  B1T1: ${r.remainingStock!.b1t1}  |  '
+                      'Mayo: ${r.remainingStock!.mayo}  |  Styro: ${r.remainingStock!.styro}  |  Toyo: ${r.remainingStock!.toyo}',
+                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AdminWebColors.textPrimary),
+                    ),
+                  ),
+                ],
+              ),
             ),
+          ],
+        ],
+      ),
     );
   }
 

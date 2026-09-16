@@ -269,6 +269,8 @@ class _HomepageScreenState extends State<HomepageScreen> {
   final _mayoController = TextEditingController();
   final _styroController = TextEditingController();
   final _toyoController = TextEditingController();
+  final _mediumController = TextEditingController();
+  final _b1t1Controller = TextEditingController();
   final _discrepancyController = TextEditingController();
 
   final List<Map<String, String>> _coworkers = const [
@@ -347,12 +349,16 @@ class _HomepageScreenState extends State<HomepageScreen> {
     _mayoController.dispose();
     _styroController.dispose();
     _toyoController.dispose();
+    _mediumController.dispose();
+    _b1t1Controller.dispose();
     _discrepancyController.dispose();
     super.dispose();
   }
 
   bool get _hasEnteredCount =>
       _karneController.text.isNotEmpty &&
+      _mediumController.text.isNotEmpty &&
+      _b1t1Controller.text.isNotEmpty &&
       _mayoController.text.isNotEmpty &&
       _styroController.text.isNotEmpty &&
       _toyoController.text.isNotEmpty;
@@ -360,10 +366,23 @@ class _HomepageScreenState extends State<HomepageScreen> {
   bool get _countsMatch {
     if (!_hasEnteredCount) return false;
     final a = _inventory.allocated;
-    return int.tryParse(_karneController.text) == a.karne &&
-        int.tryParse(_mayoController.text) == a.mayo &&
-        int.tryParse(_styroController.text) == a.styro &&
-        int.tryParse(_toyoController.text) == a.toyo;
+    final regTarget = _branchMeatStock?.regular250gRemaining ?? a.karne;
+    final medTarget = _branchMeatStock?.medium300gRemaining ?? 10;
+    final b1t1Target = _branchMeatStock?.b1t1_400gRemaining ?? 10;
+
+    final regEntered = int.tryParse(_karneController.text) ?? -1;
+    final medEntered = int.tryParse(_mediumController.text) ?? -1;
+    final b1t1Entered = int.tryParse(_b1t1Controller.text) ?? -1;
+    final mayoEntered = int.tryParse(_mayoController.text) ?? -1;
+    final styroEntered = int.tryParse(_styroController.text) ?? -1;
+    final toyoEntered = int.tryParse(_toyoController.text) ?? -1;
+
+    return regEntered == regTarget &&
+        medEntered == medTarget &&
+        b1t1Entered == b1t1Target &&
+        mayoEntered == a.mayo &&
+        styroEntered == a.styro &&
+        toyoEntered == a.toyo;
   }
 
   void _confirm() {
@@ -379,16 +398,29 @@ class _HomepageScreenState extends State<HomepageScreen> {
           ),
           CupertinoDialogAction(
             isDefaultAction: true,
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(context);
               final updated = _inventory.copyWith(
+                date: DateTime.now(),
                 status: InventoryVerificationStatus.confirmed,
+                actualReceived: ActualReceivedCounts(
+                  mayo: int.tryParse(_mayoController.text) ?? 0,
+                  toyo: int.tryParse(_toyoController.text) ?? 0,
+                  styro: int.tryParse(_styroController.text) ?? 0,
+                  regular: int.tryParse(_karneController.text) ?? 0,
+                  medium: int.tryParse(_mediumController.text) ?? 0,
+                  b1t1: int.tryParse(_b1t1Controller.text) ?? 0,
+                ),
               );
               setState(() {
                 _inventory = updated;
               });
-              FirestoreService.saveDailyInventory(updated);
-              _showToast('Inventory confirmed!');
+              final ok = await FirestoreService.saveDailyInventory(updated);
+              if (ok) {
+                _showToast('Inventory confirmed & synced!');
+              } else {
+                _showToast('Inventory confirmed locally.');
+              }
             },
             child: const Text('Yes, Confirm'),
           ),
@@ -434,17 +466,30 @@ class _HomepageScreenState extends State<HomepageScreen> {
           ),
           CupertinoDialogAction(
             isDestructiveAction: true,
-            onPressed: () {
+            onPressed: () async {
+              Navigator.of(dialogContext).pop();
               final updated = _inventory.copyWith(
+                date: DateTime.now(),
                 status: InventoryVerificationStatus.discrepancyReported,
                 discrepancyNote: _discrepancyController.text.trim(),
+                actualReceived: ActualReceivedCounts(
+                  mayo: int.tryParse(_mayoController.text) ?? 0,
+                  toyo: int.tryParse(_toyoController.text) ?? 0,
+                  styro: int.tryParse(_styroController.text) ?? 0,
+                  regular: int.tryParse(_karneController.text) ?? 0,
+                  medium: int.tryParse(_mediumController.text) ?? 0,
+                  b1t1: int.tryParse(_b1t1Controller.text) ?? 0,
+                ),
               );
               setState(() {
                 _inventory = updated;
               });
-              FirestoreService.saveDailyInventory(updated);
-              Navigator.of(dialogContext).pop();
-              _showToast('Report sent to Owner.');
+              final ok = await FirestoreService.saveDailyInventory(updated);
+              if (ok) {
+                _showToast('Report sent to Owner & synced!');
+              } else {
+                _showToast('Report recorded locally.');
+              }
             },
             child: const Text('Send to Owner'),
           ),
@@ -536,38 +581,6 @@ class _HomepageScreenState extends State<HomepageScreen> {
     );
   }
 
-  Widget _meatVariantChip(String label, String value) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
-      decoration: BoxDecoration(
-        color: CupertinoColors.white,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: const TextStyle(
-              fontSize: 10,
-              fontWeight: FontWeight.bold,
-              color: AppColors.textSecondary,
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            value,
-            style: const TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w800,
-              color: AppColors.textPrimary,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -666,51 +679,48 @@ class _HomepageScreenState extends State<HomepageScreen> {
               trailing: _dateChip(),
             ),
             const SizedBox(height: 14),
-            Row(
-              children: [
-                Expanded(child: StaffDisplayTile(label: 'Karne', value: '${a.karne}')),
-                const SizedBox(width: 12),
-                Expanded(child: StaffDisplayTile(label: 'Mayo', value: '${a.mayo}', dark: true)),
-              ],
+            // Horizontally swipeable inventory grid
+            // Row 1: Mayo → Toyo → Medium (300g)
+            // Row 2: Styro → Regular (250g) → B1T1 (400g)
+            LayoutBuilder(
+              builder: (ctx, constraints) {
+                final cardW = (constraints.maxWidth - 12) / 2;
+                final reg = _branchMeatStock?.regular250gRemaining ?? 0;
+                final med = _branchMeatStock?.medium300gRemaining ?? 0;
+                final b1t1 = _branchMeatStock?.b1t1_400gRemaining ?? 0;
+                Widget dtile(String label, String value, {bool dark = false}) =>
+                    SizedBox(width: cardW, child: StaffDisplayTile(label: label, value: value, dark: dark));
+                return SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  physics: const PageScrollPhysics(),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(children: [
+                        dtile('Mayo', '${a.mayo}', dark: true),
+                        const SizedBox(width: 12),
+                        dtile('Toyo', '${a.toyo}', dark: true),
+                        const SizedBox(width: 12),
+                        dtile('Medium', '$med pcs'),
+                      ]),
+                      const SizedBox(height: 12),
+                      Row(children: [
+                        dtile('Styro', '${a.styro}'),
+                        const SizedBox(width: 12),
+                        dtile('Regular', '$reg pcs'),
+                        const SizedBox(width: 12),
+                        dtile('B1T1', '$b1t1 pcs'),
+                      ]),
+                    ],
+                  ),
+                );
+              },
             ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(child: StaffDisplayTile(label: 'Styro', value: '${a.styro}')),
-                const SizedBox(width: 12),
-                Expanded(child: StaffDisplayTile(label: 'Toyo', value: '${a.toyo}', dark: true)),
-              ],
-            ),
-            if (_branchMeatStock != null) ...[
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: _meatVariantChip(
-                      '250g Regular',
-                      '${_branchMeatStock!.regular250gRemaining} / ${_branchMeatStock!.regular250gTotal} pcs',
-                    ),
-                  ),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: _meatVariantChip(
-                      '300g Medium',
-                      '${_branchMeatStock!.medium300gRemaining} / ${_branchMeatStock!.medium300gTotal} pcs',
-                    ),
-                  ),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: _meatVariantChip(
-                      '400g B1T1',
-                      '${_branchMeatStock!.b1t1_400gRemaining} / ${_branchMeatStock!.b1t1_400gTotal} pcs',
-                    ),
-                  ),
-                ],
-              ),
-            ],
             const SizedBox(height: 26),
 
-            // Recount — 2x2 grid of input fields
+            // Recount — swipeable input grid
+            // Page 1: Mayo | Toyo (top) / Styro | — (bottom)
+            // Swipe left: Regular | Medium (top) / B1T1 | — (bottom)
             const StaffSectionHeader(
               label: 'Verify: Count What You Actually Received',
               icon: CupertinoIcons.checkmark_seal_fill,
@@ -718,45 +728,40 @@ class _HomepageScreenState extends State<HomepageScreen> {
               large: true,
             ),
             const SizedBox(height: 14),
-            Row(
-              children: [
-                Expanded(
-                  child: StaffInputTile(
-                    label: 'Karne',
-                    controller: _karneController,
-                    onChanged: () => setState(() {}),
+            LayoutBuilder(
+              builder: (ctx, constraints) {
+                final cardW = (constraints.maxWidth - 12) / 2;
+                Widget itile(String label, TextEditingController ctrl) => SizedBox(
+                  width: cardW,
+                  child: StaffInputTile(label: label, controller: ctrl, onChanged: () => setState(() {})),
+                );
+                return SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  physics: const PageScrollPhysics(),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(children: [
+                        itile('Mayo', _mayoController),
+                        const SizedBox(width: 12),
+                        itile('Toyo', _toyoController),
+                        const SizedBox(width: 12),
+                        itile('Medium', _mediumController),
+                      ]),
+                      const SizedBox(height: 12),
+                      Row(children: [
+                        itile('Styro', _styroController),
+                        const SizedBox(width: 12),
+                        itile('Regular', _karneController),
+                        const SizedBox(width: 12),
+                        itile('B1T1', _b1t1Controller),
+                      ]),
+                    ],
                   ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: StaffInputTile(
-                    label: 'Mayo',
-                    controller: _mayoController,
-                    onChanged: () => setState(() {}),
-                  ),
-                ),
-              ],
+                );
+              },
             ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: StaffInputTile(
-                    label: 'Styro',
-                    controller: _styroController,
-                    onChanged: () => setState(() {}),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: StaffInputTile(
-                    label: 'Toyo',
-                    controller: _toyoController,
-                    onChanged: () => setState(() {}),
-                  ),
-                ),
-              ],
-            ),
+
             const SizedBox(height: 16),
 
             // Status banner

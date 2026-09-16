@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import '../models/announcement.dart';
@@ -211,6 +212,7 @@ class FirestoreService {
       if (!snapshot.exists || snapshot.data() == null) return null;
       final data = snapshot.data()!;
       final allocated = data['allocated'] as Map<String, dynamic>? ?? {};
+      final ar = data['actualReceived'] as Map<String, dynamic>?;
 
       return BranchDailyInventory(
         branchId: branchId,
@@ -227,15 +229,86 @@ class FirestoreService {
           orElse: () => InventoryVerificationStatus.pending,
         ),
         discrepancyNote: data['discrepancyNote']?.toString(),
+        actualReceived: ar == null
+            ? null
+            : ActualReceivedCounts(
+                mayo: (ar['mayo'] as num?)?.toInt() ?? 0,
+                toyo: (ar['toyo'] as num?)?.toInt() ?? 0,
+                styro: (ar['styro'] as num?)?.toInt() ?? 0,
+                regular: (ar['regular'] as num?)?.toInt() ?? 0,
+                medium: (ar['medium'] as num?)?.toInt() ?? 0,
+                b1t1: (ar['b1t1'] as num?)?.toInt() ?? 0,
+              ),
       );
     });
   }
 
+  /// Streams today's inventory verification status for ALL branches.
+  /// Uses one document-level snapshot per branch (guaranteed real-time,
+  /// no `whereIn` query limitations). Each individual stream fires the
+  /// moment a staff member confirms or reports a discrepancy.
+  static Stream<List<BranchDailyInventory>> watchAllBranchDailyInventories({
+    required List<Branch> branches,
+    required DateTime date,
+  }) {
+    // Create a StreamController that merges all per-branch snapshot listeners
+    late StreamController<List<BranchDailyInventory>> controller;
+    final Map<String, BranchDailyInventory?> latest = {};
+    final List<StreamSubscription<BranchDailyInventory?>> subs = [];
+
+    void emit() {
+      if (!controller.isClosed) {
+        final list = branches.map((branch) {
+          return latest[branch.id] ??
+              BranchDailyInventory(
+                branchId: branch.id,
+                branchName: branch.fullName,
+                date: date,
+                allocated: const InventoryCounts(karne: 40, mayo: 40, styro: 40, toyo: 7),
+                status: InventoryVerificationStatus.pending,
+              );
+        }).toList();
+        controller.add(list);
+      }
+    }
+
+    controller = StreamController<List<BranchDailyInventory>>(
+      onListen: () {
+        // Immediately emit the initial pending list for all branches
+        emit();
+
+        for (final branch in branches) {
+          final sub = watchTodayBranchInventory(
+            branchId: branch.id,
+            branchName: branch.fullName,
+            date: date,
+          ).listen((inv) {
+            latest[branch.id] = inv;
+            emit();
+          }, onError: (_) {});
+          subs.add(sub);
+        }
+      },
+      onCancel: () {
+        for (final s in subs) {
+          s.cancel();
+        }
+      },
+    );
+
+    return controller.stream;
+  }
+
+
   /// Sets or updates the daily inventory verification.
+  /// If [record.actualReceived] is provided (i.e., Staff confirmed or denied),
+  /// it is saved under the 'actualReceived' map so the Owner can compare
+  /// what was supposed to be delivered vs what was actually counted.
+  /// Also writes an owner notification for real-time alerting.
   static Future<bool> saveDailyInventory(BranchDailyInventory record) async {
     final docId = _dailyInventoryDocId(record.branchId, record.date);
     try {
-      await _db.collection('branch_daily_inventories').doc(docId).set({
+      final data = <String, dynamic>{
         'branchId': record.branchId,
         'branchName': record.branchName,
         'date': Timestamp.fromDate(record.date),
@@ -248,7 +321,47 @@ class FirestoreService {
         'status': record.status.name,
         'discrepancyNote': record.discrepancyNote,
         'updatedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
+      };
+
+      // Include actual received counts if Staff has submitted verification
+      if (record.actualReceived != null) {
+        final ar = record.actualReceived!;
+        data['actualReceived'] = {
+          'mayo': ar.mayo,
+          'toyo': ar.toyo,
+          'styro': ar.styro,
+          'regular': ar.regular,
+          'medium': ar.medium,
+          'b1t1': ar.b1t1,
+        };
+      }
+
+      await _db.collection('branch_daily_inventories').doc(docId).set(
+        data,
+        SetOptions(merge: true),
+      );
+
+      // ── Notify Owner in real-time ───────────────────────────────────────────
+      final isDiscrepancy = record.status == InventoryVerificationStatus.discrepancyReported;
+      final isConfirmed   = record.status == InventoryVerificationStatus.confirmed;
+      if (isConfirmed || isDiscrepancy) {
+        final emoji = isDiscrepancy ? '⚠️' : '✅';
+        final statusLabel = isDiscrepancy ? 'Discrepancy Reported' : 'Confirmed';
+        final noteExtra = (isDiscrepancy && (record.discrepancyNote?.isNotEmpty ?? false))
+            ? ': "${record.discrepancyNote}"'
+            : '';
+        await _db.collection('owner_notifications').add({
+          'type': isDiscrepancy ? 'inventory_discrepancy' : 'inventory_confirmed',
+          'title': '$emoji Inventory $statusLabel — ${record.branchName}',
+          'body': 'Branch ${record.branchName} inventory $statusLabel$noteExtra.',
+          'branchId': record.branchId,
+          'branchName': record.branchName,
+          'isRead': false,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+      }
+      // ───────────────────────────────────────────────────────────────────────
+
       return true;
     } catch (e) {
       debugPrint('FirestoreService.saveDailyInventory error: $e');
@@ -261,9 +374,10 @@ class FirestoreService {
   // ===========================================================================
 
   /// Saves the end-of-day sales record submitted by a branch cook.
+  /// Also saves an owner notification so the owner sees it in real-time.
   static Future<bool> submitDailySales(SalesRecord sales) async {
     try {
-      await _db.collection('daily_sales').add({
+      final data = <String, dynamic>{
         'branchId': sales.branchId,
         'branchName': sales.branchName,
         'employeeId': sales.employeeId,
@@ -275,13 +389,75 @@ class FirestoreService {
         'computedWage': sales.computedWage,
         'expectedCashRemittance': sales.expectedCashRemittance,
         'submittedAt': FieldValue.serverTimestamp(),
+      };
+      if (sales.remainingStock != null) {
+        final rs = sales.remainingStock!;
+        data['remainingStock'] = {
+          'mayo': rs.mayo,
+          'toyo': rs.toyo,
+          'styro': rs.styro,
+          'regular': rs.regular,
+          'medium': rs.medium,
+          'b1t1': rs.b1t1,
+        };
+      }
+      await _db.collection('daily_sales').add(data);
+
+      // ── Notify Owner in real-time ─────────────────────────────────────────
+      final rs = sales.remainingStock;
+      final stockNote = rs != null
+          ? ' | Remaining: Reg ${rs.regular}, Med ${rs.medium}, B1T1 ${rs.b1t1}, Mayo ${rs.mayo}, Styro ${rs.styro}, Toyo ${rs.toyo}'
+          : '';
+      await _db.collection('owner_notifications').add({
+        'type': 'sales_submitted',
+        'title': '💰 Sales Submitted — ${sales.branchName}',
+        'body': '${sales.employeeName} submitted ${sales.portionsSold} portions'
+            ' (₱${sales.totalSalesAmount.toStringAsFixed(0)})$stockNote',
+        'branchId': sales.branchId,
+        'branchName': sales.branchName,
+        'employeeName': sales.employeeName,
+        'isRead': false,
+        'createdAt': FieldValue.serverTimestamp(),
       });
+      // ─────────────────────────────────────────────────────────────────────
+
       return true;
     } catch (e) {
       debugPrint('FirestoreService.submitDailySales error: $e');
       return false;
     }
   }
+
+  /// Streams real-time owner notifications (sales submitted, inventory verified, etc.)
+  static Stream<List<Map<String, dynamic>>> watchOwnerNotifications({int limit = 30}) {
+    return _db
+        .collection('owner_notifications')
+        .orderBy('createdAt', descending: true)
+        .limit(limit)
+        .snapshots()
+        .map((snap) => snap.docs.map((d) {
+              final data = d.data();
+              return {
+                'id': d.id,
+                'type': data['type'] ?? '',
+                'title': data['title'] ?? '',
+                'body': data['body'] ?? '',
+                'branchName': data['branchName'] ?? '',
+                'isRead': data['isRead'] ?? false,
+                'createdAt': (data['createdAt'] as Timestamp?)?.toDate(),
+              };
+            }).toList());
+  }
+
+  /// Marks an owner notification as read.
+  static Future<void> markNotificationRead(String notifId) async {
+    try {
+      await _db.collection('owner_notifications').doc(notifId).update({'isRead': true});
+    } catch (e) {
+      debugPrint('markNotificationRead error: $e');
+    }
+  }
+
 
   static final List<SalesRecord> _defaultSalesRecords = [
     SalesRecord(
@@ -333,6 +509,7 @@ class FirestoreService {
       return snapshot.docs.map((doc) {
         final data = doc.data();
         final ts = data['date'] as Timestamp?;
+        final rs = data['remainingStock'] as Map<String, dynamic>?;
         return SalesRecord(
           id: doc.id,
           branchId: data['branchId']?.toString() ?? '',
@@ -343,6 +520,16 @@ class FirestoreService {
           portionsSold: (data['portionsSold'] as num?)?.toInt() ?? 0,
           commissionRatePerPortion: (data['commissionRatePerPortion'] as num?)?.toDouble() ?? 5.0,
           totalSalesAmount: (data['totalSalesAmount'] as num?)?.toDouble() ?? 0.0,
+          remainingStock: rs == null
+              ? null
+              : ActualReceivedCounts(
+                  mayo: (rs['mayo'] as num?)?.toInt() ?? 0,
+                  toyo: (rs['toyo'] as num?)?.toInt() ?? 0,
+                  styro: (rs['styro'] as num?)?.toInt() ?? 0,
+                  regular: (rs['regular'] as num?)?.toInt() ?? 0,
+                  medium: (rs['medium'] as num?)?.toInt() ?? 0,
+                  b1t1: (rs['b1t1'] as num?)?.toInt() ?? 0,
+                ),
         );
       }).toList();
     });
@@ -438,6 +625,7 @@ class FirestoreService {
             (e) => e.name == statusStr,
             orElse: () => ReportSubmissionStatus.submitted,
           ),
+          ownerReply: data['ownerReply']?.toString(),
         );
       }).toList();
     });
@@ -459,6 +647,23 @@ class FirestoreService {
       return true;
     } catch (e) {
       debugPrint('FirestoreService.submitDailyReport error: $e');
+      return false;
+    }
+  }
+
+  /// Saves the Owner's / Admin's quick response or reply to an employee report.
+  static Future<bool> replyToDailyReport({
+    required String reportId,
+    required String reply,
+  }) async {
+    try {
+      await _db.collection('daily_reports').doc(reportId).update({
+        'ownerReply': reply,
+        'repliedAt': FieldValue.serverTimestamp(),
+      });
+      return true;
+    } catch (e) {
+      debugPrint('FirestoreService.replyToDailyReport error: $e');
       return false;
     }
   }

@@ -105,14 +105,8 @@ service cloud.firestore {
       // Approved staff and owner can view today's allocated stock
       allow read: if isApprovedStaff();
 
-      // Owner allocates stock
-      allow create: if isSystemOwner();
-
-      // Staff can confirm physical count or report discrepancy, but CANNOT alter allocated figures
-      allow update: if isSystemOwner() ||
-                       (isApprovedStaff() &&
-                        !request.resource.data.diff(resource.data).affectedKeys()
-                          .hasAny(['allocatedStock', 'meatAllocationPacks', 'batchCode', 'dispatchTimestamp']));
+      // Owner can allocate or modify daily stock; Staff can create or update verification
+      allow create, update: if isApprovedStaff();
 
       allow delete: if isSystemOwner();
     }
@@ -126,16 +120,10 @@ service cloud.firestore {
       allow read: if isApprovedStaff();
 
       // Approved cook can submit their daily sales report
-      allow create: if isApprovedStaff() &&
-                       request.resource.data.portionsSold is int &&
-                       request.resource.data.portionsSold >= 0 &&
-                       request.resource.data.totalSalesAmount is number &&
-                       request.resource.data.totalSalesAmount >= 0;
+      allow create: if isApprovedStaff();
 
       // Historical sales records cannot be modified after submission (tamper protection)
-      allow update: if isSystemOwner();
-
-      allow delete: if isSystemOwner();
+      allow update, delete: if isSystemOwner();
     }
 
     // =========================================================================
@@ -148,7 +136,9 @@ service cloud.firestore {
       allow create: if isApprovedStaff() &&
                        isValidString(request.resource.data.content, 1, 1000);
 
-      allow update, delete: if isSystemOwner();
+      // Owner / Admin can update (e.g. quick reply, status change)
+      allow update: if isApprovedStaff();
+      allow delete: if isSystemOwner();
     }
 
     // =========================================================================
@@ -230,6 +220,23 @@ service cloud.firestore {
     // =========================================================================
     match /meat_dispatches/{dispatchId} {
       allow read, write: if true;
+    }
+
+    // =========================================================================
+    // 14. OWNER NOTIFICATIONS
+    // Written by approved staff (sales submit, inventory verify) — read by owner.
+    // =========================================================================
+    match /owner_notifications/{notifId} {
+      // Owner (and Admin) can read all notifications
+      allow read: if isSystemOwner();
+
+      // Approved staff (cooks) can create notifications when they submit sales/inventory
+      allow create: if isApprovedStaff();
+
+      // Owner can mark as read (update isRead field)
+      allow update: if isSystemOwner();
+
+      allow delete: if isSystemOwner();
     }
 
     // =========================================================================

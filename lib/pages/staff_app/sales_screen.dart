@@ -1,5 +1,12 @@
+import 'dart:async';
 import 'package:flutter/cupertino.dart';
+import '../../models/branch.dart';
 import '../../models/branch_daily_inventory.dart';
+import '../../models/branch_meat_inventory.dart';
+import '../../models/sales_record.dart';
+import '../../services/assignment_service.dart';
+import '../../services/auth_service.dart';
+import '../../services/firestore_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/staff_button.dart';
 import '../../widgets/staff_card.dart';
@@ -23,63 +30,136 @@ class SalesScreen extends StatefulWidget {
 }
 
 class _SalesScreenState extends State<SalesScreen> {
-  // Standard daily allocation given by Owner:
-  // 20 Regular (250g) + 10 Medium (300g) + 10 B1T1 (400g) = 40 karne packs.
-  static const _allocated =
+  // Default fallback allocation
+  static const _defaultAllocated =
       InventoryCounts(karne: 40, mayo: 40, styro: 40, toyo: 7);
+
+  InventoryCounts _allocated = _defaultAllocated;
+  BranchMeatStock? _branchMeatStock;
+  String _currentBranchId = 'br1';
+  String _currentBranchName = 'Brgy. Gatid, Sta. Cruz';
+  StreamSubscription<BranchDailyInventory?>? _inventorySub;
+  StreamSubscription<List<BranchMeatStock>>? _meatStocksSub;
 
   // Default price base for regular Sisig portion
   static const double _pricePerOrder = 130;
 
-  final _karneController = TextEditingController();
+  final _karneController = TextEditingController(); // Regular 250g
   final _mayoController = TextEditingController();
   final _styroController = TextEditingController();
   final _toyoController = TextEditingController();
+  final _mediumController = TextEditingController(); // Medium 300g
+  final _b1t1Controller = TextEditingController(); // B1T1 400g
 
   bool _submitted = false;
 
   @override
+  void initState() {
+    super.initState();
+    _setupBranchAndStreams();
+    AssignmentService.changeNotifier.addListener(_onAssignmentChanged);
+  }
+
+  void _onAssignmentChanged() {
+    if (mounted) {
+      _setupBranchAndStreams();
+    }
+  }
+
+  void _setupBranchAndStreams() {
+    final assignedBranchName = AssignmentService.getAssignedBranch(AuthService.currentUsername);
+    Branch? matchedBranch;
+    if (assignedBranchName.isNotEmpty) {
+      for (final b in kSampleBranches) {
+        if (b.fullName.toLowerCase().contains(assignedBranchName.toLowerCase()) ||
+            b.name.toLowerCase().contains(assignedBranchName.toLowerCase()) ||
+            assignedBranchName.toLowerCase().contains(b.name.toLowerCase())) {
+          matchedBranch = b;
+          break;
+        }
+      }
+    }
+    matchedBranch ??= kSampleBranches.first;
+    _currentBranchId = matchedBranch.id;
+    _currentBranchName = matchedBranch.fullName;
+
+    _inventorySub?.cancel();
+    _inventorySub = FirestoreService.watchTodayBranchInventory(
+      branchId: matchedBranch.id,
+      branchName: matchedBranch.fullName,
+      date: DateTime.now(),
+    ).listen((inv) {
+      if (mounted && inv != null) {
+        setState(() {
+          _allocated = inv.allocated;
+        });
+      }
+    });
+
+    _meatStocksSub?.cancel();
+    _meatStocksSub = FirestoreService.watchBranchMeatStocks().listen((stocks) {
+      if (mounted) {
+        final match = stocks.firstWhere(
+          (s) => s.branchId == _currentBranchId,
+          orElse: () => BranchMeatStock.defaultForBranch(matchedBranch!),
+        );
+        setState(() {
+          _branchMeatStock = match;
+        });
+      }
+    });
+  }
+
+  @override
   void dispose() {
+    AssignmentService.changeNotifier.removeListener(_onAssignmentChanged);
+    _inventorySub?.cancel();
+    _meatStocksSub?.cancel();
     _karneController.dispose();
     _mayoController.dispose();
     _styroController.dispose();
     _toyoController.dispose();
+    _mediumController.dispose();
+    _b1t1Controller.dispose();
     super.dispose();
   }
 
-  bool get _hasAllInputs =>
-      _karneController.text.isNotEmpty &&
-      _mayoController.text.isNotEmpty &&
-      _styroController.text.isNotEmpty &&
-      _toyoController.text.isNotEmpty;
+  // Treat empty text as 0 so staff can submit even when remaining is 0
+  int _parseOrZero(TextEditingController c) =>
+      int.tryParse(c.text.trim()) ?? 0;
 
-  DailySalesComputation? get _computation {
-    if (!_hasAllInputs) return null;
-    final karne = int.tryParse(_karneController.text);
-    final mayo = int.tryParse(_mayoController.text);
-    final styro = int.tryParse(_styroController.text);
-    final toyo = int.tryParse(_toyoController.text);
-    if (karne == null || mayo == null || styro == null || toyo == null) {
-      return null;
-    }
+  // Computation always available (empty fields = 0 remaining)
+  DailySalesComputation get _computation {
+    final regular = _parseOrZero(_karneController);
+    final medium = _parseOrZero(_mediumController);
+    final b1t1 = _parseOrZero(_b1t1Controller);
+    final totalKarne = regular + medium + b1t1;
     return DailySalesComputation(
       allocated: _allocated,
       remaining: InventoryCounts(
-        karne: karne,
-        mayo: mayo,
-        styro: styro,
-        toyo: toyo,
+        karne: totalKarne,
+        mayo: _parseOrZero(_mayoController),
+        styro: _parseOrZero(_styroController),
+        toyo: _parseOrZero(_toyoController),
       ),
       pricePerOrder: _pricePerOrder,
     );
   }
+
+  // Show the computation card only once at least one field is non-empty
+  bool get _hasAnyInput =>
+      _karneController.text.isNotEmpty ||
+      _mayoController.text.isNotEmpty ||
+      _styroController.text.isNotEmpty ||
+      _toyoController.text.isNotEmpty ||
+      _mediumController.text.isNotEmpty ||
+      _b1t1Controller.text.isNotEmpty;
 
   /// Confirms before actually submitting — sales figures feed directly
   /// into payroll, so a single accidental tap on "Submit Sales"
   /// shouldn't be enough to lock them in.
   Future<void> _confirmSubmit() async {
     final computation = _computation;
-    if (computation == null) return;
 
     final confirmed = await showCupertinoDialog<bool>(
       context: context,
@@ -112,16 +192,42 @@ class _SalesScreenState extends State<SalesScreen> {
     _submit();
   }
 
-  void _submit() {
+  Future<void> _submit() async {
+    final computation = _computation;
+
     setState(() => _submitted = true);
+
+    // Save to Firestore daily_sales collection
+    final record = SalesRecord(
+      id: '',
+      branchId: _currentBranchId,
+      branchName: _currentBranchName,
+      employeeId: AuthService.currentUsername,
+      employeeName: AuthService.currentUsername,
+      date: DateTime.now(),
+      portionsSold: computation.ordersSold,
+      commissionRatePerPortion: 5.0,
+      totalSalesAmount: computation.salesAmount,
+      remainingStock: ActualReceivedCounts(
+        mayo: int.tryParse(_mayoController.text) ?? 0,
+        toyo: int.tryParse(_toyoController.text) ?? 0,
+        styro: int.tryParse(_styroController.text) ?? 0,
+        regular: int.tryParse(_karneController.text) ?? 0,
+        medium: int.tryParse(_mediumController.text) ?? 0,
+        b1t1: int.tryParse(_b1t1Controller.text) ?? 0,
+      ),
+    );
+    await FirestoreService.submitDailySales(record);
+
+    if (!mounted) return;
     showCupertinoDialog<void>(
       context: context,
       builder: (context) => CupertinoAlertDialog(
         content: Text(
-          _computation!.hasDiscrepancy
+          computation.hasDiscrepancy
               ? 'Submitted, but a discrepancy was flagged — the Owner '
                   'will be notified.'
-              : 'Sales submitted!',
+              : 'Sales submitted successfully!',
         ),
         actions: [
           CupertinoDialogAction(
@@ -154,21 +260,56 @@ class _SalesScreenState extends State<SalesScreen> {
               large: true,
             ),
             const SizedBox(height: 14),
-            Row(
-              children: [
-                Expanded(child: StaffDisplayTile(label: 'Karne', value: '${_allocated.karne}')),
-                const SizedBox(width: 12),
-                Expanded(child: StaffDisplayTile(label: 'Mayo', value: '${_allocated.mayo}', dark: true)),
-              ],
+            // Horizontally swipeable inventory grid
+            // Row 1: Mayo → Toyo → Medium (300g)
+            // Row 2: Styro → Regular (250g) → B1T1 (400g)
+            LayoutBuilder(
+              builder: (ctx, constraints) {
+                final cardW = (constraints.maxWidth - 12) / 2;
+                Widget tile(String label, String value, {bool dark = false}) {
+                  return SizedBox(
+                    width: cardW,
+                    child: StaffDisplayTile(label: label, value: value, dark: dark),
+                  );
+                }
+
+                final reg = _branchMeatStock?.regular250gRemaining ?? 20;
+                final med = _branchMeatStock?.medium300gRemaining ?? 10;
+                final b1t1 = _branchMeatStock?.b1t1_400gRemaining ?? 10;
+
+                return SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  physics: const PageScrollPhysics(),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Top row: Mayo → Toyo → Medium
+                      Row(
+                        children: [
+                          tile('Mayo', '${_allocated.mayo}', dark: true),
+                          const SizedBox(width: 12),
+                          tile('Toyo', '${_allocated.toyo}', dark: true),
+                          const SizedBox(width: 12),
+                          tile('Medium', '$med pcs'),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      // Bottom row: Styro → Regular → B1T1
+                      Row(
+                        children: [
+                          tile('Styro', '${_allocated.styro}'),
+                          const SizedBox(width: 12),
+                          tile('Regular', '$reg pcs'),
+                          const SizedBox(width: 12),
+                          tile('B1T1', '$b1t1 pcs'),
+                        ],
+                      ),
+                    ],
+                  ),
+                );
+              },
             ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(child: StaffDisplayTile(label: 'Styro', value: '${_allocated.styro}')),
-                const SizedBox(width: 12),
-                Expanded(child: StaffDisplayTile(label: 'Toyo', value: '${_allocated.toyo}', dark: true)),
-              ],
-            ),
+
             const SizedBox(height: 26),
             const StaffSectionHeader(
               label: 'Remaining Stock',
@@ -177,47 +318,41 @@ class _SalesScreenState extends State<SalesScreen> {
               large: true,
             ),
             const SizedBox(height: 14),
-            Row(
-              children: [
-                Expanded(
-                  child: StaffInputTile(
-                    label: 'Karne',
-                    controller: _karneController,
-                    onChanged: () => setState(() {}),
+            LayoutBuilder(
+              builder: (ctx, constraints) {
+                final cardW = (constraints.maxWidth - 12) / 2;
+                Widget itile(String label, TextEditingController ctrl) => SizedBox(
+                  width: cardW,
+                  child: StaffInputTile(label: label, controller: ctrl, onChanged: () => setState(() {})),
+                );
+                return SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  physics: const PageScrollPhysics(),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(children: [
+                        itile('Mayo', _mayoController),
+                        const SizedBox(width: 12),
+                        itile('Toyo', _toyoController),
+                        const SizedBox(width: 12),
+                        itile('Medium', _mediumController),
+                      ]),
+                      const SizedBox(height: 12),
+                      Row(children: [
+                        itile('Styro', _styroController),
+                        const SizedBox(width: 12),
+                        itile('Regular', _karneController),
+                        const SizedBox(width: 12),
+                        itile('B1T1', _b1t1Controller),
+                      ]),
+                    ],
                   ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: StaffInputTile(
-                    label: 'Mayo',
-                    controller: _mayoController,
-                    onChanged: () => setState(() {}),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: StaffInputTile(
-                    label: 'Styro',
-                    controller: _styroController,
-                    onChanged: () => setState(() {}),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: StaffInputTile(
-                    label: 'Toyo',
-                    controller: _toyoController,
-                    onChanged: () => setState(() {}),
-                  ),
-                ),
-              ],
+                );
+              },
             ),
             const SizedBox(height: 20),
-            if (computation != null) ...[
+            if (_hasAnyInput) ...[ 
               if (computation.hasDiscrepancy)
                 Container(
                   margin: const EdgeInsets.only(bottom: 16),
@@ -277,56 +412,60 @@ class _SalesScreenState extends State<SalesScreen> {
                 ),
               ),
               const SizedBox(height: 24),
-              if (_submitted)
-                Container(
-                  padding: const EdgeInsets.symmetric(vertical: 14),
+            ],
+            if (_submitted)
+              Container(
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                decoration: BoxDecoration(
+                  color: AppColors.success.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: AppColors.success.withValues(alpha: 0.2)),
+                ),
+                child: const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(CupertinoIcons.check_mark_circled_solid, color: AppColors.success, size: 20),
+                    SizedBox(width: 8),
+                    Text(
+                      'Sales Submitted Successfully',
+                      style: TextStyle(
+                        color: AppColors.success,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 15,
+                      ),
+                    ),
+                  ],
+                ),
+              )
+            else
+              StaffButton(
+                label: 'Submit Sales',
+                icon: CupertinoIcons.cloud_upload_fill,
+                onPressed: _confirmSubmit,
+              ),
+            if (!_hasAnyInput)
+              Padding(
+                padding: const EdgeInsets.only(top: 12),
+                child: Container(
+                  padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
-                    color: AppColors.success.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: AppColors.success.withValues(alpha: 0.2)),
+                    color: AppColors.pastelBrown.withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                  child: const Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
+                  child: Row(
                     children: [
-                      Icon(CupertinoIcons.check_mark_circled_solid, color: AppColors.success, size: 20),
-                      SizedBox(width: 8),
-                      Text(
-                        'Sales Submitted Successfully',
-                        style: TextStyle(
-                          color: AppColors.success,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 15,
+                      const Icon(CupertinoIcons.info_circle_fill,
+                          color: AppColors.accent, size: 18),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'Fill in remaining stock counts above to see '
+                          'the computation.',
+                          style: const TextStyle(color: AppColors.textSecondary),
                         ),
                       ),
                     ],
                   ),
-                )
-              else
-                StaffButton(
-                  label: 'Submit Sales',
-                  icon: CupertinoIcons.cloud_upload_fill,
-                  onPressed: _confirmSubmit,
-                ),
-            ] else
-              Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: AppColors.pastelBrown.withValues(alpha: 0.14),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(CupertinoIcons.info_circle_fill,
-                        color: AppColors.accent, size: 18),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        'Fill in all remaining stock counts above to see '
-                        'the computation.',
-                        style: const TextStyle(color: AppColors.textSecondary),
-                      ),
-                    ),
-                  ],
                 ),
               ),
           ],

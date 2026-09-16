@@ -45,6 +45,25 @@ enum InventoryVerificationStatus {
   }
 }
 
+/// The actual counts physically entered by Staff during verification.
+class ActualReceivedCounts {
+  const ActualReceivedCounts({
+    required this.mayo,
+    required this.toyo,
+    required this.styro,
+    required this.regular,
+    required this.medium,
+    required this.b1t1,
+  });
+
+  final int mayo;
+  final int toyo;
+  final int styro;
+  final int regular;
+  final int medium;
+  final int b1t1;
+}
+
 /// What the Owner recorded as sent to a branch for the day, plus the
 /// cook's physical recount and verification result. This is a
 /// DELIVERY check (does what arrived match what Owner logged) — not
@@ -62,6 +81,7 @@ class BranchDailyInventory {
     required this.allocated,
     this.status = InventoryVerificationStatus.pending,
     this.discrepancyNote,
+    this.actualReceived,
   });
 
   final String branchId;
@@ -70,6 +90,9 @@ class BranchDailyInventory {
   final InventoryCounts allocated;
   final InventoryVerificationStatus status;
   final String? discrepancyNote;
+  /// The actual physical count submitted by Staff upon verification.
+  /// Null if Staff has not yet verified.
+  final ActualReceivedCounts? actualReceived;
 
   BranchDailyInventory copyWith({
     String? branchId,
@@ -78,6 +101,7 @@ class BranchDailyInventory {
     InventoryCounts? allocated,
     InventoryVerificationStatus? status,
     String? discrepancyNote,
+    ActualReceivedCounts? actualReceived,
   }) {
     return BranchDailyInventory(
       branchId: branchId ?? this.branchId,
@@ -86,6 +110,7 @@ class BranchDailyInventory {
       allocated: allocated ?? this.allocated,
       status: status ?? this.status,
       discrepancyNote: discrepancyNote ?? this.discrepancyNote,
+      actualReceived: actualReceived ?? this.actualReceived,
     );
   }
 }

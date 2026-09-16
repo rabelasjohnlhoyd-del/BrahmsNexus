@@ -135,7 +135,7 @@ class StaffDisplayTile extends StatelessWidget {
 
 /// Editable stat tile — a number field the cook fills in themselves
 /// (recount, end-of-day stock, etc).
-class StaffInputTile extends StatelessWidget {
+class StaffInputTile extends StatefulWidget {
   const StaffInputTile({
     super.key,
     required this.label,
@@ -147,11 +147,18 @@ class StaffInputTile extends StatelessWidget {
   final TextEditingController controller;
   final VoidCallback onChanged;
 
+  @override
+  State<StaffInputTile> createState() => _StaffInputTileState();
+}
+
+class _StaffInputTileState extends State<StaffInputTile> {
   void _step(int delta) {
-    final current = int.tryParse(controller.text) ?? 0;
+    final current = int.tryParse(widget.controller.text) ?? 0;
     final next = (current + delta).clamp(0, 999999);
-    controller.text = '$next';
-    onChanged();
+    setState(() {
+      widget.controller.text = '$next';
+    });
+    widget.onChanged();
   }
 
   Widget _stepperButton(IconData icon, VoidCallback onTap) {
@@ -172,7 +179,7 @@ class StaffInputTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final hasValue = controller.text.isNotEmpty;
+    final hasValue = widget.controller.text.isNotEmpty;
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -193,13 +200,13 @@ class StaffInputTile extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _TileHeader(label: label),
+          _TileHeader(label: widget.label),
           const SizedBox(height: 10),
           Row(
             children: [
               Expanded(
                 child: CupertinoTextField(
-                  controller: controller,
+                  controller: widget.controller,
                   keyboardType: TextInputType.number,
                   placeholder: '0',
                   textAlign: TextAlign.center,
@@ -215,7 +222,10 @@ class StaffInputTile extends StatelessWidget {
                     fontWeight: FontWeight.w700,
                     color: AppColors.textPrimary,
                   ),
-                  onChanged: (_) => onChanged(),
+                  onChanged: (_) {
+                    setState(() {});
+                    widget.onChanged();
+                  },
                 ),
               ),
               const SizedBox(width: 6),

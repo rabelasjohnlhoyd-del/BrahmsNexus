@@ -28,6 +28,7 @@ class DailyReport {
     required this.date,
     required this.content,
     this.status = ReportSubmissionStatus.submitted,
+    this.ownerReply,
   });
 
   final String id;
@@ -38,4 +39,29 @@ class DailyReport {
   final DateTime date;
   final String content;
   final ReportSubmissionStatus status;
+  final String? ownerReply;
+
+  DailyReport copyWith({
+    String? id,
+    String? employeeId,
+    String? employeeName,
+    String? branchId,
+    String? branchName,
+    DateTime? date,
+    String? content,
+    ReportSubmissionStatus? status,
+    String? ownerReply,
+  }) {
+    return DailyReport(
+      id: id ?? this.id,
+      employeeId: employeeId ?? this.employeeId,
+      employeeName: employeeName ?? this.employeeName,
+      branchId: branchId ?? this.branchId,
+      branchName: branchName ?? this.branchName,
+      date: date ?? this.date,
+      content: content ?? this.content,
+      status: status ?? this.status,
+      ownerReply: ownerReply ?? this.ownerReply,
+    );
+  }
 }

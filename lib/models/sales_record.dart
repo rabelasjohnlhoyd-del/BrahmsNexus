@@ -1,3 +1,5 @@
+import 'branch_daily_inventory.dart';
+
 /// Daily sales submitted by Staff for a branch, used both for the
 /// Sales & Payroll admin screen and for the auto-computed wage per
 /// the "Sales and Auto-Payroll" flowchart (portions sold -> total
@@ -13,6 +15,7 @@ class SalesRecord {
     required this.portionsSold,
     required this.commissionRatePerPortion,
     required this.totalSalesAmount,
+    this.remainingStock,
   });
 
   final String id;
@@ -24,6 +27,9 @@ class SalesRecord {
   final int portionsSold;
   final double commissionRatePerPortion;
   final double totalSalesAmount;
+  /// End-of-day remaining stock submitted by Staff — mirrors what they
+  /// entered in the Remaining Stock section of the Sales tab.
+  final ActualReceivedCounts? remainingStock;
 
   /// Auto-computed daily wage — portions sold × commission rate.
   double get computedWage => portionsSold * commissionRatePerPortion;

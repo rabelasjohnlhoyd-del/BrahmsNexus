@@ -128,7 +128,21 @@ class _OwnerSalesPayrollScreenState extends State<OwnerSalesPayrollScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(r.employeeName, style: const TextStyle(fontWeight: FontWeight.bold)),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(child: Text(r.employeeName, style: const TextStyle(fontWeight: FontWeight.bold))),
+                        if (r.remainingStock != null)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: AppColors.accent.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: const Text('With Remaining Stock', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.accent)),
+                          ),
+                      ],
+                    ),
                     Text(r.branchName, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
                     const SizedBox(height: 12),
                     Row(
@@ -138,6 +152,28 @@ class _OwnerSalesPayrollScreenState extends State<OwnerSalesPayrollScreen> {
                         Text('Wage: ₱${r.computedWage.toStringAsFixed(0)}', style: const TextStyle(color: AppColors.error)),
                       ],
                     ),
+                    if (r.remainingStock != null) ...[
+                      const SizedBox(height: 10),
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: AppColors.pastelBrown.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('REMAINING STOCK AT CLOSE', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: AppColors.textSecondary)),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Reg: ${r.remainingStock!.regular}  Med: ${r.remainingStock!.medium}  B1T1: ${r.remainingStock!.b1t1}  '
+                              'Mayo: ${r.remainingStock!.mayo}  Styro: ${r.remainingStock!.styro}  Toyo: ${r.remainingStock!.toyo}',
+                              style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),

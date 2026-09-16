@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart' show Divider;
 import '../../models/branch.dart';
+import '../../models/branch_daily_inventory.dart';
 import '../../models/branch_meat_inventory.dart';
 import '../../models/financial_period.dart';
 import '../../models/inventory_batch.dart';
@@ -873,6 +874,23 @@ class _OwnerInventoryScreenState extends State<OwnerInventoryScreen> {
               );
 
               await FirestoreService.saveBranchMeatStock(updated);
+
+              // Also sync total allocated Karne to today's daily inventory
+              final totalMeatPcs = regT + medT + b1t1T;
+              await FirestoreService.saveDailyInventory(
+                BranchDailyInventory(
+                  branchId: stock.branchId,
+                  branchName: stock.branchName,
+                  date: DateTime.now(),
+                  allocated: InventoryCounts(
+                    karne: totalMeatPcs,
+                    mayo: 40,
+                    styro: 40,
+                    toyo: 7,
+                  ),
+                ),
+              );
+
               setState(() {
                 _branchMeatStocks[index] = updated;
               });

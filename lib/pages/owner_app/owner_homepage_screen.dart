@@ -32,6 +32,8 @@ class _OwnerHomepageScreenState extends State<OwnerHomepageScreen> {
   bool _isCelsius = true;
   StreamSubscription<List<SalesRecord>>? _salesSub;
   StreamSubscription<List<DailyReport>>? _reportsSub;
+  StreamSubscription<List<Map<String, dynamic>>>? _notifSub;
+  final List<Map<String, dynamic>> _notifications = [];
 
   @override
   void initState() {
@@ -54,12 +56,22 @@ class _OwnerHomepageScreenState extends State<OwnerHomepageScreen> {
         });
       }
     });
+    _notifSub = FirestoreService.watchOwnerNotifications().listen((list) {
+      if (mounted) {
+        setState(() {
+          _notifications
+            ..clear()
+            ..addAll(list);
+        });
+      }
+    });
   }
 
   @override
   void dispose() {
     _salesSub?.cancel();
     _reportsSub?.cancel();
+    _notifSub?.cancel();
     super.dispose();
   }
 
@@ -593,6 +605,120 @@ class _OwnerHomepageScreenState extends State<OwnerHomepageScreen> {
             const StaffCard(
               child: OwnerSalesTrendChart(),
             ),
+            const SizedBox(height: 24),
+
+            // REAL-TIME NOTIFICATIONS
+            StaffSectionHeader(
+              label: 'Recent Activity',
+              icon: CupertinoIcons.bell_fill,
+              trailing: _notifications.any((n) => n['isRead'] == false)
+                  ? Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: AppColors.error,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        '${_notifications.where((n) => n['isRead'] == false).length} new',
+                        style: const TextStyle(color: CupertinoColors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                      ),
+                    )
+                  : null,
+            ),
+            const SizedBox(height: 12),
+            if (_notifications.isEmpty)
+              StaffCard(
+                child: const Padding(
+                  padding: EdgeInsets.all(8),
+                  child: Text(
+                    'Walang bagong aktibidad. Mag-aabiso kapag may nag-submit ng sales o nag-verify ng inventory.',
+                    style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              )
+            else
+              for (final notif in _notifications.take(5)) ...[ 
+                GestureDetector(
+                  onTap: () {
+                    if (notif['id'] != null && notif['isRead'] == false) {
+                      FirestoreService.markNotificationRead(notif['id'] as String);
+                    }
+                  },
+                  child: StaffCard(
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          width: 36,
+                          height: 36,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: (notif['type'] == 'inventory_discrepancy'
+                                    ? AppColors.error
+                                    : AppColors.success)
+                                .withValues(alpha: 0.15),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            notif['type'] == 'sales_submitted'
+                                ? CupertinoIcons.money_dollar_circle_fill
+                                : notif['type'] == 'inventory_discrepancy'
+                                    ? CupertinoIcons.exclamationmark_circle_fill
+                                    : CupertinoIcons.check_mark_circled_solid,
+                            size: 18,
+                            color: notif['type'] == 'inventory_discrepancy'
+                                ? AppColors.error
+                                : AppColors.success,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      notif['title']?.toString() ?? '',
+                                      style: TextStyle(
+                                        fontWeight: notif['isRead'] == false
+                                            ? FontWeight.w800
+                                            : FontWeight.w600,
+                                        fontSize: 13,
+                                        color: AppColors.textPrimary,
+                                      ),
+                                    ),
+                                  ),
+                                  if (notif['isRead'] == false)
+                                    Container(
+                                      width: 8,
+                                      height: 8,
+                                      decoration: const BoxDecoration(
+                                        color: AppColors.accent,
+                                        shape: BoxShape.circle,
+                                      ),
+                                    ),
+                                ],
+                              ),
+                              const SizedBox(height: 3),
+                              Text(
+                                notif['body']?.toString() ?? '',
+                                style: const TextStyle(
+                                  fontSize: 11.5,
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+              ],
             const SizedBox(height: 24),
 
             // TOP PERFORMERS
