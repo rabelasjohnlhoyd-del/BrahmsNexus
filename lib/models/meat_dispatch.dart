@@ -11,6 +11,9 @@ class MeatDispatch {
     this.regular250gPcs = 0,
     this.medium300gPcs = 0,
     this.b1t1_400gPcs = 0,
+    this.mayoPcs = 0,
+    this.styroPcs = 0,
+    this.toyoPcs = 0,
     this.status = 'pending', // 'pending' | 'delivered'
     required this.createdAt,
     this.deliveredAt,
@@ -26,22 +29,31 @@ class MeatDispatch {
   final int medium300gPcs;  // 300 grams (Medium)
   final int b1t1_400gPcs;   // 400 grams (B1T1)
 
+  // Supplies
+  final int mayoPcs;
+  final int styroPcs;
+  final int toyoPcs;
+
   final String status;
   final DateTime createdAt;
   final DateTime? deliveredAt;
   final String? driverName;
 
-  int get totalPcs => regular250gPcs + medium300gPcs + b1t1_400gPcs;
+  int get totalMeatPcs => regular250gPcs + medium300gPcs + b1t1_400gPcs;
+  int get totalPcs => totalMeatPcs;
 
   bool get isDelivered => status == 'delivered';
 
   /// Summary description for display in lists
   String get itemsSummary {
     final parts = <String>[];
-    if (regular250gPcs > 0) parts.add('$regular250gPcs pcs 250g (Regular)');
-    if (medium300gPcs > 0) parts.add('$medium300gPcs pcs 300g (Medium)');
-    if (b1t1_400gPcs > 0) parts.add('$b1t1_400gPcs pcs 400g (B1T1)');
-    if (parts.isEmpty) return '0 pcs';
+    if (regular250gPcs > 0) parts.add('$regular250gPcs pcs 250g');
+    if (medium300gPcs > 0) parts.add('$medium300gPcs pcs 300g');
+    if (b1t1_400gPcs > 0) parts.add('$b1t1_400gPcs pcs B1T1');
+    if (mayoPcs > 0) parts.add('$mayoPcs Mayo');
+    if (styroPcs > 0) parts.add('$styroPcs Styro');
+    if (toyoPcs > 0) parts.add('$toyoPcs Toyo');
+    if (parts.isEmpty) return '0 items';
     return parts.join(', ');
   }
 
@@ -52,6 +64,9 @@ class MeatDispatch {
     int? regular250gPcs,
     int? medium300gPcs,
     int? b1t1_400gPcs,
+    int? mayoPcs,
+    int? styroPcs,
+    int? toyoPcs,
     String? status,
     DateTime? createdAt,
     DateTime? deliveredAt,
@@ -64,6 +79,9 @@ class MeatDispatch {
       regular250gPcs: regular250gPcs ?? this.regular250gPcs,
       medium300gPcs: medium300gPcs ?? this.medium300gPcs,
       b1t1_400gPcs: b1t1_400gPcs ?? this.b1t1_400gPcs,
+      mayoPcs: mayoPcs ?? this.mayoPcs,
+      styroPcs: styroPcs ?? this.styroPcs,
+      toyoPcs: toyoPcs ?? this.toyoPcs,
       status: status ?? this.status,
       createdAt: createdAt ?? this.createdAt,
       deliveredAt: deliveredAt ?? this.deliveredAt,
@@ -79,6 +97,9 @@ class MeatDispatch {
       'regular250gPcs': regular250gPcs,
       'medium300gPcs': medium300gPcs,
       'b1t1_400gPcs': b1t1_400gPcs,
+      'mayoPcs': mayoPcs,
+      'styroPcs': styroPcs,
+      'toyoPcs': toyoPcs,
       'status': status,
       'createdAt': createdAt.toIso8601String(),
       'deliveredAt': deliveredAt?.toIso8601String(),
@@ -110,6 +131,9 @@ class MeatDispatch {
       regular250gPcs: (map['regular250gPcs'] as num?)?.toInt() ?? 0,
       medium300gPcs: (map['medium300gPcs'] as num?)?.toInt() ?? 0,
       b1t1_400gPcs: (map['b1t1_400gPcs'] as num?)?.toInt() ?? 0,
+      mayoPcs: (map['mayoPcs'] as num?)?.toInt() ?? 0,
+      styroPcs: (map['styroPcs'] as num?)?.toInt() ?? 0,
+      toyoPcs: (map['toyoPcs'] as num?)?.toInt() ?? 0,
       status: map['status']?.toString() ?? 'pending',
       createdAt: parsedCreatedAt,
       deliveredAt: parsedDeliveredAt,

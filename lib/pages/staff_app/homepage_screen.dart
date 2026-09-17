@@ -1,11 +1,14 @@
 import 'dart:async';
 import 'package:flutter/cupertino.dart';
 import '../../models/branch.dart';
+import '../../models/branch_assignment.dart';
 import '../../models/branch_daily_inventory.dart';
 import '../../models/branch_meat_inventory.dart';
+import '../../models/staff_member.dart';
 import '../../services/assignment_service.dart';
 import '../../services/auth_service.dart';
 import '../../services/firestore_service.dart';
+import '../../services/supabase_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/staff_button.dart';
 import '../../widgets/staff_card.dart';
@@ -116,9 +119,11 @@ class _HomepageScreenState extends State<HomepageScreen> {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  const Text(
-                    'San Francisco, Victoria',
-                    style: TextStyle(
+                  Text(
+                    _inventory.branchName.isNotEmpty
+                        ? _inventory.branchName
+                        : 'San Francisco, Victoria',
+                    style: const TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w700,
                       color: AppColors.textPrimary,
@@ -257,7 +262,7 @@ class _HomepageScreenState extends State<HomepageScreen> {
     branchId: 'br1',
     branchName: 'Brgy. Gatid, Sta. Cruz',
     date: DateTime.now(),
-    allocated: const InventoryCounts(karne: 40, mayo: 40, styro: 40, toyo: 7),
+    allocated: const InventoryCounts(karne: 40, mayo: 40, styro: 40, toyo: 10),
   );
 
   BranchMeatStock? _branchMeatStock;
@@ -273,15 +278,61 @@ class _HomepageScreenState extends State<HomepageScreen> {
   final _b1t1Controller = TextEditingController();
   final _discrepancyController = TextEditingController();
 
-  final List<Map<String, String>> _coworkers = const [
-    {'name': 'Maria Reyes', 'branch': 'Pila'},
-    {'name': 'Pedro Santos', 'branch': 'Labuin'},
-    {'name': 'Liza Gomez', 'branch': 'Dayap, Calauan'},
-  ];
+  List<Map<String, dynamic>> _getCoworkersToday() {
+    final allStaff = SupabaseService.getAllStaff();
+    final branchCooks = allStaff.where((s) => s.position == 'Branch Cook' || s.position == 'Floating Cook').toList();
+
+    final currentUsername = AuthService.currentUsername.trim().toLowerCase();
+    final currentUid = AuthService.currentUserId.trim().toLowerCase();
+    final currentFullName = AuthService.currentUser?.fullName.trim().toLowerCase() ?? '';
+
+    final List<Map<String, dynamic>> list = [];
+
+    for (final s in branchCooks) {
+      final sUsername = s.username.trim().toLowerCase();
+      final sId = s.id.trim().toLowerCase();
+      final sCleanId = sId.replaceAll('-', '');
+
+      // Check real-time work status
+      final status = s.username.isNotEmpty
+          ? AssignmentService.getWorkStatus(s.username,
+              fallback: AssignmentService.getWorkStatus(s.id, fallback: s.isRestDay ? WorkStatus.restDay : WorkStatus.onDuty))
+          : AssignmentService.getWorkStatus(s.id, fallback: s.isRestDay ? WorkStatus.restDay : WorkStatus.onDuty);
+
+      // Only show cooks who are ON DUTY today
+      if (status != WorkStatus.onDuty) continue;
+
+      final branchName = s.username.isNotEmpty
+          ? AssignmentService.getAssignedBranch(s.username,
+              fallback: AssignmentService.getAssignedBranch(s.id, fallback: s.branch))
+          : AssignmentService.getAssignedBranch(s.id, fallback: s.branch);
+
+      final isSelf = (currentUsername.isNotEmpty && sUsername == currentUsername) ||
+          (currentUid.isNotEmpty && (sId == currentUid || sCleanId == currentUid)) ||
+          (currentFullName.isNotEmpty && s.fullName.trim().toLowerCase() == currentFullName);
+
+      list.add({
+        'name': s.fullName,
+        'branch': (branchName.isNotEmpty && branchName != 'N/A') ? branchName : 'Pending Assignment',
+        'isSelf': isSelf,
+        'initials': s.initials,
+      });
+    }
+
+    // Sort: Self first, then alphabetical by branch name
+    list.sort((a, b) {
+      if (a['isSelf'] == true) return -1;
+      if (b['isSelf'] == true) return 1;
+      return (a['branch'] as String).compareTo(b['branch'] as String);
+    });
+
+    return list;
+  }
 
   @override
   void initState() {
     super.initState();
+    AssignmentService.ensureInitialized();
     _setupBranchAndStreams();
     AssignmentService.changeNotifier.addListener(_onAssignmentChanged);
   }
@@ -289,11 +340,31 @@ class _HomepageScreenState extends State<HomepageScreen> {
   void _onAssignmentChanged() {
     if (mounted) {
       _setupBranchAndStreams();
+      setState(() {});
     }
   }
 
   void _setupBranchAndStreams() {
-    final assignedBranchName = AssignmentService.getAssignedBranch(AuthService.currentUsername);
+    final username = AuthService.currentUsername;
+    final currentUid = AuthService.currentUserId;
+
+    var assignedBranchName = AssignmentService.getAssignedBranch(username);
+    if (assignedBranchName.isEmpty && currentUid.isNotEmpty) {
+      assignedBranchName = AssignmentService.getAssignedBranch(currentUid);
+    }
+    if (assignedBranchName.isEmpty) {
+      final allStaff = SupabaseService.getAllStaff();
+      final match = allStaff.firstWhere(
+        (s) => s.username.toLowerCase() == username.toLowerCase() ||
+               s.id == currentUid ||
+               s.id.replaceAll('-', '') == currentUid.replaceAll('-', ''),
+        orElse: () => StaffMember(id: '', firstName: '', lastName: '', username: '', branch: '', position: ''),
+      );
+      if (match.branch.isNotEmpty && match.branch != 'N/A') {
+        assignedBranchName = match.branch;
+      }
+    }
+
     Branch? matchedBranch;
     if (assignedBranchName.isNotEmpty) {
       for (final b in kSampleBranches) {
@@ -322,6 +393,15 @@ class _HomepageScreenState extends State<HomepageScreen> {
       if (mounted && inv != null) {
         setState(() {
           _inventory = inv;
+          if (inv.status != InventoryVerificationStatus.pending && inv.actualReceived != null) {
+            final ar = inv.actualReceived!;
+            _karneController.text = '${ar.regular}';
+            _mediumController.text = '${ar.medium}';
+            _b1t1Controller.text = '${ar.b1t1}';
+            _mayoController.text = '${ar.mayo}';
+            _styroController.text = '${ar.styro}';
+            _toyoController.text = '${ar.toyo}';
+          }
         });
       }
     });
@@ -366,7 +446,7 @@ class _HomepageScreenState extends State<HomepageScreen> {
   bool get _countsMatch {
     if (!_hasEnteredCount) return false;
     final a = _inventory.allocated;
-    final regTarget = _branchMeatStock?.regular250gRemaining ?? a.karne;
+    final regTarget = _branchMeatStock?.regular250gRemaining ?? 20;
     final medTarget = _branchMeatStock?.medium300gRemaining ?? 10;
     final b1t1Target = _branchMeatStock?.b1t1_400gRemaining ?? 10;
 
@@ -591,6 +671,7 @@ class _HomepageScreenState extends State<HomepageScreen> {
     final a = _inventory.allocated;
     final status = _inventory.status;
     final statusColor = _statusColor(status);
+    final isVerified = status != InventoryVerificationStatus.pending;
 
     return CupertinoPageScaffold(
       backgroundColor: AppColors.background,
@@ -634,42 +715,37 @@ class _HomepageScreenState extends State<HomepageScreen> {
             ),
             _weatherWidget(),
             const SizedBox(height: 20),
-            // Branch selector pill
-            GestureDetector(
-              onTap: () {},
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                decoration: BoxDecoration(
-                  color: CupertinoColors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.border),
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppColors.accentDark.withValues(alpha: 0.06),
-                      blurRadius: 10,
-                      offset: const Offset(0, 3),
-                    ),
-                  ],
-                ),
-                child: Row(
-                  children: [
-                    const Icon(CupertinoIcons.location_solid,
-                        size: 18, color: AppColors.accent),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        _inventory.branchName,
-                        style: const TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.textPrimary,
-                        ),
+            // Branch indicator pill
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              decoration: BoxDecoration(
+                color: CupertinoColors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.border),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.accentDark.withValues(alpha: 0.06),
+                    blurRadius: 10,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  const Icon(CupertinoIcons.location_solid,
+                      size: 18, color: AppColors.accent),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      _inventory.branchName,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textPrimary,
                       ),
                     ),
-                    const Icon(CupertinoIcons.chevron_right,
-                        size: 16, color: AppColors.textSecondary),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
             const SizedBox(height: 22),
@@ -689,9 +765,9 @@ class _HomepageScreenState extends State<HomepageScreen> {
             LayoutBuilder(
               builder: (ctx, constraints) {
                 final cardW = (constraints.maxWidth - 12) / 2;
-                final reg = _branchMeatStock?.regular250gRemaining ?? 0;
-                final med = _branchMeatStock?.medium300gRemaining ?? 0;
-                final b1t1 = _branchMeatStock?.b1t1_400gRemaining ?? 0;
+                final reg = _branchMeatStock?.regular250gRemaining ?? 20;
+                final med = _branchMeatStock?.medium300gRemaining ?? 10;
+                final b1t1 = _branchMeatStock?.b1t1_400gRemaining ?? 10;
                 Widget dtile(String label, String value, {bool dark = false}) =>
                     SizedBox(width: cardW, child: StaffDisplayTile(label: label, value: value, dark: dark));
                 return SingleChildScrollView(
@@ -725,11 +801,42 @@ class _HomepageScreenState extends State<HomepageScreen> {
             // Recount — swipeable input grid
             // Page 1: Mayo | Toyo (top) / Styro | — (bottom)
             // Swipe left: Regular | Medium (top) / B1T1 | — (bottom)
-            const StaffSectionHeader(
-              label: 'Verify: Count What You Actually Received',
-              icon: CupertinoIcons.checkmark_seal_fill,
-              subtitle: 'Enter the actual count of items you received',
+            StaffSectionHeader(
+              label: isVerified
+                  ? 'Verified: Actually Received Counts'
+                  : 'Verify: Count What You Actually Received',
+              icon: isVerified
+                  ? CupertinoIcons.lock_shield_fill
+                  : CupertinoIcons.checkmark_seal_fill,
+              subtitle: isVerified
+                  ? 'Nai-record na ang mga bilang para sa araw na ito (Locked)'
+                  : 'Enter the actual count of items you received',
               large: true,
+              trailing: isVerified
+                  ? Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: statusColor.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: statusColor.withValues(alpha: 0.4)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(CupertinoIcons.lock_fill, size: 11, color: statusColor),
+                          const SizedBox(width: 4),
+                          Text(
+                            status.label,
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: statusColor,
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  : null,
             ),
             const SizedBox(height: 14),
             LayoutBuilder(
@@ -737,7 +844,12 @@ class _HomepageScreenState extends State<HomepageScreen> {
                 final cardW = (constraints.maxWidth - 12) / 2;
                 Widget itile(String label, TextEditingController ctrl) => SizedBox(
                   width: cardW,
-                  child: StaffInputTile(label: label, controller: ctrl, onChanged: () => setState(() {})),
+                  child: StaffInputTile(
+                    label: label,
+                    controller: ctrl,
+                    enabled: !isVerified,
+                    onChanged: () => setState(() {}),
+                  ),
                 );
                 return SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
@@ -851,61 +963,183 @@ class _HomepageScreenState extends State<HomepageScreen> {
               ),
             const SizedBox(height: 26),
 
-            // Co-workers
-            const StaffSectionHeader(
-              label: 'Coworkers Today',
-              icon: CupertinoIcons.person_2_fill,
-            ),
-            const SizedBox(height: 10),
-            ..._coworkers.map(
-              (c) => Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: StaffCard(
-                  padding: const EdgeInsets.all(12),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 30,
-                        height: 30,
-                        alignment: Alignment.center,
+            // Co-workers Section
+            Builder(
+              builder: (context) {
+                final coworkers = _getCoworkersToday();
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    StaffSectionHeader(
+                      label: 'Coworkers Today',
+                      icon: CupertinoIcons.person_2_fill,
+                      trailing: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                         decoration: BoxDecoration(
-                          color: AppColors.pastelBrown.withValues(alpha: 0.25),
-                          shape: BoxShape.circle,
+                          color: const Color(0xFF10B981).withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: const Color(0xFFA7F3D0)),
                         ),
-                        child: const Icon(CupertinoIcons.person_fill,
-                            size: 15, color: AppColors.accent),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              width: 6,
+                              height: 6,
+                              decoration: const BoxDecoration(
+                                color: Color(0xFF10B981),
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                            const SizedBox(width: 5),
+                            Text(
+                              '${coworkers.length} On Duty',
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF047857),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          c['name']!,
-                          style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.textPrimary,
+                    ),
+                    const SizedBox(height: 10),
+                    if (coworkers.isEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: StaffCard(
+                          padding: const EdgeInsets.all(16),
+                          child: Center(
+                            child: Text(
+                              'Walang ibang cook na naka-duty ngayon.',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                                color: AppColors.textSecondary.withValues(alpha: 0.8),
+                              ),
+                            ),
                           ),
                         ),
+                      )
+                    else
+                      ...coworkers.map(
+                        (c) {
+                          final isSelf = c['isSelf'] == true;
+                          final branch = c['branch'] as String;
+                          final name = c['name'] as String;
+                          final initials = c['initials'] as String? ?? '?';
+
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 8),
+                            child: StaffCard(
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 34,
+                                    height: 34,
+                                    alignment: Alignment.center,
+                                    decoration: BoxDecoration(
+                                      color: isSelf
+                                          ? const Color(0xFF10B981).withValues(alpha: 0.15)
+                                          : AppColors.pastelBrown.withValues(alpha: 0.25),
+                                      shape: BoxShape.circle,
+                                      border: Border.all(
+                                        color: isSelf
+                                            ? const Color(0xFFA7F3D0)
+                                            : AppColors.pastelBrown.withValues(alpha: 0.4),
+                                      ),
+                                    ),
+                                    child: Text(
+                                      initials,
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w800,
+                                        color: isSelf ? const Color(0xFF047857) : AppColors.accentDark,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Row(
+                                      children: [
+                                        Flexible(
+                                          child: Text(
+                                            name,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: TextStyle(
+                                              fontSize: 14,
+                                              fontWeight: isSelf ? FontWeight.w700 : FontWeight.w600,
+                                              color: AppColors.textPrimary,
+                                            ),
+                                          ),
+                                        ),
+                                        if (isSelf) ...[
+                                          const SizedBox(width: 6),
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                            decoration: BoxDecoration(
+                                              color: const Color(0xFF10B981).withValues(alpha: 0.15),
+                                              borderRadius: BorderRadius.circular(6),
+                                            ),
+                                            child: const Text(
+                                              'IKAW',
+                                              style: TextStyle(
+                                                fontSize: 9.5,
+                                                fontWeight: FontWeight.w800,
+                                                color: Color(0xFF047857),
+                                                letterSpacing: 0.5,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                    decoration: BoxDecoration(
+                                      color: isSelf
+                                          ? const Color(0xFFECFDF5)
+                                          : AppColors.pastelBrown.withValues(alpha: 0.18),
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(
+                                        color: isSelf
+                                            ? const Color(0xFFA7F3D0)
+                                            : CupertinoColors.transparent,
+                                      ),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          CupertinoIcons.location_solid,
+                                          size: 11,
+                                          color: isSelf ? const Color(0xFF047857) : AppColors.accentDark,
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          branch,
+                                          style: TextStyle(
+                                            color: isSelf ? const Color(0xFF047857) : AppColors.accentDark,
+                                            fontSize: 11.5,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
                       ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: AppColors.pastelBrown.withValues(alpha: 0.18),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Text(
-                          c['branch']!,
-                          style: const TextStyle(
-                            color: AppColors.accentDark,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+                  ],
+                );
+              },
             ),
           ],
         ),

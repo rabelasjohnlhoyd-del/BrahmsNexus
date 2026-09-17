@@ -32,7 +32,7 @@ class SalesScreen extends StatefulWidget {
 class _SalesScreenState extends State<SalesScreen> {
   // Default fallback allocation
   static const _defaultAllocated =
-      InventoryCounts(karne: 40, mayo: 40, styro: 40, toyo: 7);
+      InventoryCounts(karne: 40, mayo: 40, styro: 40, toyo: 10);
 
   InventoryCounts _allocated = _defaultAllocated;
   BranchMeatStock? _branchMeatStock;

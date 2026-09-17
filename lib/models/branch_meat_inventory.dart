@@ -21,6 +21,12 @@ class BranchMeatStock {
     this.medium300gRemaining = 10,
     this.b1t1_400gTotal = 10,
     this.b1t1_400gRemaining = 10,
+    this.mayoTotal = 40,
+    this.mayoRemaining = 40,
+    this.styroTotal = 40,
+    this.styroRemaining = 40,
+    this.toyoTotal = 10,
+    this.toyoRemaining = 10,
   });
 
   final String branchId;
@@ -39,11 +45,21 @@ class BranchMeatStock {
   final int b1t1_400gTotal;
   final int b1t1_400gRemaining;
 
+  // Supplies: Mayo, Styro, Toyo
+  final int mayoTotal;
+  final int mayoRemaining;
+
+  final int styroTotal;
+  final int styroRemaining;
+
+  final int toyoTotal;
+  final int toyoRemaining;
+
   int get totalAllocatedPcs => regular250gTotal + medium300gTotal + b1t1_400gTotal;
   int get totalRemainingPcs => regular250gRemaining + medium300gRemaining + b1t1_400gRemaining;
   int get totalUsedPcs => totalAllocatedPcs - totalRemainingPcs;
 
-  /// Flags low stock when remaining is less than 20% of total
+  /// Flags low stock when remaining meat is less than 20% of total
   bool get isRunningLow => totalAllocatedPcs > 0 && (totalRemainingPcs / totalAllocatedPcs) < 0.20;
 
   BranchMeatStock copyWith({
@@ -56,6 +72,12 @@ class BranchMeatStock {
     int? medium300gRemaining,
     int? b1t1_400gTotal,
     int? b1t1_400gRemaining,
+    int? mayoTotal,
+    int? mayoRemaining,
+    int? styroTotal,
+    int? styroRemaining,
+    int? toyoTotal,
+    int? toyoRemaining,
   }) {
     return BranchMeatStock(
       branchId: branchId ?? this.branchId,
@@ -67,6 +89,12 @@ class BranchMeatStock {
       medium300gRemaining: medium300gRemaining ?? this.medium300gRemaining,
       b1t1_400gTotal: b1t1_400gTotal ?? this.b1t1_400gTotal,
       b1t1_400gRemaining: b1t1_400gRemaining ?? this.b1t1_400gRemaining,
+      mayoTotal: mayoTotal ?? this.mayoTotal,
+      mayoRemaining: mayoRemaining ?? this.mayoRemaining,
+      styroTotal: styroTotal ?? this.styroTotal,
+      styroRemaining: styroRemaining ?? this.styroRemaining,
+      toyoTotal: toyoTotal ?? this.toyoTotal,
+      toyoRemaining: toyoRemaining ?? this.toyoRemaining,
     );
   }
 
@@ -81,6 +109,12 @@ class BranchMeatStock {
       'medium300gRemaining': medium300gRemaining,
       'b1t1_400gTotal': b1t1_400gTotal,
       'b1t1_400gRemaining': b1t1_400gRemaining,
+      'mayoTotal': mayoTotal,
+      'mayoRemaining': mayoRemaining,
+      'styroTotal': styroTotal,
+      'styroRemaining': styroRemaining,
+      'toyoTotal': toyoTotal,
+      'toyoRemaining': toyoRemaining,
     };
   }
 
@@ -106,10 +140,22 @@ class BranchMeatStock {
       medium300gRemaining: (map['medium300gRemaining'] as num?)?.toInt() ?? 10,
       b1t1_400gTotal: (map['b1t1_400gTotal'] as num?)?.toInt() ?? 10,
       b1t1_400gRemaining: (map['b1t1_400gRemaining'] as num?)?.toInt() ?? 10,
+      mayoTotal: (map['mayoTotal'] as num?)?.toInt() ?? 40,
+      mayoRemaining: (map['mayoRemaining'] as num?)?.toInt() ?? 40,
+      styroTotal: (map['styroTotal'] as num?)?.toInt() ?? 40,
+      styroRemaining: (map['styroRemaining'] as num?)?.toInt() ?? 40,
+      toyoTotal: (map['toyoTotal'] as num?)?.toInt() ?? 10,
+      toyoRemaining: (map['toyoRemaining'] as num?)?.toInt() ?? 10,
     );
   }
 
-  /// Creates default initial stock for a branch (20 pcs Regular, 10 pcs Medium, 10 pcs B1T1)
+  /// Creates default initial stock for a branch:
+  /// - 250G Regular: 20 pcs
+  /// - 300G Medium: 10 pcs
+  /// - 400G B1T1: 10 pcs
+  /// - Mayo: 40
+  /// - Styro: 40
+  /// - Toyo: 10
   factory BranchMeatStock.defaultForBranch(Branch branch) {
     return BranchMeatStock(
       branchId: branch.id,
@@ -121,6 +167,12 @@ class BranchMeatStock {
       medium300gRemaining: 10,
       b1t1_400gTotal: 10,
       b1t1_400gRemaining: 10,
+      mayoTotal: 40,
+      mayoRemaining: 40,
+      styroTotal: 40,
+      styroRemaining: 40,
+      toyoTotal: 10,
+      toyoRemaining: 10,
     );
   }
 }

@@ -143,7 +143,7 @@ final List<String> kPositionOptions = [
 /// Shared official staff directory with client's actual personnel
 final List<StaffMember> kSampleStaff = [
   StaffMember(
-    id: 'emp-1',
+    id: 'emp1',
     firstName: 'Leany',
     middleName: 'Hernandez',
     lastName: 'Malla',
@@ -154,7 +154,7 @@ final List<StaffMember> kSampleStaff = [
     address: 'San Francisco, Victoria, Laguna',
   ),
   StaffMember(
-    id: 'emp-2',
+    id: 'emp2',
     firstName: 'Jobelle',
     middleName: 'T',
     lastName: 'Fuentes',
@@ -165,7 +165,7 @@ final List<StaffMember> kSampleStaff = [
     address: 'Linga, Pila, Laguna',
   ),
   StaffMember(
-    id: 'emp-3',
+    id: 'emp3',
     firstName: 'Virgenita',
     lastName: 'Espiritu',
     username: 'virgenita_espiritu',
@@ -175,7 +175,7 @@ final List<StaffMember> kSampleStaff = [
     address: 'San Roque, Victoria, Laguna',
   ),
   StaffMember(
-    id: 'emp-4',
+    id: 'emp4',
     firstName: 'Jovelle',
     middleName: 'P',
     lastName: 'Camila',
@@ -186,7 +186,7 @@ final List<StaffMember> kSampleStaff = [
     address: 'Gatid, Sta. Cruz, Laguna',
   ),
   StaffMember(
-    id: 'emp-5',
+    id: 'emp5',
     firstName: 'Patricia Mharie',
     middleName: 'M',
     lastName: 'Espiritu',
@@ -197,7 +197,7 @@ final List<StaffMember> kSampleStaff = [
     address: 'San Francisco, Victoria, Laguna',
   ),
   StaffMember(
-    id: 'emp-6',
+    id: 'emp6',
     firstName: 'Alma',
     middleName: 'D',
     lastName: 'Agonos',
@@ -208,7 +208,7 @@ final List<StaffMember> kSampleStaff = [
     address: 'San Roque, Victoria, Laguna',
   ),
   StaffMember(
-    id: 'emp-7',
+    id: 'emp7',
     firstName: 'Menes',
     lastName: 'Bantug',
     username: 'menes_cook',
@@ -218,7 +218,7 @@ final List<StaffMember> kSampleStaff = [
     address: 'Production Area',
   ),
   StaffMember(
-    id: 'emp-8',
+    id: 'emp8',
     firstName: 'Abby',
     lastName: 'Torres',
     username: 'abby_cutter',
@@ -228,7 +228,7 @@ final List<StaffMember> kSampleStaff = [
     address: 'Production Area',
   ),
   StaffMember(
-    id: 'emp-9',
+    id: 'emp9',
     firstName: 'Danilo',
     lastName: 'Ramos',
     username: 'danilo_driver',
@@ -238,7 +238,7 @@ final List<StaffMember> kSampleStaff = [
     address: 'Logistics / Delivery',
   ),
   StaffMember(
-    id: 'emp-10',
+    id: 'emp10',
     firstName: 'Extra Cook 1',
     lastName: '(Floating)',
     username: 'floating_cook_1',
@@ -248,7 +248,7 @@ final List<StaffMember> kSampleStaff = [
     address: 'Laguna',
   ),
   StaffMember(
-    id: 'emp-11',
+    id: 'emp11',
     firstName: 'Extra Cook 2',
     lastName: '(Floating)',
     username: 'floating_cook_2',
@@ -258,7 +258,7 @@ final List<StaffMember> kSampleStaff = [
     address: 'Laguna',
   ),
   StaffMember(
-    id: 'emp-12',
+    id: 'emp12',
     firstName: 'Extra Cook 3',
     lastName: '(Floating)',
     username: 'floating_cook_3',

@@ -231,10 +231,14 @@ class NotificationService {
   static Future<void> notifyDriverOfDeliveryTask({
     required String branchName,
     required double quantityKg,
+    String? itemsSummary,
   }) async {
+    final desc = itemsSummary != null && itemsSummary.isNotEmpty
+        ? itemsSummary
+        : '${quantityKg.toStringAsFixed(1)} kg Karne';
     await sendNotification(
       title: 'New Delivery Task',
-      message: 'Dispatch order assigned: $quantityKg kg Karne to $branchName.',
+      message: 'Dispatch order assigned: $desc to $branchName.',
       type: NotificationType.deliveryTask,
       targetRole: 'driver',
       route: 'deliveries',

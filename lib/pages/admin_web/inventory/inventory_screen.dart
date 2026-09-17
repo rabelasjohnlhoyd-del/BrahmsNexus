@@ -278,103 +278,173 @@ class _InventoryScreenState extends State<InventoryScreen>
   }
 
   Widget _buildBranchStockTab() {
-    return ListView.separated(
-      itemCount: _branchMeatStocks.length,
-      separatorBuilder: (_, _) => const SizedBox(height: 12),
-      itemBuilder: (context, index) {
-        final s = _branchMeatStocks[index];
-        return GlassCard(
+    return Column(
+      children: [
+        // Informational header banner explaining automated allocation
+        GlassCard(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          child: Row(
             children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  CircleAvatar(
-                    backgroundColor: (s.isRunningLow
-                            ? AdminWebColors.error
-                            : AdminWebColors.accent)
-                        .withValues(alpha: 0.1),
-                    child: Icon(
-                      Icons.store_rounded,
-                      color: s.isRunningLow
-                          ? AdminWebColors.error
-                          : AdminWebColors.accent,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          s.branchName,
-                          style: const TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                        const SizedBox(height: 4),
-                        Row(
-                          children: [
-                            Text(
-                              '${s.totalRemainingPcs} / ${s.totalAllocatedPcs} PCS',
-                              style: const TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w800,
-                                color: AdminWebColors.accent,
-                              ),
-                            ),
-                            const SizedBox(width: 6),
-                            const Text(
-                              '(Natitira / Total)',
-                              style: TextStyle(fontSize: 11, color: AdminWebColors.textSecondary),
-                            ),
-                            if (s.isRunningLow) ...[
-                              const SizedBox(width: 8),
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                                decoration: BoxDecoration(
-                                  color: AdminWebColors.error.withValues(alpha: 0.1),
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                                child: const Text(
-                                  'LOW STOCK',
-                                  style: TextStyle(
-                                    fontSize: 9,
-                                    fontWeight: FontWeight.w900,
-                                    color: AdminWebColors.error,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                  TextButton.icon(
-                    onPressed: () => _adjustBranchAllocation(index),
-                    icon: const Icon(Icons.tune_rounded, size: 18),
-                    label: const Text('ADJUST'),
-                    style: TextButton.styleFrom(foregroundColor: AdminWebColors.accent),
-                  ),
-                ],
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AdminWebColors.accent.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.autorenew_rounded, color: AdminWebColors.accent, size: 20),
               ),
-              const SizedBox(height: 10),
-              const Divider(height: 1),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Expanded(child: _meatVariantChip('250g Regular', '${s.regular250gRemaining} / ${s.regular250gTotal} pcs')),
-                  const SizedBox(width: 6),
-                  Expanded(child: _meatVariantChip('300g Medium', '${s.medium300gRemaining} / ${s.medium300gTotal} pcs')),
-                  const SizedBox(width: 6),
-                  Expanded(child: _meatVariantChip('400g B1T1', '${s.b1t1_400gRemaining} / ${s.b1t1_400gTotal} pcs')),
-                ],
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'AUTOMATED BRANCH ALLOCATION',
+                      style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12, color: AdminWebColors.textPrimary),
+                    ),
+                    SizedBox(height: 2),
+                    Text(
+                      'Base: 250G Reg (20) · 300G Med (10) · B1T1 (10) · Mayo (40) · Styro (40) · Toyo (10). Automatic na nagre-reset tuwing 12:00 AM · Nadaragdagan kapag nag-deliver si Driver.',
+                      style: TextStyle(fontSize: 11, color: AdminWebColors.textSecondary),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
-        );
-      },
+        ),
+        const SizedBox(height: 12),
+        Expanded(
+          child: ListView.separated(
+            itemCount: _branchMeatStocks.length,
+            separatorBuilder: (_, _) => const SizedBox(height: 12),
+            itemBuilder: (context, index) {
+              final s = _branchMeatStocks[index];
+              return GlassCard(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        CircleAvatar(
+                          backgroundColor: (s.isRunningLow
+                                  ? AdminWebColors.error
+                                  : AdminWebColors.accent)
+                              .withValues(alpha: 0.1),
+                          child: Icon(
+                            Icons.store_rounded,
+                            color: s.isRunningLow
+                                ? AdminWebColors.error
+                                : AdminWebColors.accent,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                s.branchName,
+                                style: const TextStyle(fontWeight: FontWeight.bold),
+                              ),
+                              const SizedBox(height: 4),
+                              Row(
+                                children: [
+                                  Text(
+                                    '${s.totalRemainingPcs} / ${s.totalAllocatedPcs} MEAT PCS',
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w800,
+                                      color: AdminWebColors.accent,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  const Text(
+                                    '(Natitira / Total)',
+                                    style: TextStyle(fontSize: 11, color: AdminWebColors.textSecondary),
+                                  ),
+                                  if (s.isRunningLow) ...[
+                                    const SizedBox(width: 8),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                                      decoration: BoxDecoration(
+                                        color: AdminWebColors.error.withValues(alpha: 0.1),
+                                        borderRadius: BorderRadius.circular(4),
+                                      ),
+                                      child: const Text(
+                                        'LOW STOCK',
+                                        style: TextStyle(
+                                          fontSize: 9,
+                                          fontWeight: FontWeight.w900,
+                                          color: AdminWebColors.error,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: AdminWebColors.accent.withValues(alpha: 0.08),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: AdminWebColors.accent.withValues(alpha: 0.2)),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.bolt_rounded, size: 12, color: AdminWebColors.accent),
+                              SizedBox(width: 4),
+                              Text(
+                                'AUTO-SYNC',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w800,
+                                  color: AdminWebColors.accent,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    const Divider(height: 1),
+                    const SizedBox(height: 8),
+                    // Row 1: Meat portions (250g Regular, 300g Medium, 400g B1T1)
+                    Row(
+                      children: [
+                        Expanded(child: _meatVariantChip('250g Regular', '${s.regular250gRemaining} / ${s.regular250gTotal} pcs')),
+                        const SizedBox(width: 6),
+                        Expanded(child: _meatVariantChip('300g Medium', '${s.medium300gRemaining} / ${s.medium300gTotal} pcs')),
+                        const SizedBox(width: 6),
+                        Expanded(child: _meatVariantChip('400g B1T1', '${s.b1t1_400gRemaining} / ${s.b1t1_400gTotal} pcs')),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    // Row 2: Supplies (Mayo, Styro, Toyo)
+                    Row(
+                      children: [
+                        Expanded(child: _meatVariantChip('Mayo', '${s.mayoRemaining} / ${s.mayoTotal} pcs')),
+                        const SizedBox(width: 6),
+                        Expanded(child: _meatVariantChip('Styro Box', '${s.styroRemaining} / ${s.styroTotal} pcs')),
+                        const SizedBox(width: 6),
+                        Expanded(child: _meatVariantChip('Toyo', '${s.toyoRemaining} / ${s.toyoTotal} pcs')),
+                      ],
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 
@@ -389,86 +459,26 @@ class _InventoryScreenState extends State<InventoryScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AdminWebColors.textSecondary)),
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+              color: AdminWebColors.textSecondary,
+            ),
+          ),
           const SizedBox(height: 2),
-          Text(value, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: AdminWebColors.textPrimary)),
-        ],
-      ),
-    );
-  }
-
-  void _adjustBranchAllocation(int index) {
-    final stock = _branchMeatStocks[index];
-    final regTotalCtrl = TextEditingController(text: stock.regular250gTotal.toString());
-    final regRemCtrl = TextEditingController(text: stock.regular250gRemaining.toString());
-    final medTotalCtrl = TextEditingController(text: stock.medium300gTotal.toString());
-    final medRemCtrl = TextEditingController(text: stock.medium300gRemaining.toString());
-    final b1t1TotalCtrl = TextEditingController(text: stock.b1t1_400gTotal.toString());
-    final b1t1RemCtrl = TextEditingController(text: stock.b1t1_400gRemaining.toString());
-
-    void disposeControllers() {
-      regTotalCtrl.dispose(); regRemCtrl.dispose();
-      medTotalCtrl.dispose(); medRemCtrl.dispose();
-      b1t1TotalCtrl.dispose(); b1t1RemCtrl.dispose();
-    }
-
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text('Adjust: ${stock.branchName}', style: const TextStyle(fontSize: 14)),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('250g Regular', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-              const SizedBox(height: 6),
-              Row(children: [
-                Expanded(child: TextField(controller: regTotalCtrl, decoration: const InputDecoration(labelText: 'Total Pcs'), keyboardType: TextInputType.number)),
-                const SizedBox(width: 12),
-                Expanded(child: TextField(controller: regRemCtrl, decoration: const InputDecoration(labelText: 'Natitira'), keyboardType: TextInputType.number)),
-              ]),
-              const SizedBox(height: 14),
-              const Text('300g Medium', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-              const SizedBox(height: 6),
-              Row(children: [
-                Expanded(child: TextField(controller: medTotalCtrl, decoration: const InputDecoration(labelText: 'Total Pcs'), keyboardType: TextInputType.number)),
-                const SizedBox(width: 12),
-                Expanded(child: TextField(controller: medRemCtrl, decoration: const InputDecoration(labelText: 'Natitira'), keyboardType: TextInputType.number)),
-              ]),
-              const SizedBox(height: 14),
-              const Text('400g B1T1', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-              const SizedBox(height: 6),
-              Row(children: [
-                Expanded(child: TextField(controller: b1t1TotalCtrl, decoration: const InputDecoration(labelText: 'Total Pcs'), keyboardType: TextInputType.number)),
-                const SizedBox(width: 12),
-                Expanded(child: TextField(controller: b1t1RemCtrl, decoration: const InputDecoration(labelText: 'Natitira'), keyboardType: TextInputType.number)),
-              ]),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () { disposeControllers(); Navigator.pop(ctx); },
-            child: const Text('CANCEL'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              final updated = stock.copyWith(
-                regular250gTotal: int.tryParse(regTotalCtrl.text) ?? stock.regular250gTotal,
-                regular250gRemaining: int.tryParse(regRemCtrl.text) ?? stock.regular250gRemaining,
-                medium300gTotal: int.tryParse(medTotalCtrl.text) ?? stock.medium300gTotal,
-                medium300gRemaining: int.tryParse(medRemCtrl.text) ?? stock.medium300gRemaining,
-                b1t1_400gTotal: int.tryParse(b1t1TotalCtrl.text) ?? stock.b1t1_400gTotal,
-                b1t1_400gRemaining: int.tryParse(b1t1RemCtrl.text) ?? stock.b1t1_400gRemaining,
-                date: DateTime.now(),
-              );
-              await FirestoreService.saveBranchMeatStock(updated);
-              disposeControllers();
-              if (ctx.mounted) Navigator.pop(ctx);
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: AdminWebColors.accent, foregroundColor: Colors.white),
-            child: const Text('SAVE'),
+          Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+              color: AdminWebColors.textPrimary,
+            ),
           ),
         ],
       ),

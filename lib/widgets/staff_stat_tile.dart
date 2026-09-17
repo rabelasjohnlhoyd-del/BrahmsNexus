@@ -141,11 +141,13 @@ class StaffInputTile extends StatefulWidget {
     required this.label,
     required this.controller,
     required this.onChanged,
+    this.enabled = true,
   });
 
   final String label;
   final TextEditingController controller;
   final VoidCallback onChanged;
+  final bool enabled;
 
   @override
   State<StaffInputTile> createState() => _StaffInputTileState();
@@ -153,6 +155,7 @@ class StaffInputTile extends StatefulWidget {
 
 class _StaffInputTileState extends State<StaffInputTile> {
   void _step(int delta) {
+    if (!widget.enabled) return;
     final current = int.tryParse(widget.controller.text) ?? 0;
     final next = (current + delta).clamp(0, 999999);
     setState(() {
@@ -163,16 +166,24 @@ class _StaffInputTileState extends State<StaffInputTile> {
 
   Widget _stepperButton(IconData icon, VoidCallback onTap) {
     return GestureDetector(
-      onTap: onTap,
+      onTap: widget.enabled ? onTap : null,
       child: Container(
         width: 22,
         height: 18,
         alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: AppColors.background,
+          color: widget.enabled
+              ? AppColors.background
+              : AppColors.background.withValues(alpha: 0.35),
           borderRadius: BorderRadius.circular(5),
         ),
-        child: Icon(icon, size: 12, color: AppColors.accent),
+        child: Icon(
+          icon,
+          size: 12,
+          color: widget.enabled
+              ? AppColors.accent
+              : AppColors.textSecondary.withValues(alpha: 0.35),
+        ),
       ),
     );
   }
@@ -183,19 +194,23 @@ class _StaffInputTileState extends State<StaffInputTile> {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: CupertinoColors.white,
+        color: widget.enabled ? CupertinoColors.white : const Color(0xFFF9FAFB),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: hasValue ? AppColors.accent.withValues(alpha: 0.5) : AppColors.border,
-          width: hasValue ? 1.3 : 1,
+          color: !widget.enabled
+              ? AppColors.border.withValues(alpha: 0.6)
+              : (hasValue ? AppColors.accent.withValues(alpha: 0.5) : AppColors.border),
+          width: hasValue && widget.enabled ? 1.3 : 1,
         ),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.accentDark.withValues(alpha: 0.06),
-            blurRadius: 10,
-            offset: const Offset(0, 3),
-          ),
-        ],
+        boxShadow: widget.enabled
+            ? [
+                BoxShadow(
+                  color: AppColors.accentDark.withValues(alpha: 0.06),
+                  blurRadius: 10,
+                  offset: const Offset(0, 3),
+                ),
+              ]
+            : null,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -207,25 +222,31 @@ class _StaffInputTileState extends State<StaffInputTile> {
               Expanded(
                 child: CupertinoTextField(
                   controller: widget.controller,
+                  enabled: widget.enabled,
+                  readOnly: !widget.enabled,
                   keyboardType: TextInputType.number,
                   placeholder: '0',
                   textAlign: TextAlign.center,
                   padding: const EdgeInsets.symmetric(vertical: 11),
                   decoration: BoxDecoration(
-                    color: hasValue
-                        ? AppColors.accent.withValues(alpha: 0.08)
-                        : AppColors.background.withValues(alpha: 0.6),
+                    color: !widget.enabled
+                        ? const Color(0xFFEEEEEE)
+                        : (hasValue
+                            ? AppColors.accent.withValues(alpha: 0.08)
+                            : AppColors.background.withValues(alpha: 0.6)),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.w700,
-                    color: AppColors.textPrimary,
+                    color: widget.enabled ? AppColors.textPrimary : AppColors.textSecondary,
                   ),
-                  onChanged: (_) {
-                    setState(() {});
-                    widget.onChanged();
-                  },
+                  onChanged: widget.enabled
+                      ? (_) {
+                          setState(() {});
+                          widget.onChanged();
+                        }
+                      : null,
                 ),
               ),
               const SizedBox(width: 6),

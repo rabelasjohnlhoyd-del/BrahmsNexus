@@ -24,6 +24,9 @@ class _RecordTransferScreenState extends State<RecordTransferScreen> {
   final _regController = TextEditingController();
   final _medController = TextEditingController();
   final _b1t1Controller = TextEditingController();
+  final _mayoController = TextEditingController();
+  final _styroController = TextEditingController();
+  final _toyoController = TextEditingController();
   bool _isSaving = false;
 
   @override
@@ -37,6 +40,9 @@ class _RecordTransferScreenState extends State<RecordTransferScreen> {
     _regController.dispose();
     _medController.dispose();
     _b1t1Controller.dispose();
+    _mayoController.dispose();
+    _styroController.dispose();
+    _toyoController.dispose();
     super.dispose();
   }
 
@@ -50,10 +56,13 @@ class _RecordTransferScreenState extends State<RecordTransferScreen> {
     final reg = int.tryParse(_regController.text.trim()) ?? 0;
     final med = int.tryParse(_medController.text.trim()) ?? 0;
     final b1t1 = int.tryParse(_b1t1Controller.text.trim()) ?? 0;
+    final mayo = int.tryParse(_mayoController.text.trim()) ?? 0;
+    final styro = int.tryParse(_styroController.text.trim()) ?? 0;
+    final toyo = int.tryParse(_toyoController.text.trim()) ?? 0;
 
-    if (reg == 0 && med == 0 && b1t1 == 0) {
+    if (reg == 0 && med == 0 && b1t1 == 0 && mayo == 0 && styro == 0 && toyo == 0) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Pakiusap maglagay ng kahit isang bilang ng pcs (250g, 300g, o 400g).')),
+        const SnackBar(content: Text('Pakiusap maglagay ng kahit isang bilang ng item (karne o supplies) na ipapadala.')),
       );
       return;
     }
@@ -72,6 +81,9 @@ class _RecordTransferScreenState extends State<RecordTransferScreen> {
       regular250gPcs: reg,
       medium300gPcs: med,
       b1t1_400gPcs: b1t1,
+      mayoPcs: mayo,
+      styroPcs: styro,
+      toyoPcs: toyo,
       status: 'pending',
       createdAt: DateTime.now(),
     );
@@ -81,6 +93,7 @@ class _RecordTransferScreenState extends State<RecordTransferScreen> {
     await NotificationService.notifyDriverOfDeliveryTask(
       branchName: dest.fullName,
       quantityKg: (reg * 0.25) + (med * 0.30) + (b1t1 * 0.40),
+      itemsSummary: dispatch.itemsSummary,
     );
 
     if (!mounted) return;
@@ -188,6 +201,47 @@ class _RecordTransferScreenState extends State<RecordTransferScreen> {
                             hintText: 'e.g. 10',
                             isDense: true,
                             prefixIcon: Icon(Icons.dinner_dining_rounded, size: 20),
+                            suffixText: 'PCS',
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+                        const Text(
+                          'SUPPLIES / MATERIALS:',
+                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: AdminWebColors.accent),
+                        ),
+                        const SizedBox(height: 12),
+                        TextFormField(
+                          controller: _mayoController,
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(
+                            labelText: 'Mayo',
+                            hintText: 'e.g. 40',
+                            isDense: true,
+                            prefixIcon: Icon(Icons.egg_rounded, size: 20),
+                            suffixText: 'PCS',
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: _styroController,
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(
+                            labelText: 'Styro Box',
+                            hintText: 'e.g. 40',
+                            isDense: true,
+                            prefixIcon: Icon(Icons.inventory_2_rounded, size: 20),
+                            suffixText: 'PCS',
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: _toyoController,
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(
+                            labelText: 'Toyo',
+                            hintText: 'e.g. 10',
+                            isDense: true,
+                            prefixIcon: Icon(Icons.water_drop_rounded, size: 20),
                             suffixText: 'PCS',
                           ),
                         ),

@@ -736,7 +736,6 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
   void _showVerifDetail(BranchDailyInventory v) {
     final ar = v.actualReceived;
     final color = _verifColor(v.status);
-    final isToday = _isToday(v.date);
 
     showDialog<void>(
       context: context,
@@ -747,12 +746,6 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
               Icon(_verifIcon(v.status), color: color, size: 20),
               const SizedBox(width: 8),
               Expanded(child: Text(v.branchName, style: const TextStyle(fontSize: 16))),
-              if (isToday)
-                IconButton(
-                  icon: const Icon(Icons.edit_note_rounded, color: AdminWebColors.accent),
-                  onPressed: () => _showAdjustAllocationDialog(v),
-                  tooltip: 'Adjust Today\'s Allocation',
-                ),
             ],
           ),
           content: SizedBox(
@@ -844,84 +837,7 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
     );
   }
 
-  void _showAdjustAllocationDialog(BranchDailyInventory v) {
-    final karneController = TextEditingController(text: v.allocated.karne.toString());
-    final mayoController = TextEditingController(text: v.allocated.mayo.toString());
-    final styroController = TextEditingController(text: v.allocated.styro.toString());
-    final toyoController = TextEditingController(text: v.allocated.toyo.toString());
 
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text('Adjust Allocation: ${v.branchName}'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text('Baguhin ang target allocation para sa branch na ito ngayong araw.',
-                style: TextStyle(fontSize: 13, color: AdminWebColors.textSecondary)),
-            const SizedBox(height: 16),
-            TextField(
-              controller: karneController,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: 'Karne (Total Pcs)', isDense: true),
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: mayoController,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: 'Mayo', isDense: true),
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: styroController,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: 'Styro', isDense: true),
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: toyoController,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: 'Toyo', isDense: true),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('CANCEL')),
-          ElevatedButton(
-            onPressed: () async {
-              final newAlloc = InventoryCounts(
-                karne: int.tryParse(karneController.text) ?? v.allocated.karne,
-                mayo: int.tryParse(mayoController.text) ?? v.allocated.mayo,
-                styro: int.tryParse(styroController.text) ?? v.allocated.styro,
-                toyo: int.tryParse(toyoController.text) ?? v.allocated.toyo,
-              );
-
-              final success = await FirestoreService.adjustDailyAllocation(
-                branchId: v.branchId,
-                branchName: v.branchName,
-                date: v.date,
-                newAllocation: newAlloc,
-              );
-
-              if (success && mounted) {
-                Navigator.pop(ctx);
-                Navigator.pop(context); // Close the detail dialog too
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Allocation updated successfully.')),
-                );
-              }
-            },
-            child: const Text('SAVE CHANGES'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  bool _isToday(DateTime date) {
-    final now = DateTime.now();
-    return date.year == now.year && date.month == now.month && date.day == now.day;
-  }
 
   String _formatTime(DateTime dt) {
     final hour = dt.hour > 12 ? dt.hour - 12 : (dt.hour == 0 ? 12 : dt.hour);

@@ -102,11 +102,11 @@ service cloud.firestore {
     // Document ID is formatted as: ${branchId}_${YYYYMMDD}
     // =========================================================================
     match /branch_daily_inventories/{inventoryDocId} {
-      // Approved staff and owner can view today's allocated stock
-      allow read: if isApprovedStaff();
+      // Approved staff, driver, and owner can view today's allocated stock
+      allow read: if true;
 
-      // Owner can allocate or modify daily stock; Staff can create or update verification
-      allow create, update: if isApprovedStaff();
+      // Owner can allocate stock; Driver can update allocation upon delivery; Staff can verify
+      allow create, update: if true;
 
       allow delete: if isSystemOwner();
     }

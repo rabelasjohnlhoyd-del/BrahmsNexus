@@ -209,24 +209,41 @@ class _StockTransferScreenState extends State<StockTransferScreen> {
             const SizedBox(height: 12),
 
             // Meat variant breakdown
-            _buildVariantRow('250g Regular', dispatch.regular250gPcs),
-            if (dispatch.medium300gPcs > 0) ...[
+            if (dispatch.regular250gPcs > 0) ...[
+              _buildVariantRow('250g Regular', dispatch.regular250gPcs),
               const SizedBox(height: 6),
+            ],
+            if (dispatch.medium300gPcs > 0) ...[
               _buildVariantRow('300g Medium', dispatch.medium300gPcs),
+              const SizedBox(height: 6),
             ],
             if (dispatch.b1t1_400gPcs > 0) ...[
-              const SizedBox(height: 6),
               _buildVariantRow('400g B1T1', dispatch.b1t1_400gPcs),
+              const SizedBox(height: 6),
             ],
 
-            const SizedBox(height: 10),
+            // Supplies breakdown
+            if (dispatch.mayoPcs > 0) ...[
+              _buildVariantRow('Mayo', dispatch.mayoPcs),
+              const SizedBox(height: 6),
+            ],
+            if (dispatch.styroPcs > 0) ...[
+              _buildVariantRow('Styro', dispatch.styroPcs),
+              const SizedBox(height: 6),
+            ],
+            if (dispatch.toyoPcs > 0) ...[
+              _buildVariantRow('Toyo', dispatch.toyoPcs),
+              const SizedBox(height: 6),
+            ],
+
+            const SizedBox(height: 6),
 
             // Total + status
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  'Total: ${dispatch.totalPcs} pcs',
+                  'Meat Total: ${dispatch.totalPcs} pcs',
                   style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13, color: AppColors.accent),
                 ),
                 Container(

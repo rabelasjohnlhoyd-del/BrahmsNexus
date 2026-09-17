@@ -266,7 +266,7 @@ class FirestoreService {
                 branchId: branch.id,
                 branchName: branch.fullName,
                 date: date,
-                allocated: const InventoryCounts(karne: 40, mayo: 40, styro: 40, toyo: 7),
+                allocated: const InventoryCounts(karne: 40, mayo: 40, styro: 40, toyo: 10),
                 status: InventoryVerificationStatus.pending,
               );
         }).toList();
@@ -1018,17 +1018,55 @@ class FirestoreService {
       .map((b) => BranchMeatStock.defaultForBranch(b))
       .toList();
 
+  static Timer? _midnightTimer;
+
+  /// Schedules an automatic reset to standard baseline for all branches when 12:00 AM hits.
+  static void scheduleMidnightAutoReset() {
+    _midnightTimer?.cancel();
+    final now = DateTime.now();
+    // Next midnight: 12:00:01 AM tomorrow
+    final tomorrowMidnight = DateTime(now.year, now.month, now.day + 1, 0, 0, 1);
+    final delay = tomorrowMidnight.difference(now);
+    debugPrint('FirestoreService: Midnight auto-reset scheduled in ${delay.inHours}h ${delay.inMinutes % 60}m.');
+    _midnightTimer = Timer(delay, () async {
+      debugPrint('FirestoreService: 12:00 AM hit! Automatically resetting all branch allocations to standard.');
+      await resetAllBranchMeatStocksToStandard();
+      scheduleMidnightAutoReset(); // Schedule next day's midnight
+    });
+  }
+
   /// Streams real-time branch meat stocks for all 6 branches.
-  /// Automatically falls back to standard 6-branch defaults if collection is loading.
+  /// Automatically resets to standard baseline when a new day arrives or at 12:00 AM.
   static Stream<List<BranchMeatStock>> watchBranchMeatStocks() {
+    scheduleMidnightAutoReset();
     return _db.collection('branch_meat_stocks').snapshots().map((snapshot) {
       if (snapshot.docs.isEmpty) {
         return _defaultBranchMeatStocks;
       }
+      final now = DateTime.now();
       final map = <String, BranchMeatStock>{};
+      bool dayChanged = false;
+
       for (final doc in snapshot.docs) {
         final stock = BranchMeatStock.fromMap(doc.data(), id: doc.id);
-        map[stock.branchId] = stock;
+        final isToday = stock.date.year == now.year &&
+            stock.date.month == now.month &&
+            stock.date.day == now.day;
+        if (!isToday) {
+          dayChanged = true;
+          final b = kSampleBranches.firstWhere(
+            (item) => item.id == stock.branchId,
+            orElse: () => kSampleBranches.first,
+          );
+          map[stock.branchId] = BranchMeatStock.defaultForBranch(b);
+        } else {
+          map[stock.branchId] = stock;
+        }
+      }
+
+      if (dayChanged) {
+        // Auto-commit today's reset stock to Firestore in background
+        resetAllBranchMeatStocksToStandard();
       }
 
       // Ensure all 6 branches are always present in the returned list
@@ -1038,22 +1076,31 @@ class FirestoreService {
     });
   }
 
-  /// Seeds default meat inventory for all 6 branches if not yet present in Firestore.
+  /// Seeds default meat inventory for all 6 branches if not yet present in Firestore,
+  /// or resets them if the saved stock is from a previous day.
   static Future<void> seedDefaultBranchMeatStocksIfEmpty() async {
     try {
-      final snapshot = await _db.collection('branch_meat_stocks').limit(1).get();
+      final now = DateTime.now();
+      final snapshot = await _db.collection('branch_meat_stocks').get();
       if (snapshot.docs.isEmpty) {
-        final batch = _db.batch();
-        for (final b in kSampleBranches) {
-          final stock = BranchMeatStock.defaultForBranch(b);
-          final docRef = _db.collection('branch_meat_stocks').doc(b.id);
-          batch.set(docRef, {
-            ...stock.toMap(),
-            'updatedAt': FieldValue.serverTimestamp(),
-          });
-        }
-        await batch.commit();
+        await resetAllBranchMeatStocksToStandard();
         debugPrint('FirestoreService: Default branch meat stocks seeded.');
+        return;
+      }
+
+      // Check if any existing stock is from a previous day
+      bool hasOutdatedDate = false;
+      for (final doc in snapshot.docs) {
+        final stock = BranchMeatStock.fromMap(doc.data(), id: doc.id);
+        if (stock.date.year != now.year || stock.date.month != now.month || stock.date.day != now.day) {
+          hasOutdatedDate = true;
+          break;
+        }
+      }
+
+      if (hasOutdatedDate) {
+        debugPrint('FirestoreService: Outdated branch stock detected. Auto-resetting to today\'s standard.');
+        await resetAllBranchMeatStocksToStandard();
       }
     } catch (e) {
       debugPrint('FirestoreService.seedDefaultBranchMeatStocksIfEmpty error: $e');
@@ -1097,6 +1144,9 @@ class FirestoreService {
         'regular250gPcs': dispatch.regular250gPcs,
         'medium300gPcs': dispatch.medium300gPcs,
         'b1t1_400gPcs': dispatch.b1t1_400gPcs,
+        'mayoPcs': dispatch.mayoPcs,
+        'styroPcs': dispatch.styroPcs,
+        'toyoPcs': dispatch.toyoPcs,
         'status': 'pending',
         'createdAt': dispatch.createdAt.toIso8601String(),
         'deliveredAt': null,
@@ -1107,6 +1157,35 @@ class FirestoreService {
     } catch (e) {
       debugPrint('FirestoreService.createMeatDispatch error: $e');
       return null;
+    }
+  }
+
+  /// Marks a meat dispatch as delivered by the Driver.
+  /// Automatically increases the destination branch's stock (both total and remaining)
+  /// Resets all 6 branches to the fixed standard allocation:
+  /// - 250G Regular: 20 pcs
+  /// - 300G Medium: 10 pcs
+  /// - 400G B1T1: 10 pcs
+  /// - Mayo: 40 pcs
+  /// - Styro: 40 pcs
+  /// - Toyo: 10 pcs
+  static Future<bool> resetAllBranchMeatStocksToStandard() async {
+    try {
+      final batch = _db.batch();
+      for (final b in kSampleBranches) {
+        final stock = BranchMeatStock.defaultForBranch(b);
+        final docRef = _db.collection('branch_meat_stocks').doc(b.id);
+        batch.set(docRef, {
+          ...stock.toMap(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      }
+      await batch.commit();
+      debugPrint('FirestoreService: All branch meat stocks reset to standard.');
+      return true;
+    } catch (e) {
+      debugPrint('FirestoreService.resetAllBranchMeatStocksToStandard error: $e');
+      return false;
     }
   }
 
@@ -1150,6 +1229,12 @@ class FirestoreService {
         medium300gRemaining: currentStock.medium300gRemaining + dispatch.medium300gPcs,
         b1t1_400gTotal: currentStock.b1t1_400gTotal + dispatch.b1t1_400gPcs,
         b1t1_400gRemaining: currentStock.b1t1_400gRemaining + dispatch.b1t1_400gPcs,
+        mayoTotal: currentStock.mayoTotal + dispatch.mayoPcs,
+        mayoRemaining: currentStock.mayoRemaining + dispatch.mayoPcs,
+        styroTotal: currentStock.styroTotal + dispatch.styroPcs,
+        styroRemaining: currentStock.styroRemaining + dispatch.styroPcs,
+        toyoTotal: currentStock.toyoTotal + dispatch.toyoPcs,
+        toyoRemaining: currentStock.toyoRemaining + dispatch.toyoPcs,
         date: now,
       );
 
@@ -1165,8 +1250,14 @@ class FirestoreService {
         final data = staffInvDoc.data()!;
         final alloc = data['allocated'] as Map<String, dynamic>? ?? {};
         final currentKarne = (alloc['karne'] as num?)?.toInt() ?? 0;
+        final currentMayo = (alloc['mayo'] as num?)?.toInt() ?? 0;
+        final currentStyro = (alloc['styro'] as num?)?.toInt() ?? 0;
+        final currentToyo = (alloc['toyo'] as num?)?.toInt() ?? 0;
         await _db.collection('branch_daily_inventories').doc(docId).update({
           'allocated.karne': currentKarne + dispatch.totalPcs,
+          'allocated.mayo': currentMayo + dispatch.mayoPcs,
+          'allocated.styro': currentStyro + dispatch.styroPcs,
+          'allocated.toyo': currentToyo + dispatch.toyoPcs,
           'updatedAt': FieldValue.serverTimestamp(),
         });
       } else {
@@ -1175,10 +1266,10 @@ class FirestoreService {
           'branchName': dispatch.destinationBranchName,
           'date': Timestamp.fromDate(now),
           'allocated': {
-            'karne': dispatch.totalPcs,
-            'mayo': 40,
-            'styro': 40,
-            'toyo': 7,
+            'karne': 40 + dispatch.totalPcs,
+            'mayo': 40 + dispatch.mayoPcs,
+            'styro': 40 + dispatch.styroPcs,
+            'toyo': 10 + dispatch.toyoPcs,
           },
           'status': 'pending',
           'discrepancyNote': null,

@@ -43,6 +43,18 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
     super.dispose();
   }
 
+  StaffMember? _findStaff(List<StaffMember> staffList, String employeeId, String employeeName) {
+    final cleanId = employeeId.trim().toLowerCase().replaceAll('-', '');
+    final cleanName = employeeName.trim().toLowerCase();
+    for (final s in staffList) {
+      if (s.id.trim().toLowerCase() == employeeId.trim().toLowerCase()) return s;
+      if (s.id.trim().toLowerCase().replaceAll('-', '') == cleanId) return s;
+      if (s.username.isNotEmpty && s.username.trim().toLowerCase() == employeeId.trim().toLowerCase()) return s;
+      if (cleanName.isNotEmpty && s.fullName.trim().toLowerCase() == cleanName) return s;
+    }
+    return null;
+  }
+
   void _onAssignmentsChanged() {
     if (!mounted) return;
     final allStaff = SupabaseService.getAllStaff();
@@ -50,15 +62,11 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
     setState(() {
       for (int i = 0; i < _assignments.length; i++) {
         final a = _assignments[i];
-        final staff = branchCooks.firstWhere(
-          (s) => s.id == a.employeeId,
-          orElse: () => branchCooks.length > i ? branchCooks[i] : StaffMember(id: a.employeeId, firstName: '', lastName: '', username: '', branch: '', position: ''),
-        );
+        final staff = _findStaff(branchCooks, a.employeeId, a.employeeName);
+        if (staff == null) continue; // Never overwrite with a mismatched person!
 
         // AssignmentService.lockStatus() is called synchronously before any cloud writes,
         // so this cache is ALWAYS ahead of or equal to Supabase realtime data.
-        // Use cache if available; otherwise keep current on-screen status (a.workStatus).
-        // NEVER use staff.isRestDay here — it reads Supabase in-memory which can be stale.
         final status = staff.username.isNotEmpty
             ? AssignmentService.getWorkStatus(staff.username,
                 fallback: AssignmentService.getWorkStatus(a.employeeId, fallback: a.workStatus))
@@ -140,18 +148,19 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
     shell?.setActions([]); 
   }
 
-  void _updateBranch(int index, Branch branch) async {
-    final a = _filteredAssignments[index];
+  void _updateBranch(BranchAssignment target, Branch branch) async {
+    final originalIndex = _assignments.indexWhere((item) =>
+        item.employeeId == target.employeeId ||
+        item.employeeName.trim().toLowerCase() == target.employeeName.trim().toLowerCase());
+    if (originalIndex == -1) return;
 
-    // Lookup username synchronously first
+    final a = _assignments[originalIndex];
+
     final allStaff = SupabaseService.getAllStaff();
-    final staff = allStaff.firstWhere(
-      (s) => s.id == a.employeeId || s.fullName.toLowerCase() == a.employeeName.toLowerCase(),
-      orElse: () => StaffMember(id: a.employeeId, firstName: '', lastName: '', username: '', branch: '', position: ''),
-    );
-    final username = staff.username.isNotEmpty ? staff.username : a.employeeId;
+    final staff = _findStaff(allStaff, a.employeeId, a.employeeName);
+    final username = (staff != null && staff.username.isNotEmpty) ? staff.username : a.employeeId;
 
-    // ⚡ Lock branch cache BEFORE any await so realtime never reverts the branch.
+    // Lock branch in cache immediately before async call
     AssignmentService.lockBranch(
       username: username,
       employeeId: a.employeeId,
@@ -159,13 +168,10 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
     );
 
     setState(() {
-      final originalIndex = _assignments.indexWhere((item) => item.id == a.id);
-      if (originalIndex != -1) {
-        _assignments[originalIndex] = a.copyWith(
-          branchId: branch.id,
-          branchName: branch.fullName,
-        );
-      }
+      _assignments[originalIndex] = a.copyWith(
+        branchId: branch.id,
+        branchName: branch.fullName,
+      );
     });
 
     await AssignmentService.setAssignment(
@@ -178,19 +184,20 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
     );
   }
 
-  void _updateStatus(int index, WorkStatus status) async {
-    final a = _filteredAssignments[index];
+  void _updateStatus(BranchAssignment target, WorkStatus status) async {
+    final originalIndex = _assignments.indexWhere((item) =>
+        item.employeeId == target.employeeId ||
+        item.employeeName.trim().toLowerCase() == target.employeeName.trim().toLowerCase());
+    if (originalIndex == -1) return;
 
-    // Lookup username synchronously first
+    final a = _assignments[originalIndex];
+    if (a.workStatus == status) return;
+
     final allStaff = SupabaseService.getAllStaff();
-    final staff = allStaff.firstWhere(
-      (s) => s.id == a.employeeId || s.fullName.toLowerCase() == a.employeeName.toLowerCase(),
-      orElse: () => StaffMember(id: a.employeeId, firstName: '', lastName: '', username: '', branch: '', position: ''),
-    );
-    final username = staff.username.isNotEmpty ? staff.username : a.employeeId;
+    final staff = _findStaff(allStaff, a.employeeId, a.employeeName);
+    final username = (staff != null && staff.username.isNotEmpty) ? staff.username : a.employeeId;
 
-    // ⚡ Lock cache IMMEDIATELY (synchronous, no await) — must happen before any async
-    // cloud call, so the Supabase realtime listener never reads stale status and reverts the UI.
+    // Lock status in cache immediately (optimistic UI without annoying popups)
     AssignmentService.lockStatus(
       username: username,
       employeeId: a.employeeId,
@@ -198,17 +205,14 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
       branchName: a.branchName,
     );
 
-    // Optimistically update UI
     setState(() {
-      final originalIndex = _assignments.indexWhere((item) => item.id == a.id);
-      if (originalIndex != -1) {
-        _assignments[originalIndex] = a.copyWith(workStatus: status);
-      }
+      _assignments[originalIndex] = a.copyWith(workStatus: status);
     });
 
-    // If setting to onDuty, reactivate staff account in Supabase
-    if (status == WorkStatus.onDuty) {
-      await SupabaseService.toggleStaffActive(a.employeeId, true);
+    final isRest = status == WorkStatus.restDay;
+    await SupabaseService.toggleStaffActive(a.employeeId, !isRest);
+    if (staff != null && staff.username.isNotEmpty) {
+      await SupabaseService.toggleStaffActiveByUsername(staff.username, !isRest);
     }
 
     await AssignmentService.setAssignment(
@@ -222,13 +226,50 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
   }
 
   void _saveAll() async {
+    // Check for duplicate on-duty cooks per branch
+    final onDutyList = _assignments.where((a) => a.workStatus == WorkStatus.onDuty).toList();
+    final Map<String, List<String>> branchOccupants = {};
+    for (final a in onDutyList) {
+      branchOccupants.putIfAbsent(a.branchName, () => []).add(a.employeeName);
+    }
+    final conflicts = branchOccupants.entries.where((e) => e.value.length > 1).toList();
+    if (conflicts.isNotEmpty) {
+      final conflictDetails = conflicts.map((c) => '• ${c.key}:\n  - ${c.value.join("\n  - ")}').join('\n\n');
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          title: const Row(
+            children: [
+              Icon(Icons.error_outline_rounded, color: Color(0xFFDC2626), size: 24),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text('May Conflict sa Assignments', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+              ),
+            ],
+          ),
+          content: Text(
+            'Hindi mai-save dahil may mahigit sa isang cook na naka-On Duty sa parehong branch:\n\n'
+            '$conflictDetails\n\n'
+            'Pakiusap i-Rest Day ang isa sa kanila o ilipat sa ibang bakanteng branch bago i-save.',
+            style: const TextStyle(fontSize: 13, height: 1.4),
+          ),
+          actions: [
+            ElevatedButton(
+              onPressed: () => Navigator.pop(ctx),
+              style: ElevatedButton.styleFrom(backgroundColor: AdminWebColors.accent, foregroundColor: Colors.white),
+              child: const Text('OK, AAYUSIN KO'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
     final allStaff = SupabaseService.getAllStaff();
     for (final a in _assignments) {
-      final staff = allStaff.firstWhere(
-        (s) => s.id == a.employeeId || s.fullName.toLowerCase() == a.employeeName.toLowerCase(),
-        orElse: () => StaffMember(id: a.employeeId, firstName: '', lastName: '', username: '', branch: '', position: ''),
-      );
-      final username = staff.username.isNotEmpty ? staff.username : a.employeeId;
+      final staff = _findStaff(allStaff, a.employeeId, a.employeeName);
+      final username = (staff != null && staff.username.isNotEmpty) ? staff.username : a.employeeId;
       await AssignmentService.setAssignment(
         username: username,
         employeeId: a.employeeId,
@@ -387,10 +428,12 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
                         builder: (context, constraints) {
                           final isWide = constraints.maxWidth >= 700;
                           return _AssignmentCard(
+                            key: ValueKey('card-${a.employeeId}-${a.employeeName}'),
                             assignment: a,
+                            allAssignments: _assignments,
                             isWide: isWide,
-                            onBranchChanged: (branch) => _updateBranch(index, branch),
-                            onStatusChanged: (status) => _updateStatus(index, status),
+                            onBranchChanged: (branch) => _updateBranch(a, branch),
+                            onStatusChanged: (status) => _updateStatus(a, status),
                           );
                         },
                       );
@@ -452,13 +495,16 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
 
 class _AssignmentCard extends StatelessWidget {
   const _AssignmentCard({
+    super.key,
     required this.assignment,
+    required this.allAssignments,
     required this.isWide,
     required this.onBranchChanged,
     required this.onStatusChanged,
   });
 
   final BranchAssignment assignment;
+  final List<BranchAssignment> allAssignments;
   final bool isWide;
   final ValueChanged<Branch> onBranchChanged;
   final ValueChanged<WorkStatus> onStatusChanged;
@@ -466,6 +512,22 @@ class _AssignmentCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bool isOnDuty = assignment.workStatus == WorkStatus.onDuty;
+
+    // Check if another cook is currently ON DUTY at this same branch (conflict)
+    BranchAssignment? conflictingOnDutyCook;
+    if (isOnDuty) {
+      for (final other in allAssignments) {
+        final samePerson = other.employeeId == assignment.employeeId ||
+            (other.employeeName.isNotEmpty &&
+                other.employeeName.trim().toLowerCase() == assignment.employeeName.trim().toLowerCase());
+        if (!samePerson &&
+            other.workStatus == WorkStatus.onDuty &&
+            other.branchId == assignment.branchId) {
+          conflictingOnDutyCook = other;
+          break;
+        }
+      }
+    }
 
     final avatarAndName = Row(
       children: [
@@ -542,7 +604,7 @@ class _AssignmentCard extends StatelessWidget {
                           : 'Naka-Rest Day (Bawal mag-login)',
                       style: TextStyle(
                         fontSize: 11,
-                        fontWeight: FontWeight.w700,
+                        fontWeight: FontWeight.w600,
                         color: isOnDuty
                             ? const Color(0xFF065F46)
                             : const Color(0xFF991B1B),
@@ -551,6 +613,32 @@ class _AssignmentCard extends StatelessWidget {
                   ],
                 ),
               ),
+              if (conflictingOnDutyCook != null) ...[
+                const SizedBox(height: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFEF2F2),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: const Color(0xFFFECACA)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.warning_amber_rounded, size: 13, color: Color(0xFFDC2626)),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Conflict: Naka-Duty rin si ${conflictingOnDutyCook.employeeName.split(" ").first}!',
+                        style: const TextStyle(
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFFDC2626),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ],
           ),
         ),
@@ -558,9 +646,11 @@ class _AssignmentCard extends StatelessWidget {
     );
 
     final branchDropdown = DropdownButtonFormField<String>(
+      key: ValueKey('dd-${assignment.employeeId}-${assignment.branchId}-${assignment.workStatus.name}'),
       initialValue: kSampleBranches.any((b) => b.id == assignment.branchId)
           ? assignment.branchId
           : kSampleBranches.first.id,
+      isExpanded: true,
       decoration: InputDecoration(
         labelText: isOnDuty ? 'ASSIGNED BRANCH' : 'ASSIGNED BRANCH (OFF TODAY)',
         isDense: true,
@@ -576,21 +666,66 @@ class _AssignmentCard extends StatelessWidget {
           color: isOnDuty ? AdminWebColors.accent : const Color(0xFF94A3B8),
         ),
       ),
-      items: kSampleBranches
-          .map((b) => DropdownMenuItem(
-                value: b.id,
-                child: Text(
-                  isOnDuty
-                      ? b.fullName.toUpperCase()
-                      : '${b.fullName.toUpperCase()} (Rest Day)',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: isOnDuty ? null : const Color(0xFF94A3B8),
-                  ),
-                ),
-              ))
-          .toList(),
+      items: kSampleBranches.map((b) {
+        BranchAssignment? occupiedCook;
+        for (final other in allAssignments) {
+          final samePerson = other.employeeId == assignment.employeeId ||
+              (other.employeeName.isNotEmpty &&
+                  other.employeeName.trim().toLowerCase() == assignment.employeeName.trim().toLowerCase());
+          if (!samePerson &&
+              other.workStatus == WorkStatus.onDuty &&
+              other.branchId == b.id) {
+            occupiedCook = other;
+            break;
+          }
+        }
+        final isOccupied = occupiedCook != null;
+        final isCurrent = b.id == assignment.branchId;
+
+        // If cook is ON DUTY, branches occupied by other ON DUTY cooks are disabled
+        final isSelectable = !isOnDuty || !isOccupied || isCurrent;
+
+        Widget itemChild;
+        if (isOnDuty && isOccupied && !isCurrent) {
+          itemChild = Text(
+            '${b.fullName.toUpperCase()} — (May Duty: ${occupiedCook.employeeName.split(" ").first})',
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: Color(0xFF94A3B8),
+            ),
+          );
+        } else if (isOnDuty && isOccupied && isCurrent) {
+          itemChild = Text(
+            '${b.fullName.toUpperCase()} ⚠️ (Conflict: ${occupiedCook.employeeName.split(" ").first})',
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFFDC2626),
+            ),
+          );
+        } else {
+          itemChild = Text(
+            isOnDuty
+                ? b.fullName.toUpperCase()
+                : '${b.fullName.toUpperCase()} (Rest Day)',
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: isOnDuty ? null : const Color(0xFF94A3B8),
+            ),
+          );
+        }
+
+        return DropdownMenuItem<String>(
+          value: b.id,
+          enabled: isSelectable,
+          child: itemChild,
+        );
+      }).toList(),
       onChanged: (branchId) {
         if (branchId != null) {
           final branch = kSampleBranches.firstWhere((b) => b.id == branchId);
@@ -708,6 +843,7 @@ class _AssignmentCard extends StatelessWidget {
 
     return GlassCard(
       padding: const EdgeInsets.all(16),
+      borderColor: conflictingOnDutyCook != null ? const Color(0xFFFCA5A5) : null,
       child: isWide
           ? Row(
               children: [
