@@ -411,6 +411,8 @@ class _HomepageScreenState extends State<HomepageScreen> {
                   medium: int.tryParse(_mediumController.text) ?? 0,
                   b1t1: int.tryParse(_b1t1Controller.text) ?? 0,
                 ),
+                verifiedBy: AuthService.currentUsername,
+                verifiedAt: DateTime.now(),
               );
               setState(() {
                 _inventory = updated;
@@ -480,6 +482,8 @@ class _HomepageScreenState extends State<HomepageScreen> {
                   medium: int.tryParse(_mediumController.text) ?? 0,
                   b1t1: int.tryParse(_b1t1Controller.text) ?? 0,
                 ),
+                verifiedBy: AuthService.currentUsername,
+                verifiedAt: DateTime.now(),
               );
               setState(() {
                 _inventory = updated;

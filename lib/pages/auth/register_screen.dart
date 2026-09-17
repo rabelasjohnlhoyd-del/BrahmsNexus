@@ -199,7 +199,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       if (_middleNameController.text.trim().isNotEmpty)
         _middleNameController.text.trim(),
       _lastNameController.text.trim(),
-      ?_selectedSuffix,
+      if (_selectedSuffix != null && _selectedSuffix!.isNotEmpty) _selectedSuffix!,
     ].join(' ');
 
     final error = await AuthService.register(

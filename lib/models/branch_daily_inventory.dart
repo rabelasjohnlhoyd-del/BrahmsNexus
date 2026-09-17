@@ -82,6 +82,8 @@ class BranchDailyInventory {
     this.status = InventoryVerificationStatus.pending,
     this.discrepancyNote,
     this.actualReceived,
+    this.verifiedBy,
+    this.verifiedAt,
   });
 
   final String branchId;
@@ -90,9 +92,9 @@ class BranchDailyInventory {
   final InventoryCounts allocated;
   final InventoryVerificationStatus status;
   final String? discrepancyNote;
-  /// The actual physical count submitted by Staff upon verification.
-  /// Null if Staff has not yet verified.
   final ActualReceivedCounts? actualReceived;
+  final String? verifiedBy;
+  final DateTime? verifiedAt;
 
   BranchDailyInventory copyWith({
     String? branchId,
@@ -102,6 +104,8 @@ class BranchDailyInventory {
     InventoryVerificationStatus? status,
     String? discrepancyNote,
     ActualReceivedCounts? actualReceived,
+    String? verifiedBy,
+    DateTime? verifiedAt,
   }) {
     return BranchDailyInventory(
       branchId: branchId ?? this.branchId,
@@ -111,6 +115,8 @@ class BranchDailyInventory {
       status: status ?? this.status,
       discrepancyNote: discrepancyNote ?? this.discrepancyNote,
       actualReceived: actualReceived ?? this.actualReceived,
+      verifiedBy: verifiedBy ?? this.verifiedBy,
+      verifiedAt: verifiedAt ?? this.verifiedAt,
     );
   }
 }

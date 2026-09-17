@@ -457,24 +457,34 @@ class SupabaseService {
   }
 
   /// Real-time stream of all staff profiles from Supabase.
-  static Stream<List<StaffMember>> watchStaffProfiles() {
+  static Stream<List<StaffMember>> watchStaffProfiles() async* {
+    // 1. Always yield the in-memory cache first so UI has something to show.
+    yield List.unmodifiable(_inMemoryStaff);
+
     final client = _client;
-    if (client == null) {
-      return const Stream.empty();
-    }
+    if (client == null) return;
+
     try {
-      return client.from('staff_profiles').stream(primaryKey: ['id']).map((rows) {
+      // 2. Subscribe to the remote stream.
+      // Using await for ensures we can catch exceptions thrown by the stream itself
+      // (like RealtimeSubscribeException if Realtime is not enabled on the table).
+      final stream = client
+          .from('staff_profiles')
+          .stream(primaryKey: ['id']);
+
+      await for (final rows in stream) {
         final list = rows.map((r) => StaffMember.fromMap(r)).toList();
         if (list.isNotEmpty) {
           _inMemoryStaff
             ..clear()
             ..addAll(list);
         }
-        return list;
-      });
+        yield list;
+      }
     } catch (e) {
-      debugPrint('SupabaseService.watchStaffProfiles error: $e');
-      return const Stream.empty();
+      // 3. Gracefully handle subscription failures. The stream will terminate
+      // but the initial yield above ensures the app is not left in an error state.
+      debugPrint('Supabase Realtime unavailable for staff_profiles: $e');
     }
   }
 

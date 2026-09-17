@@ -135,8 +135,10 @@ class AuthService {
 
       return null;
     } on FirebaseAuthException catch (e) {
+      debugPrint('AuthService.register FirebaseAuthException: ${e.code} - ${e.message}');
       return _friendlyAuthError(e);
-    } catch (_) {
+    } catch (e, stackTrace) {
+      debugPrint('AuthService.register general exception: $e\n$stackTrace');
       return 'Something went wrong. Please try again.';
     }
   }
@@ -457,7 +459,8 @@ class AuthService {
   static Future<bool> isAccountDeactivated(String username) async {
     final usernameKey = username.trim().toLowerCase();
     try {
-      // Primary check: deactivated_staff collection (username-keyed, reliable)
+      // 1) Primary check: deactivated_staff collection (username-keyed)
+      // Ito ang pinaka-safe dahil username ang ID ng document.
       final deactivatedDoc = await _db
           .collection('deactivated_staff')
           .doc(usernameKey)
@@ -466,24 +469,30 @@ class AuthService {
         return deactivatedDoc.data()?['isDeactivated'] as bool? ?? false;
       }
 
-      // Secondary check: users collection status field
-      final uid = await findUidByUsername(username);
-      if (uid != null) {
-        final userDoc = await _db.collection('users').doc(uid).get();
+      // 2) Secondary check: Check current user's own document if applicable
+      // Iniiwasan natin ang .where('username') query dahil nagdudulot ito ng PERMISSION_DENIED sa staff.
+      final currentUser = _auth.currentUser;
+      if (currentUser != null) {
+        final userDoc = await _db.collection('users').doc(currentUser.uid).get();
         if (userDoc.exists) {
           final data = userDoc.data()!;
-          final status = data['status'] as String? ?? 'approved';
-          final isActive = data['is_active'] as bool? ?? true;
-          if (status == 'deactivated' || !isActive) return true;
+          // I-verify kung ito nga ang user na tinitignan natin
+          final docUsername = (data['username'] as String? ?? '').toLowerCase();
+          if (docUsername == usernameKey) {
+            final status = data['status'] as String? ?? 'approved';
+            final isActive = data['is_active'] as bool? ?? true;
+            if (status == 'deactivated' || !isActive) return true;
+          }
         }
       }
 
-      // Tertiary check: remote Supabase database (staff_profiles table)
-      final isSupabaseActive = await SupabaseService.isStaffActiveAsync(username: usernameKey);
-      if (!isSupabaseActive) return true;
+      // 3) Tertiary check: Supabase (as synchronous/in-memory fallback)
+      final staff = await SupabaseService.getStaffByUsernameOrId(usernameKey);
+      if (staff != null && (!staff.isActive || staff.isArchived)) return true;
 
       return false;
-    } catch (_) {
+    } catch (e) {
+      debugPrint('Error in isAccountDeactivated: $e');
       return !SupabaseService.isStaffActive(username: username);
     }
   }

@@ -229,6 +229,8 @@ class FirestoreService {
           orElse: () => InventoryVerificationStatus.pending,
         ),
         discrepancyNote: data['discrepancyNote']?.toString(),
+        verifiedBy: data['verifiedBy']?.toString(),
+        verifiedAt: (data['verifiedAt'] as Timestamp?)?.toDate(),
         actualReceived: ar == null
             ? null
             : ActualReceivedCounts(
@@ -321,6 +323,8 @@ class FirestoreService {
         'status': record.status.name,
         'discrepancyNote': record.discrepancyNote,
         'updatedAt': FieldValue.serverTimestamp(),
+        if (record.verifiedBy != null) 'verifiedBy': record.verifiedBy,
+        if (record.verifiedAt != null) 'verifiedAt': Timestamp.fromDate(record.verifiedAt!),
       };
 
       // Include actual received counts if Staff has submitted verification
@@ -372,6 +376,34 @@ class FirestoreService {
   // ===========================================================================
   // 3. DAILY SALES & EMPLOYEE EARNINGS
   // ===========================================================================
+
+  /// Special function for Admin to adjust allocation for a branch today.
+  static Future<bool> adjustDailyAllocation({
+    required String branchId,
+    required String branchName,
+    required DateTime date,
+    required InventoryCounts newAllocation,
+  }) async {
+    final docId = _dailyInventoryDocId(branchId, date);
+    try {
+      await _db.collection('branch_daily_inventories').doc(docId).set({
+        'branchId': branchId,
+        'branchName': branchName,
+        'date': Timestamp.fromDate(date),
+        'allocated': {
+          'karne': newAllocation.karne,
+          'mayo': newAllocation.mayo,
+          'styro': newAllocation.styro,
+          'toyo': newAllocation.toyo,
+        },
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+      return true;
+    } catch (e) {
+      debugPrint('FirestoreService.adjustDailyAllocation error: $e');
+      return false;
+    }
+  }
 
   /// Saves the end-of-day sales record submitted by a branch cook.
   /// Also saves an owner notification so the owner sees it in real-time.

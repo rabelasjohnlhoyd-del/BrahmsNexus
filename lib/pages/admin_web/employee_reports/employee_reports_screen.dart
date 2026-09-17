@@ -171,7 +171,24 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
         _dateFilter = picked;
         _currentPage = 0;
       });
+      _subscribeInventory();
     }
+  }
+
+  void _subscribeInventory() {
+    _verifSub?.cancel();
+    _verifSub = FirestoreService.watchAllBranchDailyInventories(
+      branches: kSampleBranches,
+      date: _dateFilter ?? DateTime.now(),
+    ).listen((list) {
+      if (mounted) {
+        setState(() {
+          _verifications
+            ..clear()
+            ..addAll(list);
+        });
+      }
+    });
   }
 
   int _countByStatus(ReportSubmissionStatus status) =>
@@ -493,7 +510,10 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
                       const SizedBox(width: 8),
                       IconButton(
                         icon: const Icon(Icons.clear_rounded, color: AdminWebColors.error, size: 20),
-                        onPressed: () => setState(() => _dateFilter = null),
+                        onPressed: () {
+                          setState(() => _dateFilter = null);
+                          _subscribeInventory();
+                        },
                         tooltip: 'Clear Date Filter',
                       ),
                     ],
@@ -716,71 +736,197 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
   void _showVerifDetail(BranchDailyInventory v) {
     final ar = v.actualReceived;
     final color = _verifColor(v.status);
+    final isToday = _isToday(v.date);
 
     showDialog<void>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Row(
-          children: [
-            Icon(_verifIcon(v.status), color: color, size: 20),
-            const SizedBox(width: 8),
-            Expanded(child: Text(v.branchName, style: const TextStyle(fontSize: 16))),
-          ],
-        ),
-        content: SizedBox(
-          width: 380,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          title: Row(
             children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(8),
+              Icon(_verifIcon(v.status), color: color, size: 20),
+              const SizedBox(width: 8),
+              Expanded(child: Text(v.branchName, style: const TextStyle(fontSize: 16))),
+              if (isToday)
+                IconButton(
+                  icon: const Icon(Icons.edit_note_rounded, color: AdminWebColors.accent),
+                  onPressed: () => _showAdjustAllocationDialog(v),
+                  tooltip: 'Adjust Today\'s Allocation',
                 ),
-                child: Text(
-                  v.status.label,
-                  style: TextStyle(color: color, fontWeight: FontWeight.w700),
-                ),
-              ),
-              if (v.discrepancyNote != null && v.discrepancyNote!.isNotEmpty) ...[
-                const SizedBox(height: 12),
-                const Text('DISCREPANCY NOTE',
-                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800,
-                        letterSpacing: 0.5, color: AdminWebColors.textSecondary)),
-                const SizedBox(height: 4),
-                Text('"${v.discrepancyNote}"',
-                    style: const TextStyle(color: AdminWebColors.error)),
-              ],
-              const SizedBox(height: 16),
-              // Table header
-              Row(
-                children: const [
-                  Expanded(child: Text('ITEM', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: AdminWebColors.textSecondary))),
-                  SizedBox(width: 8),
-                  SizedBox(width: 60, child: Text('ALLOC.', textAlign: TextAlign.center, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: AdminWebColors.textSecondary))),
-                  SizedBox(width: 60, child: Text('ACTUAL', textAlign: TextAlign.center, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: AdminWebColors.textSecondary))),
-                ],
-              ),
-              const Divider(),
-              _verifDetailRow('Mayo',    v.allocated.mayo,  ar?.mayo,    color),
-              _verifDetailRow('Toyo',    v.allocated.toyo,  ar?.toyo,    color),
-              _verifDetailRow('Styro',   v.allocated.styro, ar?.styro,   color),
-              _verifDetailRow('Regular', v.allocated.karne, ar?.regular, color),
-              _verifDetailRow('Medium',  null,              ar?.medium,  color),
-              _verifDetailRow('B1T1',    null,              ar?.b1t1,    color),
             ],
           ),
+          content: SizedBox(
+            width: 380,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: color.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        v.status.label,
+                        style: TextStyle(color: color, fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                    const Spacer(),
+                    if (v.verifiedAt != null)
+                      Text(
+                        'Verified at ${_formatTime(v.verifiedAt!)}',
+                        style: const TextStyle(fontSize: 11, color: AdminWebColors.textSecondary),
+                      ),
+                  ],
+                ),
+                if (v.verifiedBy != null) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    'by ${v.verifiedBy}',
+                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AdminWebColors.textSecondary),
+                  ),
+                ],
+                if (v.discrepancyNote != null && v.discrepancyNote!.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  const Text('DISCREPANCY NOTE',
+                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800,
+                          letterSpacing: 0.5, color: AdminWebColors.textSecondary)),
+                  const SizedBox(height: 4),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: AdminWebColors.error.withValues(alpha: 0.05),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: AdminWebColors.error.withValues(alpha: 0.2)),
+                    ),
+                    child: Text('"${v.discrepancyNote}"',
+                        style: const TextStyle(color: AdminWebColors.error, fontSize: 13, fontStyle: FontStyle.italic)),
+                  ),
+                ],
+                const SizedBox(height: 16),
+                // Table header
+                Row(
+                  children: const [
+                    Expanded(child: Text('ITEM', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: AdminWebColors.textSecondary))),
+                    SizedBox(width: 8),
+                    SizedBox(width: 60, child: Text('ALLOC.', textAlign: TextAlign.center, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: AdminWebColors.textSecondary))),
+                    SizedBox(width: 60, child: Text('ACTUAL', textAlign: TextAlign.center, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: AdminWebColors.textSecondary))),
+                  ],
+                ),
+                const Divider(),
+                _verifDetailRow('Karne (Total Pcs)', v.allocated.karne, ar != null ? (ar.regular + ar.medium + ar.b1t1) : null, color),
+                _verifDetailRow('Mayo',    v.allocated.mayo,  ar?.mayo,    color),
+                _verifDetailRow('Toyo',    v.allocated.toyo,  ar?.toyo,    color),
+                _verifDetailRow('Styro',   v.allocated.styro, ar?.styro,   color),
+                if (ar != null) ...[
+                  const Divider(),
+                  const Text('BREAKDOWN OF ACTUAL MEAT', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: AdminWebColors.textSecondary)),
+                  const SizedBox(height: 4),
+                  _verifDetailRow('Regular', null, ar.regular, color),
+                  _verifDetailRow('Medium',  null, ar.medium,  color),
+                  _verifDetailRow('B1T1',    null, ar.b1t1,    color),
+                ],
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('CLOSE'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showAdjustAllocationDialog(BranchDailyInventory v) {
+    final karneController = TextEditingController(text: v.allocated.karne.toString());
+    final mayoController = TextEditingController(text: v.allocated.mayo.toString());
+    final styroController = TextEditingController(text: v.allocated.styro.toString());
+    final toyoController = TextEditingController(text: v.allocated.toyo.toString());
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Adjust Allocation: ${v.branchName}'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Baguhin ang target allocation para sa branch na ito ngayong araw.',
+                style: TextStyle(fontSize: 13, color: AdminWebColors.textSecondary)),
+            const SizedBox(height: 16),
+            TextField(
+              controller: karneController,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(labelText: 'Karne (Total Pcs)', isDense: true),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: mayoController,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(labelText: 'Mayo', isDense: true),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: styroController,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(labelText: 'Styro', isDense: true),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: toyoController,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(labelText: 'Toyo', isDense: true),
+            ),
+          ],
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('CLOSE'),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('CANCEL')),
+          ElevatedButton(
+            onPressed: () async {
+              final newAlloc = InventoryCounts(
+                karne: int.tryParse(karneController.text) ?? v.allocated.karne,
+                mayo: int.tryParse(mayoController.text) ?? v.allocated.mayo,
+                styro: int.tryParse(styroController.text) ?? v.allocated.styro,
+                toyo: int.tryParse(toyoController.text) ?? v.allocated.toyo,
+              );
+
+              final success = await FirestoreService.adjustDailyAllocation(
+                branchId: v.branchId,
+                branchName: v.branchName,
+                date: v.date,
+                newAllocation: newAlloc,
+              );
+
+              if (success && mounted) {
+                Navigator.pop(ctx);
+                Navigator.pop(context); // Close the detail dialog too
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Allocation updated successfully.')),
+                );
+              }
+            },
+            child: const Text('SAVE CHANGES'),
           ),
         ],
       ),
     );
+  }
+
+  bool _isToday(DateTime date) {
+    final now = DateTime.now();
+    return date.year == now.year && date.month == now.month && date.day == now.day;
+  }
+
+  String _formatTime(DateTime dt) {
+    final hour = dt.hour > 12 ? dt.hour - 12 : (dt.hour == 0 ? 12 : dt.hour);
+    final period = dt.hour >= 12 ? 'PM' : 'AM';
+    return '$hour:${dt.minute.toString().padLeft(2, '0')} $period';
   }
 
   Widget _verifDetailRow(String label, int? allocated, int? actual, Color color) {
