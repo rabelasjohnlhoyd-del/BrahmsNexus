@@ -144,12 +144,30 @@ class _OwnerSalesPayrollScreenState extends State<OwnerSalesPayrollScreen> {
                       ],
                     ),
                     Text(r.branchName, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-                    const SizedBox(height: 12),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text('Sales: ₱${r.totalSalesAmount.toStringAsFixed(0)}'),
-                        Text('Wage: ₱${r.computedWage.toStringAsFixed(0)}', style: const TextStyle(color: AppColors.error)),
+                        Text('Orders: ${r.portionsSold}', style: const TextStyle(fontWeight: FontWeight.w700)),
+                        Text(
+                          'Remit: ₱${r.expectedCashRemittance.toStringAsFixed(0)}',
+                          style: const TextStyle(fontWeight: FontWeight.w800, color: AppColors.accent),
+                        ),
+                      ],
+                    ),
+                    if (r.regularSold != null || r.mediumSold != null || r.b1t1OrdersSold != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 3),
+                        child: Text(
+                          'Sold: Reg ${r.regularSold ?? 0} · Med ${r.mediumSold ?? 0} · B1T1 ${r.b1t1OrdersSold ?? 0}',
+                          style: const TextStyle(fontSize: 11.5, color: AppColors.textSecondary),
+                        ),
+                      ),
+                    const SizedBox(height: 8),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text('Sales: ₱${r.totalSalesAmount.toStringAsFixed(0)}', style: const TextStyle(fontWeight: FontWeight.w600)),
+                        Text('Salary: - ₱${r.computedWage.toStringAsFixed(0)}', style: const TextStyle(color: AppColors.error, fontWeight: FontWeight.w600)),
                       ],
                     ),
                     if (r.remainingStock != null) ...[

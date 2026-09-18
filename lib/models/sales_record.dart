@@ -1,4 +1,5 @@
 import 'branch_daily_inventory.dart';
+import 'wage_calculator.dart';
 
 /// Daily sales submitted by Staff for a branch, used both for the
 /// Sales & Payroll admin screen and for the auto-computed wage per
@@ -16,6 +17,10 @@ class SalesRecord {
     required this.commissionRatePerPortion,
     required this.totalSalesAmount,
     this.remainingStock,
+    this.wage,
+    this.regularSold,
+    this.mediumSold,
+    this.b1t1OrdersSold,
   });
 
   final String id;
@@ -31,8 +36,18 @@ class SalesRecord {
   /// entered in the Remaining Stock section of the Sales tab.
   final ActualReceivedCounts? remainingStock;
 
-  /// Auto-computed daily wage — portions sold × commission rate.
-  double get computedWage => portionsSold * commissionRatePerPortion;
+  final double? wage;
+  final int? regularSold;
+  final int? mediumSold;
+  final int? b1t1OrdersSold;
+
+  /// Auto-computed daily wage — uses stored tiered wage if provided,
+  /// else falls back to WageCalculator or commission rate.
+  double get computedWage =>
+      wage ??
+      (portionsSold > 0
+          ? WageCalculator.computeWage(portionsSold).toDouble()
+          : (portionsSold * commissionRatePerPortion));
 
   /// Cash the Driver should collect from this branch/employee.
   double get expectedCashRemittance => totalSalesAmount - computedWage;

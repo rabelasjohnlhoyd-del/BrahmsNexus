@@ -35,7 +35,7 @@ class HomepageScreen extends StatefulWidget {
   State<HomepageScreen> createState() => _HomepageScreenState();
 }
 
-class _HomepageScreenState extends State<HomepageScreen> {
+class _HomepageScreenState extends State<HomepageScreen> with WidgetsBindingObserver {
   bool _isRefreshing = false;
   bool _isCelsius = true;
 
@@ -329,12 +329,45 @@ class _HomepageScreenState extends State<HomepageScreen> {
     return list;
   }
 
+  Timer? _midnightTimer;
+
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     AssignmentService.ensureInitialized();
     _setupBranchAndStreams();
+    _scheduleMidnightRefresh();
     AssignmentService.changeNotifier.addListener(_onAssignmentChanged);
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      final now = DateTime.now();
+      if (!_isSameDay(_inventory.date, now)) {
+        _setupBranchAndStreams();
+        _scheduleMidnightRefresh();
+      }
+    }
+  }
+
+  bool _isSameDay(DateTime a, DateTime b) {
+    return a.year == b.year && a.month == b.month && a.day == b.day;
+  }
+
+  void _scheduleMidnightRefresh() {
+    _midnightTimer?.cancel();
+    final now = DateTime.now();
+    // 12:00:01 AM tomorrow
+    final tomorrowMidnight = DateTime(now.year, now.month, now.day + 1, 0, 0, 1);
+    final delay = tomorrowMidnight.difference(now);
+    _midnightTimer = Timer(delay, () {
+      if (mounted) {
+        _setupBranchAndStreams();
+        _scheduleMidnightRefresh();
+      }
+    });
   }
 
   void _onAssignmentChanged() {
@@ -379,18 +412,22 @@ class _HomepageScreenState extends State<HomepageScreen> {
     matchedBranch ??= kSampleBranches.first;
     _currentBranchId = matchedBranch.id;
 
+    final today = DateTime.now();
+
     _inventory = _inventory.copyWith(
       branchId: matchedBranch.id,
       branchName: matchedBranch.fullName,
+      date: today,
     );
 
     _inventorySub?.cancel();
     _inventorySub = FirestoreService.watchTodayBranchInventory(
       branchId: matchedBranch.id,
       branchName: matchedBranch.fullName,
-      date: DateTime.now(),
+      date: today,
     ).listen((inv) {
-      if (mounted && inv != null) {
+      if (!mounted) return;
+      if (inv != null) {
         setState(() {
           _inventory = inv;
           if (inv.status != InventoryVerificationStatus.pending && inv.actualReceived != null) {
@@ -402,6 +439,24 @@ class _HomepageScreenState extends State<HomepageScreen> {
             _styroController.text = '${ar.styro}';
             _toyoController.text = '${ar.toyo}';
           }
+        });
+      } else {
+        // Bagong araw na (12:00 AM) o wala pang record para sa araw na ito:
+        // Automatic na nagre-reset sa Pending baseline at nililinis ang inputs!
+        setState(() {
+          _inventory = BranchDailyInventory(
+            branchId: matchedBranch!.id,
+            branchName: matchedBranch.fullName,
+            date: today,
+            allocated: const InventoryCounts(karne: 40, mayo: 40, styro: 40, toyo: 10),
+            status: InventoryVerificationStatus.pending,
+          );
+          _karneController.clear();
+          _mediumController.clear();
+          _b1t1Controller.clear();
+          _mayoController.clear();
+          _styroController.clear();
+          _toyoController.clear();
         });
       }
     });
@@ -422,6 +477,8 @@ class _HomepageScreenState extends State<HomepageScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _midnightTimer?.cancel();
     AssignmentService.changeNotifier.removeListener(_onAssignmentChanged);
     _inventorySub?.cancel();
     _meatStocksSub?.cancel();

@@ -121,39 +121,132 @@ class BranchDailyInventory {
   }
 }
 
-/// Result of the Sales-tab end-of-day computation. Orders sold is
-/// derived from Karne usage (each portion = exactly one order, since
-/// meat arrives pre-divided per order). Styro usage is cross-checked
-/// against it — since 1 order should also use exactly 1 styro
-/// container, a mismatch flags a possible discrepancy (lost/extra
-/// container, miscount, etc.) worth the Owner's attention.
+/// Prices per product type (fixed by Owner).
+class ProductPrices {
+  static const int regular = 130; // 250g Sisig
+  static const int medium = 160;  // 300g Sisig
+  static const int b1t1 = 210;    // B1T1 combo (2 pcs)
+}
+
+/// Result of the Sales-tab end-of-day computation.
+///
+/// Business rules:
+///  - Regular: ₱130 per order (uses 1 pc meat, 1 mayo, 1 styro)
+///  - Medium:  ₱160 per order (uses 1 pc meat, 1 mayo, 1 styro)
+///  - B1T1:    ₱210 per order (uses 2 pcs meat combo, e.g. 2 bagnet or 1 sisig + 1 bagnet; 2 styros)
+///
+/// Salary bracket uses weighted orders where 1 B1T1 order = 2 orders:
+///   weightedOrders = regularSold + mediumSold + (b1t1OrdersSold * 2)
 class DailySalesComputation {
   const DailySalesComputation({
-    required this.allocated,
-    required this.remaining,
-    required this.pricePerOrder,
+    required this.allocatedRegular,
+    required this.allocatedMedium,
+    required this.allocatedB1t1,
+    required this.allocatedMayo,
+    required this.allocatedToyo,
+    required this.allocatedStyro,
+    this.remainingRegular,
+    this.remainingMedium,
+    this.remainingB1t1,
+    this.remainingMayo,
+    this.remainingToyo,
+    this.remainingStyro,
   });
 
-  final InventoryCounts allocated;
-  final InventoryCounts remaining;
-  final double pricePerOrder;
+  // Allocated (what was delivered today)
+  final int allocatedRegular;
+  final int allocatedMedium;
+  final int allocatedB1t1; // in pcs
+  final int allocatedMayo;
+  final int allocatedToyo;
+  final int allocatedStyro;
 
-  int get karneUsed => allocated.karne - remaining.karne;
-  int get mayoUsed => allocated.mayo - remaining.mayo;
-  int get styroUsed => allocated.styro - remaining.styro;
-  int get toyoUsed => allocated.toyo - remaining.toyo;
+  // Remaining (what the cook enters at end of day — null if not entered yet)
+  final int? remainingRegular;
+  final int? remainingMedium;
+  final int? remainingB1t1; // in pcs
+  final int? remainingMayo;
+  final int? remainingToyo;
+  final int? remainingStyro;
 
-  /// Orders sold — derived from Karne usage (the reliable 1:1 counter).
-  int get ordersSold => karneUsed;
+  // --- Has input checks ---
+  bool get hasRegularInput => remainingRegular != null;
+  bool get hasMediumInput => remainingMedium != null;
+  bool get hasB1t1Input => remainingB1t1 != null;
+  bool get hasMeatInput => hasRegularInput || hasMediumInput || hasB1t1Input;
+  bool get hasStyroInput => remainingStyro != null;
 
-  /// True when Karne-derived and Styro-derived counts disagree —
-  /// exactly the kind of discrepancy the Owner used to have to find
-  /// manually.
-  bool get hasDiscrepancy => karneUsed != styroUsed;
+  // --- Sold counts ---
+  // If not entered (null), sold is 0 so it doesn't prematurely calculate before user inputs it
+  int get regularSold => remainingRegular != null
+      ? (allocatedRegular - remainingRegular!).clamp(0, 9999)
+      : 0;
 
-  double get salesAmount => ordersSold * pricePerOrder;
+  /// Medium pcs sold = 1 per order
+  int get mediumSold => remainingMedium != null
+      ? (allocatedMedium - remainingMedium!).clamp(0, 9999)
+      : 0;
 
-  int get wage => WageCalculator.computeWage(ordersSold);
+  /// B1T1 pcs used (each order uses 2 pcs)
+  int get b1t1PcsUsed => remainingB1t1 != null
+      ? (allocatedB1t1 - remainingB1t1!).clamp(0, 9999)
+      : 0;
 
-  double get netTotal => salesAmount - wage;
+  /// B1T1 orders = pcs used ÷ 2
+  int get b1t1OrdersSold => b1t1PcsUsed ~/ 2;
+
+  // --- Condiment & supply used ---
+  int get mayoUsed => remainingMayo != null
+      ? (allocatedMayo - remainingMayo!).clamp(0, 9999)
+      : 0;
+
+  int get toyoUsed => remainingToyo != null
+      ? (allocatedToyo - remainingToyo!).clamp(0, 9999)
+      : 0;
+
+  int get styroUsed => remainingStyro != null
+      ? (allocatedStyro - remainingStyro!).clamp(0, 9999)
+      : 0;
+
+  // --- Total orders count (actual orders handed to customers) ---
+  int get totalOrders => regularSold + mediumSold + b1t1OrdersSold;
+
+  // Backward compatibility alias
+  int get ordersSold => totalOrders;
+
+  // --- Weighted total for salary bracket ---
+  // 1 B1T1 order = 2 orders for wage bracket
+  int get weightedOrders => regularSold + mediumSold + (b1t1OrdersSold * 2);
+
+  // --- Revenue ---
+  int get regularRevenue => regularSold * ProductPrices.regular;
+  int get mediumRevenue => mediumSold * ProductPrices.medium;
+  int get b1t1Revenue => b1t1OrdersSold * ProductPrices.b1t1;
+  int get totalRevenue => regularRevenue + mediumRevenue + b1t1Revenue;
+
+  // Backward compatibility alias
+  double get salesAmount => totalRevenue.toDouble();
+
+  // --- Salary (based on weighted orders) ---
+  int get salary => weightedOrders > 0 ? WageCalculator.computeWage(weightedOrders) : 0;
+
+  // Backward compatibility alias
+  int get wage => salary;
+
+  // --- Cash remittance ---
+  int get cashRemit => totalRevenue - salary;
+
+  // Backward compatibility alias
+  double get netTotal => cashRemit.toDouble();
+
+  // Total meat portions (pcs) used
+  int get totalKarneUsed => regularSold + mediumSold + b1t1PcsUsed;
+
+  // Backward compatibility alias
+  int get karneUsed => totalKarneUsed;
+
+  // --- Discrepancy check ---
+  // Only check if cook actually entered both meat and styro
+  int get expectedStyroUsed => regularSold + mediumSold + (b1t1OrdersSold * 2);
+  bool get hasDiscrepancy => hasStyroInput && hasMeatInput && (styroUsed != expectedStyroUsed);
 }

@@ -10,7 +10,9 @@ import '../models/branch_meat_inventory.dart';
 import '../models/daily_report.dart';
 import '../models/inventory_batch.dart';
 import '../models/meat_dispatch.dart';
+import '../models/app_notification.dart';
 import '../models/sales_record.dart';
+import 'notification_service.dart';
 
 /// Service dedicated to handling high-frequency, operational, and real-time
 /// data in Cloud Firestore.
@@ -405,10 +407,58 @@ class FirestoreService {
     }
   }
 
+  static String _dailySalesDocId(String branchId, DateTime date) {
+    final yyyy = date.year.toString().padLeft(4, '0');
+    final mm = date.month.toString().padLeft(2, '0');
+    final dd = date.day.toString().padLeft(2, '0');
+    return '${branchId}_$yyyy$mm$dd';
+  }
+
+  /// Streams today's sales submission for a specific branch.
+  /// If a record exists for today, returns the SalesRecord; otherwise returns null.
+  static Stream<SalesRecord?> watchTodayBranchSales({
+    required String branchId,
+    required DateTime date,
+  }) {
+    final docId = _dailySalesDocId(branchId, date);
+    return _db.collection('daily_sales').doc(docId).snapshots().map((snapshot) {
+      if (!snapshot.exists || snapshot.data() == null) return null;
+      final data = snapshot.data()!;
+      final ts = data['date'] as Timestamp?;
+      final rs = data['remainingStock'] as Map<String, dynamic>?;
+      return SalesRecord(
+        id: snapshot.id,
+        branchId: data['branchId']?.toString() ?? branchId,
+        branchName: data['branchName']?.toString() ?? '',
+        employeeId: data['employeeId']?.toString() ?? '',
+        employeeName: data['employeeName']?.toString() ?? '',
+        date: ts?.toDate() ?? date,
+        portionsSold: (data['portionsSold'] as num?)?.toInt() ?? 0,
+        commissionRatePerPortion: (data['commissionRatePerPortion'] as num?)?.toDouble() ?? 5.0,
+        totalSalesAmount: (data['totalSalesAmount'] as num?)?.toDouble() ?? 0.0,
+        wage: (data['wage'] as num?)?.toDouble() ?? (data['computedWage'] as num?)?.toDouble(),
+        regularSold: (data['regularSold'] as num?)?.toInt(),
+        mediumSold: (data['mediumSold'] as num?)?.toInt(),
+        b1t1OrdersSold: (data['b1t1OrdersSold'] as num?)?.toInt(),
+        remainingStock: rs == null
+            ? null
+            : ActualReceivedCounts(
+                mayo: (rs['mayo'] as num?)?.toInt() ?? 0,
+                toyo: (rs['toyo'] as num?)?.toInt() ?? 0,
+                styro: (rs['styro'] as num?)?.toInt() ?? 0,
+                regular: (rs['regular'] as num?)?.toInt() ?? 0,
+                medium: (rs['medium'] as num?)?.toInt() ?? 0,
+                b1t1: (rs['b1t1'] as num?)?.toInt() ?? 0,
+              ),
+      );
+    });
+  }
+
   /// Saves the end-of-day sales record submitted by a branch cook.
   /// Also saves an owner notification so the owner sees it in real-time.
   static Future<bool> submitDailySales(SalesRecord sales) async {
     try {
+      final docId = _dailySalesDocId(sales.branchId, sales.date);
       final data = <String, dynamic>{
         'branchId': sales.branchId,
         'branchName': sales.branchName,
@@ -420,6 +470,10 @@ class FirestoreService {
         'totalSalesAmount': sales.totalSalesAmount,
         'computedWage': sales.computedWage,
         'expectedCashRemittance': sales.expectedCashRemittance,
+        'wage': sales.wage ?? sales.computedWage,
+        'regularSold': sales.regularSold,
+        'mediumSold': sales.mediumSold,
+        'b1t1OrdersSold': sales.b1t1OrdersSold,
         'submittedAt': FieldValue.serverTimestamp(),
       };
       if (sales.remainingStock != null) {
@@ -433,13 +487,26 @@ class FirestoreService {
           'b1t1': rs.b1t1,
         };
       }
-      await _db.collection('daily_sales').add(data);
+      await _db.collection('daily_sales').doc(docId).set(data);
 
-      // ── Notify Owner in real-time ─────────────────────────────────────────
+      // ── Notify Owner in real-time (both notifications and owner_notifications) ──
       final rs = sales.remainingStock;
       final stockNote = rs != null
           ? ' | Remaining: Reg ${rs.regular}, Med ${rs.medium}, B1T1 ${rs.b1t1}, Mayo ${rs.mayo}, Styro ${rs.styro}, Toyo ${rs.toyo}'
           : '';
+      
+      // 1. Post to main notifications collection (used by Admin Web Bell & Header)
+      await NotificationService.sendNotification(
+        title: '💰 Sales Submitted — ${sales.branchName}',
+        message: '${sales.employeeName} submitted ${sales.portionsSold} portions'
+            ' (₱${sales.totalSalesAmount.toStringAsFixed(0)})$stockNote',
+        type: NotificationType.salesReport,
+        targetRole: 'owner',
+        route: 'sales',
+        targetBranch: sales.branchName,
+      );
+
+      // 2. Also record in owner_notifications collection for backward compatibility
       await _db.collection('owner_notifications').add({
         'type': 'sales_submitted',
         'title': '💰 Sales Submitted — ${sales.branchName}',
@@ -552,6 +619,10 @@ class FirestoreService {
           portionsSold: (data['portionsSold'] as num?)?.toInt() ?? 0,
           commissionRatePerPortion: (data['commissionRatePerPortion'] as num?)?.toDouble() ?? 5.0,
           totalSalesAmount: (data['totalSalesAmount'] as num?)?.toDouble() ?? 0.0,
+          wage: (data['wage'] as num?)?.toDouble() ?? (data['computedWage'] as num?)?.toDouble(),
+          regularSold: (data['regularSold'] as num?)?.toInt(),
+          mediumSold: (data['mediumSold'] as num?)?.toInt(),
+          b1t1OrdersSold: (data['b1t1OrdersSold'] as num?)?.toInt(),
           remainingStock: rs == null
               ? null
               : ActualReceivedCounts(
@@ -595,6 +666,10 @@ class FirestoreService {
           portionsSold: (data['portionsSold'] as num?)?.toInt() ?? 0,
           commissionRatePerPortion: (data['commissionRatePerPortion'] as num?)?.toDouble() ?? 5.0,
           totalSalesAmount: (data['totalSalesAmount'] as num?)?.toDouble() ?? 0.0,
+          wage: (data['wage'] as num?)?.toDouble() ?? (data['computedWage'] as num?)?.toDouble(),
+          regularSold: (data['regularSold'] as num?)?.toInt(),
+          mediumSold: (data['mediumSold'] as num?)?.toInt(),
+          b1t1OrdersSold: (data['b1t1OrdersSold'] as num?)?.toInt(),
         );
       }).toList();
     } catch (e) {

@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'package:flutter/cupertino.dart';
 import '../../models/branch.dart';
+import '../../models/branch_daily_inventory.dart';
 import '../../models/daily_report.dart';
+import '../auth/mock_accounts.dart';
 import '../../services/assignment_service.dart';
 import '../../services/auth_service.dart';
 import '../../services/firestore_service.dart';
@@ -29,7 +31,13 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
   String _currentBranchId = 'br1';
   String _currentBranchName = 'Brgy. Gatid, Sta. Cruz';
   StreamSubscription<List<DailyReport>>? _reportsSub;
+  StreamSubscription<BranchDailyInventory?>? _inventorySub;
+  BranchDailyInventory? _todayInventory;
   final List<DailyReport> _myRecentReports = [];
+
+  bool get _isInventoryVerified =>
+      _todayInventory != null &&
+      _todayInventory!.status != InventoryVerificationStatus.pending;
 
   @override
   void initState() {
@@ -56,7 +64,13 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
   }
 
   void _setupBranch() {
-    final assignedBranchName = AssignmentService.getAssignedBranch(AuthService.currentUsername);
+    String assignedBranchName = AssignmentService.getAssignedBranch(AuthService.currentUsername);
+    if (assignedBranchName.isEmpty) {
+      final mock = kMockAccounts[AuthService.currentUsername.toLowerCase()];
+      if (mock != null && mock.branchName.isNotEmpty) {
+        assignedBranchName = mock.branchName;
+      }
+    }
     Branch? matchedBranch;
     if (assignedBranchName.isNotEmpty) {
       for (final b in kSampleBranches) {
@@ -73,12 +87,29 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
       _currentBranchId = matchedBranch!.id;
       _currentBranchName = matchedBranch.fullName;
     });
+
+    _inventorySub?.cancel();
+    _inventorySub = FirestoreService.watchTodayBranchInventory(
+      branchId: matchedBranch.id,
+      branchName: matchedBranch.fullName,
+      date: DateTime.now(),
+    ).listen((inv) {
+      if (mounted) {
+        setState(() {
+          _todayInventory = inv;
+          if (!_isInventoryVerified && _needMoreMeat) {
+            _needMoreMeat = false;
+          }
+        });
+      }
+    });
   }
 
   @override
   void dispose() {
     AssignmentService.changeNotifier.removeListener(_onAssignmentChanged);
     _reportsSub?.cancel();
+    _inventorySub?.cancel();
     _messageController.dispose();
     super.dispose();
   }
@@ -209,6 +240,27 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
               icon: CupertinoIcons.cube_box_fill,
               label: 'Need additional Karne (meat)',
               value: _needMoreMeat,
+              enabled: _isInventoryVerified,
+              subtitle: _isInventoryVerified
+                  ? null
+                  : 'Naka-lock: Mag-verify muna ng natanggap na inventory sa Home',
+              onDisabledTap: () {
+                showCupertinoDialog<void>(
+                  context: context,
+                  builder: (context) => CupertinoAlertDialog(
+                    title: const Text('Inventory Verification Required'),
+                    content: const Text(
+                      'Kailangan po munang sagutan ang "Verify: Count What You Actually Received" sa Home tab bago humingi ng additional karne.',
+                    ),
+                    actions: [
+                      CupertinoDialogAction(
+                        onPressed: () => Navigator.of(context).pop(),
+                        child: const Text('OK'),
+                      ),
+                    ],
+                  ),
+                );
+              },
               onChanged: (v) => setState(() => _needMoreMeat = v),
             ),
             const SizedBox(height: 18),
@@ -354,36 +406,74 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
     required String label,
     required bool value,
     required ValueChanged<bool> onChanged,
+    bool enabled = true,
+    String? subtitle,
+    VoidCallback? onDisabledTap,
   }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
-      child: StaffCard(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        highlighted: value,
-        child: Row(
-          children: [
-            Container(
-              width: 34,
-              height: 34,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: value
-                    ? AppColors.accent.withValues(alpha: 0.12)
-                    : AppColors.pastelBrown.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(12),
+      child: GestureDetector(
+        onTap: enabled ? null : onDisabledTap,
+        child: StaffCard(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          highlighted: value && enabled,
+          child: Row(
+            children: [
+              Container(
+                width: 34,
+                height: 34,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: !enabled
+                      ? AppColors.background.withValues(alpha: 0.5)
+                      : (value
+                          ? AppColors.accent.withValues(alpha: 0.12)
+                          : AppColors.pastelBrown.withValues(alpha: 0.2)),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  icon,
+                  size: 18,
+                  color: enabled ? AppColors.accent : AppColors.textSecondary.withValues(alpha: 0.4),
+                ),
               ),
-              child: Icon(icon, size: 18, color: AppColors.accent),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(label, style: const TextStyle(color: AppColors.textPrimary)),
-            ),
-            CupertinoSwitch(
-              value: value,
-              activeTrackColor: AppColors.accent,
-              onChanged: onChanged,
-            ),
-          ],
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      label,
+                      style: TextStyle(
+                        color: enabled ? AppColors.textPrimary : AppColors.textSecondary,
+                        fontWeight: enabled ? FontWeight.w600 : FontWeight.w500,
+                      ),
+                    ),
+                    if (subtitle != null) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        subtitle,
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: enabled ? AppColors.textSecondary : AppColors.warning,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              CupertinoSwitch(
+                value: value && enabled,
+                activeTrackColor: AppColors.accent,
+                onChanged: enabled
+                    ? onChanged
+                    : (_) {
+                        if (onDisabledTap != null) onDisabledTap();
+                      },
+              ),
+            ],
+          ),
         ),
       ),
     );

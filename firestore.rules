@@ -53,9 +53,9 @@ service cloud.firestore {
       // Any authenticated user can read their own profile; Owner can read all profiles
       allow read: if isOwner(userId) || isSystemOwner();
 
-      // Users can register as pending staff, or Owner can auto-seed/create profiles
+      // Users can register as pending/approved staff, or Owner can auto-seed/create profiles
       allow create: if isOwner(userId) &&
-                       ((request.resource.data.status == 'pending' &&
+                       (((request.resource.data.status == 'pending' || request.resource.data.status == 'approved') &&
                          request.resource.data.role == 'staff' &&
                          isValidString(request.resource.data.username, 3, 50)) ||
                         isSystemOwner());
@@ -102,11 +102,12 @@ service cloud.firestore {
     // Document ID is formatted as: ${branchId}_${YYYYMMDD}
     // =========================================================================
     match /branch_daily_inventories/{inventoryDocId} {
-      // Approved staff, driver, and owner can view today's allocated stock
-      allow read: if true;
+      // Approved staff and owner can view today's allocated/verified stock
+      allow read: if isSystemOwner() || isApprovedStaff();
 
-      // Owner can allocate stock; Driver can update allocation upon delivery; Staff can verify
-      allow create, update: if true;
+      // Owner allocates stock; Approved staff (cook/driver) can create or update
+      // their branch's verification record (actualReceived, status fields)
+      allow create, update: if isSystemOwner() || isApprovedStaff();
 
       allow delete: if isSystemOwner();
     }
@@ -117,20 +118,20 @@ service cloud.firestore {
     // =========================================================================
     match /daily_sales/{saleId} {
       // Owner can read all sales records; Approved staff can read their branch sales
-      allow read: if isApprovedStaff();
+      allow read: if isSystemOwner() || isApprovedStaff();
 
       // Approved cook can submit their daily sales report
-      allow create: if isApprovedStaff();
+      allow create, update: if isApprovedStaff() || isSystemOwner();
 
-      // Historical sales records cannot be modified after submission (tamper protection)
-      allow update, delete: if isSystemOwner();
+      // Historical sales records cannot be deleted after submission (tamper protection)
+      allow delete: if isSystemOwner();
     }
 
     // =========================================================================
     // 5. DAILY INCIDENT & SHORTAGE REPORTS
     // =========================================================================
     match /daily_reports/{reportId} {
-      allow read: if isApprovedStaff();
+      allow read: if isSystemOwner() || isApprovedStaff();
 
       // Approved staff can report operational issues (mayo torn, gas empty)
       allow create: if isApprovedStaff() &&
@@ -145,7 +146,7 @@ service cloud.firestore {
     // 6. ESP32 RFID ATTENDANCE LOGS
     // =========================================================================
     match /rfid_attendance/{tapId} {
-      allow read: if isApprovedStaff();
+      allow read: if isSystemOwner() || isApprovedStaff();
 
       // Logged taps from approved staff or dedicated hardware reader
       allow create: if isApprovedStaff() &&
@@ -163,8 +164,9 @@ service cloud.firestore {
       // Staff can read broadcast notifications ('all') or targeted to them
       allow read: if isAuthenticated();
 
-      // Only Owner or system background services can dispatch alerts
-      allow create, update, delete: if isSystemOwner();
+      // Owner or approved staff submitting reports/sales can dispatch alerts
+      allow create: if isSystemOwner() || isApprovedStaff();
+      allow update, delete: if isSystemOwner();
     }
 
     // =========================================================================
@@ -172,12 +174,12 @@ service cloud.firestore {
     // Tracks carne batches, portioning sessions, boiling, and yield metrics.
     // =========================================================================
     match /production_batches/{batchId} {
-      allow read: if isApprovedStaff();
-      allow create, update: if isApprovedStaff();
+      allow read: if isSystemOwner() || isApprovedStaff();
+      allow create, update: if isSystemOwner() || isApprovedStaff();
       allow delete: if isSystemOwner();
 
       match /{document=**} {
-        allow read, write: if isApprovedStaff();
+        allow read, write: if isSystemOwner() || isApprovedStaff();
       }
     }
 
@@ -186,7 +188,10 @@ service cloud.firestore {
     // Keyed by lowercase username to freeze staff accounts instantly upon login.
     // =========================================================================
     match /deactivated_staff/{username} {
-      allow read, write: if true;
+      // Read stays open — app checks this on login before auth role is established
+      allow read: if true;
+      // Only owner can freeze/unfreeze staff accounts
+      allow write: if isSystemOwner();
     }
 
     // =========================================================================
@@ -203,7 +208,10 @@ service cloud.firestore {
     // Daily rest day and duty status assignments managed by the Owner.
     // =========================================================================
     match /staff_assignments/{username} {
-      allow read, write: if true;
+      // Any authenticated user can read assignments (staff sees coworkers, owner sees all)
+      allow read: if isAuthenticated();
+      // Only owner can create/edit/delete assignments
+      allow write: if isSystemOwner();
     }
 
     // =========================================================================
@@ -211,7 +219,11 @@ service cloud.firestore {
     // Tracks 250g Regular, 300g Medium, and 400g B1T1 stock per branch.
     // =========================================================================
     match /branch_meat_stocks/{branchId} {
-      allow read, write: if true;
+      // Approved staff can read stock levels for their branch; owner reads all
+      allow read: if isSystemOwner() || isApprovedStaff();
+      // Owner manages baseline allocation; approved staff (cook) can update stock counts
+      allow create, update: if isSystemOwner() || isApprovedStaff();
+      allow delete: if isSystemOwner();
     }
 
     // =========================================================================
@@ -219,7 +231,11 @@ service cloud.firestore {
     // Real-time dispatches from Main Warehouse to branches with Driver delivery updates.
     // =========================================================================
     match /meat_dispatches/{dispatchId} {
-      allow read, write: if true;
+      // All approved staff (cook, driver, owner) can read dispatch records
+      allow read: if isSystemOwner() || isApprovedStaff();
+      // Owner creates dispatch orders; approved staff (driver) can update delivery status
+      allow create, update: if isSystemOwner() || isApprovedStaff();
+      allow delete: if isSystemOwner();
     }
 
     // =========================================================================

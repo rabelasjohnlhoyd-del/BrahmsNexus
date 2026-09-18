@@ -142,22 +142,64 @@ class StaffInputTile extends StatefulWidget {
     required this.controller,
     required this.onChanged,
     this.enabled = true,
+    this.step = 1,
+    this.evenOnly = false,
   });
 
   final String label;
   final TextEditingController controller;
   final VoidCallback onChanged;
   final bool enabled;
+  final int step;
+  final bool evenOnly;
 
   @override
   State<StaffInputTile> createState() => _StaffInputTileState();
 }
 
 class _StaffInputTileState extends State<StaffInputTile> {
+  late final FocusNode _focusNode;
+
+  @override
+  void initState() {
+    super.initState();
+    _focusNode = FocusNode();
+    _focusNode.addListener(_handleFocusChange);
+  }
+
+  @override
+  void dispose() {
+    _focusNode.removeListener(_handleFocusChange);
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  void _handleFocusChange() {
+    if (!_focusNode.hasFocus && widget.evenOnly) {
+      _snapToEven();
+    }
+  }
+
+  void _snapToEven() {
+    final text = widget.controller.text.trim();
+    if (text.isEmpty) return;
+    final val = int.tryParse(text);
+    if (val != null && val % 2 != 0) {
+      final snapped = (val ~/ 2) * 2;
+      widget.controller.text = '$snapped';
+      setState(() {});
+      widget.onChanged();
+    }
+  }
+
   void _step(int delta) {
     if (!widget.enabled) return;
-    final current = int.tryParse(widget.controller.text) ?? 0;
-    final next = (current + delta).clamp(0, 999999);
+    int current = int.tryParse(widget.controller.text) ?? 0;
+    int next = current + delta;
+    if (widget.evenOnly && next % 2 != 0) {
+      next = delta > 0 ? (next + 1) : (next - 1);
+    }
+    next = next.clamp(0, 999999);
     setState(() {
       widget.controller.text = '$next';
     });
@@ -191,6 +233,9 @@ class _StaffInputTileState extends State<StaffInputTile> {
   @override
   Widget build(BuildContext context) {
     final hasValue = widget.controller.text.isNotEmpty;
+    final parsedVal = int.tryParse(widget.controller.text.trim());
+    final isOddError = widget.evenOnly && parsedVal != null && parsedVal % 2 != 0;
+
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -199,13 +244,15 @@ class _StaffInputTileState extends State<StaffInputTile> {
         border: Border.all(
           color: !widget.enabled
               ? AppColors.border.withValues(alpha: 0.6)
-              : (hasValue ? AppColors.accent.withValues(alpha: 0.5) : AppColors.border),
-          width: hasValue && widget.enabled ? 1.3 : 1,
+              : (isOddError
+                  ? AppColors.error
+                  : (hasValue ? AppColors.accent.withValues(alpha: 0.5) : AppColors.border)),
+          width: (hasValue || isOddError) && widget.enabled ? 1.3 : 1,
         ),
         boxShadow: widget.enabled
             ? [
                 BoxShadow(
-                  color: AppColors.accentDark.withValues(alpha: 0.06),
+                  color: (isOddError ? AppColors.error : AppColors.accentDark).withValues(alpha: 0.06),
                   blurRadius: 10,
                   offset: const Offset(0, 3),
                 ),
@@ -216,12 +263,24 @@ class _StaffInputTileState extends State<StaffInputTile> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _TileHeader(label: widget.label),
+          if (isOddError) ...[
+            const SizedBox(height: 2),
+            const Text(
+              'Even numbers only (0, 2, 4...)',
+              style: TextStyle(
+                color: AppColors.error,
+                fontSize: 9.5,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
           const SizedBox(height: 10),
           Row(
             children: [
               Expanded(
                 child: CupertinoTextField(
                   controller: widget.controller,
+                  focusNode: _focusNode,
                   enabled: widget.enabled,
                   readOnly: !widget.enabled,
                   keyboardType: TextInputType.number,
@@ -231,15 +290,19 @@ class _StaffInputTileState extends State<StaffInputTile> {
                   decoration: BoxDecoration(
                     color: !widget.enabled
                         ? const Color(0xFFEEEEEE)
-                        : (hasValue
-                            ? AppColors.accent.withValues(alpha: 0.08)
-                            : AppColors.background.withValues(alpha: 0.6)),
+                        : (isOddError
+                            ? AppColors.error.withValues(alpha: 0.08)
+                            : (hasValue
+                                ? AppColors.accent.withValues(alpha: 0.08)
+                                : AppColors.background.withValues(alpha: 0.6))),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.w700,
-                    color: widget.enabled ? AppColors.textPrimary : AppColors.textSecondary,
+                    color: !widget.enabled
+                        ? AppColors.textSecondary
+                        : (isOddError ? AppColors.error : AppColors.textPrimary),
                   ),
                   onChanged: widget.enabled
                       ? (_) {
@@ -247,15 +310,21 @@ class _StaffInputTileState extends State<StaffInputTile> {
                           widget.onChanged();
                         }
                       : null,
+                  onSubmitted: (_) {
+                    if (widget.evenOnly) _snapToEven();
+                  },
+                  onEditingComplete: () {
+                    if (widget.evenOnly) _snapToEven();
+                  },
                 ),
               ),
               const SizedBox(width: 6),
               Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  _stepperButton(CupertinoIcons.chevron_up, () => _step(1)),
+                  _stepperButton(CupertinoIcons.chevron_up, () => _step(widget.step)),
                   const SizedBox(height: 4),
-                  _stepperButton(CupertinoIcons.chevron_down, () => _step(-1)),
+                  _stepperButton(CupertinoIcons.chevron_down, () => _step(-widget.step)),
                 ],
               ),
             ],
