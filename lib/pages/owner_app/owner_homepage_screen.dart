@@ -14,6 +14,7 @@ import '../../widgets/staff_card.dart';
 import '../../widgets/staff_nav_bar.dart';
 import '../../widgets/staff_section_header.dart';
 import '../../widgets/staff_top_actions.dart';
+import '../../services/weather_service.dart';
 
 /// Homepage tab of the Owner app — an at-a-glance overview of today's
 /// operations across all branches: interactive weather, staff on duty,
@@ -65,6 +66,7 @@ class _OwnerHomepageScreenState extends State<OwnerHomepageScreen> {
         });
       }
     });
+    _startWeatherTimer();
   }
 
   @override
@@ -72,14 +74,48 @@ class _OwnerHomepageScreenState extends State<OwnerHomepageScreen> {
     _salesSub?.cancel();
     _reportsSub?.cancel();
     _notifSub?.cancel();
+    _weatherTimer?.cancel();
     super.dispose();
   }
 
-  // Mock data for functional simulation
+  // Live weather state
   int _tempC = 28;
   int _humidity = 81;
   double _windSpeed = 12.5;
   int _feelsLikeC = 30;
+  String _condition = 'Partly Cloudy';
+  IconData _weatherIcon = CupertinoIcons.cloud_sun_fill;
+  String _liveLocation = '';
+  Timer? _weatherTimer;
+
+  void _startWeatherTimer() {
+    _fetchLiveWeather();
+    _weatherTimer?.cancel();
+    _weatherTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      _fetchLiveWeather();
+    });
+  }
+
+  Future<void> _fetchLiveWeather({bool force = false}) async {
+    final live = await WeatherService.fetchWeather(force: force);
+    if (!mounted) return;
+    setState(() {
+      _tempC = live.tempC.round();
+      _feelsLikeC = live.feelsLikeC.round();
+      _humidity = live.humidity;
+      _windSpeed = live.windSpeedKmH;
+      _condition = live.condition;
+      _weatherIcon = live.icon;
+      _liveLocation = live.location;
+      _isRefreshing = false;
+    });
+  }
+
+  void _refreshWeather() async {
+    if (_isRefreshing) return;
+    setState(() => _isRefreshing = true);
+    await _fetchLiveWeather(force: true);
+  }
 
   Widget _kpiTile({
     required IconData icon,
@@ -123,23 +159,6 @@ class _OwnerHomepageScreenState extends State<OwnerHomepageScreen> {
     );
   }
 
-  void _refreshWeather() async {
-    if (_isRefreshing) return;
-    setState(() => _isRefreshing = true);
-
-    await Future.delayed(const Duration(milliseconds: 800));
-
-    if (mounted) {
-      setState(() {
-        _isRefreshing = false;
-        _tempC = 27 + (DateTime.now().second % 3);
-        _humidity = 80 + (DateTime.now().second % 5);
-        _windSpeed = 10.0 + (DateTime.now().second % 10);
-        _feelsLikeC = _tempC + 2;
-      });
-    }
-  }
-
   void _toggleUnit() {
     setState(() => _isCelsius = !_isCelsius);
   }
@@ -159,9 +178,9 @@ class _OwnerHomepageScreenState extends State<OwnerHomepageScreen> {
 
   String _greetingPrefix() {
     final hour = DateTime.now().hour;
-    if (hour < 12) return 'Good Morning,';
-    if (hour < 18) return 'Good Afternoon,';
-    return 'Good Evening,';
+    if (hour < 12) return 'Good Morning';
+    if (hour < 18) return 'Good Afternoon';
+    return 'Good Evening';
   }
 
   String _formattedTime() {
@@ -186,30 +205,52 @@ class _OwnerHomepageScreenState extends State<OwnerHomepageScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // ── Greeting ─────────────────────────────────────────
+          Text(
+            '${_greetingPrefix()}, ${AuthService.currentUsername}',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              color: AppColors.textSecondary.withValues(alpha: 0.9),
+              letterSpacing: -0.2,
+            ),
+          ),
+          const SizedBox(height: 10),
+          // ── Location row ──────────────────────────────────────
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Row(
-                children: [
-                  Container(
-                    width: 8,
-                    height: 8,
-                    decoration: const BoxDecoration(
-                      color: Color(0xFF4285F4),
-                      shape: BoxShape.circle,
+              Expanded(
+                child: Row(
+                  children: [
+                    Container(
+                      width: 8,
+                      height: 8,
+                      decoration: const BoxDecoration(
+                        color: Color(0xFF4285F4),
+                        shape: BoxShape.circle,
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  const Text(
-                    'San Francisco, Victoria',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.textPrimary,
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        _liveLocation.isNotEmpty
+                            ? _liveLocation
+                            : 'San Francisco, Victoria',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
+              const SizedBox(width: 8),
               GestureDetector(
                 onTap: _refreshWeather,
                 child: Container(
@@ -243,7 +284,7 @@ class _OwnerHomepageScreenState extends State<OwnerHomepageScreen> {
           const SizedBox(height: 16),
           Row(
             children: [
-              const Icon(CupertinoIcons.cloud_fill,
+              Icon(_weatherIcon,
                   size: 48, color: AppColors.pastelBrown),
               const SizedBox(width: 12),
               Expanded(
@@ -280,9 +321,9 @@ class _OwnerHomepageScreenState extends State<OwnerHomepageScreen> {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  const Text(
-                    'Cloudy',
-                    style: TextStyle(
+                  Text(
+                    _condition,
+                    style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w800,
                       color: AppColors.textPrimary,
@@ -504,36 +545,6 @@ class _OwnerHomepageScreenState extends State<OwnerHomepageScreen> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            // GREETING
-            Padding(
-              padding: const EdgeInsets.only(bottom: 16, left: 4),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    _greetingPrefix(),
-                    style: TextStyle(
-                      color: AppColors.textSecondary.withValues(alpha: 0.9),
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: -0.5,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    AuthService.currentUsername,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: AppColors.textPrimary,
-                      fontSize: 34,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: -1.2,
-                    ),
-                  ),
-                ],
-              ),
-            ),
             // WEATHER WIDGET
             _weatherWidget(),
             const SizedBox(height: 20),

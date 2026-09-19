@@ -36,12 +36,16 @@ class NotificationService {
     required AppNotification notification,
     required String role,
     String? userId,
+    String? position,
   }) {
     if (userId != null && notification.targetUserId == userId) return true;
-    final tr = notification.targetRole.toLowerCase();
-    final ur = role.toLowerCase();
-    if (tr == 'all') return true;
+    final tr = notification.targetRole.toLowerCase().trim();
+    final ur = role.toLowerCase().trim();
+    final up = (position ?? '').toLowerCase().trim();
+
+    if (tr == 'all' || tr == 'all positions') return true;
     if (tr == ur) return true;
+    if (up.isNotEmpty && tr == up) return true;
     if (ur == 'production' && tr == 'staff') return true;
     return false;
   }
@@ -52,6 +56,7 @@ class NotificationService {
   static Stream<List<AppNotification>> watchNotifications({
     required String role,
     String? userId,
+    String? position,
   }) {
     try {
       return _db.collection(_collection).snapshots().map((snapshot) {
@@ -69,6 +74,7 @@ class NotificationService {
                   notification: n,
                   role: role,
                   userId: userId,
+                  position: position,
                 ))
             .toList();
 
@@ -81,6 +87,7 @@ class NotificationService {
                   notification: n,
                   role: role,
                   userId: userId,
+                  position: position,
                 ))
             .toList();
         filtered.sort((a, b) => b.createdAt.compareTo(a.createdAt));
@@ -93,6 +100,7 @@ class NotificationService {
                   notification: n,
                   role: role,
                   userId: userId,
+                  position: position,
                 ))
             .toList();
       });
@@ -214,15 +222,16 @@ class NotificationService {
     );
   }
 
-  /// Triggered when the Owner publishes a general announcement.
+  /// Triggered when the Owner publishes an announcement.
   static Future<void> notifyStaffAndDriversOfAnnouncement({
     required String messageContent,
+    String targetPosition = 'All Positions',
   }) async {
     await sendNotification(
       title: 'Announcement from Owner',
       message: messageContent,
       type: NotificationType.announcement,
-      targetRole: 'all',
+      targetRole: targetPosition.toLowerCase(),
       route: 'announcements',
     );
   }

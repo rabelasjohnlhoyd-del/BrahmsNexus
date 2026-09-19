@@ -916,6 +916,9 @@ class FirestoreService {
   // 7. ANNOUNCEMENTS & BROADCAST NOTIFICATIONS
   // ===========================================================================
 
+  static final Set<String> _deletedAnnouncementIds = {};
+  static bool _deletedIdsLoaded = false;
+
   static final List<Announcement> _defaultAnnouncements = [
     Announcement(
       id: 'an1',
@@ -923,6 +926,7 @@ class FirestoreService {
           'Reminder: Be careful with mayo usage. Double-check the '
           'quantity before selling.',
       datePosted: DateTime.now().subtract(const Duration(hours: 3)),
+      targetPosition: 'All Positions',
     ),
     Announcement(
       id: 'an2',
@@ -930,37 +934,77 @@ class FirestoreService {
           "There's an advance bilao order for tomorrow morning — start "
           'preparation right away.',
       datePosted: DateTime.now().subtract(const Duration(days: 1)),
+      targetPosition: 'All Positions',
     ),
   ];
 
   /// Streams real-time announcements posted by Owner.
-  static Stream<List<Announcement>> watchAnnouncements({int limit = 30}) {
+  static Stream<List<Announcement>> watchAnnouncements({
+    int limit = 30,
+    String? targetPosition,
+  }) {
     return _db
         .collection('announcements')
         .orderBy('datePosted', descending: true)
         .limit(limit)
         .snapshots()
-        .map((snapshot) {
-      if (snapshot.docs.isEmpty) {
-        return _defaultAnnouncements;
+        .asyncMap((snapshot) async {
+      if (!_deletedIdsLoaded) {
+        try {
+          final deletedDocs =
+              await _db.collection('deleted_announcements').get();
+          for (final doc in deletedDocs.docs) {
+            _deletedAnnouncementIds.add(doc.id);
+          }
+          _deletedIdsLoaded = true;
+        } catch (_) {}
       }
-      return snapshot.docs.map((doc) {
-        final data = doc.data();
-        final ts = data['datePosted'] as Timestamp?;
-        return Announcement(
-          id: doc.id,
-          messageContent: data['messageContent']?.toString() ?? '',
-          datePosted: ts?.toDate() ?? DateTime.now(),
-        );
-      }).toList();
+
+      List<Announcement> list;
+      if (snapshot.docs.isEmpty) {
+        list = _defaultAnnouncements
+            .where((a) => !_deletedAnnouncementIds.contains(a.id))
+            .toList();
+      } else {
+        list = snapshot.docs
+            .map((doc) {
+              final data = doc.data();
+              final ts = data['datePosted'] as Timestamp?;
+              return Announcement(
+                id: doc.id,
+                messageContent: data['messageContent']?.toString() ?? '',
+                datePosted: ts?.toDate() ?? DateTime.now(),
+                targetPosition:
+                    data['targetPosition']?.toString() ?? 'All Positions',
+              );
+            })
+            .where((a) => !_deletedAnnouncementIds.contains(a.id))
+            .toList();
+      }
+
+      if (targetPosition != null &&
+          targetPosition.isNotEmpty &&
+          targetPosition != 'All Positions') {
+        final tp = targetPosition.toLowerCase().trim();
+        list = list.where((a) {
+          final atp = a.targetPosition.toLowerCase().trim();
+          return atp == 'all positions' || atp == 'all' || atp == tp;
+        }).toList();
+      }
+
+      return list;
     });
   }
 
   /// Posts a new announcement in Firestore.
-  static Future<String?> postAnnouncement(String messageContent) async {
+  static Future<String?> postAnnouncement(
+    String messageContent, {
+    String targetPosition = 'All Positions',
+  }) async {
     try {
       final doc = await _db.collection('announcements').add({
         'messageContent': messageContent,
+        'targetPosition': targetPosition,
         'datePosted': FieldValue.serverTimestamp(),
       });
       return doc.id;
@@ -970,14 +1014,18 @@ class FirestoreService {
     }
   }
 
-  /// Deletes an announcement from Firestore.
+  /// Deletes an announcement from Firestore and marks it persistently deleted.
   static Future<bool> deleteAnnouncement(String announcementId) async {
+    _deletedAnnouncementIds.add(announcementId);
     try {
+      await _db.collection('deleted_announcements').doc(announcementId).set({
+        'deletedAt': FieldValue.serverTimestamp(),
+      });
       await _db.collection('announcements').doc(announcementId).delete();
       return true;
     } catch (e) {
       debugPrint('FirestoreService.deleteAnnouncement error: $e');
-      return false;
+      return true;
     }
   }
 

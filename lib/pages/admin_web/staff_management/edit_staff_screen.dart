@@ -60,7 +60,7 @@ class _EditStaffScreenState extends State<EditStaffScreen> {
 
   void _updateShellActions() {
     final shell = context.findAncestorStateOfType<AdminWebShellState>();
-    shell?.setTitle('EDIT STAFF: ${widget.member.fullName.toUpperCase()}');
+    shell?.setTitle('STAFF MANAGEMENT');
     shell?.setActions([]);
   }
 

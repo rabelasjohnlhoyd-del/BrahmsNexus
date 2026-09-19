@@ -545,78 +545,99 @@ class _StaffTile extends StatelessWidget {
               if (value == 'archive') onArchive();
               if (value == 'delete') onPermanentDelete();
             },
-            itemBuilder: (context) => [
-              const PopupMenuItem(
-                value: 'edit',
-                child: Row(
-                  children: [
-                    Icon(Icons.edit_outlined, size: 18),
-                    SizedBox(width: 10),
-                    Text('Edit Details'),
-                  ],
-                ),
-              ),
-              PopupMenuItem(
-                value: 'toggle',
-                child: Row(
-                  children: [
-                    Icon(
-                        member.isActive
-                            ? Icons.block_flipped
-                            : Icons.check_circle_outline,
-                        size: 18),
-                    SizedBox(width: 10),
-                    Text(member.isActive
-                        ? 'Deactivate Account'
-                        : 'Activate Account'),
-                  ],
-                ),
-              ),
-              const PopupMenuDivider(),
-              PopupMenuItem(
-                value: 'archive',
-                child: Row(
-                  children: [
-                    Icon(
-                      member.isArchived
-                          ? Icons.unarchive_outlined
-                          : Icons.archive_outlined,
-                      size: 18,
-                      color: member.isArchived
-                          ? AdminWebColors.success
-                          : AdminWebColors.error,
+            itemBuilder: (context) {
+              if (member.isArchived) {
+                return [
+                  PopupMenuItem(
+                    value: 'archive',
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.unarchive_outlined,
+                          size: 18,
+                          color: AdminWebColors.success,
+                        ),
+                        const SizedBox(width: 10),
+                        Text(
+                          'Restore Account',
+                          style: TextStyle(
+                            color: AdminWebColors.success,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(width: 10),
-                    Text(
-                      member.isArchived ? 'Restore Account' : 'Archive Account',
-                      style: TextStyle(
-                        color: member.isArchived
-                            ? AdminWebColors.success
-                            : AdminWebColors.error,
-                      ),
+                  ),
+                  PopupMenuItem(
+                    value: 'delete',
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.delete_forever_outlined,
+                          size: 18,
+                          color: AdminWebColors.error,
+                        ),
+                        const SizedBox(width: 10),
+                        Text(
+                          'Permanent Delete',
+                          style: TextStyle(
+                            color: AdminWebColors.error,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
+                  ),
+                ];
+              }
+
+              return [
+                const PopupMenuItem(
+                  value: 'edit',
+                  child: Row(
+                    children: [
+                      Icon(Icons.edit_outlined, size: 18),
+                      SizedBox(width: 10),
+                      Text('Edit Details'),
+                    ],
+                  ),
                 ),
-              ),
-              if (member.isArchived)
                 PopupMenuItem(
-                  value: 'delete',
+                  value: 'toggle',
                   child: Row(
                     children: [
                       Icon(
-                        Icons.delete_forever_outlined,
+                          member.isActive
+                              ? Icons.block_flipped
+                              : Icons.check_circle_outline,
+                          size: 18),
+                      SizedBox(width: 10),
+                      Text(member.isActive
+                          ? 'Deactivate Account'
+                          : 'Activate Account'),
+                    ],
+                  ),
+                ),
+                const PopupMenuDivider(),
+                PopupMenuItem(
+                  value: 'archive',
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.archive_outlined,
                         size: 18,
                         color: AdminWebColors.error,
                       ),
                       const SizedBox(width: 10),
                       Text(
-                        'Permanent Delete',
+                        'Archive Account',
                         style: TextStyle(color: AdminWebColors.error),
                       ),
                     ],
                   ),
                 ),
-            ],
+              ];
+            },
           ),
         ],
       ),

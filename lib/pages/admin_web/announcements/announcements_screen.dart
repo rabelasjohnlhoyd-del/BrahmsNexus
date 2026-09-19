@@ -22,24 +22,18 @@ class AnnouncementsScreen extends StatefulWidget {
 class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
   final _messageController = TextEditingController();
   bool _isPosting = false;
+  String _selectedTargetPosition = 'Branch Cook';
   StreamSubscription<List<Announcement>>? _announcementsSub;
 
-  final List<Announcement> _announcements = [
-    Announcement(
-      id: 'an1',
-      messageContent:
-          'Reminder: Be careful with mayo usage. Double-check the '
-          'quantity before selling.',
-      datePosted: DateTime.now().subtract(const Duration(hours: 3)),
-    ),
-    Announcement(
-      id: 'an2',
-      messageContent:
-          "There's an advance bilao order for tomorrow morning — start "
-          'preparation right away.',
-      datePosted: DateTime.now().subtract(const Duration(days: 1)),
-    ),
+  static const List<String> _positionChoices = [
+    'Branch Cook',
+    'Production Cook',
+    'Production Meat Cutter',
+    'Driver',
+    'All Positions',
   ];
+
+  final List<Announcement> _announcements = [];
 
   @override
   void initState() {
@@ -82,9 +76,13 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
     setState(() => _isPosting = true);
     _updateShellActions();
 
-    final docId = await FirestoreService.postAnnouncement(text);
+    final docId = await FirestoreService.postAnnouncement(
+      text,
+      targetPosition: _selectedTargetPosition,
+    );
     await NotificationService.notifyStaffAndDriversOfAnnouncement(
       messageContent: text,
+      targetPosition: _selectedTargetPosition,
     );
     if (!mounted) return;
 
@@ -92,9 +90,10 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
       _announcements.insert(
         0,
         Announcement(
-          id: docId ?? 'an${_announcements.length + 1}',
+          id: docId ?? 'an${DateTime.now().millisecondsSinceEpoch}',
           messageContent: text,
           datePosted: DateTime.now(),
+          targetPosition: _selectedTargetPosition,
         ),
       );
       _messageController.clear();
@@ -110,22 +109,23 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
   void _deleteAnnouncement(String id) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogCtx) => AlertDialog(
         title: const Text('Confirm Delete'),
         content: const Text('Are you sure you want to delete this announcement?'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogCtx),
             child: const Text('CANCEL'),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: AdminWebColors.error),
-            onPressed: () {
-              FirestoreService.deleteAnnouncement(id);
+            onPressed: () async {
+              Navigator.pop(dialogCtx);
+              await FirestoreService.deleteAnnouncement(id);
+              if (!mounted) return;
               setState(() => _announcements.removeWhere((a) => a.id == id));
-              Navigator.pop(context);
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Announcement deleted.')),
+                const SnackBar(content: Text('Announcement permanently deleted.')),
               );
             },
             child: const Text('DELETE', style: TextStyle(color: Colors.white)),
@@ -171,31 +171,62 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: ElevatedButton.icon(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AdminWebColors.accent,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 20, vertical: 12),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: DropdownButtonFormField<String>(
+                          initialValue: _selectedTargetPosition,
+                          decoration: const InputDecoration(
+                            labelText: 'TARGET POSITION / AUDIENCE',
+                            prefixIcon: Icon(Icons.people_alt_outlined, size: 20),
+                            labelStyle: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 11,
+                              letterSpacing: 0.8,
+                            ),
+                            contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                          ),
+                          items: _positionChoices.map((pos) {
+                            return DropdownMenuItem<String>(
+                              value: pos,
+                              child: Text(
+                                pos,
+                                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                              ),
+                            );
+                          }).toList(),
+                          onChanged: (val) {
+                            if (val != null) {
+                              setState(() => _selectedTargetPosition = val);
+                            }
+                          },
                         ),
                       ),
-                      label: const Text('POST ANNOUNCEMENT'),
-                      icon: _isPosting
-                          ? const SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white,
-                              ),
-                            )
-                          : const Icon(Icons.send_rounded, size: 16),
-                      onPressed: _isPosting ? null : _postAnnouncement,
-                    ),
+                      const SizedBox(width: 16),
+                      ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AdminWebColors.accent,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 24, vertical: 18),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        label: const Text('POST ANNOUNCEMENT'),
+                        icon: _isPosting
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : const Icon(Icons.send_rounded, size: 16),
+                        onPressed: _isPosting ? null : _postAnnouncement,
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -257,13 +288,40 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
                                 ),
                               ),
                               const SizedBox(height: 8),
-                              Text(
-                                _formatDate(a.datePosted),
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  color: AdminWebColors.textSecondary,
-                                  fontWeight: FontWeight.w500,
-                                ),
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 4,
+                                crossAxisAlignment: WrapCrossAlignment.center,
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 8, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: AdminWebColors.accent.withValues(alpha: 0.12),
+                                      borderRadius: BorderRadius.circular(4),
+                                      border: Border.all(
+                                        color: AdminWebColors.accent.withValues(alpha: 0.3),
+                                      ),
+                                    ),
+                                    child: Text(
+                                      'TARGET: ${a.targetPosition.toUpperCase()}',
+                                      style: const TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w700,
+                                        letterSpacing: 0.6,
+                                        color: AdminWebColors.accent,
+                                      ),
+                                    ),
+                                  ),
+                                  Text(
+                                    _formatDate(a.datePosted),
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      color: AdminWebColors.textSecondary,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ],
                           ),

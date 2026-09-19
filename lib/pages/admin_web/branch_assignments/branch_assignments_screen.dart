@@ -78,10 +78,13 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
                 fallback: AssignmentService.getAssignedBranch(a.employeeId, fallback: a.branchName))
             : AssignmentService.getAssignedBranch(a.employeeId, fallback: a.branchName);
 
-        final branch = kSampleBranches.firstWhere(
-          (b) => b.fullName == branchName,
-          orElse: () => kSampleBranches.first,
-        );
+        final isUnassigned = branchName == 'N/A' || branchName.isEmpty;
+        final branch = isUnassigned
+            ? Branch.unassigned
+            : kSampleBranches.firstWhere(
+                (b) => b.fullName == branchName,
+                orElse: () => kSampleBranches.first,
+              );
         _assignments[i] = a.copyWith(
           workStatus: status,
           branchId: branch.id,
@@ -109,12 +112,15 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
         s.username,
         fallback: AssignmentService.getAssignedBranch(s.id, fallback: s.branch),
       );
-      final branch = kSampleBranches.firstWhere(
-        (b) => b.fullName == cachedBranch,
-        orElse: () => (s.branch != 'N/A'
-            ? kSampleBranches.firstWhere((b) => b.fullName == s.branch, orElse: () => kSampleBranches.first)
-            : kSampleBranches.first),
-      );
+      final isUnassigned = (cachedBranch == 'N/A' || cachedBranch.isEmpty) && (s.branch == 'N/A' || s.branch.isEmpty);
+      final branch = isUnassigned
+          ? Branch.unassigned
+          : kSampleBranches.firstWhere(
+              (b) => b.fullName == cachedBranch,
+              orElse: () => (s.branch.isNotEmpty && s.branch != 'N/A')
+                  ? kSampleBranches.firstWhere((b) => b.fullName == s.branch, orElse: () => Branch.unassigned)
+                  : Branch.unassigned,
+            );
 
       return BranchAssignment(
         id: 'ba-${s.id}',
@@ -613,6 +619,32 @@ class _AssignmentCard extends StatelessWidget {
                   ],
                 ),
               ),
+              if (assignment.branchName == 'N/A' || assignment.branchId == 'unassigned') ...[
+                const SizedBox(height: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFEF2F2),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: const Color(0xFFFECACA)),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.warning_amber_rounded, size: 13, color: Color(0xFFDC2626)),
+                      SizedBox(width: 4),
+                      Text(
+                        'N/A: Piliin ang Branch sa ibaba',
+                        style: TextStyle(
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFFDC2626),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
               if (conflictingOnDutyCook != null) ...[
                 const SizedBox(height: 6),
                 Container(
@@ -645,89 +677,115 @@ class _AssignmentCard extends StatelessWidget {
       ],
     );
 
+    final isUnassigned = assignment.branchId == 'unassigned' || assignment.branchName == 'N/A';
     final branchDropdown = DropdownButtonFormField<String>(
       key: ValueKey('dd-${assignment.employeeId}-${assignment.branchId}-${assignment.workStatus.name}'),
-      initialValue: kSampleBranches.any((b) => b.id == assignment.branchId)
-          ? assignment.branchId
-          : kSampleBranches.first.id,
+      initialValue: isUnassigned
+          ? 'unassigned'
+          : (kSampleBranches.any((b) => b.id == assignment.branchId)
+              ? assignment.branchId
+              : kSampleBranches.first.id),
       isExpanded: true,
       decoration: InputDecoration(
-        labelText: isOnDuty ? 'ASSIGNED BRANCH' : 'ASSIGNED BRANCH (OFF TODAY)',
+        labelText: isUnassigned
+            ? 'ASSIGNED BRANCH (NOT ASSIGNED YET)'
+            : (isOnDuty ? 'ASSIGNED BRANCH' : 'ASSIGNED BRANCH (OFF TODAY)'),
         isDense: true,
         labelStyle: TextStyle(
           fontWeight: FontWeight.w800,
           fontSize: 11,
           letterSpacing: 1.0,
-          color: isOnDuty ? AdminWebColors.textSecondary : const Color(0xFF94A3B8),
+          color: isUnassigned
+              ? const Color(0xFFDC2626)
+              : (isOnDuty ? AdminWebColors.textSecondary : const Color(0xFF94A3B8)),
         ),
         prefixIcon: Icon(
-          isOnDuty ? Icons.storefront_rounded : Icons.pause_circle_outline_rounded,
+          isUnassigned
+              ? Icons.warning_amber_rounded
+              : (isOnDuty ? Icons.storefront_rounded : Icons.pause_circle_outline_rounded),
           size: 20,
-          color: isOnDuty ? AdminWebColors.accent : const Color(0xFF94A3B8),
+          color: isUnassigned
+              ? const Color(0xFFDC2626)
+              : (isOnDuty ? AdminWebColors.accent : const Color(0xFF94A3B8)),
         ),
       ),
-      items: kSampleBranches.map((b) {
-        BranchAssignment? occupiedCook;
-        for (final other in allAssignments) {
-          final samePerson = other.employeeId == assignment.employeeId ||
-              (other.employeeName.isNotEmpty &&
-                  other.employeeName.trim().toLowerCase() == assignment.employeeName.trim().toLowerCase());
-          if (!samePerson &&
-              other.workStatus == WorkStatus.onDuty &&
-              other.branchId == b.id) {
-            occupiedCook = other;
-            break;
+      items: [
+        if (isUnassigned)
+          const DropdownMenuItem<String>(
+            value: 'unassigned',
+            child: Text(
+              '⚠️ N/A — PILIIN ANG BRANCH NA ILALAGAY',
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFFDC2626),
+              ),
+            ),
+          ),
+        ...kSampleBranches.map((b) {
+          BranchAssignment? occupiedCook;
+          for (final other in allAssignments) {
+            final samePerson = other.employeeId == assignment.employeeId ||
+                (other.employeeName.isNotEmpty &&
+                    other.employeeName.trim().toLowerCase() == assignment.employeeName.trim().toLowerCase());
+            if (!samePerson &&
+                other.workStatus == WorkStatus.onDuty &&
+                other.branchId == b.id) {
+              occupiedCook = other;
+              break;
+            }
           }
-        }
-        final isOccupied = occupiedCook != null;
-        final isCurrent = b.id == assignment.branchId;
+          final isOccupied = occupiedCook != null;
+          final isCurrent = b.id == assignment.branchId;
 
-        // If cook is ON DUTY, branches occupied by other ON DUTY cooks are disabled
-        final isSelectable = !isOnDuty || !isOccupied || isCurrent;
+          // If cook is ON DUTY, branches occupied by other ON DUTY cooks are disabled
+          final isSelectable = !isOnDuty || !isOccupied || isCurrent;
 
-        Widget itemChild;
-        if (isOnDuty && isOccupied && !isCurrent) {
-          itemChild = Text(
-            '${b.fullName.toUpperCase()} — (May Duty: ${occupiedCook.employeeName.split(" ").first})',
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: Color(0xFF94A3B8),
-            ),
-          );
-        } else if (isOnDuty && isOccupied && isCurrent) {
-          itemChild = Text(
-            '${b.fullName.toUpperCase()} ⚠️ (Conflict: ${occupiedCook.employeeName.split(" ").first})',
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFFDC2626),
-            ),
-          );
-        } else {
-          itemChild = Text(
-            isOnDuty
-                ? b.fullName.toUpperCase()
-                : '${b.fullName.toUpperCase()} (Rest Day)',
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: isOnDuty ? null : const Color(0xFF94A3B8),
-            ),
-          );
-        }
+          Widget itemChild;
+          if (isOnDuty && isOccupied && !isCurrent) {
+            itemChild = Text(
+              '${b.fullName.toUpperCase()} — (May Duty: ${occupiedCook.employeeName.split(" ").first})',
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF94A3B8),
+              ),
+            );
+          } else if (isOnDuty && isOccupied && isCurrent) {
+            itemChild = Text(
+              '${b.fullName.toUpperCase()} ⚠️ (Conflict: ${occupiedCook.employeeName.split(" ").first})',
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFFDC2626),
+              ),
+            );
+          } else {
+            itemChild = Text(
+              isOnDuty
+                  ? b.fullName.toUpperCase()
+                  : '${b.fullName.toUpperCase()} (Rest Day)',
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: isOnDuty ? null : const Color(0xFF94A3B8),
+              ),
+            );
+          }
 
-        return DropdownMenuItem<String>(
-          value: b.id,
-          enabled: isSelectable,
-          child: itemChild,
-        );
-      }).toList(),
+          return DropdownMenuItem<String>(
+            value: b.id,
+            enabled: isSelectable,
+            child: itemChild,
+          );
+        }),
+      ],
       onChanged: (branchId) {
-        if (branchId != null) {
+        if (branchId != null && branchId != 'unassigned') {
           final branch = kSampleBranches.firstWhere((b) => b.id == branchId);
           onBranchChanged(branch);
         }

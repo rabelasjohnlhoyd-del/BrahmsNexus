@@ -30,6 +30,7 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
   int _currentPage = 0;
   static const int _pageSize = 10;
   DateTime? _dateFilter;
+  bool _showResolvedReports = false;
   StreamSubscription<List<DailyReport>>? _reportsSub;
 
   // Inventory verification
@@ -143,6 +144,10 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
 
   List<DailyReport> get _visibleReports {
     var list = _reports.where((r) {
+      final hasResponded = r.ownerReply != null && r.ownerReply!.trim().isNotEmpty;
+      if (!_showResolvedReports && hasResponded) {
+        return false;
+      }
       final matchesSearch = _searchQuery.isEmpty ||
           r.employeeName.toLowerCase().contains(_searchQuery.toLowerCase());
       final matchesBranch =
@@ -278,10 +283,36 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
                   ),
                 ),
                 const SizedBox(height: 6),
-                if (currentReply != null && currentReply!.isNotEmpty)
+                if (report.status == ReportSubmissionStatus.incomplete)
                   Container(
                     width: double.infinity,
-                    padding: const EdgeInsets.all(10),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AdminWebColors.warning.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: AdminWebColors.warning.withValues(alpha: 0.3)),
+                    ),
+                    child: const Row(
+                      children: [
+                        Icon(Icons.info_outline_rounded, size: 16, color: AdminWebColors.warning),
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Incomplete report — view details only. Awaiting employee completion.',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: AdminWebColors.textPrimary,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                else if (currentReply != null && currentReply.isNotEmpty)
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
                       color: AdminWebColors.accent.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8),
@@ -289,40 +320,45 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.check_circle_outline_rounded, size: 16, color: AdminWebColors.accent),
+                        const Icon(Icons.lock_rounded, size: 16, color: AdminWebColors.accent),
                         const SizedBox(width: 8),
                         Expanded(
-                          child: Text(
-                            currentReply!,
-                            style: const TextStyle(fontWeight: FontWeight.w600, color: AdminWebColors.textPrimary, fontSize: 13),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                currentReply,
+                                style: const TextStyle(fontWeight: FontWeight.w700, color: AdminWebColors.textPrimary, fontSize: 13),
+                              ),
+                              const SizedBox(height: 2),
+                              const Text(
+                                'Response submitted & locked (cannot be edited)',
+                                style: TextStyle(fontSize: 11, color: AdminWebColors.textSecondary),
+                              ),
+                            ],
                           ),
                         ),
                       ],
                     ),
                   )
-                else
+                else ...[
                   const Text(
                     'No response recorded yet.',
                     style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic, color: AdminWebColors.textSecondary),
                   ),
-                const SizedBox(height: 16),
-                const Text('Quick Reply:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    _webReplyButton('Noted', report.id, currentReply, (newVal) {
-                      setDialogState(() => currentReply = newVal);
-                    }),
-                    const SizedBox(width: 8),
-                    _webReplyButton('Linawin natin', report.id, currentReply, (newVal) {
-                      setDialogState(() => currentReply = newVal);
-                    }),
-                    const SizedBox(width: 8),
-                    _webReplyButton('Approved', report.id, currentReply, (newVal) {
-                      setDialogState(() => currentReply = newVal);
-                    }),
-                  ],
-                ),
+                  const SizedBox(height: 16),
+                  const Text('Quick Reply:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      _webReplyButton('Noted', report, dialogCtx, setDialogState),
+                      const SizedBox(width: 8),
+                      _webReplyButton('Linawin natin', report, dialogCtx, setDialogState),
+                      const SizedBox(width: 8),
+                      _webReplyButton('Approved', report, dialogCtx, setDialogState),
+                    ],
+                  ),
+                ],
               ],
             ),
           ),
@@ -337,18 +373,72 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
     );
   }
 
-  Widget _webReplyButton(String label, String reportId, String? currentReply, ValueChanged<String> onSelected) {
-    final isSelected = currentReply == label;
+  Widget _webReplyButton(
+    String label,
+    DailyReport report,
+    BuildContext dialogCtx,
+    StateSetter setDialogState,
+  ) {
     return OutlinedButton(
       onPressed: () async {
-        onSelected(label);
-        if (reportId.isNotEmpty) {
-          await FirestoreService.replyToDailyReport(reportId: reportId, reply: label);
+        final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (confirmCtx) => AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: const Row(
+              children: [
+                Icon(Icons.help_outline_rounded, color: AdminWebColors.accent),
+                SizedBox(width: 8),
+                Text('Confirm Quick Reply', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              ],
+            ),
+            content: Text(
+              'Are you sure you want to send "$label" as your response to ${report.employeeName}? Once submitted, this reply cannot be changed.',
+              style: const TextStyle(fontSize: 13.5),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(confirmCtx).pop(false),
+                child: const Text('CANCEL', style: TextStyle(color: AdminWebColors.textSecondary, fontWeight: FontWeight.bold)),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AdminWebColors.accent,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+                onPressed: () => Navigator.of(confirmCtx).pop(true),
+                child: const Text('CONFIRM', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              ),
+            ],
+          ),
+        );
+
+        if (confirmed != true) return;
+
+        setDialogState(() {});
+        if (report.id.isNotEmpty) {
+          await FirestoreService.replyToDailyReport(reportId: report.id, reply: label);
         }
+        final idx = _reports.indexWhere((r) => r.id == report.id);
+        if (idx != -1) {
+          setState(() {
+            _reports[idx] = _reports[idx].copyWith(ownerReply: label);
+          });
+        }
+        if (dialogCtx.mounted) {
+          Navigator.of(dialogCtx).pop();
+        }
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Response "$label" sent to ${report.employeeName}. Report completed.'),
+            backgroundColor: AdminWebColors.success,
+          ),
+        );
       },
       style: OutlinedButton.styleFrom(
-        foregroundColor: isSelected ? Colors.white : AdminWebColors.accent,
-        backgroundColor: isSelected ? AdminWebColors.accent : Colors.transparent,
+        foregroundColor: AdminWebColors.accent,
+        backgroundColor: Colors.transparent,
         side: const BorderSide(color: AdminWebColors.accent),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
@@ -517,6 +607,37 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
                         tooltip: 'Clear Date Filter',
                       ),
                     ],
+                    const SizedBox(width: 12),
+                    OutlinedButton.icon(
+                      onPressed: () {
+                        setState(() {
+                          _showResolvedReports = !_showResolvedReports;
+                          _currentPage = 0;
+                        });
+                      },
+                      icon: Icon(
+                        _showResolvedReports
+                            ? Icons.hourglass_top_rounded
+                            : Icons.check_circle_outline_rounded,
+                        size: 16,
+                      ),
+                      label: Text(
+                        _showResolvedReports
+                            ? 'SHOW PENDING ONLY'
+                            : 'SHOW RESOLVED (${_reports.where((r) => r.ownerReply != null && r.ownerReply!.isNotEmpty).length})',
+                        style: const TextStyle(
+                            fontSize: 11, fontWeight: FontWeight.bold),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: _showResolvedReports ? AdminWebColors.warning : AdminWebColors.accent,
+                        side: BorderSide(color: _showResolvedReports ? AdminWebColors.warning : AdminWebColors.accent),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                    ),
                     const SizedBox(width: 12),
                     OutlinedButton.icon(
                       onPressed: () {

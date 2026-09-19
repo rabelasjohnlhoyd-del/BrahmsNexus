@@ -406,11 +406,12 @@ class _LoginScreenState extends State<LoginScreen> {
               const SizedBox(height: 18),
 
               // Register Link
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
+              Wrap(
+                alignment: WrapAlignment.center,
+                crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
                   const Text(
-                    'Need to submit an application? ',
+                    "Don't have an account? ",
                     style: TextStyle(
                       color: Color(0xFF7A6556),
                       fontSize: 12.5,

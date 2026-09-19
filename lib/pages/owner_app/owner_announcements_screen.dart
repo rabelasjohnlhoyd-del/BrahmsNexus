@@ -30,22 +30,16 @@ class _OwnerAnnouncementsScreenState extends State<OwnerAnnouncementsScreen> {
   bool _isPosting = false;
   StreamSubscription<List<Announcement>>? _announcementsSub;
 
-  final List<Announcement> _announcements = [
-    Announcement(
-      id: 'an1',
-      messageContent:
-          'Reminder: Be careful with mayo usage. Double-check the '
-          'quantity before selling.',
-      datePosted: DateTime.now().subtract(const Duration(hours: 3)),
-    ),
-    Announcement(
-      id: 'an2',
-      messageContent:
-          "There's an advance bilao order for tomorrow morning — start "
-          'preparation right away.',
-      datePosted: DateTime.now().subtract(const Duration(days: 1)),
-    ),
+  String _selectedTargetPosition = 'Branch Cook';
+  static const List<String> _positionChoices = [
+    'Branch Cook',
+    'Production Cook',
+    'Production Meat Cutter',
+    'Driver',
+    'All Positions',
   ];
+
+  final List<Announcement> _announcements = [];
 
   @override
   void initState() {
@@ -74,11 +68,15 @@ class _OwnerAnnouncementsScreenState extends State<OwnerAnnouncementsScreen> {
 
     setState(() => _isPosting = true);
 
-    final docId = await FirestoreService.postAnnouncement(text);
+    final docId = await FirestoreService.postAnnouncement(
+      text,
+      targetPosition: _selectedTargetPosition,
+    );
 
-    // Broadcast notification to all Staff and Drivers
+    // Broadcast notification to all Staff and Drivers matching target position
     await NotificationService.notifyStaffAndDriversOfAnnouncement(
       messageContent: text,
+      targetPosition: _selectedTargetPosition,
     );
 
     if (!mounted) return;
@@ -90,6 +88,7 @@ class _OwnerAnnouncementsScreenState extends State<OwnerAnnouncementsScreen> {
           id: docId ?? 'an${_announcements.length + 1}',
           messageContent: text,
           datePosted: DateTime.now(),
+          targetPosition: _selectedTargetPosition,
         ),
       );
       _messageController.clear();
@@ -113,6 +112,30 @@ class _OwnerAnnouncementsScreenState extends State<OwnerAnnouncementsScreen> {
         setState(() => _announcements.removeWhere((x) => x.id == a.id));
       }
     }
+  }
+
+  void _showPositionPicker() {
+    showCupertinoModalPopup<void>(
+      context: context,
+      builder: (ctx) => CupertinoActionSheet(
+        title: const Text('Select Target Position'),
+        actions: _positionChoices.map((pos) {
+          return CupertinoActionSheetAction(
+            isDefaultAction: pos == _selectedTargetPosition,
+            onPressed: () {
+              setState(() => _selectedTargetPosition = pos);
+              Navigator.pop(ctx);
+            },
+            child: Text(pos),
+          );
+        }).toList(),
+        cancelButton: CupertinoActionSheetAction(
+          isDestructiveAction: true,
+          onPressed: () => Navigator.pop(ctx),
+          child: const Text('Cancel'),
+        ),
+      ),
+    );
   }
 
   String _formatDate(DateTime date) {
@@ -155,10 +178,50 @@ class _OwnerAnnouncementsScreenState extends State<OwnerAnnouncementsScreen> {
                       ),
                     ),
                     const SizedBox(height: 12),
-                    StaffButton(
-                      label: _isPosting ? 'Posting...' : 'Post',
-                      icon: CupertinoIcons.paperplane_fill,
-                      onPressed: _isPosting ? null : _postAnnouncement,
+                    Row(
+                      children: [
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: _showPositionPicker,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 12, vertical: 10),
+                              decoration: BoxDecoration(
+                                color: AppColors.background,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                  color: AppColors.border,
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  const Icon(CupertinoIcons.person_2_fill,
+                                      size: 16, color: AppColors.accent),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      _selectedTargetPosition,
+                                      style: const TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                        color: AppColors.textPrimary,
+                                      ),
+                                    ),
+                                  ),
+                                  const Icon(CupertinoIcons.chevron_down,
+                                      size: 14, color: AppColors.textSecondary),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        StaffButton(
+                          label: _isPosting ? 'Posting...' : 'Post',
+                          icon: CupertinoIcons.paperplane_fill,
+                          onPressed: _isPosting ? null : _postAnnouncement,
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -215,10 +278,33 @@ class _OwnerAnnouncementsScreenState extends State<OwnerAnnouncementsScreen> {
                   style: const TextStyle(color: AppColors.textPrimary),
                 ),
                 const SizedBox(height: 6),
-                Text(
-                  _formatDate(a.datePosted),
-                  style: const TextStyle(
-                      fontSize: 11.5, color: AppColors.textSecondary),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 4,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: AppColors.accent.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        'TARGET: ${a.targetPosition.toUpperCase()}',
+                        style: const TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.accent,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      _formatDate(a.datePosted),
+                      style: const TextStyle(
+                          fontSize: 11.5, color: AppColors.textSecondary),
+                    ),
+                  ],
                 ),
               ],
             ),

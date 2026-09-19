@@ -40,6 +40,7 @@ class DriverNotificationsScreen extends StatelessWidget {
       stream: NotificationService.watchNotifications(
         role: 'driver',
         userId: userId,
+        position: 'Driver',
       ),
       builder: (context, snapshot) {
         final notifications = snapshot.data ?? [];

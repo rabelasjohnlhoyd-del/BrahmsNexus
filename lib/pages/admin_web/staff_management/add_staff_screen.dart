@@ -35,12 +35,20 @@ class _AddStaffScreenState extends State<AddStaffScreen> {
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
 
+  String? _selectedSuffix;
   String? _selectedBranch;
   String? _selectedPosition;
   bool _isActive = true;
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
   bool _isSaving = false;
+
+  static const List<String> _staffPositionOptions = [
+    'Branch Cook',
+    'Production Cook',
+    'Production Meat Cutter',
+    'Driver',
+  ];
 
   @override
   void dispose() {
@@ -116,11 +124,13 @@ class _AddStaffScreenState extends State<AddStaffScreen> {
   }
 
   String? _validateBranch(String? value) {
+    if (_selectedPosition != 'Branch Cook') return null;
     if (value == null || value.isEmpty) return 'Please select a branch';
     return null;
   }
 
   String? _validateOtherBranch(String? value) {
+    if (_selectedPosition != 'Branch Cook') return null;
     if (_selectedBranch != 'Other') return null;
     final trimmed = value?.trim() ?? '';
     if (trimmed.isEmpty) return 'Please specify the branch name';
@@ -156,22 +166,25 @@ class _AddStaffScreenState extends State<AddStaffScreen> {
       _updateShellActions();
     });
 
-    // NOTE: front-end simulation only. Once Firebase is connected, this
-    // will call FirebaseAuth.createUserWithEmailAndPassword (or an admin
-    // SDK flow) and write the profile to Firestore instead.
     await Future.delayed(const Duration(milliseconds: 800));
 
     if (!mounted) return;
 
-    final branch = _selectedBranch == 'Other'
-        ? _otherBranchController.text.trim()
-        : _selectedBranch!;
+    final branch = _selectedPosition == 'Branch Cook'
+        ? (_selectedBranch == 'Other'
+            ? _otherBranchController.text.trim()
+            : (_selectedBranch ?? 'N/A'))
+        : 'N/A';
+
+    final lastName = _selectedSuffix != null && _selectedSuffix!.isNotEmpty
+        ? '${_lastNameController.text.trim()} ${_selectedSuffix!}'
+        : _lastNameController.text.trim();
 
     final newStaff = StaffMember(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
       firstName: _firstNameController.text.trim(),
       middleName: _middleNameController.text.trim(),
-      lastName: _lastNameController.text.trim(),
+      lastName: lastName,
       username: _usernameController.text.trim(),
       branch: branch,
       position: _selectedPosition!,
@@ -228,13 +241,13 @@ class _AddStaffScreenState extends State<AddStaffScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Expanded(
-                              flex: 2,
                               child: TextFormField(
                                 controller: _firstNameController,
                                 textCapitalization: TextCapitalization.words,
                                 textInputAction: TextInputAction.next,
                                 decoration: const InputDecoration(
-                                  labelText: 'FIRST NAME',
+                                  labelText: 'FIRST NAME *',
+                                  hintText: 'Enter first name',
                                   isDense: true,
                                   prefixIcon: Icon(Icons.badge_outlined, size: 20),
                                 ),
@@ -243,27 +256,15 @@ class _AddStaffScreenState extends State<AddStaffScreen> {
                             ),
                             const SizedBox(width: 16),
                             Expanded(
-                              flex: 1,
-                              child: TextFormField(
-                                controller: _middleNameController,
-                                textCapitalization: TextCapitalization.words,
-                                textInputAction: TextInputAction.next,
-                                decoration: const InputDecoration(
-                                  labelText: 'M.I. (OPTIONAL)',
-                                  isDense: true,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              flex: 2,
                               child: TextFormField(
                                 controller: _lastNameController,
                                 textCapitalization: TextCapitalization.words,
                                 textInputAction: TextInputAction.next,
                                 decoration: const InputDecoration(
-                                  labelText: 'LAST NAME',
+                                  labelText: 'LAST NAME *',
+                                  hintText: 'Enter last name',
                                   isDense: true,
+                                  prefixIcon: Icon(Icons.badge_outlined, size: 20),
                                 ),
                                 validator: (v) => _validateRequired(v, 'Last name'),
                               ),
@@ -275,52 +276,39 @@ class _AddStaffScreenState extends State<AddStaffScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Expanded(
+                              flex: 2,
                               child: TextFormField(
-                                controller: _usernameController,
+                                controller: _middleNameController,
+                                textCapitalization: TextCapitalization.words,
                                 textInputAction: TextInputAction.next,
-                                autocorrect: false,
                                 decoration: const InputDecoration(
-                                  labelText: 'USERNAME',
+                                  labelText: 'MIDDLE NAME (OPTIONAL)',
+                                  hintText: 'Enter middle name',
                                   isDense: true,
-                                  helperText: 'Used for logging in. No spaces.',
                                   prefixIcon: Icon(Icons.person_outline, size: 20),
                                 ),
-                                validator: _validateUsername,
-                              ),
-                            ),
-                            const SizedBox(width: 16),
-                            const Spacer(), // Balance the row
-                          ],
-                        ),
-                        const SizedBox(height: 20),
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(
-                              child: TextFormField(
-                                controller: _emailController,
-                                keyboardType: TextInputType.emailAddress,
-                                textInputAction: TextInputAction.next,
-                                decoration: const InputDecoration(
-                                  labelText: 'EMAIL (OPTIONAL)',
-                                  isDense: true,
-                                  prefixIcon: Icon(Icons.email_outlined, size: 20),
-                                ),
-                                validator: _validateEmail,
                               ),
                             ),
                             const SizedBox(width: 16),
                             Expanded(
-                              child: TextFormField(
-                                controller: _phoneController,
-                                keyboardType: TextInputType.phone,
-                                textInputAction: TextInputAction.next,
+                              flex: 1,
+                              child: DropdownButtonFormField<String?>(
+                                initialValue: _selectedSuffix,
                                 decoration: const InputDecoration(
-                                  labelText: 'PHONE NUMBER (OPTIONAL)',
+                                  labelText: 'SUFFIX',
                                   isDense: true,
-                                  prefixIcon: Icon(Icons.phone_outlined, size: 20),
                                 ),
-                                validator: _validatePhone,
+                                isExpanded: true,
+                                items: const [
+                                  DropdownMenuItem(value: null, child: Text('NONE')),
+                                  DropdownMenuItem(value: 'Jr.', child: Text('JR.')),
+                                  DropdownMenuItem(value: 'Sr.', child: Text('SR.')),
+                                  DropdownMenuItem(value: 'II', child: Text('II')),
+                                  DropdownMenuItem(value: 'III', child: Text('III')),
+                                  DropdownMenuItem(value: 'IV', child: Text('IV')),
+                                  DropdownMenuItem(value: 'V', child: Text('V')),
+                                ],
+                                onChanged: (value) => setState(() => _selectedSuffix = value),
                               ),
                             ),
                           ],
@@ -336,24 +324,72 @@ class _AddStaffScreenState extends State<AddStaffScreen> {
                                 keyboardType: TextInputType.number,
                                 textInputAction: TextInputAction.next,
                                 decoration: const InputDecoration(
-                                  labelText: 'AGE',
+                                  labelText: 'AGE *',
                                   isDense: true,
                                   prefixIcon: Icon(Icons.cake_outlined, size: 20),
                                 ),
+                                validator: (v) => _validateRequired(v, 'Age'),
                               ),
                             ),
                             const SizedBox(width: 16),
                             Expanded(
-                              flex: 3,
+                              flex: 2,
                               child: TextFormField(
-                                controller: _addressController,
-                                textCapitalization: TextCapitalization.words,
+                                controller: _phoneController,
+                                keyboardType: TextInputType.phone,
                                 textInputAction: TextInputAction.next,
                                 decoration: const InputDecoration(
-                                  labelText: 'HOME ADDRESS',
+                                  labelText: 'PHONE NUMBER (OPTIONAL)',
+                                  hintText: '0917 123 4567',
                                   isDense: true,
-                                  prefixIcon: Icon(Icons.home_outlined, size: 20),
+                                  prefixIcon: Icon(Icons.phone_outlined, size: 20),
                                 ),
+                                validator: _validatePhone,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 20),
+                        TextFormField(
+                          controller: _addressController,
+                          textCapitalization: TextCapitalization.words,
+                          textInputAction: TextInputAction.next,
+                          decoration: const InputDecoration(
+                            labelText: 'HOME ADDRESS',
+                            isDense: true,
+                            prefixIcon: Icon(Icons.home_outlined, size: 20),
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: TextFormField(
+                                controller: _usernameController,
+                                textInputAction: TextInputAction.next,
+                                autocorrect: false,
+                                decoration: const InputDecoration(
+                                  labelText: 'USERNAME *',
+                                  isDense: true,
+                                  helperText: 'Used for logging in. No spaces.',
+                                  prefixIcon: Icon(Icons.account_circle_outlined, size: 20),
+                                ),
+                                validator: _validateUsername,
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: TextFormField(
+                                controller: _emailController,
+                                keyboardType: TextInputType.emailAddress,
+                                textInputAction: TextInputAction.next,
+                                decoration: const InputDecoration(
+                                  labelText: 'EMAIL (OPTIONAL)',
+                                  isDense: true,
+                                  prefixIcon: Icon(Icons.email_outlined, size: 20),
+                                ),
+                                validator: _validateEmail,
                               ),
                             ),
                           ],
@@ -378,66 +414,66 @@ class _AddStaffScreenState extends State<AddStaffScreen> {
                           ),
                         ),
                         const SizedBox(height: 20),
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(
-                              child: DropdownButtonFormField<String>(
-                                initialValue: _selectedBranch,
-                                decoration: const InputDecoration(
-                                  labelText: 'BRANCH',
-                                  isDense: true,
-                                  prefixIcon: Icon(Icons.store_mall_directory_outlined, size: 20),
-                                ),
-                                items: kBranchOptions
-                                    .map((branch) => DropdownMenuItem(
-                                          value: branch,
-                                          child: Text(branch.toUpperCase()),
-                                        ))
-                                    .toList(),
-                                onChanged: (value) {
-                                  setState(() => _selectedBranch = value);
-                                },
-                                validator: _validateBranch,
-                              ),
+                        DropdownButtonFormField<String>(
+                          initialValue: _selectedPosition,
+                          decoration: const InputDecoration(
+                            labelText: 'POSITION *',
+                            isDense: true,
+                            prefixIcon: Icon(Icons.work_outline, size: 20),
+                          ),
+                          items: _staffPositionOptions
+                              .map((pos) => DropdownMenuItem(
+                                    value: pos,
+                                    child: Text(pos.toUpperCase()),
+                                  ))
+                              .toList(),
+                          onChanged: (value) {
+                            setState(() {
+                              _selectedPosition = value;
+                              if (value != 'Branch Cook') {
+                                _selectedBranch = 'N/A';
+                              } else if (_selectedBranch == 'N/A') {
+                                _selectedBranch = null;
+                              }
+                            });
+                          },
+                          validator: _validatePosition,
+                        ),
+                        if (_selectedPosition == 'Branch Cook') ...[
+                          const SizedBox(height: 20),
+                          DropdownButtonFormField<String>(
+                            initialValue: _selectedBranch == 'N/A' ? null : _selectedBranch,
+                            decoration: const InputDecoration(
+                              labelText: 'ASSIGNED BRANCH *',
+                              isDense: true,
+                              prefixIcon: Icon(Icons.store_mall_directory_outlined, size: 20),
                             ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: DropdownButtonFormField<String>(
-                                initialValue: _selectedPosition,
-                                decoration: const InputDecoration(
-                                  labelText: 'POSITION',
-                                  isDense: true,
-                                  prefixIcon: Icon(Icons.work_outline, size: 20),
-                                ),
-                                items: kPositionOptions
-                                    .map((pos) => DropdownMenuItem(
-                                          value: pos,
-                                          child: Text(pos.toUpperCase()),
-                                        ))
-                                    .toList(),
-                                onChanged: (value) {
-                                  setState(() => _selectedPosition = value);
-                                },
-                                validator: _validatePosition,
+                            items: kBranchOptions
+                                .map((branch) => DropdownMenuItem(
+                                      value: branch,
+                                      child: Text(branch.toUpperCase()),
+                                    ))
+                                .toList(),
+                            onChanged: (value) {
+                              setState(() => _selectedBranch = value);
+                            },
+                            validator: _validateBranch,
+                          ),
+                          if (_selectedBranch == 'Other') ...[
+                            const SizedBox(height: 20),
+                            TextFormField(
+                              controller: _otherBranchController,
+                              textCapitalization: TextCapitalization.words,
+                              decoration: const InputDecoration(
+                                labelText: 'SPECIFY BRANCH NAME *',
+                                isDense: true,
+                                prefixIcon: Icon(Icons.edit_location_alt_outlined, size: 20),
                               ),
+                              validator: _validateOtherBranch,
                             ),
                           ],
-                        ),
-                        if (_selectedBranch == 'Other') ...[
-                          const SizedBox(height: 20),
-                          TextFormField(
-                            controller: _otherBranchController,
-                            textCapitalization: TextCapitalization.words,
-                            decoration: const InputDecoration(
-                              labelText: 'SPECIFY BRANCH NAME',
-                              isDense: true,
-                              prefixIcon: Icon(Icons.edit_location_alt_outlined, size: 20),
-                            ),
-                            validator: _validateOtherBranch,
-                          ),
                         ],
-                        const SizedBox(height: 12),
+                        const SizedBox(height: 16),
                         SwitchListTile(
                           contentPadding: EdgeInsets.zero,
                           value: _isActive,

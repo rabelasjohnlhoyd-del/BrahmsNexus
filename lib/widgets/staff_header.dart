@@ -34,9 +34,9 @@ class StaffHeader extends StatelessWidget {
   final String? dateLabel;
 
   static String _greetingFor(DateTime now) {
-    if (now.hour < 12) return 'Good Morning,';
-    if (now.hour < 18) return 'Good Afternoon,';
-    return 'Good Evening,';
+    if (now.hour < 12) return 'Good Morning';
+    if (now.hour < 18) return 'Good Afternoon';
+    return 'Good Evening';
   }
 
   @override

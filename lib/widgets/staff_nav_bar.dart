@@ -56,7 +56,7 @@ class StaffNavBar extends StatelessWidget
   final String? greetingName;
 
   static const double _compactHeight = 56;
-  static const double _greetingHeight = 56;
+  static const double _greetingHeight = 72;
 
   @override
   Size get preferredSize => Size.fromHeight(
@@ -75,10 +75,6 @@ class StaffNavBar extends StatelessWidget
 
   @override
   Widget build(BuildContext context) {
-    // Extends the gradient fill up underneath the status bar too,
-    // instead of stopping at the top of the header content — so
-    // there's no thin strip up top that could show the page
-    // background through instead.
     final topInset = MediaQuery.of(context).padding.top;
     final contentHeight =
         mode == StaffHeaderMode.greeting ? _greetingHeight : _compactHeight;
@@ -96,9 +92,6 @@ class StaffNavBar extends StatelessWidget
         height: contentHeight,
         child: Stack(
           children: [
-            // Soft decorative circles for depth, echoing the
-            // reference design's subtle top-right glow — pure
-            // shapes, no image assets required.
             Positioned(
               right: -36,
               top: -36,
@@ -136,11 +129,57 @@ class StaffNavBar extends StatelessWidget
   }
 
   Widget _buildGreeting(BuildContext context) {
-    // Home greeting header — now simplified to match the compact
-    // style, keeping everything clean and consistent.
     final name = greetingName ?? AuthService.currentUsername;
-    final label = '${_greetingPrefix()}, $name';
-    return _buildHeaderContent(context, label, showBack: false);
+    // Two-line layout: greeting prefix on top, name bold below
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 52),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    _greetingPrefix(),
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: CupertinoColors.white,
+                      fontWeight: FontWeight.w500,
+                      fontSize: 12,
+                      letterSpacing: 0.2,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    name,
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: CupertinoColors.white,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 17,
+                      letterSpacing: -0.3,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        if (trailing != null)
+          Align(
+            alignment: Alignment.centerRight,
+            child: Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: trailing!,
+            ),
+          ),
+      ],
+    );
   }
 
   Widget _buildHeaderContent(

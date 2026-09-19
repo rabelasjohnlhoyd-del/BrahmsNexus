@@ -52,6 +52,7 @@ class NotificationsScreen extends StatelessWidget {
       stream: NotificationService.watchNotifications(
         role: role,
         userId: userId,
+        position: AuthService.currentAppUser?.position,
       ),
       builder: (context, snapshot) {
         final notifications = snapshot.data ?? [];

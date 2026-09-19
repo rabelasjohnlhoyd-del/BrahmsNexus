@@ -21,7 +21,15 @@ class Branch {
   /// Order of this branch in the driver's daily route (1 = first stop).
   final int dailyRouteSequence;
 
-  String get fullName => '$name, $municipality';
+  static const Branch unassigned = Branch(
+    id: 'unassigned',
+    name: 'N/A',
+    municipality: '',
+    dailyRouteSequence: 999,
+  );
+
+  String get fullName =>
+      municipality.trim().isEmpty ? name : '$name, $municipality';
 
   Map<String, dynamic> toMap() {
     return {

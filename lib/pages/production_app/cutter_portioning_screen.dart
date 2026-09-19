@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import '../../services/auth_service.dart';
+import '../../services/weather_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/staff_button.dart';
 import '../../widgets/staff_card.dart';
@@ -33,6 +35,10 @@ class _CutterPortioningScreenState extends State<CutterPortioningScreen> {
 
   bool _isRefreshing = false;
   int _tempC = 28;
+  String _condition = 'Partly Cloudy';
+  IconData _weatherIcon = CupertinoIcons.cloud_sun_fill;
+  String _liveLocation = '';
+  Timer? _weatherTimer;
 
   @override
   void initState() {
@@ -41,6 +47,27 @@ class _CutterPortioningScreenState extends State<CutterPortioningScreen> {
     for (var controller in _controllers.values) {
       controller.addListener(_validateInputs);
     }
+    _startWeatherTimer();
+  }
+
+  void _startWeatherTimer() {
+    _fetchLiveWeather();
+    _weatherTimer?.cancel();
+    _weatherTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      _fetchLiveWeather();
+    });
+  }
+
+  Future<void> _fetchLiveWeather({bool force = false}) async {
+    final live = await WeatherService.fetchWeather(force: force);
+    if (!mounted) return;
+    setState(() {
+      _tempC = live.tempC.round();
+      _condition = live.condition;
+      _weatherIcon = live.icon;
+      _liveLocation = live.location;
+      _isRefreshing = false;
+    });
   }
 
   void _validateInputs() {
@@ -68,24 +95,19 @@ class _CutterPortioningScreenState extends State<CutterPortioningScreen> {
   void _refreshWeather() async {
     if (_isRefreshing) return;
     setState(() => _isRefreshing = true);
-    await Future.delayed(const Duration(milliseconds: 800));
-    if (mounted) {
-      setState(() {
-        _isRefreshing = false;
-        _tempC = 27 + (DateTime.now().second % 3);
-      });
-    }
+    await _fetchLiveWeather(force: true);
   }
 
   String _greetingPrefix() {
     final hour = DateTime.now().hour;
-    if (hour < 12) return 'Good Morning,';
-    if (hour < 18) return 'Good Afternoon,';
-    return 'Good Evening,';
+    if (hour < 12) return 'Good Morning';
+    if (hour < 18) return 'Good Afternoon';
+    return 'Good Evening';
   }
 
   @override
   void dispose() {
+    _weatherTimer?.cancel();
     for (var controller in _controllers.values) {
       controller.removeListener(_validateInputs);
       controller.dispose();
@@ -136,36 +158,6 @@ class _CutterPortioningScreenState extends State<CutterPortioningScreen> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            // GREETING
-            Padding(
-              padding: const EdgeInsets.only(bottom: 16, left: 4),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    _greetingPrefix(),
-                    style: TextStyle(
-                      color: AppColors.textSecondary.withValues(alpha: 0.9),
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: -0.5,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    AuthService.currentUsername,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: AppColors.textPrimary,
-                      fontSize: 34,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: -1.2,
-                    ),
-                  ),
-                ],
-              ),
-            ),
             // 0. WEATHER WIDGET
             _weatherWidget(),
             const SizedBox(height: 22),
@@ -261,24 +253,48 @@ class _CutterPortioningScreenState extends State<CutterPortioningScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // ── Greeting ─────────────────────────────────────────
+          Text(
+            '${_greetingPrefix()}, ${AuthService.currentUsername}',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              color: AppColors.textSecondary.withValues(alpha: 0.9),
+              letterSpacing: -0.2,
+            ),
+          ),
+          const SizedBox(height: 10),
+          // ── Location row ──────────────────────────────────────
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Row(
-                children: [
-                  Container(
-                      width: 8,
-                      height: 8,
-                      decoration: const BoxDecoration(
-                          color: Color(0xFF4285F4), shape: BoxShape.circle)),
-                  const SizedBox(width: 8),
-                  const Text('Central Kitchen Area',
-                      style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.textPrimary)),
-                ],
+              Expanded(
+                child: Row(
+                  children: [
+                    Container(
+                        width: 8,
+                        height: 8,
+                        decoration: const BoxDecoration(
+                            color: Color(0xFF4285F4), shape: BoxShape.circle)),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        _liveLocation.isNotEmpty
+                            ? _liveLocation
+                            : 'Central Kitchen Area',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.textPrimary),
+                      ),
+                    ),
+                  ],
+                ),
               ),
+              const SizedBox(width: 8),
               GestureDetector(
                 onTap: _refreshWeather,
                 child: Container(
@@ -308,7 +324,7 @@ class _CutterPortioningScreenState extends State<CutterPortioningScreen> {
           const SizedBox(height: 12),
           Row(
             children: [
-              const Icon(CupertinoIcons.cloud_sun_fill,
+              Icon(_weatherIcon,
                   size: 40, color: AppColors.pastelBrown),
               const SizedBox(width: 12),
               Text('$_tempC°C',
@@ -318,17 +334,21 @@ class _CutterPortioningScreenState extends State<CutterPortioningScreen> {
                       color: AppColors.textPrimary,
                       letterSpacing: -1)),
               const Spacer(),
-              const Column(
+              Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  Text('Partly Cloudy',
-                      style: TextStyle(
+                  Text(_condition,
+                      style: const TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w700,
                           color: AppColors.textPrimary)),
-                  Text('Central Kitchen Area',
-                      style: TextStyle(
-                          fontSize: 11, color: AppColors.textSecondary)),
+                  Text(
+                    _liveLocation.isNotEmpty
+                        ? _liveLocation
+                        : 'Central Kitchen Area',
+                    style: const TextStyle(
+                        fontSize: 11, color: AppColors.textSecondary),
+                  ),
                 ],
               ),
             ],
