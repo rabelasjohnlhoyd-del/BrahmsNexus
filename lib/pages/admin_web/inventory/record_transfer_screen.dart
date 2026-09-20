@@ -8,7 +8,9 @@ import '../admin_web_shell.dart';
 import '../admin_web_widgets/glass_card.dart';
 
 class RecordTransferScreen extends StatefulWidget {
-  const RecordTransferScreen({super.key});
+  const RecordTransferScreen({super.key, this.initialBranchId});
+
+  final String? initialBranchId;
 
   @override
   State<RecordTransferScreen> createState() => _RecordTransferScreenState();
@@ -32,6 +34,9 @@ class _RecordTransferScreenState extends State<RecordTransferScreen> {
   @override
   void initState() {
     super.initState();
+    if (widget.initialBranchId != null && kSampleBranches.any((b) => b.id == widget.initialBranchId)) {
+      _destId = widget.initialBranchId!;
+    }
     _updateShellActions();
   }
 

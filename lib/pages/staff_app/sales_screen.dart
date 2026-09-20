@@ -4,9 +4,11 @@ import '../../models/branch.dart';
 import '../../models/branch_daily_inventory.dart';
 import '../../models/branch_meat_inventory.dart';
 import '../../models/sales_record.dart';
+import '../../models/staff_member.dart';
 import '../../services/assignment_service.dart';
 import '../../services/auth_service.dart';
 import '../../services/firestore_service.dart';
+import '../../services/supabase_service.dart';
 import '../auth/mock_accounts.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/staff_button.dart';
@@ -56,37 +58,43 @@ class _SalesScreenState extends State<SalesScreen> {
 
   int get _allocatedRegular {
     final verified = _todayInventory?.actualReceived?.regular;
-    if (verified != null && verified > 0) return verified;
+    if (verified != null) return verified;
     return _branchMeatStock?.regular250gRemaining ?? 20;
   }
 
   int get _allocatedMedium {
     final verified = _todayInventory?.actualReceived?.medium;
-    if (verified != null && verified > 0) return verified;
+    if (verified != null) return verified;
     return _branchMeatStock?.medium300gRemaining ?? 10;
   }
 
   int get _allocatedB1t1 {
     final verified = _todayInventory?.actualReceived?.b1t1;
-    if (verified != null && verified > 0) return verified;
+    if (verified != null) return verified;
     return _branchMeatStock?.b1t1_400gRemaining ?? 10;
   }
 
   int get _allocatedMayo {
     final verified = _todayInventory?.actualReceived?.mayo;
-    if (verified != null && verified > 0) return verified;
+    if (verified != null) return verified;
+    final stock = _branchMeatStock?.mayoRemaining;
+    if (stock != null && stock > 0) return stock;
     return _allocated.mayo > 0 ? _allocated.mayo : 40;
   }
 
   int get _allocatedToyo {
     final verified = _todayInventory?.actualReceived?.toyo;
-    if (verified != null && verified > 0) return verified;
+    if (verified != null) return verified;
+    final stock = _branchMeatStock?.toyoRemaining;
+    if (stock != null && stock > 0) return stock;
     return _allocated.toyo > 0 ? _allocated.toyo : 10;
   }
 
   int get _allocatedStyro {
     final verified = _todayInventory?.actualReceived?.styro;
-    if (verified != null && verified > 0) return verified;
+    if (verified != null) return verified;
+    final stock = _branchMeatStock?.styroRemaining;
+    if (stock != null && stock > 0) return stock;
     return _allocated.styro > 0 ? _allocated.styro : 40;
   }
 
@@ -114,13 +122,32 @@ class _SalesScreenState extends State<SalesScreen> {
   }
 
   void _setupBranchAndStreams() {
-    String assignedBranchName = AssignmentService.getAssignedBranch(AuthService.currentUsername);
+    final username = AuthService.currentUsername;
+    final currentUid = AuthService.currentUserId;
+
+    var assignedBranchName = AssignmentService.getAssignedBranch(username);
+    if (assignedBranchName.isEmpty && currentUid.isNotEmpty) {
+      assignedBranchName = AssignmentService.getAssignedBranch(currentUid);
+    }
     if (assignedBranchName.isEmpty) {
-      final mock = kMockAccounts[AuthService.currentUsername.toLowerCase()];
+      final allStaff = SupabaseService.getAllStaff();
+      final match = allStaff.firstWhere(
+        (s) => s.username.toLowerCase() == username.toLowerCase() ||
+               s.id == currentUid ||
+               s.id.replaceAll('-', '') == currentUid.replaceAll('-', ''),
+        orElse: () => StaffMember(id: '', firstName: '', lastName: '', username: '', branch: '', position: ''),
+      );
+      if (match.branch.isNotEmpty && match.branch != 'N/A') {
+        assignedBranchName = match.branch;
+      }
+    }
+    if (assignedBranchName.isEmpty) {
+      final mock = kMockAccounts[username.toLowerCase()];
       if (mock != null && mock.branchName.isNotEmpty) {
         assignedBranchName = mock.branchName;
       }
     }
+
     Branch? matchedBranch;
     if (assignedBranchName.isNotEmpty) {
       for (final b in kSampleBranches) {
@@ -254,6 +281,7 @@ class _SalesScreenState extends State<SalesScreen> {
   /// into payroll, so a single accidental tap on "Submit Sales"
   /// shouldn't be enough to lock them in.
   Future<void> _confirmSubmit() async {
+    // 1. Siguraduhing na-verify ang inventory sa umaga
     if (!_isInventoryVerified) {
       showCupertinoDialog<void>(
         context: context,
@@ -273,6 +301,32 @@ class _SalesScreenState extends State<SalesScreen> {
       return;
     }
 
+    // 2. Siguraduhing nailagay ang lahat ng fields
+    if (_karneController.text.trim().isEmpty ||
+        _mediumController.text.trim().isEmpty ||
+        _b1t1Controller.text.trim().isEmpty ||
+        _mayoController.text.trim().isEmpty ||
+        _toyoController.text.trim().isEmpty ||
+        _styroController.text.trim().isEmpty) {
+      showCupertinoDialog<void>(
+        context: context,
+        builder: (context) => CupertinoAlertDialog(
+          title: const Text('Kulang ang Input'),
+          content: const Text(
+            'Paki-lagyan po muna ang lahat ng remaining stock fields (Regular, Medium, B1T1, Mayo, Toyo, at Styro) bago mag-submit.',
+          ),
+          actions: [
+            CupertinoDialogAction(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
+    // 3. Even numbers only para sa B1T1
     final b1t1Rem = _parseOrNull(_b1t1Controller) ?? 0;
     if (b1t1Rem % 2 != 0) {
       showCupertinoDialog<void>(
@@ -295,15 +349,100 @@ class _SalesScreenState extends State<SalesScreen> {
 
     final computation = _computation;
 
+    // 4. Kung may discrepancy sa Toyo / Condiments, hingan ng paliwanag ang cook
+    if (computation.hasToyoDiscrepancy) {
+      final discrepancyItems = <String>[];
+      if (computation.hasCondimentsSumDiscrepancy) {
+        discrepancyItems.add(
+          '${computation.totalCondimentsUsed} condiments ang nagamit (${computation.mayoUsed} mayo + ${computation.toyoUsed} toyo), pero ${computation.totalKarneUsed} pcs karne ang nabenta.',
+        );
+      }
+      if (computation.hasB1t1ToyoDiscrepancy) {
+        discrepancyItems.add(
+          'Walang sapat na Toyo na nabawas (${computation.toyoUsed} toyo nagamit) kahit may ${computation.b1t1OrdersSold} B1T1 order na may kasamang Bagnet.',
+        );
+      }
+
+      final reasonController = TextEditingController();
+      String? errorMessage;
+
+      final submittedWithReason = await showCupertinoDialog<String?>(
+        context: context,
+        builder: (dialogContext) => StatefulBuilder(
+          builder: (dialogContext, setDialogState) => CupertinoAlertDialog(
+            title: const Text('Discrepancy sa Toyo / Condiments'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 8),
+                Text(
+                  'May nakitang discrepancy:\n• ${discrepancyItems.join('\n• ')}',
+                  style: const TextStyle(fontSize: 12.5, height: 1.3),
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'Paki-lagay ang dahilan kung bakit hindi nabawasan ang toyo o hindi nagtugma ang condiments (hal. hindi humingi ng toyo ang customer):',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 8),
+                CupertinoTextField(
+                  controller: reasonController,
+                  placeholder: 'Ilagay ang dahilan dito (Required)...',
+                  maxLines: 2,
+                  style: const TextStyle(fontSize: 13),
+                  onChanged: (_) {
+                    if (errorMessage != null) {
+                      setDialogState(() => errorMessage = null);
+                    }
+                  },
+                ),
+                if (errorMessage != null) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    errorMessage!,
+                    style: const TextStyle(color: CupertinoColors.destructiveRed, fontSize: 11.5, fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ],
+            ),
+            actions: [
+              CupertinoDialogAction(
+                onPressed: () => Navigator.of(dialogContext).pop(null),
+                child: const Text('Cancel'),
+              ),
+              CupertinoDialogAction(
+                isDefaultAction: true,
+                onPressed: () {
+                  final text = reasonController.text.trim();
+                  if (text.isEmpty) {
+                    setDialogState(() {
+                      errorMessage = 'Paki-lagay po ang dahilan bago mag-submit.';
+                    });
+                    return;
+                  }
+                  Navigator.of(dialogContext).pop(text);
+                },
+                child: const Text('Submit Sales'),
+              ),
+            ],
+          ),
+        ),
+      );
+
+      if (submittedWithReason == null || !mounted) return;
+      _submit(discrepancyNote: submittedWithReason);
+      return;
+    }
+
+    // 5. Normal confirm dialog kung walang toyo discrepancy
     final confirmed = await showCupertinoDialog<bool>(
       context: context,
       builder: (dialogContext) => CupertinoAlertDialog(
         title: const Text('Submit Sales?'),
         content: Text(
-          computation.hasDiscrepancy
-              ? 'A discrepancy was found: Meat used (${computation.totalKarneUsed} pcs) '
-                  'does not match Styro used (${computation.styroUsed}). '
-                  'The Owner will be notified. Submit anyway?'
+          computation.hasStyroDiscrepancy
+              ? 'May discrepancy sa Styro: ginamit na ${computation.styroUsed} vs dapat ${computation.expectedStyroUsed} base sa orders. I-submit pa rin?'
               : 'Total Orders: ${computation.totalOrders} · '
                   'Gross: \u20b1${computation.totalRevenue} · '
                   'Salary: \u20b1${computation.salary} · '
@@ -317,7 +456,7 @@ class _SalesScreenState extends State<SalesScreen> {
           ),
           CupertinoDialogAction(
             isDefaultAction: true,
-            isDestructiveAction: computation.hasDiscrepancy,
+            isDestructiveAction: computation.hasStyroDiscrepancy,
             onPressed: () => Navigator.of(dialogContext).pop(true),
             child: const Text('Submit'),
           ),
@@ -329,7 +468,7 @@ class _SalesScreenState extends State<SalesScreen> {
     _submit();
   }
 
-  Future<void> _submit() async {
+  Future<void> _submit({String? discrepancyNote}) async {
     final computation = _computation;
 
     setState(() => _submitted = true);
@@ -342,13 +481,15 @@ class _SalesScreenState extends State<SalesScreen> {
       employeeId: AuthService.currentUsername,
       employeeName: AuthService.currentUser?.fullName ?? AuthService.currentUsername,
       date: DateTime.now(),
-      portionsSold: computation.totalOrders,
+      portionsSold: computation.totalKarneUsed,
+      totalOrders: computation.totalOrders,
       commissionRatePerPortion: 5.0,
       totalSalesAmount: computation.totalRevenue.toDouble(),
       wage: computation.salary.toDouble(),
       regularSold: computation.regularSold,
       mediumSold: computation.mediumSold,
       b1t1OrdersSold: computation.b1t1OrdersSold,
+      discrepancyNote: discrepancyNote,
       remainingStock: ActualReceivedCounts(
         mayo: int.tryParse(_mayoController.text) ?? 0,
         toyo: int.tryParse(_toyoController.text) ?? 0,
@@ -384,9 +525,11 @@ class _SalesScreenState extends State<SalesScreen> {
       context: context,
       builder: (context) => CupertinoAlertDialog(
         content: Text(
-          computation.hasDiscrepancy
-              ? 'Submitted, but a discrepancy was flagged (meat vs. styro) — the Owner will be notified.'
-              : 'Sales submitted successfully! Cash remit: ₱${computation.cashRemit}',
+          (discrepancyNote != null && discrepancyNote.isNotEmpty)
+              ? 'Nai-submit ang sales! Naka-attach ang paliwanag sa discrepancy para kay Owner:\n"$discrepancyNote"'
+              : (computation.hasStyroDiscrepancy
+                  ? 'Nai-submit ang sales, pero may na-flag na discrepancy sa Styro para kay Owner.'
+                  : 'Sales submitted successfully! Cash remit: ₱${computation.cashRemit}'),
         ),
         actions: [
           CupertinoDialogAction(
@@ -558,35 +701,82 @@ class _SalesScreenState extends State<SalesScreen> {
             const SizedBox(height: 20),
             if (_hasAnyInput) ...[ 
               if (computation.hasDiscrepancy)
-                Container(
-                  margin: const EdgeInsets.only(bottom: 16),
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                  color: AppColors.error.withValues(alpha: 0.10),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.error.withValues(alpha: 0.3)),
-                ),
-                  child: Row(
-                    children: [
-                      const Icon(CupertinoIcons.exclamationmark_triangle_fill,
-                          color: AppColors.error, size: 20),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          'Discrepancy found: Meat usage '
-                          '(${computation.totalKarneUsed} pcs) does not match '
-                          'Styro usage (${computation.styroUsed}). '
-                          'The Owner will be notified upon submission.',
-                          style: const TextStyle(
-                            color: AppColors.error,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 12.5,
+                Builder(builder: (context) {
+                  final issues = <String>[];
+                  if (computation.hasStyroDiscrepancy) {
+                    issues.add(
+                      'Styro: nagamit na ${computation.styroUsed} styro vs dapat ${computation.expectedStyroUsed} base sa orders.',
+                    );
+                  }
+                  if (computation.hasCondimentsSumDiscrepancy) {
+                    issues.add(
+                      'Mayo & Toyo: ${computation.totalCondimentsUsed} condiments ang nagamit (${computation.mayoUsed} mayo + ${computation.toyoUsed} toyo), pero ${computation.totalKarneUsed} pcs karne ang nabenta. (Dapat 1 condiment kada 1 karne pc).',
+                    );
+                  }
+                  if (computation.hasB1t1ToyoDiscrepancy) {
+                    issues.add(
+                      'Toyo sa B1T1: ${computation.toyoUsed} lang ang nagamit na Toyo kahit may ${computation.b1t1OrdersSold} B1T1 order na may kasamang Bagnet.',
+                    );
+                  }
+                  if (computation.hasMayoExcessDiscrepancy) {
+                    issues.add(
+                      'Mayo: Sobra ang nagamit na Mayo (${computation.mayoUsed}) kumpara sa nabentang Sisig portions.',
+                    );
+                  }
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 16),
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: AppColors.error.withValues(alpha: 0.10),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: AppColors.error.withValues(alpha: 0.3)),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(CupertinoIcons.exclamationmark_triangle_fill,
+                            color: AppColors.error, size: 20),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'May Nakitang Discrepancy sa Gamit / Benta:',
+                                style: TextStyle(
+                                  color: AppColors.error,
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 13,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              ...issues.map((msg) => Padding(
+                                padding: const EdgeInsets.only(bottom: 3),
+                                child: Text(
+                                  '• $msg',
+                                  style: const TextStyle(
+                                    color: AppColors.error,
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              )),
+                              const SizedBox(height: 2),
+                              const Text(
+                                'Paalala: Kung may customer na hindi humingi ng toyo, maglagay lamang ng paliwanag sa confirmation dialog bago mag-submit.',
+                                style: TextStyle(
+                                  color: AppColors.textSecondary,
+                                  fontWeight: FontWeight.w500,
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                      ),
-                    ],
-                  ),
-                ),
+                      ],
+                    ),
+                  );
+                }),
               const StaffSectionHeader(
                 label: 'Computation',
                 icon: CupertinoIcons.money_dollar_circle_fill,
@@ -688,7 +878,7 @@ class _SalesScreenState extends State<SalesScreen> {
                     const SizedBox(height: 6),
                     if (_todaySalesRecord != null)
                       Text(
-                        'Total Portions Sold: ${_todaySalesRecord!.portionsSold} · Total Remit: ₱${_todaySalesRecord!.expectedCashRemittance.toStringAsFixed(0)}',
+                        'Total Orders: ${_todaySalesRecord!.displayTotalOrders} · Portions (Karne Pcs): ${_todaySalesRecord!.displayPortions} · Remit: ₱${_todaySalesRecord!.expectedCashRemittance.toStringAsFixed(0)}',
                         style: const TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w700,

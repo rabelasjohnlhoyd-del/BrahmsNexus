@@ -17,6 +17,8 @@ import 'sales_screen.dart';
 class StaffShell extends StatelessWidget {
   const StaffShell({super.key});
 
+  static final CupertinoTabController tabController = CupertinoTabController();
+
   /// Muted, clearly "not selected" tint for inactive tabs — kept far
   /// enough from [AppColors.accent] that the active tab is obvious at
   /// a glance instead of both states reading as "brown".
@@ -107,6 +109,7 @@ class StaffShell extends StatelessWidget {
             builder: (context) => DefaultTextStyle(
               style: CupertinoTheme.of(context).textTheme.textStyle,
               child: CupertinoTabScaffold(
+                controller: tabController,
                 tabBar: CupertinoTabBar(
                   backgroundColor: CupertinoColors.white,
                   // Stabilized at 56px for visual balance (matches DriverNavBar)

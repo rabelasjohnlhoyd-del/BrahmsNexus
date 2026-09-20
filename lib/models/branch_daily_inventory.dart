@@ -175,6 +175,8 @@ class DailySalesComputation {
   bool get hasB1t1Input => remainingB1t1 != null;
   bool get hasMeatInput => hasRegularInput || hasMediumInput || hasB1t1Input;
   bool get hasStyroInput => remainingStyro != null;
+  bool get hasMayoInput => remainingMayo != null;
+  bool get hasToyoInput => remainingToyo != null;
 
   // --- Sold counts ---
   // If not entered (null), sold is 0 so it doesn't prematurely calculate before user inputs it
@@ -245,8 +247,49 @@ class DailySalesComputation {
   // Backward compatibility alias
   int get karneUsed => totalKarneUsed;
 
-  // --- Discrepancy check ---
-  // Only check if cook actually entered both meat and styro
+  // --- Discrepancy checks ---
+  // Styro: 1 per regular/medium order, 2 per B1T1 order (2 pcs meat)
   int get expectedStyroUsed => regularSold + mediumSold + (b1t1OrdersSold * 2);
-  bool get hasDiscrepancy => hasStyroInput && hasMeatInput && (styroUsed != expectedStyroUsed);
+  bool get hasStyroDiscrepancy => hasStyroInput && hasMeatInput && (styroUsed != expectedStyroUsed);
+
+  // Mayo (Sisig) & Toyo (Bagnet):
+  // Bawat piraso ng karne na nabenta ay may katumbas na 1 condiment (Mayo o Toyo).
+  // Total condiments used (Mayo + Toyo) dapat pantay sa total karne pcs na nabenta.
+  int get totalCondimentsUsed => mayoUsed + toyoUsed;
+  int get expectedCondimentsUsed => totalKarneUsed;
+
+  // 1. Condiments sum check: Mayo used + Toyo used == totalKarneUsed
+  bool get hasCondimentsSumDiscrepancy =>
+      hasMayoInput &&
+      hasToyoInput &&
+      hasMeatInput &&
+      (totalCondimentsUsed != expectedCondimentsUsed);
+
+  // 2. B1T1 Toyo check:
+  // Bawal ang Sisig + Sisig sa B1T1. Ang pwede lang ay Sisig + Bagnet (1 mayo, 1 toyo)
+  // o Bagnet + Bagnet (2 toyo). Kaya sa bawat 1 B1T1 order, dapat may bawas na at least 1 Toyo!
+  bool get hasB1t1ToyoDiscrepancy =>
+      hasToyoInput &&
+      hasMeatInput &&
+      b1t1OrdersSold > 0 &&
+      (toyoUsed < b1t1OrdersSold);
+
+  // 3. Mayo excess check:
+  // Hindi pwedeng lumagpas ang nagamit na Mayo sa regularSold + mediumSold + b1t1OrdersSold
+  bool get hasMayoExcessDiscrepancy =>
+      hasMayoInput &&
+      hasMeatInput &&
+      (mayoUsed > (regularSold + mediumSold + b1t1OrdersSold));
+
+  // May discrepancy sa Toyo o condiments
+  bool get hasToyoDiscrepancy =>
+      hasB1t1ToyoDiscrepancy || hasCondimentsSumDiscrepancy;
+
+  bool get hasCondimentDiscrepancy =>
+      hasCondimentsSumDiscrepancy ||
+      hasB1t1ToyoDiscrepancy ||
+      hasMayoExcessDiscrepancy;
+
+  bool get hasDiscrepancy =>
+      hasStyroDiscrepancy || hasCondimentDiscrepancy;
 }

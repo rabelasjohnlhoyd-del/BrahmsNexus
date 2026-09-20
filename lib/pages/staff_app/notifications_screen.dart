@@ -7,6 +7,8 @@ import '../../theme/app_theme.dart';
 import '../../widgets/staff_card.dart';
 import '../../widgets/staff_nav_bar.dart';
 import '../owner_app/owner_account_approvals_screen.dart';
+import 'daily_report_screen.dart';
+import 'staff_shell.dart';
 
 /// Opened from the notification bell icon at the top of every tab.
 /// Streams live real-time notifications for the current role/user.
@@ -40,6 +42,17 @@ class NotificationsScreen extends StatelessWidget {
           builder: (_) => const OwnerAccountApprovalsScreen(),
         ),
       );
+    } else if (item.route == 'daily_report') {
+      StaffShell.tabController.index = 2;
+      if (Navigator.of(context).canPop()) {
+        Navigator.of(context).pop();
+      } else {
+        Navigator.of(context).push(
+          CupertinoPageRoute(
+            builder: (_) => const DailyReportScreen(),
+          ),
+        );
+      }
     }
   }
 

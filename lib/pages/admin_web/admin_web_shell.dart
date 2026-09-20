@@ -92,12 +92,14 @@ class AdminWebShellState extends State<AdminWebShell> {
     AdminSidebarItem(icon: Icons.settings_rounded, label: 'System Settings'),
   ];
 
+  int _inventoryInitialTab = 0;
+
   List<Widget> get _pages => [
     DashboardScreen(onLogout: _handleLogout),
     const StaffManagementScreen(),
     const AccountApprovalsScreen(),
     const BranchAssignmentsScreen(),
-    const InventoryScreen(),
+    InventoryScreen(initialTab: _inventoryInitialTab),
     const SalesPayrollScreen(),
     const BilaoOrderScreen(),
     const EmployeeReportsScreen(),
@@ -218,14 +220,22 @@ class AdminWebShellState extends State<AdminWebShell> {
       case 'account_approvals':
         targetIndex = 2; // Account Approvals
         break;
+      case 'inventory_dispatch':
+        targetIndex = 4; // Inventory
+        _inventoryInitialTab = 2; // Dispatch Logs
+        break;
       case 'inventory':
         targetIndex = 4; // Inventory
-        break;
-      case 'announcements':
-        targetIndex = 8; // Announcements
+        _inventoryInitialTab = 0;
         break;
       case 'sales':
         targetIndex = 5; // Sales & Payroll
+        break;
+      case 'employee_reports':
+        targetIndex = 7; // Employee Reports
+        break;
+      case 'announcements':
+        targetIndex = 8; // Announcements
         break;
       default:
         targetIndex = 0;

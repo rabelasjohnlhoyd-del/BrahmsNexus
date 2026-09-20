@@ -357,7 +357,8 @@ class _SalesRecordCard extends StatelessWidget {
     );
 
     final stats = [
-      _miniStat('PORTIONS', '${r.portionsSold}'),
+      _miniStat('TOTAL ORDERS', '${r.displayTotalOrders}'),
+      _miniStat('PORTIONS', '${r.displayPortions}'),
       _miniStat('TOTAL SALES', '₱${r.totalSalesAmount.toStringAsFixed(0)}'),
       _miniStat('WAGE', '₱${r.computedWage.toStringAsFixed(0)}'),
       _miniStat(
@@ -388,13 +389,14 @@ class _SalesRecordCard extends StatelessWidget {
                       children: [
                         Expanded(child: stats[0]),
                         Expanded(child: stats[1]),
+                        Expanded(child: stats[2]),
                       ],
                     ),
                     const SizedBox(height: 16),
                     Row(
                       children: [
-                        Expanded(child: stats[2]),
                         Expanded(child: stats[3]),
+                        Expanded(child: stats[4]),
                       ],
                     ),
                   ],

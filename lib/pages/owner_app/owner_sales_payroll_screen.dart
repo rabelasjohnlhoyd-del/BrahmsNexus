@@ -147,7 +147,7 @@ class _OwnerSalesPayrollScreenState extends State<OwnerSalesPayrollScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text('Orders: ${r.portionsSold}', style: const TextStyle(fontWeight: FontWeight.w700)),
+                        Text('Orders: ${r.displayTotalOrders} · Portions: ${r.displayPortions}', style: const TextStyle(fontWeight: FontWeight.w700)),
                         Text(
                           'Remit: ₱${r.expectedCashRemittance.toStringAsFixed(0)}',
                           style: const TextStyle(fontWeight: FontWeight.w800, color: AppColors.accent),

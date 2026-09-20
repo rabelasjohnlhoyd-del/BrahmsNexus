@@ -13,7 +13,9 @@ import 'karne_batch_detail_screen.dart';
 import 'monthly_financials_screen.dart';
 
 class InventoryScreen extends StatefulWidget {
-  const InventoryScreen({super.key});
+  const InventoryScreen({super.key, this.initialTab = 0});
+
+  final int initialTab;
 
   @override
   State<InventoryScreen> createState() => _InventoryScreenState();
@@ -22,7 +24,7 @@ class InventoryScreen extends StatefulWidget {
 class _InventoryScreenState extends State<InventoryScreen>
     with SingleTickerProviderStateMixin {
   late final TabController _tabController =
-      TabController(length: 4, vsync: this);
+      TabController(length: 4, vsync: this, initialIndex: widget.initialTab.clamp(0, 3));
 
   StreamSubscription<List<KarneBatch>>? _batchesSub;
   StreamSubscription<List<BranchMeatStock>>? _meatStocksSub;
@@ -580,6 +582,12 @@ class _InventoryScreenState extends State<InventoryScreen>
                               ),
                             ],
                           ),
+                          const SizedBox(width: 8),
+                          IconButton(
+                            icon: const Icon(Icons.delete_outline_rounded, color: AdminWebColors.error, size: 20),
+                            tooltip: 'Delete Dispatch',
+                            onPressed: () => _confirmDeleteDispatch(dispatch),
+                          ),
                         ],
                       ),
                     );
@@ -588,5 +596,51 @@ class _InventoryScreenState extends State<InventoryScreen>
         ),
       ],
     );
+  }
+
+  Future<void> _confirmDeleteDispatch(MeatDispatch dispatch) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.delete_forever_rounded, color: AdminWebColors.error),
+            SizedBox(width: 8),
+            Text('Delete Dispatch Record?', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: Text(
+          'Sigurado ka bang nais mong burahin ang dispatch na ito sa ${dispatch.destinationBranchName} (${dispatch.itemsSummary})?',
+          style: const TextStyle(fontSize: 13.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('CANCEL', style: TextStyle(color: AdminWebColors.textSecondary, fontWeight: FontWeight.bold)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AdminWebColors.error,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('DELETE', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && dispatch.id.isNotEmpty) {
+      await FirestoreService.deleteDispatch(dispatch.id);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Nai-delete na ang dispatch record.'),
+            backgroundColor: AdminWebColors.error,
+          ),
+        );
+      }
+    }
   }
 }

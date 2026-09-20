@@ -201,6 +201,8 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
 
   void _showReportDetail(DailyReport report) {
     String? currentReply = report.ownerReply;
+    final replyController = TextEditingController();
+    bool isSending = false;
 
     showDialog(
       context: context,
@@ -283,35 +285,10 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
                   ),
                 ),
                 const SizedBox(height: 6),
-                if (report.status == ReportSubmissionStatus.incomplete)
+                if (currentReply != null && currentReply!.isNotEmpty)
                   Container(
                     width: double.infinity,
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: AdminWebColors.warning.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: AdminWebColors.warning.withValues(alpha: 0.3)),
-                    ),
-                    child: const Row(
-                      children: [
-                        Icon(Icons.info_outline_rounded, size: 16, color: AdminWebColors.warning),
-                        SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            'Incomplete report — view details only. Awaiting employee completion.',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: AdminWebColors.textPrimary,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  )
-                else if (currentReply != null && currentReply.isNotEmpty)
-                  Container(
-                    width: double.infinity,
+                    margin: const EdgeInsets.only(bottom: 12),
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
                       color: AdminWebColors.accent.withValues(alpha: 0.1),
@@ -319,20 +296,21 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
                       border: Border.all(color: AdminWebColors.accent.withValues(alpha: 0.3)),
                     ),
                     child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Icon(Icons.lock_rounded, size: 16, color: AdminWebColors.accent),
+                        const Icon(Icons.check_circle_rounded, size: 16, color: AdminWebColors.accent),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                currentReply,
+                                currentReply!,
                                 style: const TextStyle(fontWeight: FontWeight.w700, color: AdminWebColors.textPrimary, fontSize: 13),
                               ),
                               const SizedBox(height: 2),
                               const Text(
-                                'Response submitted & locked (cannot be edited)',
+                                'Tugon na naipadala sa branch cook',
                                 style: TextStyle(fontSize: 11, color: AdminWebColors.textSecondary),
                               ),
                             ],
@@ -340,25 +318,85 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
                         ),
                       ],
                     ),
-                  )
-                else ...[
-                  const Text(
-                    'No response recorded yet.',
-                    style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic, color: AdminWebColors.textSecondary),
                   ),
-                  const SizedBox(height: 16),
-                  const Text('Quick Reply:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      _webReplyButton('Noted', report, dialogCtx, setDialogState),
-                      const SizedBox(width: 8),
-                      _webReplyButton('Linawin natin', report, dialogCtx, setDialogState),
-                      const SizedBox(width: 8),
-                      _webReplyButton('Approved', report, dialogCtx, setDialogState),
-                    ],
+                TextField(
+                  controller: replyController,
+                  maxLines: 3,
+                  decoration: InputDecoration(
+                    hintText: 'I-type ang tugon kay ${report.employeeName} (hal. Papunta na ang driver para i-deliver)...',
+                    hintStyle: const TextStyle(fontSize: 12, color: AdminWebColors.textSecondary),
+                    filled: true,
+                    fillColor: Colors.white,
+                    contentPadding: const EdgeInsets.all(12),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(color: AdminWebColors.border),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(color: AdminWebColors.accent),
+                    ),
                   ),
-                ],
+                ),
+                const SizedBox(height: 10),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: ElevatedButton.icon(
+                    onPressed: isSending
+                        ? null
+                        : () async {
+                            final text = replyController.text.trim();
+                            if (text.isEmpty) return;
+                            setDialogState(() => isSending = true);
+
+                            final ok = await FirestoreService.replyToDailyReport(
+                              reportId: report.id,
+                              reply: text,
+                              branchName: report.branchName,
+                              employeeId: report.employeeId,
+                              employeeName: report.employeeName,
+                            );
+
+                            if (ok) {
+                              setDialogState(() {
+                                isSending = false;
+                                currentReply = text;
+                              });
+                              final idx = _reports.indexWhere((r) => r.id == report.id);
+                              if (idx != -1) {
+                                setState(() {
+                                  _reports[idx] = _reports[idx].copyWith(ownerReply: text);
+                                });
+                              }
+                              if (dialogCtx.mounted) Navigator.pop(dialogCtx);
+                              if (mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('Naipadala ang tugon kay ${report.employeeName}.'),
+                                    backgroundColor: AdminWebColors.success,
+                                  ),
+                                );
+                              }
+                            } else {
+                              setDialogState(() => isSending = false);
+                            }
+                          },
+                    icon: isSending
+                        ? const SizedBox(
+                            width: 14,
+                            height: 14,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                          )
+                        : const Icon(Icons.send_rounded, size: 16),
+                    label: Text(isSending ? 'Sending...' : 'SEND RESPONSE'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AdminWebColors.accent,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
@@ -370,80 +408,6 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
           ],
         ),
       ),
-    );
-  }
-
-  Widget _webReplyButton(
-    String label,
-    DailyReport report,
-    BuildContext dialogCtx,
-    StateSetter setDialogState,
-  ) {
-    return OutlinedButton(
-      onPressed: () async {
-        final confirmed = await showDialog<bool>(
-          context: context,
-          builder: (confirmCtx) => AlertDialog(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            title: const Row(
-              children: [
-                Icon(Icons.help_outline_rounded, color: AdminWebColors.accent),
-                SizedBox(width: 8),
-                Text('Confirm Quick Reply', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-              ],
-            ),
-            content: Text(
-              'Are you sure you want to send "$label" as your response to ${report.employeeName}? Once submitted, this reply cannot be changed.',
-              style: const TextStyle(fontSize: 13.5),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(confirmCtx).pop(false),
-                child: const Text('CANCEL', style: TextStyle(color: AdminWebColors.textSecondary, fontWeight: FontWeight.bold)),
-              ),
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AdminWebColors.accent,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                ),
-                onPressed: () => Navigator.of(confirmCtx).pop(true),
-                child: const Text('CONFIRM', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-              ),
-            ],
-          ),
-        );
-
-        if (confirmed != true) return;
-
-        setDialogState(() {});
-        if (report.id.isNotEmpty) {
-          await FirestoreService.replyToDailyReport(reportId: report.id, reply: label);
-        }
-        final idx = _reports.indexWhere((r) => r.id == report.id);
-        if (idx != -1) {
-          setState(() {
-            _reports[idx] = _reports[idx].copyWith(ownerReply: label);
-          });
-        }
-        if (dialogCtx.mounted) {
-          Navigator.of(dialogCtx).pop();
-        }
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Response "$label" sent to ${report.employeeName}. Report completed.'),
-            backgroundColor: AdminWebColors.success,
-          ),
-        );
-      },
-      style: OutlinedButton.styleFrom(
-        foregroundColor: AdminWebColors.accent,
-        backgroundColor: Colors.transparent,
-        side: const BorderSide(color: AdminWebColors.accent),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      ),
-      child: Text(label, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
     );
   }
 

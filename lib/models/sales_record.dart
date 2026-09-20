@@ -16,11 +16,13 @@ class SalesRecord {
     required this.portionsSold,
     required this.commissionRatePerPortion,
     required this.totalSalesAmount,
+    this.totalOrders,
     this.remainingStock,
     this.wage,
     this.regularSold,
     this.mediumSold,
     this.b1t1OrdersSold,
+    this.discrepancyNote,
   });
 
   final String id;
@@ -32,6 +34,7 @@ class SalesRecord {
   final int portionsSold;
   final double commissionRatePerPortion;
   final double totalSalesAmount;
+  final int? totalOrders;
   /// End-of-day remaining stock submitted by Staff — mirrors what they
   /// entered in the Remaining Stock section of the Sales tab.
   final ActualReceivedCounts? remainingStock;
@@ -40,14 +43,33 @@ class SalesRecord {
   final int? regularSold;
   final int? mediumSold;
   final int? b1t1OrdersSold;
+  final String? discrepancyNote;
+
+  /// Total customer orders (1 regular = 1 order, 1 medium = 1 order, 1 B1T1 = 1 order).
+  int get displayTotalOrders {
+    if (totalOrders != null && totalOrders! > 0) return totalOrders!;
+    if (regularSold != null || mediumSold != null || b1t1OrdersSold != null) {
+      return (regularSold ?? 0) + (mediumSold ?? 0) + (b1t1OrdersSold ?? 0);
+    }
+    return portionsSold;
+  }
+
+  /// Total karne portions (pcs of meat: 1 per regular, 1 per medium, 2 per B1T1 order).
+  int get displayPortions {
+    if (regularSold != null || mediumSold != null || b1t1OrdersSold != null) {
+      final computed = (regularSold ?? 0) + (mediumSold ?? 0) + ((b1t1OrdersSold ?? 0) * 2);
+      if (computed > 0) return computed;
+    }
+    return portionsSold;
+  }
 
   /// Auto-computed daily wage — uses stored tiered wage if provided,
   /// else falls back to WageCalculator or commission rate.
   double get computedWage =>
       wage ??
-      (portionsSold > 0
-          ? WageCalculator.computeWage(portionsSold).toDouble()
-          : (portionsSold * commissionRatePerPortion));
+      (displayPortions > 0
+          ? WageCalculator.computeWage(displayPortions).toDouble()
+          : (displayPortions * commissionRatePerPortion));
 
   /// Cash the Driver should collect from this branch/employee.
   double get expectedCashRemittance => totalSalesAmount - computedWage;

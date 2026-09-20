@@ -646,17 +646,30 @@ class _HomepageScreenState extends State<HomepageScreen> with WidgetsBindingObse
             isDestructiveAction: true,
             onPressed: () async {
               Navigator.of(dialogContext).pop();
+              final actualMayo = int.tryParse(_mayoController.text) ?? 0;
+              final actualToyo = int.tryParse(_toyoController.text) ?? 0;
+              final actualStyro = int.tryParse(_styroController.text) ?? 0;
+              final actualReg = int.tryParse(_karneController.text) ?? 0;
+              final actualMed = int.tryParse(_mediumController.text) ?? 0;
+              final actualB1t1 = int.tryParse(_b1t1Controller.text) ?? 0;
+
               final updated = _inventory.copyWith(
                 date: DateTime.now(),
                 status: InventoryVerificationStatus.discrepancyReported,
                 discrepancyNote: _discrepancyController.text.trim(),
+                allocated: InventoryCounts(
+                  karne: actualReg + actualMed + actualB1t1,
+                  mayo: actualMayo,
+                  styro: actualStyro,
+                  toyo: actualToyo,
+                ),
                 actualReceived: ActualReceivedCounts(
-                  mayo: int.tryParse(_mayoController.text) ?? 0,
-                  toyo: int.tryParse(_toyoController.text) ?? 0,
-                  styro: int.tryParse(_styroController.text) ?? 0,
-                  regular: int.tryParse(_karneController.text) ?? 0,
-                  medium: int.tryParse(_mediumController.text) ?? 0,
-                  b1t1: int.tryParse(_b1t1Controller.text) ?? 0,
+                  mayo: actualMayo,
+                  toyo: actualToyo,
+                  styro: actualStyro,
+                  regular: actualReg,
+                  medium: actualMed,
+                  b1t1: actualB1t1,
                 ),
                 verifiedBy: AuthService.currentUsername,
                 verifiedAt: DateTime.now(),
@@ -664,6 +677,29 @@ class _HomepageScreenState extends State<HomepageScreen> with WidgetsBindingObse
               setState(() {
                 _inventory = updated;
               });
+
+              if (_branchMeatStock != null) {
+                final updatedStock = _branchMeatStock!.copyWith(
+                  regular250gTotal: actualReg,
+                  regular250gRemaining: actualReg,
+                  medium300gTotal: actualMed,
+                  medium300gRemaining: actualMed,
+                  b1t1_400gTotal: actualB1t1,
+                  b1t1_400gRemaining: actualB1t1,
+                  mayoTotal: actualMayo,
+                  mayoRemaining: actualMayo,
+                  styroTotal: actualStyro,
+                  styroRemaining: actualStyro,
+                  toyoTotal: actualToyo,
+                  toyoRemaining: actualToyo,
+                  date: DateTime.now(),
+                );
+                setState(() {
+                  _branchMeatStock = updatedStock;
+                });
+                await FirestoreService.saveBranchMeatStock(updatedStock);
+              }
+
               final ok = await FirestoreService.saveDailyInventory(updated);
               if (ok) {
                 _showToast('Report sent to Owner & synced!');
@@ -831,9 +867,13 @@ class _HomepageScreenState extends State<HomepageScreen> with WidgetsBindingObse
             LayoutBuilder(
               builder: (ctx, constraints) {
                 final cardW = (constraints.maxWidth - 12) / 2;
-                final reg = _branchMeatStock?.regular250gRemaining ?? 20;
-                final med = _branchMeatStock?.medium300gRemaining ?? 10;
-                final b1t1 = _branchMeatStock?.b1t1_400gRemaining ?? 10;
+                final ar = _inventory.actualReceived;
+                final reg = ar?.regular ?? _branchMeatStock?.regular250gRemaining ?? 20;
+                final med = ar?.medium ?? _branchMeatStock?.medium300gRemaining ?? 10;
+                final b1t1 = ar?.b1t1 ?? _branchMeatStock?.b1t1_400gRemaining ?? 10;
+                final mayo = ar?.mayo ?? a.mayo;
+                final toyo = ar?.toyo ?? a.toyo;
+                final styro = ar?.styro ?? a.styro;
                 Widget dtile(String label, String value, {bool dark = false}) =>
                     SizedBox(width: cardW, child: StaffDisplayTile(label: label, value: value, dark: dark));
                 return SingleChildScrollView(
@@ -843,15 +883,15 @@ class _HomepageScreenState extends State<HomepageScreen> with WidgetsBindingObse
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Row(children: [
-                        dtile('Mayo', '${a.mayo}', dark: true),
+                        dtile('Mayo', '$mayo', dark: true),
                         const SizedBox(width: 12),
-                        dtile('Toyo', '${a.toyo}', dark: true),
+                        dtile('Toyo', '$toyo', dark: true),
                         const SizedBox(width: 12),
                         dtile('Medium', '$med pcs'),
                       ]),
                       const SizedBox(height: 12),
                       Row(children: [
-                        dtile('Styro', '${a.styro}'),
+                        dtile('Styro', '$styro'),
                         const SizedBox(width: 12),
                         dtile('Regular', '$reg pcs'),
                         const SizedBox(width: 12),

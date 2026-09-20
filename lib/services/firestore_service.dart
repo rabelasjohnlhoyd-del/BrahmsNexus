@@ -12,6 +12,7 @@ import '../models/inventory_batch.dart';
 import '../models/meat_dispatch.dart';
 import '../models/app_notification.dart';
 import '../models/sales_record.dart';
+import 'auth_service.dart';
 import 'notification_service.dart';
 
 /// Service dedicated to handling high-frequency, operational, and real-time
@@ -356,15 +357,142 @@ class FirestoreService {
         final noteExtra = (isDiscrepancy && (record.discrepancyNote?.isNotEmpty ?? false))
             ? ': "${record.discrepancyNote}"'
             : '';
+        final notifTitle = '$emoji Inventory $statusLabel — ${record.branchName}';
+        final notifBody = 'Branch ${record.branchName} inventory $statusLabel$noteExtra.';
+
+        // 1. Post to main notifications collection — feeds Owner's real-time bell panel
+        await NotificationService.sendNotification(
+          title: notifTitle,
+          message: notifBody,
+          type: NotificationType.inventoryAlert,
+          targetRole: 'owner',
+          route: isDiscrepancy ? 'inventory_dispatch' : 'inventory',
+          targetBranch: record.branchName,
+        );
+
+        // 2. Also record in owner_notifications for backward compatibility
         await _db.collection('owner_notifications').add({
           'type': isDiscrepancy ? 'inventory_discrepancy' : 'inventory_confirmed',
-          'title': '$emoji Inventory $statusLabel — ${record.branchName}',
-          'body': 'Branch ${record.branchName} inventory $statusLabel$noteExtra.',
+          'title': notifTitle,
+          'body': notifBody,
           'branchId': record.branchId,
           'branchName': record.branchName,
           'isRead': false,
           'createdAt': FieldValue.serverTimestamp(),
         });
+      }
+
+      // ── If Discrepancy Reported, also sync the actual counts to branch_meat_stocks ──
+      if (isDiscrepancy && record.actualReceived != null) {
+        final ar = record.actualReceived!;
+        await _db.collection('branch_meat_stocks').doc(record.branchId).set({
+          'regular250gTotal': ar.regular,
+          'regular250gRemaining': ar.regular,
+          'medium300gTotal': ar.medium,
+          'medium300gRemaining': ar.medium,
+          'b1t1_400gTotal': ar.b1t1,
+          'b1t1_400gRemaining': ar.b1t1,
+          'mayoTotal': ar.mayo,
+          'mayoRemaining': ar.mayo,
+          'styroTotal': ar.styro,
+          'styroRemaining': ar.styro,
+          'toyoTotal': ar.toyo,
+          'toyoRemaining': ar.toyo,
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+      }
+
+      // ── Mirror the discrepancy report into daily_reports so it appears on Employee Reports ──
+      if (isDiscrepancy) {
+        final empName = (record.verifiedBy != null && record.verifiedBy!.isNotEmpty)
+            ? record.verifiedBy!
+            : (AuthService.currentUser?.fullName.isNotEmpty == true
+                ? AuthService.currentUser!.fullName
+                : AuthService.currentUsername);
+        final ar = record.actualReceived;
+        final countsSummary = ar != null
+            ? 'Reg ${ar.regular} pcs, Med ${ar.medium} pcs, B1T1 ${ar.b1t1} pcs, Mayo ${ar.mayo}, Styro ${ar.styro}, Toyo ${ar.toyo}'
+            : '';
+        final noteText = (record.discrepancyNote != null && record.discrepancyNote!.trim().isNotEmpty)
+            ? record.discrepancyNote!.trim()
+            : 'Kulang ang natanggap na stock sa inventory verification.';
+        final reportContent = countsSummary.isNotEmpty
+            ? 'Inventory Discrepancy:\n"$noteText"\n\nAktwal na natanggap:\n$countsSummary'
+            : 'Inventory Discrepancy:\n"$noteText"';
+
+        try {
+          final existingQuery = await _db
+              .collection('daily_reports')
+              .where('branchId', isEqualTo: record.branchId)
+              .limit(20)
+              .get();
+
+          DocumentSnapshot<Map<String, dynamic>>? existingDoc;
+          for (final doc in existingQuery.docs) {
+            final data = doc.data();
+            final content = data['content'] as String? ?? '';
+            final ts = data['date'] as Timestamp?;
+            if (content.startsWith('Inventory Discrepancy:') && ts != null) {
+              final dt = ts.toDate();
+              if (dt.year == record.date.year &&
+                  dt.month == record.date.month &&
+                  dt.day == record.date.day) {
+                existingDoc = doc;
+                break;
+              }
+            }
+          }
+
+          if (existingDoc != null) {
+            await existingDoc.reference.update({
+              'content': reportContent,
+              'status': ReportSubmissionStatus.incomplete.name,
+              'employeeName': empName,
+              'updatedAt': FieldValue.serverTimestamp(),
+            });
+          } else {
+            await _db.collection('daily_reports').add({
+              'employeeId': AuthService.currentUserId,
+              'employeeName': empName,
+              'branchId': record.branchId,
+              'branchName': record.branchName,
+              'date': Timestamp.fromDate(record.date),
+              'content': reportContent,
+              'status': ReportSubmissionStatus.incomplete.name,
+              'submittedAt': FieldValue.serverTimestamp(),
+            });
+          }
+        } catch (e) {
+          debugPrint('Error recording discrepancy to daily_reports: $e');
+        }
+      }
+
+      // If confirmed, mark any open discrepancy report for today as resolved
+      if (isConfirmed) {
+        try {
+          final existingQuery = await _db
+              .collection('daily_reports')
+              .where('branchId', isEqualTo: record.branchId)
+              .limit(20)
+              .get();
+          for (final doc in existingQuery.docs) {
+            final data = doc.data();
+            final content = data['content'] as String? ?? '';
+            final ts = data['date'] as Timestamp?;
+            if (content.startsWith('Inventory Discrepancy:') && ts != null) {
+              final dt = ts.toDate();
+              if (dt.year == record.date.year &&
+                  dt.month == record.date.month &&
+                  dt.day == record.date.day &&
+                  data['status'] != ReportSubmissionStatus.submitted.name) {
+                await doc.reference.update({
+                  'status': ReportSubmissionStatus.submitted.name,
+                  'resolvedAt': FieldValue.serverTimestamp(),
+                });
+              }
+            }
+          }
+        } catch (_) {}
       }
       // ───────────────────────────────────────────────────────────────────────
 
@@ -440,6 +568,8 @@ class FirestoreService {
         regularSold: (data['regularSold'] as num?)?.toInt(),
         mediumSold: (data['mediumSold'] as num?)?.toInt(),
         b1t1OrdersSold: (data['b1t1OrdersSold'] as num?)?.toInt(),
+        totalOrders: (data['totalOrders'] as num?)?.toInt(),
+        discrepancyNote: data['discrepancyNote']?.toString(),
         remainingStock: rs == null
             ? null
             : ActualReceivedCounts(
@@ -466,6 +596,7 @@ class FirestoreService {
         'employeeName': sales.employeeName,
         'date': Timestamp.fromDate(sales.date),
         'portionsSold': sales.portionsSold,
+        'totalOrders': sales.totalOrders ?? sales.displayTotalOrders,
         'commissionRatePerPortion': sales.commissionRatePerPortion,
         'totalSalesAmount': sales.totalSalesAmount,
         'computedWage': sales.computedWage,
@@ -476,6 +607,9 @@ class FirestoreService {
         'b1t1OrdersSold': sales.b1t1OrdersSold,
         'submittedAt': FieldValue.serverTimestamp(),
       };
+      if (sales.discrepancyNote != null && sales.discrepancyNote!.isNotEmpty) {
+        data['discrepancyNote'] = sales.discrepancyNote;
+      }
       if (sales.remainingStock != null) {
         final rs = sales.remainingStock!;
         data['remainingStock'] = {
@@ -494,12 +628,18 @@ class FirestoreService {
       final stockNote = rs != null
           ? ' | Remaining: Reg ${rs.regular}, Med ${rs.medium}, B1T1 ${rs.b1t1}, Mayo ${rs.mayo}, Styro ${rs.styro}, Toyo ${rs.toyo}'
           : '';
+      final hasDiscrepancy = sales.discrepancyNote?.isNotEmpty == true;
+      final discrepancyExtra = hasDiscrepancy ? '\n⚠️ Dahilan sa Discrepancy: "${sales.discrepancyNote}"' : '';
+      final notifTitle = hasDiscrepancy
+          ? '⚠️ Sales with Discrepancy — ${sales.branchName}'
+          : '💰 Sales Submitted — ${sales.branchName}';
+      final notifBody = '${sales.employeeName} submitted ${sales.portionsSold} portions'
+          ' (₱${sales.totalSalesAmount.toStringAsFixed(0)})$stockNote$discrepancyExtra';
       
       // 1. Post to main notifications collection (used by Admin Web Bell & Header)
       await NotificationService.sendNotification(
-        title: '💰 Sales Submitted — ${sales.branchName}',
-        message: '${sales.employeeName} submitted ${sales.portionsSold} portions'
-            ' (₱${sales.totalSalesAmount.toStringAsFixed(0)})$stockNote',
+        title: notifTitle,
+        message: notifBody,
         type: NotificationType.salesReport,
         targetRole: 'owner',
         route: 'sales',
@@ -508,10 +648,9 @@ class FirestoreService {
 
       // 2. Also record in owner_notifications collection for backward compatibility
       await _db.collection('owner_notifications').add({
-        'type': 'sales_submitted',
-        'title': '💰 Sales Submitted — ${sales.branchName}',
-        'body': '${sales.employeeName} submitted ${sales.portionsSold} portions'
-            ' (₱${sales.totalSalesAmount.toStringAsFixed(0)})$stockNote',
+        'type': hasDiscrepancy ? 'sales_discrepancy' : 'sales_submitted',
+        'title': notifTitle,
+        'body': notifBody,
         'branchId': sales.branchId,
         'branchName': sales.branchName,
         'employeeName': sales.employeeName,
@@ -623,6 +762,7 @@ class FirestoreService {
           regularSold: (data['regularSold'] as num?)?.toInt(),
           mediumSold: (data['mediumSold'] as num?)?.toInt(),
           b1t1OrdersSold: (data['b1t1OrdersSold'] as num?)?.toInt(),
+          totalOrders: (data['totalOrders'] as num?)?.toInt(),
           remainingStock: rs == null
               ? null
               : ActualReceivedCounts(
@@ -670,6 +810,7 @@ class FirestoreService {
           regularSold: (data['regularSold'] as num?)?.toInt(),
           mediumSold: (data['mediumSold'] as num?)?.toInt(),
           b1t1OrdersSold: (data['b1t1OrdersSold'] as num?)?.toInt(),
+          totalOrders: (data['totalOrders'] as num?)?.toInt(),
         );
       }).toList();
     } catch (e) {
@@ -738,7 +879,7 @@ class FirestoreService {
     });
   }
 
-  /// Saves an employee daily incident report in Firestore.
+  /// Saves an employee daily incident report in Firestore and notifies the owner.
   static Future<bool> submitDailyReport(DailyReport report) async {
     try {
       await _db.collection('daily_reports').add({
@@ -751,6 +892,28 @@ class FirestoreService {
         'status': report.status.name,
         'submittedAt': FieldValue.serverTimestamp(),
       });
+
+      // Notify owner in real time
+      final hasIncident = report.status == ReportSubmissionStatus.incomplete;
+      final notifTitle = hasIncident
+          ? '⚠️ Incident Report — ${report.branchName}'
+          : '📋 Daily Report — ${report.branchName}';
+      final notifMsg = '${report.employeeName}: ${report.content.length > 80 ? '${report.content.substring(0, 80)}...' : report.content}';
+
+      // Mayo & additional karne incidents route to dispatch logs; gas & others to employee_reports
+      final lower = report.content.toLowerCase();
+      final isSupplyOrMeat = lower.contains('mayo') || lower.contains('karne') || lower.contains('meat');
+      final notifRoute = isSupplyOrMeat ? 'inventory_dispatch' : 'employee_reports';
+
+      await NotificationService.sendNotification(
+        title: notifTitle,
+        message: notifMsg,
+        type: NotificationType.salesReport,
+        targetRole: 'owner',
+        route: notifRoute,
+        targetBranch: report.branchName,
+      );
+
       return true;
     } catch (e) {
       debugPrint('FirestoreService.submitDailyReport error: $e');
@@ -758,16 +921,32 @@ class FirestoreService {
     }
   }
 
-  /// Saves the Owner's / Admin's quick response or reply to an employee report.
+  /// Saves the Owner's / Admin's quick response or reply to an employee report,
+  /// then notifies the branch cook that there's a reply waiting.
   static Future<bool> replyToDailyReport({
     required String reportId,
     required String reply,
+    required String branchName,
+    required String employeeId,
+    required String employeeName,
   }) async {
     try {
       await _db.collection('daily_reports').doc(reportId).update({
         'ownerReply': reply,
         'repliedAt': FieldValue.serverTimestamp(),
       });
+
+      // Notify the branch cook that owner replied
+      await NotificationService.sendNotification(
+        title: '💬 May tugon ang Owner sa iyong report',
+        message: 'Sinabi ni Owner: "$reply" — i-tap para makita.',
+        type: NotificationType.salesReport,
+        targetRole: 'staff',
+        targetUserId: employeeId.isNotEmpty ? employeeId : null,
+        targetBranch: branchName,
+        route: 'daily_report',
+      );
+
       return true;
     } catch (e) {
       debugPrint('FirestoreService.replyToDailyReport error: $e');
@@ -775,9 +954,51 @@ class FirestoreService {
     }
   }
 
+  /// Branch cook confirms that the replacement/delivery for an incomplete report
+  /// has been received — sets status to 'submitted' and notifies owner.
+  static Future<bool> confirmReportReceived({
+    required String reportId,
+    required String branchName,
+    required String employeeName,
+  }) async {
+    try {
+      await _db.collection('daily_reports').doc(reportId).update({
+        'status': ReportSubmissionStatus.submitted.name,
+        'receivedConfirmedAt': FieldValue.serverTimestamp(),
+      });
+
+      // Notify owner that the delivery/fix was confirmed by cook
+      await NotificationService.sendNotification(
+        title: '✅ Na-confirm na ng Branch Cook',
+        message: '$employeeName ($branchName) ay nagkumpirma na natanggap na ang naihatid.',
+        type: NotificationType.inventoryAlert,
+        targetRole: 'owner',
+        route: 'employee_reports',
+        targetBranch: branchName,
+      );
+
+      return true;
+    } catch (e) {
+      debugPrint('FirestoreService.confirmReportReceived error: $e');
+      return false;
+    }
+  }
+
+  /// Deletes a meat dispatch record (owner/admin only — for erroneous entries).
+  static Future<bool> deleteDispatch(String dispatchId) async {
+    try {
+      await _db.collection('meat_dispatches').doc(dispatchId).delete();
+      return true;
+    } catch (e) {
+      debugPrint('FirestoreService.deleteDispatch error: $e');
+      return false;
+    }
+  }
+
   // ===========================================================================
   // 5. ESP32 RFID ATTENDANCE TAP INTEGRATION
   // ===========================================================================
+
 
   /// Records an RFID card tap received from the ESP32 reader.
   static Future<bool> recordRfidTap({
@@ -1330,16 +1551,28 @@ class FirestoreService {
       }
       await _db.collection('meat_dispatches').doc(dispatch.id).update(updateData);
 
-      // 2. Fetch current branch meat stock and add the delivered pcs
-      final branchDocRef = _db.collection('branch_meat_stocks').doc(dispatch.destinationBranchId);
+      // 2. Resolve destination branch ID accurately
+      String branchId = dispatch.destinationBranchId.trim();
+      if (branchId.isEmpty || !kSampleBranches.any((b) => b.id == branchId)) {
+        final match = kSampleBranches.firstWhere(
+          (b) => b.fullName.toLowerCase() == dispatch.destinationBranchName.toLowerCase() ||
+                 b.name.toLowerCase() == dispatch.destinationBranchName.toLowerCase() ||
+                 dispatch.destinationBranchName.toLowerCase().contains(b.name.toLowerCase()),
+          orElse: () => kSampleBranches.first,
+        );
+        branchId = match.id;
+      }
+
+      // Fetch current branch meat stock and add the delivered pcs
+      final branchDocRef = _db.collection('branch_meat_stocks').doc(branchId);
       final branchDoc = await branchDocRef.get();
 
       BranchMeatStock currentStock;
       if (branchDoc.exists && branchDoc.data() != null) {
-        currentStock = BranchMeatStock.fromMap(branchDoc.data()!, id: dispatch.destinationBranchId);
+        currentStock = BranchMeatStock.fromMap(branchDoc.data()!, id: branchId);
       } else {
         final b = kSampleBranches.firstWhere(
-          (item) => item.id == dispatch.destinationBranchId,
+          (item) => item.id == branchId,
           orElse: () => kSampleBranches.first,
         );
         currentStock = BranchMeatStock.defaultForBranch(b);
@@ -1367,37 +1600,128 @@ class FirestoreService {
       }, SetOptions(merge: true));
 
       // 3. Update staff daily inventory for this branch today
-      final docId = _dailyInventoryDocId(dispatch.destinationBranchId, now);
-      final staffInvDoc = await _db.collection('branch_daily_inventories').doc(docId).get();
+      final docId = _dailyInventoryDocId(branchId, now);
+      final staffInvDocRef = _db.collection('branch_daily_inventories').doc(docId);
+      final staffInvDoc = await staffInvDocRef.get();
+
+      int newReg = dispatch.regular250gPcs;
+      int newMed = dispatch.medium300gPcs;
+      int newB1t1 = dispatch.b1t1_400gPcs;
+      int newMayo = dispatch.mayoPcs;
+      int newStyro = dispatch.styroPcs;
+      int newToyo = dispatch.toyoPcs;
+
+      int curAllocMayo = 40;
+      int curAllocStyro = 40;
+      int curAllocToyo = 10;
+
       if (staffInvDoc.exists && staffInvDoc.data() != null) {
         final data = staffInvDoc.data()!;
         final alloc = data['allocated'] as Map<String, dynamic>? ?? {};
-        final currentKarne = (alloc['karne'] as num?)?.toInt() ?? 0;
-        final currentMayo = (alloc['mayo'] as num?)?.toInt() ?? 0;
-        final currentStyro = (alloc['styro'] as num?)?.toInt() ?? 0;
-        final currentToyo = (alloc['toyo'] as num?)?.toInt() ?? 0;
-        await _db.collection('branch_daily_inventories').doc(docId).update({
-          'allocated.karne': currentKarne + dispatch.totalPcs,
-          'allocated.mayo': currentMayo + dispatch.mayoPcs,
-          'allocated.styro': currentStyro + dispatch.styroPcs,
-          'allocated.toyo': currentToyo + dispatch.toyoPcs,
-          'updatedAt': FieldValue.serverTimestamp(),
-        });
+        curAllocMayo = (alloc['mayo'] as num?)?.toInt() ?? 40;
+        curAllocStyro = (alloc['styro'] as num?)?.toInt() ?? 40;
+        curAllocToyo = (alloc['toyo'] as num?)?.toInt() ?? 10;
+
+        final ar = data['actualReceived'] as Map<String, dynamic>?;
+        if (ar != null) {
+          newReg += (ar['regular'] as num?)?.toInt() ?? 0;
+          newMed += (ar['medium'] as num?)?.toInt() ?? 0;
+          newB1t1 += (ar['b1t1'] as num?)?.toInt() ?? 0;
+          newMayo += (ar['mayo'] as num?)?.toInt() ?? 0;
+          newStyro += (ar['styro'] as num?)?.toInt() ?? 0;
+          newToyo += (ar['toyo'] as num?)?.toInt() ?? 0;
+        } else {
+          newReg += 20;
+          newMed += 10;
+          newB1t1 += 10;
+          newMayo += curAllocMayo;
+          newStyro += curAllocStyro;
+          newToyo += curAllocToyo;
+        }
       } else {
-        await _db.collection('branch_daily_inventories').doc(docId).set({
-          'branchId': dispatch.destinationBranchId,
-          'branchName': dispatch.destinationBranchName,
-          'date': Timestamp.fromDate(now),
-          'allocated': {
-            'karne': 40 + dispatch.totalPcs,
-            'mayo': 40 + dispatch.mayoPcs,
-            'styro': 40 + dispatch.styroPcs,
-            'toyo': 10 + dispatch.toyoPcs,
-          },
-          'status': 'pending',
-          'discrepancyNote': null,
-          'updatedAt': FieldValue.serverTimestamp(),
-        });
+        newReg += 20;
+        newMed += 10;
+        newB1t1 += 10;
+        newMayo += 40;
+        newStyro += 40;
+        newToyo += 10;
+      }
+
+      final totalAllocKarne = newReg + newMed + newB1t1;
+
+      await staffInvDocRef.set({
+        'branchId': branchId,
+        'branchName': dispatch.destinationBranchName,
+        'date': Timestamp.fromDate(now),
+        'allocated': {
+          'karne': totalAllocKarne,
+          'mayo': curAllocMayo + dispatch.mayoPcs,
+          'styro': curAllocStyro + dispatch.styroPcs,
+          'toyo': curAllocToyo + dispatch.toyoPcs,
+        },
+        'actualReceived': {
+          'regular': newReg,
+          'medium': newMed,
+          'b1t1': newB1t1,
+          'mayo': newMayo,
+          'styro': newStyro,
+          'toyo': newToyo,
+        },
+        // Automatic na mawawala ang discrepancy dahil naihatid na ang kulang!
+        'status': InventoryVerificationStatus.confirmed.name,
+        'discrepancyNote': null,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
+      // 4. Send real-time notification to the branch staff that stock has arrived
+      await NotificationService.sendNotification(
+        title: '📦 Karagdagang Stock Dumating — ${dispatch.destinationBranchName}',
+        message: 'Na-deliver na ng Driver ang: ${dispatch.itemsSummary}',
+        type: NotificationType.inventoryAlert,
+        targetRole: 'staff',
+        route: 'inventory',
+        targetBranch: dispatch.destinationBranchName,
+      );
+
+      // 5. Also notify owner that delivery has been completed
+      final driverLabel = driverName != null && driverName.isNotEmpty ? driverName : 'Driver';
+      await NotificationService.sendNotification(
+        title: '🚗 Naihatid na — ${dispatch.destinationBranchName}',
+        message: '$driverLabel ay nakapag-deliver na ng ${dispatch.itemsSummary} sa ${dispatch.destinationBranchName}.',
+        type: NotificationType.inventoryAlert,
+        targetRole: 'owner',
+        route: 'inventory',
+        targetBranch: dispatch.destinationBranchName,
+      );
+
+      // 6. Update incomplete reports for this branch to 'missing' (delivered by driver, awaiting branch cook confirmation)
+      try {
+        final reportsSnap = await _db
+            .collection('daily_reports')
+            .where('branchId', isEqualTo: branchId)
+            .where('status', isEqualTo: ReportSubmissionStatus.incomplete.name)
+            .get();
+        for (final doc in reportsSnap.docs) {
+          await doc.reference.update({
+            'status': ReportSubmissionStatus.missing.name,
+            'driverDeliveredAt': FieldValue.serverTimestamp(),
+          });
+        }
+        if (reportsSnap.docs.isEmpty) {
+          final byNameSnap = await _db
+              .collection('daily_reports')
+              .where('branchName', isEqualTo: dispatch.destinationBranchName)
+              .where('status', isEqualTo: ReportSubmissionStatus.incomplete.name)
+              .get();
+          for (final doc in byNameSnap.docs) {
+            await doc.reference.update({
+              'status': ReportSubmissionStatus.missing.name,
+              'driverDeliveredAt': FieldValue.serverTimestamp(),
+            });
+          }
+        }
+      } catch (e) {
+        debugPrint('Error updating daily_reports to missing: $e');
       }
 
       return true;

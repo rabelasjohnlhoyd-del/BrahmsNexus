@@ -205,6 +205,52 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
     );
   }
 
+  Future<void> _confirmReportDelivered(DailyReport report) async {
+    final confirmed = await showCupertinoDialog<bool>(
+      context: context,
+      builder: (ctx) => CupertinoAlertDialog(
+        title: const Text('Kumpirmahin ang Pagdating'),
+        content: const Text(
+          'Natanggap na po ba ang kailangang gamit o karne mula sa driver? Pag kinumpirma, mako-complete na ang report at aabisuhan si Owner.',
+        ),
+        actions: [
+          CupertinoDialogAction(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Hindi pa'),
+          ),
+          CupertinoDialogAction(
+            isDefaultAction: true,
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Oo, Natanggap na'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && report.id.isNotEmpty) {
+      await FirestoreService.confirmReportReceived(
+        reportId: report.id,
+        branchName: report.branchName,
+        employeeName: report.employeeName,
+      );
+      if (mounted) {
+        showCupertinoDialog<void>(
+          context: context,
+          builder: (ctx) => CupertinoAlertDialog(
+            title: const Text('Na-confirm na!'),
+            content: const Text('Naipabatid na kay Owner na natanggap na ang delivery. Mawawala na ito sa pending list.'),
+            actions: [
+              CupertinoDialogAction(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return CupertinoPageScaffold(
@@ -385,6 +431,33 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
                                 style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
                               ),
                             ],
+                          ),
+                        ),
+                      ],
+                      if (r.status != ReportSubmissionStatus.submitted) ...[
+                        const SizedBox(height: 10),
+                        SizedBox(
+                          width: double.infinity,
+                          child: CupertinoButton(
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                            color: AppColors.success,
+                            borderRadius: BorderRadius.circular(8),
+                            onPressed: () => _confirmReportDelivered(r),
+                            child: const Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(CupertinoIcons.checkmark_alt_circle_fill, color: CupertinoColors.white, size: 15),
+                                SizedBox(width: 6),
+                                Text(
+                                  'Dumating na ba? (I-confirm)',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                    color: CupertinoColors.white,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       ],

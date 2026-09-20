@@ -741,13 +741,16 @@ class _OwnerHomepageScreenState extends State<OwnerHomepageScreen> {
             StaffCard(
               child: Column(
                 children: [
-                  for (final r in (_salesRecords..sort((a, b) => b.portionsSold.compareTo(a.portionsSold))).take(3)) ...[
-                    _TopPerformerRow(
-                      name: r.employeeName,
-                      branch: r.branchName,
-                      portions: r.portionsSold,
+                  for (final r in (_salesRecords..sort((a, b) => b.displayPortions.compareTo(a.displayPortions))).take(3)) ...[
+                    GestureDetector(
+                      onTap: () => _showPerformerDetail(context, r),
+                      child: _TopPerformerRow(
+                        name: r.employeeName,
+                        branch: r.branchName,
+                        totalOrders: r.displayTotalOrders,
+                      ),
                     ),
-                    if (r != _salesRecords.last)
+                    if (r != (_salesRecords..sort((a, b) => b.displayPortions.compareTo(a.displayPortions))).last)
                       Container(
                         height: 1,
                         color: AppColors.border,
@@ -763,18 +766,90 @@ class _OwnerHomepageScreenState extends State<OwnerHomepageScreen> {
       ),
     );
   }
+
+  void _showPerformerDetail(BuildContext context, SalesRecord r) {
+    showCupertinoModalPopup<void>(
+      context: context,
+      builder: (ctx) => CupertinoActionSheet(
+        title: Text(r.employeeName),
+        message: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              r.branchName,
+              style: const TextStyle(fontSize: 12, color: CupertinoColors.systemGrey),
+            ),
+            const SizedBox(height: 14),
+            _detailRow('Regular', r.regularSold ?? 0, 'orders'),
+            _detailRow('Medium', r.mediumSold ?? 0, 'orders'),
+            _detailRow('B1T1', r.b1t1OrdersSold ?? 0, 'orders',
+                note: r.b1t1OrdersSold != null && r.b1t1OrdersSold! > 0
+                    ? '(${(r.b1t1OrdersSold ?? 0) * 2} pcs)'
+                    : null),
+            const SizedBox(height: 8),
+            Container(height: 1, color: CupertinoColors.separator),
+            const SizedBox(height: 8),
+            _detailRow('Total Orders', r.displayTotalOrders, 'orders', bold: true),
+            _detailRow('Total Karne', r.displayPortions, 'pcs', bold: true),
+          ],
+        ),
+        cancelButton: CupertinoActionSheetAction(
+          onPressed: () => Navigator.of(ctx).pop(),
+          child: const Text('Close'),
+        ),
+      ),
+    );
+  }
+
+  Widget _detailRow(String label, int value, String unit, {String? note, bool bold = false}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 13,
+              color: CupertinoColors.label,
+              fontWeight: bold ? FontWeight.w700 : FontWeight.w500,
+            ),
+          ),
+          Row(
+            children: [
+              Text(
+                '$value $unit',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: bold ? FontWeight.w800 : FontWeight.w600,
+                  color: bold ? AppColors.accent : CupertinoColors.label,
+                ),
+              ),
+              if (note != null) ...[
+                const SizedBox(width: 4),
+                Text(
+                  note,
+                  style: const TextStyle(fontSize: 11, color: CupertinoColors.systemGrey),
+                ),
+              ],
+            ],
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _TopPerformerRow extends StatelessWidget {
   const _TopPerformerRow({
     required this.name,
     required this.branch,
-    required this.portions,
+    required this.totalOrders,
   });
 
   final String name;
   final String branch;
-  final int portions;
+  final int totalOrders;
 
   @override
   Widget build(BuildContext context) {
@@ -830,7 +905,7 @@ class _TopPerformerRow extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
             Text(
-              '$portions',
+              '$totalOrders',
               style: const TextStyle(
                 fontWeight: FontWeight.w800,
                 fontSize: 16,
@@ -838,7 +913,7 @@ class _TopPerformerRow extends StatelessWidget {
               ),
             ),
             const Text(
-              'portions',
+              'orders',
               style: TextStyle(
                 fontSize: 9,
                 fontWeight: FontWeight.w600,
@@ -847,6 +922,8 @@ class _TopPerformerRow extends StatelessWidget {
             ),
           ],
         ),
+        const SizedBox(width: 4),
+        const Icon(CupertinoIcons.chevron_right, size: 13, color: AppColors.textSecondary),
       ],
     );
   }

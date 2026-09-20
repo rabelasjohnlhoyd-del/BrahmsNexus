@@ -217,6 +217,9 @@ class _OwnerEmployeeReportsScreenState
   }
 
   void _showReportDetail(DailyReport report) {
+    final replyCtrl = TextEditingController();
+    bool isSending = false;
+
     showCupertinoDialog(
       context: context,
       builder: (dialogContext) => StatefulBuilder(
@@ -224,108 +227,115 @@ class _OwnerEmployeeReportsScreenState
           final effectiveReply = report.ownerReply ?? _ownerReplies[report.id];
           return CupertinoAlertDialog(
             title: Text(report.employeeName),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const SizedBox(height: 6),
-                Text(
-                  '${report.branchName} \u00b7 ${_formatDate(report.date)}',
-                  style: const TextStyle(
-                      fontSize: 12, color: AppColors.textSecondary),
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  report.content.isEmpty
-                      ? 'Wala pang naisusumiteng report.'
-                      : report.content,
-                  style: const TextStyle(fontSize: 13.5),
-                ),
-                const SizedBox(height: 20),
-                const Text(
-                  'OWNER RESPONSE',
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0.5,
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                if (effectiveReply != null && effectiveReply.isNotEmpty)
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: AppColors.accent.withValues(alpha: 0.08),
-                      borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: AppColors.accent.withValues(alpha: 0.2)),
-                  ),
-                  child: Text(
-                    effectiveReply,
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 6),
+                  Text(
+                    '${report.branchName} \u00b7 ${_formatDate(report.date)}',
                     style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.textPrimary,
+                        fontSize: 12, color: AppColors.textSecondary),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    report.content.isEmpty
+                        ? 'Wala pang naisusumiteng report.'
+                        : report.content,
+                    style: const TextStyle(fontSize: 13.5),
+                  ),
+                  const SizedBox(height: 18),
+                  const Text(
+                    'OWNER RESPONSE',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.5,
+                      color: AppColors.textSecondary,
                     ),
                   ),
-                )
-              else
-                const Text(
-                  'No response yet.',
-                  style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic, color: AppColors.textSecondary),
-                ),
-              const SizedBox(height: 16),
-              const Text('Quick Reply:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-              const SizedBox(height: 8),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  _replyChip('Noted', report.id, setDialogState),
-                  _replyChip('Linawin natin', report.id, setDialogState),
-                  _replyChip('Approved', report.id, setDialogState),
+                  const SizedBox(height: 8),
+                  if (effectiveReply != null && effectiveReply.isNotEmpty)
+                    Container(
+                      width: double.infinity,
+                      margin: const EdgeInsets.only(bottom: 10),
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: AppColors.accent.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: AppColors.accent.withValues(alpha: 0.2)),
+                      ),
+                      child: Text(
+                        effectiveReply,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                    ),
+                  CupertinoTextField(
+                    controller: replyCtrl,
+                    placeholder: 'I-type ang tugon kay ${report.employeeName}...',
+                    maxLines: 3,
+                    padding: const EdgeInsets.all(10),
+                    style: const TextStyle(fontSize: 13),
+                    decoration: BoxDecoration(
+                      color: CupertinoColors.white,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: AppColors.border),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    width: double.infinity,
+                    child: CupertinoButton(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      color: AppColors.accent,
+                      borderRadius: BorderRadius.circular(8),
+                      onPressed: isSending
+                          ? null
+                          : () async {
+                              final text = replyCtrl.text.trim();
+                              if (text.isEmpty) return;
+                              setDialogState(() => isSending = true);
+
+                              final ok = await FirestoreService.replyToDailyReport(
+                                reportId: report.id,
+                                reply: text,
+                                branchName: report.branchName,
+                                employeeId: report.employeeId,
+                                employeeName: report.employeeName,
+                              );
+
+                              if (ok) {
+                                setState(() => _ownerReplies[report.id] = text);
+                                setDialogState(() => isSending = false);
+                                if (dialogContext.mounted) {
+                                  Navigator.of(dialogContext).pop();
+                                }
+                              } else {
+                                setDialogState(() => isSending = false);
+                              }
+                            },
+                      child: Text(
+                        isSending ? 'Sending...' : 'Ipadala ang Tugon',
+                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: CupertinoColors.white),
+                      ),
+                    ),
+                  ),
                 ],
               ),
-            ],
-          ),
-          actions: [
-            CupertinoDialogAction(
-              onPressed: () => Navigator.of(dialogContext).pop(),
-              child: const Text('Close'),
             ),
-          ],
-        );
-      },
-    ),
-  );
-}
-
-  Widget _replyChip(String label, String reportId, StateSetter setDialogState) {
-    final effective = _ownerReplies[reportId];
-    final isSelected = effective == label;
-    return GestureDetector(
-      onTap: () async {
-        setState(() => _ownerReplies[reportId] = label);
-        setDialogState(() {});
-        if (reportId.isNotEmpty) {
-          await FirestoreService.replyToDailyReport(reportId: reportId, reply: label);
-        }
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        decoration: BoxDecoration(
-          color: isSelected ? AppColors.accent : CupertinoColors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: isSelected ? AppColors.accent : AppColors.border),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.bold,
-            color: isSelected ? CupertinoColors.white : AppColors.textPrimary,
-          ),
-        ),
+            actions: [
+              CupertinoDialogAction(
+                onPressed: () => Navigator.of(dialogContext).pop(),
+                child: const Text('Close'),
+              ),
+            ],
+          );
+        },
       ),
     );
   }

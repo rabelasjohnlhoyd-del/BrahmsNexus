@@ -9,6 +9,7 @@ import '../../models/inventory_batch.dart';
 import '../../models/meat_dispatch.dart';
 import '../../models/procurement_list.dart';
 import '../../services/firestore_service.dart';
+import '../../services/notification_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/staff_button.dart';
 import '../../widgets/staff_card.dart';
@@ -396,17 +397,32 @@ class _OwnerInventoryScreenState extends State<OwnerInventoryScreen> {
     );
   }
 
-  void _showAddDispatchDialog() {
-    final regCtrl = TextEditingController();
-    final medCtrl = TextEditingController();
-    final b1t1Ctrl = TextEditingController();
+  void _showAddDispatchDialog({
+    String? defaultBranchId,
+    int? defaultReg,
+    int? defaultMed,
+    int? defaultB1t1,
+    int? defaultMayo,
+    int? defaultStyro,
+    int? defaultToyo,
+  }) {
+    final regCtrl = TextEditingController(text: defaultReg != null && defaultReg > 0 ? '$defaultReg' : '');
+    final medCtrl = TextEditingController(text: defaultMed != null && defaultMed > 0 ? '$defaultMed' : '');
+    final b1t1Ctrl = TextEditingController(text: defaultB1t1 != null && defaultB1t1 > 0 ? '$defaultB1t1' : '');
+    final mayoCtrl = TextEditingController(text: defaultMayo != null && defaultMayo > 0 ? '$defaultMayo' : '');
+    final styroCtrl = TextEditingController(text: defaultStyro != null && defaultStyro > 0 ? '$defaultStyro' : '');
+    final toyoCtrl = TextEditingController(text: defaultToyo != null && defaultToyo > 0 ? '$defaultToyo' : '');
     int destIdx = 0;
+    if (defaultBranchId != null) {
+      final found = kSampleBranches.indexWhere((b) => b.id == defaultBranchId);
+      if (found >= 0) destIdx = found;
+    }
 
     showCupertinoDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) => CupertinoAlertDialog(
-          title: const Text('Record Dispatch (Pcs)'),
+          title: const Text('Record Dispatch (Karne & Supplies)'),
           content: SingleChildScrollView(
             child: Column(
               children: [
@@ -432,23 +448,43 @@ class _OwnerInventoryScreenState extends State<OwnerInventoryScreen> {
                   },
                 ),
                 const SizedBox(height: 8),
-                const Text('Ilagay ang bilang ng Pcs:', style: TextStyle(fontSize: 11, color: CupertinoColors.systemGrey)),
-                const SizedBox(height: 8),
+                const Text('Karne (Pcs):', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.accent)),
+                const SizedBox(height: 6),
                 CupertinoTextField(
                   controller: regCtrl,
-                  placeholder: '250 grams - Regular (Pcs)',
+                  placeholder: '250g - Regular (Pcs)',
                   keyboardType: TextInputType.number,
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 6),
                 CupertinoTextField(
                   controller: medCtrl,
-                  placeholder: '300 grams - Medium (Pcs)',
+                  placeholder: '300g - Medium (Pcs)',
                   keyboardType: TextInputType.number,
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 6),
                 CupertinoTextField(
                   controller: b1t1Ctrl,
-                  placeholder: '400 grams - B1T1 (Pcs)',
+                  placeholder: '400g - B1T1 (Pcs)',
+                  keyboardType: TextInputType.number,
+                ),
+                const SizedBox(height: 10),
+                const Text('Supplies:', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.accent)),
+                const SizedBox(height: 6),
+                CupertinoTextField(
+                  controller: mayoCtrl,
+                  placeholder: 'Mayo (Packets/Pcs)',
+                  keyboardType: TextInputType.number,
+                ),
+                const SizedBox(height: 6),
+                CupertinoTextField(
+                  controller: toyoCtrl,
+                  placeholder: 'Toyo (Bottles/Pcs)',
+                  keyboardType: TextInputType.number,
+                ),
+                const SizedBox(height: 6),
+                CupertinoTextField(
+                  controller: styroCtrl,
+                  placeholder: 'Styro (Boxes/Pcs)',
                   keyboardType: TextInputType.number,
                 ),
               ],
@@ -461,8 +497,11 @@ class _OwnerInventoryScreenState extends State<OwnerInventoryScreen> {
                 final reg = int.tryParse(regCtrl.text) ?? 0;
                 final med = int.tryParse(medCtrl.text) ?? 0;
                 final b1t1 = int.tryParse(b1t1Ctrl.text) ?? 0;
+                final mayo = int.tryParse(mayoCtrl.text) ?? 0;
+                final styro = int.tryParse(styroCtrl.text) ?? 0;
+                final toyo = int.tryParse(toyoCtrl.text) ?? 0;
 
-                if (reg > 0 || med > 0 || b1t1 > 0) {
+                if (reg > 0 || med > 0 || b1t1 > 0 || mayo > 0 || styro > 0 || toyo > 0) {
                   final dest = kSampleBranches[destIdx];
                   final dispatch = MeatDispatch(
                     id: '',
@@ -471,10 +510,18 @@ class _OwnerInventoryScreenState extends State<OwnerInventoryScreen> {
                     regular250gPcs: reg,
                     medium300gPcs: med,
                     b1t1_400gPcs: b1t1,
+                    mayoPcs: mayo,
+                    styroPcs: styro,
+                    toyoPcs: toyo,
                     status: 'pending',
                     createdAt: DateTime.now(),
                   );
                   await FirestoreService.createMeatDispatch(dispatch);
+                  await NotificationService.notifyDriverOfDeliveryTask(
+                    branchName: dest.fullName,
+                    quantityKg: (reg * 0.25) + (med * 0.30) + (b1t1 * 0.40),
+                    itemsSummary: dispatch.itemsSummary,
+                  );
                 }
                 if (ctx.mounted) Navigator.pop(ctx);
               },
@@ -962,9 +1009,20 @@ class _OwnerInventoryScreenState extends State<OwnerInventoryScreen> {
                             style: const TextStyle(fontSize: 12, color: AppColors.textPrimary, fontWeight: FontWeight.w600),
                           ),
                           const SizedBox(height: 4),
-                          Text(
-                            'Total: ${dispatch.totalPcs} pcs \u2022 ${dispatch.createdAt.month}/${dispatch.createdAt.day} ${dispatch.createdAt.hour.toString().padLeft(2, '0')}:${dispatch.createdAt.minute.toString().padLeft(2, '0')}',
-                            style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                'Total: ${dispatch.totalPcs} pcs \u2022 ${dispatch.createdAt.month}/${dispatch.createdAt.day} ${dispatch.createdAt.hour.toString().padLeft(2, '0')}:${dispatch.createdAt.minute.toString().padLeft(2, '0')}',
+                                style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                              ),
+                              CupertinoButton(
+                                padding: EdgeInsets.zero,
+                                minimumSize: Size.zero,
+                                onPressed: () => _confirmDeleteDispatch(dispatch),
+                                child: const Icon(CupertinoIcons.delete, size: 16, color: AppColors.error),
+                              ),
+                            ],
                           ),
                         ],
                       ),
@@ -974,6 +1032,31 @@ class _OwnerInventoryScreenState extends State<OwnerInventoryScreen> {
         ),
       ],
     );
+  }
+
+  Future<void> _confirmDeleteDispatch(MeatDispatch dispatch) async {
+    final confirmed = await showCupertinoDialog<bool>(
+      context: context,
+      builder: (ctx) => CupertinoAlertDialog(
+        title: const Text('Delete Dispatch?'),
+        content: Text('Sigurado ka bang nais mong burahin ang dispatch record na ito sa ${dispatch.destinationBranchName} (${dispatch.itemsSummary})?'),
+        actions: [
+          CupertinoDialogAction(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          CupertinoDialogAction(
+            isDestructiveAction: true,
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && dispatch.id.isNotEmpty) {
+      await FirestoreService.deleteDispatch(dispatch.id);
+    }
   }
 
   // --- FINANCIALS TAB ---------------------------------------------------

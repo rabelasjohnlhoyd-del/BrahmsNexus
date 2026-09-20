@@ -6,6 +6,7 @@ enum NotificationType {
   lowStock,
   deliveryTask,
   salesReport,
+  inventoryAlert,
   system;
 
   String get label {
@@ -20,6 +21,8 @@ enum NotificationType {
         return 'Delivery Task';
       case NotificationType.salesReport:
         return 'Sales Report';
+      case NotificationType.inventoryAlert:
+        return 'Inventory Alert';
       case NotificationType.system:
         return 'System';
     }
@@ -37,6 +40,8 @@ enum NotificationType {
         return Icons.local_shipping_rounded;
       case NotificationType.salesReport:
         return Icons.receipt_long_rounded;
+      case NotificationType.inventoryAlert:
+        return Icons.inventory_2_rounded;
       case NotificationType.system:
         return Icons.notifications_rounded;
     }
@@ -54,6 +59,8 @@ enum NotificationType {
         return const Color(0xFF0288D1); // Info blue
       case NotificationType.salesReport:
         return const Color(0xFF6A1B9A); // Purple
+      case NotificationType.inventoryAlert:
+        return const Color(0xFFC62828); // Deep red for discrepancy / teal for confirmed
       case NotificationType.system:
         return const Color(0xFF546E7A); // Slate
     }
