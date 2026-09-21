@@ -10,6 +10,7 @@ import '../../services/auth_service.dart';
 import '../../services/firestore_service.dart';
 import '../../services/supabase_service.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/app_pagination_bar.dart';
 import '../../widgets/staff_button.dart';
 import '../../widgets/staff_card.dart';
 import '../../widgets/staff_nav_bar.dart';
@@ -39,6 +40,8 @@ class HomepageScreen extends StatefulWidget {
 class _HomepageScreenState extends State<HomepageScreen> with WidgetsBindingObserver {
   bool _isRefreshing = false;
   bool _isCelsius = true;
+  int _coworkersPage = 0;
+  static const int _coworkersPageSize = 5;
 
   // Live weather state
   int _tempC = 28;
@@ -1073,6 +1076,11 @@ class _HomepageScreenState extends State<HomepageScreen> with WidgetsBindingObse
             Builder(
               builder: (context) {
                 final coworkers = _getCoworkersToday();
+                final total = coworkers.length;
+                final totalPages = (total / _coworkersPageSize).ceil();
+                final effectivePage = totalPages == 0 ? 0 : _coworkersPage.clamp(0, totalPages - 1);
+                final pagedCoworkers = coworkers.skip(effectivePage * _coworkersPageSize).take(_coworkersPageSize).toList();
+
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -1128,8 +1136,8 @@ class _HomepageScreenState extends State<HomepageScreen> with WidgetsBindingObse
                           ),
                         ),
                       )
-                    else
-                      ...coworkers.map(
+                    else ...[
+                      ...pagedCoworkers.map(
                         (c) {
                           final isSelf = c['isSelf'] == true;
                           final branch = c['branch'] as String;
@@ -1243,6 +1251,13 @@ class _HomepageScreenState extends State<HomepageScreen> with WidgetsBindingObse
                           );
                         },
                       ),
+                      AppPaginationBar(
+                        currentPage: effectivePage,
+                        totalItems: total,
+                        pageSize: _coworkersPageSize,
+                        onPageChanged: (page) => setState(() => _coworkersPage = page),
+                      ),
+                    ],
                   ],
                 );
               },

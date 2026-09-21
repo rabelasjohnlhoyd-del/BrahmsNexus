@@ -8,6 +8,7 @@ import '../../services/assignment_service.dart';
 import '../../services/auth_service.dart';
 import '../../services/firestore_service.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/app_pagination_bar.dart';
 import '../../widgets/staff_button.dart';
 import '../../widgets/staff_card.dart';
 import '../../widgets/staff_nav_bar.dart';
@@ -34,6 +35,8 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
   StreamSubscription<BranchDailyInventory?>? _inventorySub;
   BranchDailyInventory? _todayInventory;
   final List<DailyReport> _myRecentReports = [];
+  int _currentPage = 0;
+  static const int _pageSize = 5;
 
   bool get _isInventoryVerified =>
       _todayInventory != null &&
@@ -366,106 +369,125 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
                 subtitle: 'Track your sent reports and Owner responses',
               ),
               const SizedBox(height: 12),
-              for (final r in _myRecentReports.take(5)) ...[
-                StaffCard(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+              Builder(
+                builder: (context) {
+                  final total = _myRecentReports.length;
+                  final totalPages = (total / _pageSize).ceil();
+                  final effectivePage = totalPages == 0 ? 0 : _currentPage.clamp(0, totalPages - 1);
+                  final pagedReports = _myRecentReports.skip(effectivePage * _pageSize).take(_pageSize).toList();
+
+                  return Column(
                     children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            '${r.date.month}/${r.date.day}/${r.date.year}',
-                            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.textSecondary),
-                          ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                            decoration: BoxDecoration(
-                              color: (r.status == ReportSubmissionStatus.submitted
-                                      ? AppColors.success
-                                      : AppColors.warning)
-                                  .withValues(alpha: 0.15),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Text(
-                              r.status.label,
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w700,
-                                color: r.status == ReportSubmissionStatus.submitted
-                                    ? AppColors.success
-                                    : AppColors.warning,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Text(r.content, style: const TextStyle(fontSize: 13, color: AppColors.textPrimary)),
-                      if (r.ownerReply != null && r.ownerReply!.isNotEmpty) ...[
-                        const SizedBox(height: 10),
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                            color: AppColors.accent.withValues(alpha: 0.08),
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: AppColors.accent.withValues(alpha: 0.25)),
-                          ),
+                      for (final r in pagedReports) ...[
+                        StaffCard(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Row(
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                 children: [
-                                  Icon(CupertinoIcons.reply, size: 12, color: AppColors.accent),
-                                  SizedBox(width: 6),
                                   Text(
-                                    'OWNER RESPONSE',
-                                    style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: AppColors.accent),
+                                    '${r.date.month}/${r.date.day}/${r.date.year}',
+                                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.textSecondary),
+                                  ),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                    decoration: BoxDecoration(
+                                      color: (r.status == ReportSubmissionStatus.submitted
+                                              ? AppColors.success
+                                              : AppColors.warning)
+                                          .withValues(alpha: 0.15),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Text(
+                                      r.status.label,
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w700,
+                                        color: r.status == ReportSubmissionStatus.submitted
+                                            ? AppColors.success
+                                            : AppColors.warning,
+                                      ),
+                                    ),
                                   ),
                                 ],
                               ),
-                              const SizedBox(height: 4),
-                              Text(
-                                r.ownerReply!,
-                                style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                      if (r.status != ReportSubmissionStatus.submitted) ...[
-                        const SizedBox(height: 10),
-                        SizedBox(
-                          width: double.infinity,
-                          child: CupertinoButton(
-                            padding: const EdgeInsets.symmetric(vertical: 8),
-                            color: AppColors.success,
-                            borderRadius: BorderRadius.circular(8),
-                            onPressed: () => _confirmReportDelivered(r),
-                            child: const Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(CupertinoIcons.checkmark_alt_circle_fill, color: CupertinoColors.white, size: 15),
-                                SizedBox(width: 6),
-                                Text(
-                                  'Dumating na ba? (I-confirm)',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.bold,
-                                    color: CupertinoColors.white,
+                              const SizedBox(height: 8),
+                              Text(r.content, style: const TextStyle(fontSize: 13, color: AppColors.textPrimary)),
+                              if (r.ownerReply != null && r.ownerReply!.isNotEmpty) ...[
+                                const SizedBox(height: 10),
+                                Container(
+                                  width: double.infinity,
+                                  padding: const EdgeInsets.all(10),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.accent.withValues(alpha: 0.08),
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(color: AppColors.accent.withValues(alpha: 0.25)),
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      const Row(
+                                        children: [
+                                          Icon(CupertinoIcons.reply, size: 12, color: AppColors.accent),
+                                          SizedBox(width: 6),
+                                          Text(
+                                            'OWNER RESPONSE',
+                                            style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: AppColors.accent),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        r.ownerReply!,
+                                        style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
+                                      ),
+                                    ],
                                   ),
                                 ),
                               ],
-                            ),
+                              if (r.status != ReportSubmissionStatus.submitted) ...[
+                                const SizedBox(height: 10),
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: CupertinoButton(
+                                    padding: const EdgeInsets.symmetric(vertical: 8),
+                                    color: AppColors.success,
+                                    borderRadius: BorderRadius.circular(8),
+                                    onPressed: () => _confirmReportDelivered(r),
+                                    child: const Row(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        Icon(CupertinoIcons.checkmark_alt_circle_fill, color: CupertinoColors.white, size: 15),
+                                        SizedBox(width: 6),
+                                        Text(
+                                          'Dumating na ba? (I-confirm)',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.bold,
+                                            color: CupertinoColors.white,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ],
                           ),
                         ),
+                        const SizedBox(height: 10),
                       ],
+                      AppPaginationBar(
+                        currentPage: effectivePage,
+                        totalItems: total,
+                        pageSize: _pageSize,
+                        onPageChanged: (page) => setState(() => _currentPage = page),
+                      ),
                     ],
-                  ),
-                ),
-                const SizedBox(height: 10),
-              ],
+                  );
+                },
+              ),
             ],
             const SizedBox(height: 30),
           ],

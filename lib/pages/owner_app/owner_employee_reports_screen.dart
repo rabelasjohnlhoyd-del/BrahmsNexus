@@ -8,6 +8,7 @@ import '../../theme/app_theme.dart';
 import '../../widgets/staff_card.dart';
 import '../../widgets/staff_nav_bar.dart';
 import '../../widgets/staff_section_header.dart';
+import '../../widgets/app_pagination_bar.dart';
 
 /// Employee Reports — Owner monitors all submitted daily reports here,
 /// filterable by branch, searchable by employee, with submission
@@ -31,6 +32,9 @@ class _OwnerEmployeeReportsScreenState
     extends State<OwnerEmployeeReportsScreen> {
   static String _branchName(String id) =>
       kSampleBranches.firstWhere((b) => b.id == id, orElse: () => kSampleBranches.first).fullName;
+
+  int _currentPage = 0;
+  static const int _pageSize = 5;
 
   // Store replies in memory during the session
   final Map<String, String> _ownerReplies = {};
@@ -159,14 +163,20 @@ class _OwnerEmployeeReportsScreenState
         actions: [
           CupertinoActionSheetAction(
             onPressed: () {
-              setState(() => _branchFilter = null);
+              setState(() {
+                _branchFilter = null;
+                _currentPage = 0;
+              });
               Navigator.pop(context);
             },
             child: const Text('All Branches'),
           ),
           ...kSampleBranches.map((b) => CupertinoActionSheetAction(
                 onPressed: () {
-                  setState(() => _branchFilter = b.id);
+                  setState(() {
+                    _branchFilter = b.id;
+                    _currentPage = 0;
+                  });
                   Navigator.pop(context);
                 },
                 child: Text(b.fullName),
@@ -427,7 +437,10 @@ class _OwnerEmployeeReportsScreenState
             // ── SEARCH & FILTER ───────────────────────────────────────────
             CupertinoSearchTextField(
               placeholder: 'Search by employee name',
-              onChanged: (v) => setState(() => _searchQuery = v),
+              onChanged: (v) => setState(() {
+                _searchQuery = v;
+                _currentPage = 0;
+              }),
             ),
             const SizedBox(height: 10),
             Row(
@@ -489,11 +502,21 @@ class _OwnerEmployeeReportsScreenState
                   ),
                 ),
               )
-            else
-              ..._visibleReports.map((r) => Padding(
-                    padding: const EdgeInsets.only(bottom: 10),
-                    child: _buildReportRow(r),
-                  )),
+            else ...[
+              ..._visibleReports
+                  .skip(_currentPage * _pageSize)
+                  .take(_pageSize)
+                  .map((r) => Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: _buildReportRow(r),
+                      )),
+              AppPaginationBar(
+                currentPage: _currentPage,
+                totalItems: _visibleReports.length,
+                pageSize: _pageSize,
+                onPageChanged: (p) => setState(() => _currentPage = p),
+              ),
+            ],
           ],
         ),
       ),

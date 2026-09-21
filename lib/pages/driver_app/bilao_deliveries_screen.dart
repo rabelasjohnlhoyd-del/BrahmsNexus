@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import '../../models/bilao_order.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/app_pagination_bar.dart';
 import '../../widgets/driver_card.dart';
 import '../../widgets/driver_nav_bar.dart';
 import '../../widgets/driver_section_header.dart';
@@ -19,6 +20,9 @@ class BilaoDeliveriesScreen extends StatefulWidget {
 }
 
 class _BilaoDeliveriesScreenState extends State<BilaoDeliveriesScreen> {
+  int _pendingPage = 0;
+  int _donePage = 0;
+  static const int _pageSize = 5;
   final List<BilaoOrder> _orders = [
     BilaoOrder(
       id: 'ord1',
@@ -107,27 +111,53 @@ class _BilaoDeliveriesScreenState extends State<BilaoDeliveriesScreen> {
                   ),
                 ),
               )
-            : ListView(
-                padding: const EdgeInsets.all(16),
-                children: [
-                  if (pending.isNotEmpty) ...[
-                    const DriverSectionHeader(
-                      label: 'For Delivery',
-                      icon: CupertinoIcons.bag_fill,
-                    ),
-                    const SizedBox(height: 10),
-                  ],
-                  ...pending.map((order) => _orderTile(order, isDone: false)),
-                  if (done.isNotEmpty) ...[
-                    const SizedBox(height: 8),
-                    const DriverSectionHeader(
-                      label: 'Delivered',
-                      icon: CupertinoIcons.check_mark_circled_solid,
-                    ),
-                    const SizedBox(height: 10),
-                    ...done.map((order) => _orderTile(order, isDone: true)),
-                  ],
-                ],
+            : Builder(
+                builder: (context) {
+                  final pendingTotal = pending.length;
+                  final pendingPages = (pendingTotal / _pageSize).ceil();
+                  final effectivePendingPage = pendingPages == 0 ? 0 : _pendingPage.clamp(0, pendingPages - 1);
+                  final pagedPending = pending.skip(effectivePendingPage * _pageSize).take(_pageSize).toList();
+
+                  final doneTotal = done.length;
+                  final donePages = (doneTotal / _pageSize).ceil();
+                  final effectiveDonePage = donePages == 0 ? 0 : _donePage.clamp(0, donePages - 1);
+                  final pagedDone = done.skip(effectiveDonePage * _pageSize).take(_pageSize).toList();
+
+                  return ListView(
+                    padding: const EdgeInsets.all(16),
+                    children: [
+                      if (pending.isNotEmpty) ...[
+                        const DriverSectionHeader(
+                          label: 'For Delivery',
+                          icon: CupertinoIcons.bag_fill,
+                        ),
+                        const SizedBox(height: 10),
+                        ...pagedPending.map((order) => _orderTile(order, isDone: false)),
+                        AppPaginationBar(
+                          currentPage: effectivePendingPage,
+                          totalItems: pendingTotal,
+                          pageSize: _pageSize,
+                          onPageChanged: (page) => setState(() => _pendingPage = page),
+                        ),
+                      ],
+                      if (done.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        const DriverSectionHeader(
+                          label: 'Delivered',
+                          icon: CupertinoIcons.check_mark_circled_solid,
+                        ),
+                        const SizedBox(height: 10),
+                        ...pagedDone.map((order) => _orderTile(order, isDone: true)),
+                        AppPaginationBar(
+                          currentPage: effectiveDonePage,
+                          totalItems: doneTotal,
+                          pageSize: _pageSize,
+                          onPageChanged: (page) => setState(() => _donePage = page),
+                        ),
+                      ],
+                    ],
+                  );
+                },
               ),
       ),
     );

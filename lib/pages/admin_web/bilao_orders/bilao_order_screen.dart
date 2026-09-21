@@ -5,6 +5,7 @@ import '../../../services/firestore_service.dart';
 import '../admin_web_colors.dart';
 import '../admin_web_shell.dart';
 import '../admin_web_widgets/glass_card.dart';
+import '../admin_web_widgets/admin_pagination_bar.dart';
 import 'add_bilao_order_screen.dart';
 
 /// Admin records confirmed advance/special bilao orders here (received
@@ -23,7 +24,7 @@ class _BilaoOrderScreenState extends State<BilaoOrderScreen> {
   static const double _wideBreakpoint = 700;
 
   int _currentPage = 0;
-  static const int _pageSize = 10;
+  static const int _pageSize = 5;
   StreamSubscription<List<BilaoOrder>>? _ordersSub;
 
   final List<BilaoOrder> _orders = [
@@ -470,7 +471,12 @@ class _BilaoOrderScreenState extends State<BilaoOrderScreen> {
                             ),
                           ),
                           const SizedBox(height: 16),
-                          _buildPagination(_visibleOrders.length),
+                          AdminPaginationBar(
+                            currentPage: _currentPage,
+                            totalItems: _visibleOrders.length,
+                            pageSize: _pageSize,
+                            onPageChanged: (p) => setState(() => _currentPage = p),
+                          ),
                           const SizedBox(height: 24),
                         ],
                       ),
@@ -479,29 +485,6 @@ class _BilaoOrderScreenState extends State<BilaoOrderScreen> {
           ),
         );
       },
-    );
-  }
-
-  Widget _buildPagination(int totalItems) {
-    final totalPages = (totalItems / _pageSize).ceil();
-    if (totalPages <= 1) return const SizedBox.shrink();
-
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        IconButton(
-          icon: const Icon(Icons.chevron_left_rounded),
-          onPressed: _currentPage > 0 ? () => setState(() => _currentPage--) : null,
-        ),
-        Text(
-          'Page ${_currentPage + 1} of $totalPages',
-          style: const TextStyle(fontWeight: FontWeight.bold, color: AdminWebColors.textSecondary),
-        ),
-        IconButton(
-          icon: const Icon(Icons.chevron_right_rounded),
-          onPressed: _currentPage < totalPages - 1 ? () => setState(() => _currentPage++) : null,
-        ),
-      ],
     );
   }
 }

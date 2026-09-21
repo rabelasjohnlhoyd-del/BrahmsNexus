@@ -9,6 +9,7 @@ import '../../widgets/staff_button.dart';
 import '../../widgets/staff_card.dart';
 import '../../widgets/staff_nav_bar.dart';
 import '../../widgets/staff_top_actions.dart';
+import '../../widgets/app_pagination_bar.dart';
 
 /// Mobile Account Approvals screen — allows the Owner to review
 /// pending Staff registration requests on the go.
@@ -28,6 +29,8 @@ class _OwnerAccountApprovalsScreenState
     extends State<OwnerAccountApprovalsScreen> {
   int _filterIndex = 0; // 0 = Pending, 1 = Approved, 2 = Rejected, 3 = All
   String _searchQuery = '';
+  int _currentPage = 0;
+  static const int _pageSize = 5;
 
   List<RegistrationRequest> _applyFilters(List<RegistrationRequest> all) {
     return all.where((r) {
@@ -178,7 +181,10 @@ class _OwnerAccountApprovalsScreenState
                       color: AppColors.textPrimary,
                       fontSize: 13,
                     ),
-                    onChanged: (val) => setState(() => _searchQuery = val),
+                    onChanged: (val) => setState(() {
+                      _searchQuery = val;
+                      _currentPage = 0;
+                    }),
                   ),
                 ),
                 Padding(
@@ -255,7 +261,12 @@ class _OwnerAccountApprovalsScreenState
                         ),
                       },
                       onValueChanged: (val) {
-                        if (val != null) setState(() => _filterIndex = val);
+                        if (val != null) {
+                          setState(() {
+                            _filterIndex = val;
+                            _currentPage = 0;
+                          });
+                        }
                       },
                     ),
                   ),
@@ -300,22 +311,37 @@ class _OwnerAccountApprovalsScreenState
                                 ),
                               ),
                             )
-                          : ListView.builder(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 16, vertical: 8),
-                              itemCount: items.length,
-                              itemBuilder: (context, index) {
-                                final req = items[index];
-                                return _ApplicantCard(
-                                  request: req,
-                                  onApprove: () => _handleDecision(
-                                      req, AccountStatus.approved),
-                                  onReject: () => _handleDecision(
-                                      req, AccountStatus.rejected),
-                                  onChangeStatus: () =>
-                                      _showChangeStatusSheet(req),
-                                );
-                              },
+                          : Column(
+                              children: [
+                                Expanded(
+                                  child: ListView.builder(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 16, vertical: 8),
+                                    itemCount: (items.length - (_currentPage * _pageSize)).clamp(0, _pageSize),
+                                    itemBuilder: (context, index) {
+                                      final req = items[(_currentPage * _pageSize) + index];
+                                      return _ApplicantCard(
+                                        request: req,
+                                        onApprove: () => _handleDecision(
+                                            req, AccountStatus.approved),
+                                        onReject: () => _handleDecision(
+                                            req, AccountStatus.rejected),
+                                        onChangeStatus: () =>
+                                            _showChangeStatusSheet(req),
+                                      );
+                                    },
+                                  ),
+                                ),
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                                  child: AppPaginationBar(
+                                    currentPage: _currentPage,
+                                    totalItems: items.length,
+                                    pageSize: _pageSize,
+                                    onPageChanged: (p) => setState(() => _currentPage = p),
+                                  ),
+                                ),
+                              ],
                             ),
                 ),
               ],

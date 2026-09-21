@@ -7,6 +7,7 @@ import '../../../services/auth_service.dart';
 import '../admin_web_colors.dart';
 import '../admin_web_shell.dart';
 import '../admin_web_widgets/glass_card.dart';
+import '../admin_web_widgets/admin_pagination_bar.dart';
 
 /// Owner reviews new Staff/Driver registrations here and Accepts or
 /// Rejects them. Only after Accept can that account log in.
@@ -25,6 +26,9 @@ class AccountApprovalsScreen extends StatefulWidget {
 }
 
 class _AccountApprovalsScreenState extends State<AccountApprovalsScreen> {
+  int _pendingPage = 0;
+  int _decidedPage = 0;
+  static const int _pageSize = 5;
   void _decide(RegistrationRequest request, AccountStatus status) async {
     await AuthService.updateAccountStatus(request.id, status);
     if (!mounted) return;
@@ -162,14 +166,23 @@ class _AccountApprovalsScreenState extends State<AccountApprovalsScreen> {
                         ),
                       ),
                       const SizedBox(height: 12),
-                      ...pending.map(
-                        (r) => _RequestCard(
-                          request: r,
-                          onAccept: () =>
-                              _decide(r, AccountStatus.approved),
-                          onReject: () =>
-                              _decide(r, AccountStatus.rejected),
-                        ),
+                      ...pending
+                          .skip(_pendingPage * _pageSize)
+                          .take(_pageSize)
+                          .map(
+                            (r) => _RequestCard(
+                              request: r,
+                              onAccept: () =>
+                                  _decide(r, AccountStatus.approved),
+                              onReject: () =>
+                                  _decide(r, AccountStatus.rejected),
+                            ),
+                          ),
+                      AdminPaginationBar(
+                        currentPage: _pendingPage,
+                        totalItems: pending.length,
+                        pageSize: _pageSize,
+                        onPageChanged: (p) => setState(() => _pendingPage = p),
                       ),
                     ],
                     if (decided.isNotEmpty) ...[
@@ -183,11 +196,20 @@ class _AccountApprovalsScreenState extends State<AccountApprovalsScreen> {
                         ),
                       ),
                       const SizedBox(height: 12),
-                      ...decided.map(
-                        (r) => _RequestCard(
-                          request: r,
-                          onChangeStatus: (s) => _decide(r, s),
-                        ),
+                      ...decided
+                          .skip(_decidedPage * _pageSize)
+                          .take(_pageSize)
+                          .map(
+                            (r) => _RequestCard(
+                              request: r,
+                              onChangeStatus: (s) => _decide(r, s),
+                            ),
+                          ),
+                      AdminPaginationBar(
+                        currentPage: _decidedPage,
+                        totalItems: decided.length,
+                        pageSize: _pageSize,
+                        onPageChanged: (p) => setState(() => _decidedPage = p),
                       ),
                     ],
                   ],

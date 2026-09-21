@@ -6,6 +6,7 @@ import '../../theme/app_theme.dart';
 import '../../widgets/staff_button.dart';
 import '../../widgets/staff_card.dart';
 import '../../widgets/staff_nav_bar.dart';
+import '../../widgets/app_pagination_bar.dart';
 
 /// Bilao Orders — Owner records confirmed advance/special orders
 /// (received via Messenger/phone; customers never order directly
@@ -23,6 +24,9 @@ class OwnerBilaoOrdersScreen extends StatefulWidget {
 
 class _OwnerBilaoOrdersScreenState extends State<OwnerBilaoOrdersScreen> {
   StreamSubscription<List<BilaoOrder>>? _ordersSub;
+
+  int _currentPage = 0;
+  static const int _pageSize = 5;
 
   final List<BilaoOrder> _orders = [
     BilaoOrder(
@@ -385,7 +389,10 @@ class _OwnerBilaoOrdersScreenState extends State<OwnerBilaoOrdersScreen> {
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
               child: CupertinoSearchTextField(
                 placeholder: 'Search by customer name',
-                onChanged: (v) => setState(() => _searchQuery = v),
+                onChanged: (v) => setState(() {
+                  _searchQuery = v;
+                  _currentPage = 0;
+                }),
               ),
             ),
             SizedBox(
@@ -398,7 +405,10 @@ class _OwnerBilaoOrdersScreenState extends State<OwnerBilaoOrdersScreen> {
                     _filterChip(
                       label: status,
                       selected: _statusFilter == status,
-                      onTap: () => setState(() => _statusFilter = status),
+                      onTap: () => setState(() {
+                        _statusFilter = status;
+                        _currentPage = 0;
+                      }),
                     ),
                     const SizedBox(width: 8),
                   ],
@@ -414,12 +424,27 @@ class _OwnerBilaoOrdersScreenState extends State<OwnerBilaoOrdersScreen> {
                         style: TextStyle(color: AppColors.textSecondary),
                       ),
                     )
-                  : ListView.separated(
-                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                      itemCount: _visibleOrders.length,
-                      separatorBuilder: (_, _) => const SizedBox(height: 10),
-                      itemBuilder: (context, index) =>
-                          _buildOrderCard(_visibleOrders[index]),
+                  : Column(
+                      children: [
+                        Expanded(
+                          child: ListView.separated(
+                            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                            itemCount: (_visibleOrders.length - (_currentPage * _pageSize)).clamp(0, _pageSize),
+                            separatorBuilder: (_, _) => const SizedBox(height: 10),
+                            itemBuilder: (context, index) =>
+                                _buildOrderCard(_visibleOrders[(_currentPage * _pageSize) + index]),
+                          ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          child: AppPaginationBar(
+                            currentPage: _currentPage,
+                            totalItems: _visibleOrders.length,
+                            pageSize: _pageSize,
+                            onPageChanged: (p) => setState(() => _currentPage = p),
+                          ),
+                        ),
+                      ],
                     ),
             ),
           ],

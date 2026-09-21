@@ -9,6 +9,7 @@ import '../../widgets/staff_card.dart';
 import '../../widgets/staff_dialog.dart';
 import '../../widgets/staff_nav_bar.dart';
 import '../../widgets/staff_section_header.dart';
+import '../../widgets/app_pagination_bar.dart';
 
 /// Announcements — Owner composes and posts announcements here,
 /// visible to Staff and Driver on their respective apps. Owner is
@@ -29,6 +30,9 @@ class _OwnerAnnouncementsScreenState extends State<OwnerAnnouncementsScreen> {
   final _messageController = TextEditingController();
   bool _isPosting = false;
   StreamSubscription<List<Announcement>>? _announcementsSub;
+
+  int _currentPage = 0;
+  static const int _pageSize = 5;
 
   String _selectedTargetPosition = 'Branch Cook';
   static const List<String> _positionChoices = [
@@ -235,12 +239,27 @@ class _OwnerAnnouncementsScreenState extends State<OwnerAnnouncementsScreen> {
                         style: TextStyle(color: AppColors.textSecondary),
                       ),
                     )
-                  : ListView.separated(
-                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                      itemCount: _announcements.length,
-                      separatorBuilder: (_, _) => const SizedBox(height: 10),
-                      itemBuilder: (context, index) =>
-                          _buildAnnouncementCard(_announcements[index]),
+                  : Column(
+                      children: [
+                        Expanded(
+                          child: ListView.separated(
+                            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                            itemCount: (_announcements.length - (_currentPage * _pageSize)).clamp(0, _pageSize),
+                            separatorBuilder: (_, _) => const SizedBox(height: 10),
+                            itemBuilder: (context, index) =>
+                                _buildAnnouncementCard(_announcements[(_currentPage * _pageSize) + index]),
+                          ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          child: AppPaginationBar(
+                            currentPage: _currentPage,
+                            totalItems: _announcements.length,
+                            pageSize: _pageSize,
+                            onPageChanged: (p) => setState(() => _currentPage = p),
+                          ),
+                        ),
+                      ],
                     ),
             ),
           ],

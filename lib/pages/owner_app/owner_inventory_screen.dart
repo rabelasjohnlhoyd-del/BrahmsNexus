@@ -11,6 +11,7 @@ import '../../models/procurement_list.dart';
 import '../../services/firestore_service.dart';
 import '../../services/notification_service.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/app_pagination_bar.dart';
 import '../../widgets/staff_button.dart';
 import '../../widgets/staff_card.dart';
 import '../../widgets/staff_nav_bar.dart';
@@ -34,6 +35,10 @@ class OwnerInventoryScreen extends StatefulWidget {
 
 class _OwnerInventoryScreenState extends State<OwnerInventoryScreen> {
   int _section = 0; // 0 = Warehouse, 1 = Branches, 2 = Dispatch, 3 = Finance
+  int _batchesPage = 0;
+  int _stocksPage = 0;
+  int _dispatchesPage = 0;
+  static const int _pageSize = 5;
 
   StreamSubscription<List<KarneBatch>>? _batchesSub;
   StreamSubscription<List<BranchMeatStock>>? _meatStocksSub;
@@ -568,15 +573,26 @@ class _OwnerInventoryScreenState extends State<OwnerInventoryScreen> {
   }
 
   Widget _buildWarehouseTab() {
+    final total = _batches.length;
+    final totalPages = (total / _pageSize).ceil();
+    final effectivePage = totalPages == 0 ? 0 : _batchesPage.clamp(0, totalPages - 1);
+    final pagedBatches = _batches.skip(effectivePage * _pageSize).take(_pageSize).toList();
+
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
         StaffButton(label: 'Start New Batch', icon: CupertinoIcons.add, onPressed: _showAddBatchDialog),
         const SizedBox(height: 20),
-        for (final batch in _batches) ...[
+        for (final batch in pagedBatches) ...[
           _buildBatchCard(batch),
           const SizedBox(height: 16),
         ],
+        AppPaginationBar(
+          currentPage: effectivePage,
+          totalItems: total,
+          pageSize: _pageSize,
+          onPageChanged: (page) => setState(() => _batchesPage = page),
+        ),
       ],
     );
   }
@@ -711,120 +727,131 @@ class _OwnerInventoryScreenState extends State<OwnerInventoryScreen> {
   }
 
   Widget _buildBranchesTab() {
-    return ListView.separated(
+    final total = _branchMeatStocks.length;
+    final totalPages = (total / _pageSize).ceil();
+    final effectivePage = totalPages == 0 ? 0 : _stocksPage.clamp(0, totalPages - 1);
+    final pagedStocks = _branchMeatStocks.skip(effectivePage * _pageSize).take(_pageSize).toList();
+
+    return ListView(
       padding: const EdgeInsets.all(16),
-      itemCount: _branchMeatStocks.length,
-      separatorBuilder: (_, _) => const SizedBox(height: 12),
-      itemBuilder: (ctx, i) {
-        final s = _branchMeatStocks[i];
-        return StaffCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          s.branchName,
-                          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
-                        ),
-                        const SizedBox(height: 4),
-                        Row(
-                          children: [
-                            Text(
-                              '${s.totalRemainingPcs} / ${s.totalAllocatedPcs} PCS',
-                              style: const TextStyle(
-                                color: AppColors.accent,
-                                fontWeight: FontWeight.w800,
-                                fontSize: 13,
-                              ),
-                            ),
-                            const SizedBox(width: 6),
-                            const Text(
-                              '(Natitirang Dala / Total)',
-                              style: TextStyle(color: AppColors.textSecondary, fontSize: 11),
-                            ),
-                            if (s.isRunningLow) ...[
-                              const SizedBox(width: 8),
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                                decoration: BoxDecoration(
-                                  color: AppColors.error.withValues(alpha: 0.1),
-                                  borderRadius: BorderRadius.circular(4),
+      children: [
+        for (final s in pagedStocks) ...[
+          StaffCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            s.branchName,
+                            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+                          ),
+                          const SizedBox(height: 4),
+                          Row(
+                            children: [
+                              Text(
+                                '${s.totalRemainingPcs} / ${s.totalAllocatedPcs} PCS',
+                                style: const TextStyle(
+                                  color: AppColors.accent,
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 13,
                                 ),
-                                child: const Text(
-                                  'LOW STOCK',
-                                  style: TextStyle(
-                                    fontSize: 9,
-                                    fontWeight: FontWeight.w800,
-                                    color: AppColors.error,
+                              ),
+                              const SizedBox(width: 6),
+                              const Text(
+                                '(Natitirang Dala / Total)',
+                                style: TextStyle(color: AppColors.textSecondary, fontSize: 11),
+                              ),
+                              if (s.isRunningLow) ...[
+                                const SizedBox(width: 8),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.error.withValues(alpha: 0.1),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: const Text(
+                                    'LOW STOCK',
+                                    style: TextStyle(
+                                      fontSize: 9,
+                                      fontWeight: FontWeight.w800,
+                                      color: AppColors.error,
+                                    ),
                                   ),
                                 ),
-                              ),
+                              ],
                             ],
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                  CupertinoButton(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    minimumSize: Size.zero,
-                    onPressed: () => _adjustBranchAllocation(i),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(CupertinoIcons.slider_horizontal_3, size: 16, color: AppColors.accent),
-                        SizedBox(width: 6),
-                        Text(
-                          'Adjust',
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.accent,
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 10),
-              const Divider(height: 1, color: AppColors.border),
-              const SizedBox(height: 8),
-              // Itemized Meat Portions
-              Row(
-                children: [
-                  Expanded(
-                    child: _meatVariantChip(
-                      '250g Regular',
-                      '${s.regular250gRemaining} / ${s.regular250gTotal} pcs',
+                    CupertinoButton(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      minimumSize: Size.zero,
+                      onPressed: () => _adjustBranchAllocation(s),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(CupertinoIcons.slider_horizontal_3, size: 16, color: AppColors.accent),
+                          SizedBox(width: 6),
+                          Text(
+                            'Adjust',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.accent,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: _meatVariantChip(
-                      '300g Medium',
-                      '${s.medium300gRemaining} / ${s.medium300gTotal} pcs',
+                  ],
+                ),
+                const SizedBox(height: 10),
+                const Divider(height: 1, color: AppColors.border),
+                const SizedBox(height: 8),
+                // Itemized Meat Portions
+                Row(
+                  children: [
+                    Expanded(
+                      child: _meatVariantChip(
+                        '250g Regular',
+                        '${s.regular250gRemaining} / ${s.regular250gTotal} pcs',
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: _meatVariantChip(
-                      '400g B1T1',
-                      '${s.b1t1_400gRemaining} / ${s.b1t1_400gTotal} pcs',
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: _meatVariantChip(
+                        '300g Medium',
+                        '${s.medium300gRemaining} / ${s.medium300gTotal} pcs',
+                      ),
                     ),
-                  ),
-                ],
-              ),
-            ],
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: _meatVariantChip(
+                        '400g B1T1',
+                        '${s.b1t1_400gRemaining} / ${s.b1t1_400gTotal} pcs',
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
-        );
-      },
+          const SizedBox(height: 12),
+        ],
+        AppPaginationBar(
+          currentPage: effectivePage,
+          totalItems: total,
+          pageSize: _pageSize,
+          onPageChanged: (page) => setState(() => _stocksPage = page),
+        ),
+      ],
     );
   }
 
@@ -848,8 +875,7 @@ class _OwnerInventoryScreenState extends State<OwnerInventoryScreen> {
   }
 
   /// Lets the Owner update a branch's allocated and remaining pieces per variant.
-  void _adjustBranchAllocation(int index) {
-    final stock = _branchMeatStocks[index];
+  void _adjustBranchAllocation(BranchMeatStock stock) {
     final regTotalCtrl = TextEditingController(text: stock.regular250gTotal.toString());
     final regRemCtrl = TextEditingController(text: stock.regular250gRemaining.toString());
     final medTotalCtrl = TextEditingController(text: stock.medium300gTotal.toString());
@@ -939,7 +965,10 @@ class _OwnerInventoryScreenState extends State<OwnerInventoryScreen> {
               );
 
               setState(() {
-                _branchMeatStocks[index] = updated;
+                final bIdx = _branchMeatStocks.indexWhere((b) => b.branchId == stock.branchId);
+                if (bIdx >= 0) {
+                  _branchMeatStocks[bIdx] = updated;
+                }
               });
               if (ctx.mounted) Navigator.pop(ctx);
             },
@@ -951,6 +980,11 @@ class _OwnerInventoryScreenState extends State<OwnerInventoryScreen> {
   }
 
   Widget _buildDispatchLogsTab() {
+    final total = _meatDispatches.length;
+    final totalPages = (total / _pageSize).ceil();
+    final effectivePage = totalPages == 0 ? 0 : _dispatchesPage.clamp(0, totalPages - 1);
+    final pagedDispatches = _meatDispatches.skip(effectivePage * _pageSize).take(_pageSize).toList();
+
     return Column(
       children: [
         Padding(
@@ -965,69 +999,74 @@ class _OwnerInventoryScreenState extends State<OwnerInventoryScreen> {
                     style: TextStyle(color: AppColors.textSecondary),
                   ),
                 )
-              : ListView.separated(
+              : ListView(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
-                  itemCount: _meatDispatches.length,
-                  separatorBuilder: (_, _) => const SizedBox(height: 10),
-                  itemBuilder: (ctx, i) {
-                    final dispatch = _meatDispatches[i];
-                    final isDelivered = dispatch.isDelivered;
-
-                    return StaffCard(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  dispatch.destinationBranchName,
-                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                                ),
-                              ),
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                decoration: BoxDecoration(
-                                  color: (isDelivered ? AppColors.success : AppColors.warning).withValues(alpha: 0.15),
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                                child: Text(
-                                  isDelivered ? 'DELIVERED' : 'PENDING DELIVERY',
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w800,
-                                    color: isDelivered ? AppColors.success : AppColors.warning,
+                  children: [
+                    for (final dispatch in pagedDispatches) ...[
+                      StaffCard(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    dispatch.destinationBranchName,
+                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                                   ),
                                 ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            dispatch.itemsSummary,
-                            style: const TextStyle(fontSize: 12, color: AppColors.textPrimary, fontWeight: FontWeight.w600),
-                          ),
-                          const SizedBox(height: 4),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                'Total: ${dispatch.totalPcs} pcs \u2022 ${dispatch.createdAt.month}/${dispatch.createdAt.day} ${dispatch.createdAt.hour.toString().padLeft(2, '0')}:${dispatch.createdAt.minute.toString().padLeft(2, '0')}',
-                                style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
-                              ),
-                              CupertinoButton(
-                                padding: EdgeInsets.zero,
-                                minimumSize: Size.zero,
-                                onPressed: () => _confirmDeleteDispatch(dispatch),
-                                child: const Icon(CupertinoIcons.delete, size: 16, color: AppColors.error),
-                              ),
-                            ],
-                          ),
-                        ],
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                  decoration: BoxDecoration(
+                                    color: (dispatch.isDelivered ? AppColors.success : AppColors.warning).withValues(alpha: 0.15),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Text(
+                                    dispatch.isDelivered ? 'DELIVERED' : 'PENDING DELIVERY',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w800,
+                                      color: dispatch.isDelivered ? AppColors.success : AppColors.warning,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              dispatch.itemsSummary,
+                              style: const TextStyle(fontSize: 12, color: AppColors.textPrimary, fontWeight: FontWeight.w600),
+                            ),
+                            const SizedBox(height: 4),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  'Total: ${dispatch.totalPcs} pcs \u2022 ${dispatch.createdAt.month}/${dispatch.createdAt.day} ${dispatch.createdAt.hour.toString().padLeft(2, '0')}:${dispatch.createdAt.minute.toString().padLeft(2, '0')}',
+                                  style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                                ),
+                                CupertinoButton(
+                                  padding: EdgeInsets.zero,
+                                  minimumSize: Size.zero,
+                                  onPressed: () => _confirmDeleteDispatch(dispatch),
+                                  child: const Icon(CupertinoIcons.delete, size: 16, color: AppColors.error),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
                       ),
-                    );
-                  },
+                      const SizedBox(height: 10),
+                    ],
+                    AppPaginationBar(
+                      currentPage: effectivePage,
+                      totalItems: total,
+                      pageSize: _pageSize,
+                      onPageChanged: (page) => setState(() => _dispatchesPage = page),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
                 ),
         ),
       ],

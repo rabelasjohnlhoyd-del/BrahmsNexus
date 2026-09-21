@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/app_pagination_bar.dart';
 import '../../widgets/staff_button.dart';
 import '../../widgets/staff_card.dart';
 import '../../widgets/staff_nav_bar.dart';
@@ -15,6 +16,9 @@ class CutterInventoryScreen extends StatefulWidget {
 }
 
 class _CutterInventoryScreenState extends State<CutterInventoryScreen> {
+  int _currentPage = 0;
+  static const int _pageSize = 5;
+
   final List<String> _packagingItems = [
     'Plastic Labo (1kg)',
     'Plastic Sando Bag (10kg)',
@@ -45,6 +49,11 @@ class _CutterInventoryScreenState extends State<CutterInventoryScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final total = _packagingItems.length;
+    final totalPages = (total / _pageSize).ceil();
+    final effectivePage = totalPages == 0 ? 0 : _currentPage.clamp(0, totalPages - 1);
+    final pagedPackaging = _packagingItems.skip(effectivePage * _pageSize).take(_pageSize).toList();
+
     return CupertinoPageScaffold(
       backgroundColor: AppColors.background,
       navigationBar: const StaffNavBar(
@@ -62,7 +71,13 @@ class _CutterInventoryScreenState extends State<CutterInventoryScreen> {
               subtitle: 'Plastic supplies monitor',
             ),
             const SizedBox(height: 16),
-            ..._packagingItems.map((name) => _buildPackagingRow(name)),
+            ...pagedPackaging.map((name) => _buildPackagingRow(name)),
+            AppPaginationBar(
+              currentPage: effectivePage,
+              totalItems: total,
+              pageSize: _pageSize,
+              onPageChanged: (page) => setState(() => _currentPage = page),
+            ),
             const SizedBox(height: 40),
           ],
         ),

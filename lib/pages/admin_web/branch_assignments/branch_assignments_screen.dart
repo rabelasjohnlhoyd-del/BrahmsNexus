@@ -7,6 +7,7 @@ import '../../../services/supabase_service.dart';
 import '../admin_web_colors.dart';
 import '../admin_web_shell.dart';
 import '../admin_web_widgets/glass_card.dart';
+import '../admin_web_widgets/admin_pagination_bar.dart';
 
 /// Owner assigns each Branch Cook to a branch for the current day.
 /// Drivers and Production staff are excluded from this list.
@@ -24,6 +25,8 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
   
   final _searchController = TextEditingController();
   String _query = '';
+  int _currentPage = 0;
+  static const int _pageSize = 5;
 
   // derive assignments from staff list, filtered to show only Branch Cooks
   late List<BranchAssignment> _assignments;
@@ -363,7 +366,10 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
               padding: EdgeInsets.zero,
               child: TextField(
                 controller: _searchController,
-                onChanged: (v) => setState(() => _query = v),
+                onChanged: (v) => setState(() {
+                  _query = v;
+                  _currentPage = 0;
+                }),
                 decoration: InputDecoration(
                   hintText: 'SEARCH STAFF BY NAME...',
                   prefixIcon: const Icon(Icons.search_rounded, color: AdminWebColors.accent),
@@ -373,7 +379,10 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
                           icon: const Icon(Icons.clear_rounded),
                           onPressed: () {
                             _searchController.clear();
-                            setState(() => _query = '');
+                            setState(() {
+                              _query = '';
+                              _currentPage = 0;
+                            });
                           },
                         ),
                   filled: true,
@@ -425,25 +434,37 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
             Expanded(
               child: list.isEmpty
                 ? const Center(child: Text('No matching staff found.', style: TextStyle(color: AdminWebColors.textSecondary)))
-                : ListView.separated(
-                    itemCount: list.length,
-                    separatorBuilder: (context, index) => const SizedBox(height: 12),
-                    itemBuilder: (context, index) {
-                      final a = list[index];
-                      return LayoutBuilder(
-                        builder: (context, constraints) {
-                          final isWide = constraints.maxWidth >= 700;
-                          return _AssignmentCard(
-                            key: ValueKey('card-${a.employeeId}-${a.employeeName}'),
-                            assignment: a,
-                            allAssignments: _assignments,
-                            isWide: isWide,
-                            onBranchChanged: (branch) => _updateBranch(a, branch),
-                            onStatusChanged: (status) => _updateStatus(a, status),
-                          );
-                        },
-                      );
-                    },
+                : Column(
+                    children: [
+                      Expanded(
+                        child: ListView.separated(
+                          itemCount: (list.length - (_currentPage * _pageSize)).clamp(0, _pageSize),
+                          separatorBuilder: (context, index) => const SizedBox(height: 12),
+                          itemBuilder: (context, index) {
+                            final a = list[(_currentPage * _pageSize) + index];
+                            return LayoutBuilder(
+                              builder: (context, constraints) {
+                                final isWide = constraints.maxWidth >= 700;
+                                return _AssignmentCard(
+                                  key: ValueKey('card-${a.employeeId}-${a.employeeName}'),
+                                  assignment: a,
+                                  allAssignments: _assignments,
+                                  isWide: isWide,
+                                  onBranchChanged: (branch) => _updateBranch(a, branch),
+                                  onStatusChanged: (status) => _updateStatus(a, status),
+                                );
+                              },
+                            );
+                          },
+                        ),
+                      ),
+                      AdminPaginationBar(
+                        currentPage: _currentPage,
+                        totalItems: list.length,
+                        pageSize: _pageSize,
+                        onPageChanged: (p) => setState(() => _currentPage = p),
+                      ),
+                    ],
                   ),
             ),
             const SizedBox(height: 24),

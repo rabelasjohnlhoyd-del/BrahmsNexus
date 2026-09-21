@@ -6,6 +6,7 @@ import '../../../services/notification_service.dart';
 import '../admin_web_colors.dart';
 import '../admin_web_shell.dart';
 import '../admin_web_widgets/glass_card.dart';
+import '../admin_web_widgets/admin_pagination_bar.dart';
 
 /// Owner composes and posts announcements here — visible to Staff and
 /// Driver on their respective apps (see staff_app/announcements_screen
@@ -24,6 +25,8 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
   bool _isPosting = false;
   String _selectedTargetPosition = 'Branch Cook';
   StreamSubscription<List<Announcement>>? _announcementsSub;
+  int _currentPage = 0;
+  static const int _pageSize = 5;
 
   static const List<String> _positionChoices = [
     'Branch Cook',
@@ -252,14 +255,14 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
                   ),
                 ),
               )
-            else
+            else ...[
               ListView.separated(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
-                itemCount: _announcements.length,
+                itemCount: (_announcements.length - (_currentPage * _pageSize)).clamp(0, _pageSize),
                 separatorBuilder: (_, _) => const SizedBox(height: 12),
                 itemBuilder: (context, index) {
-                  final a = _announcements[index];
+                  final a = _announcements[(_currentPage * _pageSize) + index];
                   return GlassCard(
                     padding: const EdgeInsets.all(16),
                     child: Row(
@@ -337,6 +340,13 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
                   );
                 },
               ),
+              AdminPaginationBar(
+                currentPage: _currentPage,
+                totalItems: _announcements.length,
+                pageSize: _pageSize,
+                onPageChanged: (p) => setState(() => _currentPage = p),
+              ),
+            ],
             const SizedBox(height: 40),
           ],
         ),

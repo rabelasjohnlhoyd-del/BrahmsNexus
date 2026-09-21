@@ -5,6 +5,7 @@ import '../../../services/supabase_service.dart';
 import '../admin_web_colors.dart';
 import '../admin_web_shell.dart';
 import '../admin_web_widgets/glass_card.dart';
+import '../admin_web_widgets/admin_pagination_bar.dart';
 import 'add_staff_screen.dart';
 import 'edit_staff_screen.dart';
 
@@ -24,7 +25,7 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
   String _query = '';
   bool _showArchived = false;
   int _currentPage = 1;
-  static const int _pageSize = 10;
+  static const int _pageSize = 5;
 
   List<StaffMember> _paginatedStaff = [];
   int _totalCount = 0;
@@ -59,10 +60,6 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
     super.dispose();
   }
 
-  int get _totalPages {
-    if (_totalCount == 0) return 1;
-    return (_totalCount / _pageSize).ceil();
-  }
 
   void _changePage(int page) {
     setState(() => _currentPage = page);
@@ -241,7 +238,6 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
   @override
   Widget build(BuildContext context) {
     final staff = _paginatedStaff;
-    final totalPages = _totalPages;
 
     return Container(
       color: AdminWebColors.background,
@@ -381,10 +377,11 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
                   ),
           ),
           if (_totalCount > _pageSize)
-            _PaginationFooter(
-              currentPage: _currentPage,
-              totalPages: totalPages,
-              onPageChanged: _changePage,
+            AdminPaginationBar(
+              currentPage: _currentPage - 1,
+              totalItems: _totalCount,
+              pageSize: _pageSize,
+              onPageChanged: (p) => _changePage(p + 1),
             ),
         ],
       ),
@@ -751,54 +748,8 @@ class _EmptyState extends StatelessWidget {
   }
 }
 
-class _PaginationFooter extends StatelessWidget {
-  const _PaginationFooter({
-    required this.currentPage,
-    required this.totalPages,
-    required this.onPageChanged,
-  });
 
-  final int currentPage;
-  final int totalPages;
-  final ValueChanged<int> onPageChanged;
 
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        border: Border(top: BorderSide(color: AdminWebColors.border)),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          IconButton(
-            onPressed: currentPage > 1 ? () => onPageChanged(currentPage - 1) : null,
-            icon: const Icon(Icons.chevron_left_rounded),
-            tooltip: 'Previous Page',
-          ),
-          const SizedBox(width: 16),
-          Text(
-            'PAGE $currentPage OF $totalPages',
-            style: const TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w800,
-              color: AdminWebColors.textSecondary,
-              letterSpacing: 1.0,
-            ),
-          ),
-          const SizedBox(width: 16),
-          IconButton(
-            onPressed: currentPage < totalPages ? () => onPageChanged(currentPage + 1) : null,
-            icon: const Icon(Icons.chevron_right_rounded),
-            tooltip: 'Next Page',
-          ),
-        ],
-      ),
-    );
-  }
-}
 
 
 

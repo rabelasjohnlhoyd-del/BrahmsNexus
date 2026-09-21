@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/app_pagination_bar.dart';
 import '../../widgets/staff_button.dart';
 import '../../widgets/staff_card.dart';
 import '../../widgets/staff_nav_bar.dart';
@@ -15,6 +16,9 @@ class CookInventoryScreen extends StatefulWidget {
 }
 
 class _CookInventoryScreenState extends State<CookInventoryScreen> {
+  int _currentPage = 0;
+  static const int _pageSize = 5;
+
   final List<String> _ingredients = [
     'Toyo (1 Gallon)',
     'Asin (1 Sack)',
@@ -49,6 +53,11 @@ class _CookInventoryScreenState extends State<CookInventoryScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final total = _ingredients.length;
+    final totalPages = (total / _pageSize).ceil();
+    final effectivePage = totalPages == 0 ? 0 : _currentPage.clamp(0, totalPages - 1);
+    final pagedIngredients = _ingredients.skip(effectivePage * _pageSize).take(_pageSize).toList();
+
     return CupertinoPageScaffold(
       backgroundColor: AppColors.background,
       navigationBar: const StaffNavBar(
@@ -66,7 +75,13 @@ class _CookInventoryScreenState extends State<CookInventoryScreen> {
               subtitle: 'Monitor and request supplies',
             ),
             const SizedBox(height: 16),
-            ..._ingredients.map((name) => _buildIngredientRow(name)),
+            ...pagedIngredients.map((name) => _buildIngredientRow(name)),
+            AppPaginationBar(
+              currentPage: effectivePage,
+              totalItems: total,
+              pageSize: _pageSize,
+              onPageChanged: (page) => setState(() => _currentPage = page),
+            ),
             const SizedBox(height: 40),
           ],
         ),

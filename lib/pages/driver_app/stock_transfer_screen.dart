@@ -4,6 +4,7 @@ import 'package:flutter/material.dart' show Divider, ScaffoldMessenger, SnackBar
 import '../../models/meat_dispatch.dart';
 import '../../services/firestore_service.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/app_pagination_bar.dart';
 import '../../widgets/driver_card.dart';
 import '../../widgets/driver_nav_bar.dart';
 import '../../widgets/driver_section_header.dart';
@@ -21,6 +22,9 @@ class StockTransferScreen extends StatefulWidget {
 }
 
 class _StockTransferScreenState extends State<StockTransferScreen> {
+  int _pendingPage = 0;
+  int _deliveredPage = 0;
+  static const int _pageSize = 5;
   StreamSubscription<List<MeatDispatch>>? _dispatchesSub;
   List<MeatDispatch> _dispatches = [];
   final Set<String> _processingIds = {};
@@ -99,27 +103,53 @@ class _StockTransferScreenState extends State<StockTransferScreen> {
       child: SafeArea(
         child: _dispatches.isEmpty
             ? _buildEmptyState()
-            : ListView(
-                padding: const EdgeInsets.all(16),
-                children: [
-                  if (pending.isNotEmpty) ...[
-                    const DriverSectionHeader(
-                      label: 'Pending Deliveries',
-                      icon: CupertinoIcons.arrow_up_bin_fill,
-                    ),
-                    const SizedBox(height: 12),
-                    ...pending.map((d) => _buildDispatchCard(d)),
-                  ],
-                  if (delivered.isNotEmpty) ...[
-                    const SizedBox(height: 20),
-                    const DriverSectionHeader(
-                      label: 'Naihatid Na',
-                      icon: CupertinoIcons.checkmark_shield_fill,
-                    ),
-                    const SizedBox(height: 12),
-                    ...delivered.map((d) => _buildDispatchCard(d)),
-                  ],
-                ],
+            : Builder(
+                builder: (context) {
+                  final pendingTotal = pending.length;
+                  final pendingPages = (pendingTotal / _pageSize).ceil();
+                  final effectivePendingPage = pendingPages == 0 ? 0 : _pendingPage.clamp(0, pendingPages - 1);
+                  final pagedPending = pending.skip(effectivePendingPage * _pageSize).take(_pageSize).toList();
+
+                  final deliveredTotal = delivered.length;
+                  final deliveredPages = (deliveredTotal / _pageSize).ceil();
+                  final effectiveDeliveredPage = deliveredPages == 0 ? 0 : _deliveredPage.clamp(0, deliveredPages - 1);
+                  final pagedDelivered = delivered.skip(effectiveDeliveredPage * _pageSize).take(_pageSize).toList();
+
+                  return ListView(
+                    padding: const EdgeInsets.all(16),
+                    children: [
+                      if (pending.isNotEmpty) ...[
+                        const DriverSectionHeader(
+                          label: 'Pending Deliveries',
+                          icon: CupertinoIcons.arrow_up_bin_fill,
+                        ),
+                        const SizedBox(height: 12),
+                        ...pagedPending.map((d) => _buildDispatchCard(d)),
+                        AppPaginationBar(
+                          currentPage: effectivePendingPage,
+                          totalItems: pendingTotal,
+                          pageSize: _pageSize,
+                          onPageChanged: (page) => setState(() => _pendingPage = page),
+                        ),
+                      ],
+                      if (delivered.isNotEmpty) ...[
+                        const SizedBox(height: 20),
+                        const DriverSectionHeader(
+                          label: 'Naihatid Na',
+                          icon: CupertinoIcons.checkmark_shield_fill,
+                        ),
+                        const SizedBox(height: 12),
+                        ...pagedDelivered.map((d) => _buildDispatchCard(d)),
+                        AppPaginationBar(
+                          currentPage: effectiveDeliveredPage,
+                          totalItems: deliveredTotal,
+                          pageSize: _pageSize,
+                          onPageChanged: (page) => setState(() => _deliveredPage = page),
+                        ),
+                      ],
+                    ],
+                  );
+                },
               ),
       ),
     );

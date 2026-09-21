@@ -10,6 +10,7 @@ import '../../widgets/staff_card.dart';
 import '../../widgets/staff_nav_bar.dart';
 import '../../widgets/staff_section_header.dart';
 import '../../widgets/staff_top_actions.dart';
+import '../../widgets/app_pagination_bar.dart';
 
 /// Assignments tab — Owner assigns each active staff member to a branch
 /// and sets their work status (On Duty / Rest Day) for a chosen date.
@@ -26,6 +27,8 @@ class OwnerAssignmentsScreen extends StatefulWidget {
 class _OwnerAssignmentsScreenState extends State<OwnerAssignmentsScreen> {
   final DateTime _selectedDate = DateTime.now();
   String _searchQuery = '';
+  int _currentPage = 0;
+  static const int _pageSize = 5;
 
   // Mock per-date assignment records, keyed by "yyyy-M-d".
   final Map<String, List<BranchAssignment>> _assignmentsByDate = {};
@@ -253,7 +256,23 @@ class _OwnerAssignmentsScreenState extends State<OwnerAssignmentsScreen> {
     );
   }
 
-  Future<void> _pickBranch(int index, BranchAssignment current) async {
+  void _updateBranchForAssignment(BranchAssignment a, Branch branch) async {
+    final list = _assignmentsByDate[_dateKey(_selectedDate)];
+    if (list == null) return;
+    final originalIndex = list.indexWhere((x) => x.employeeId == a.employeeId);
+    if (originalIndex == -1) return;
+    _updateBranch(originalIndex, branch);
+  }
+
+  void _updateStatusForAssignment(BranchAssignment a, WorkStatus status) async {
+    final list = _assignmentsByDate[_dateKey(_selectedDate)];
+    if (list == null) return;
+    final originalIndex = list.indexWhere((x) => x.employeeId == a.employeeId);
+    if (originalIndex == -1) return;
+    _updateStatus(originalIndex, status);
+  }
+
+  Future<void> _pickBranch(BranchAssignment current) async {
     var tempIndex =
         kSampleBranches.indexWhere((b) => b.id == current.branchId);
     if (tempIndex == -1) tempIndex = 0;
@@ -274,7 +293,7 @@ class _OwnerAssignmentsScreenState extends State<OwnerAssignmentsScreen> {
                 ),
                 CupertinoButton(
                   onPressed: () {
-                    _updateBranch(index, kSampleBranches[tempIndex]);
+                    _updateBranchForAssignment(current, kSampleBranches[tempIndex]);
                     Navigator.of(popupContext).pop();
                   },
                   child: const Text('Done'),
@@ -384,7 +403,10 @@ class _OwnerAssignmentsScreenState extends State<OwnerAssignmentsScreen> {
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
               child: CupertinoSearchTextField(
                 placeholder: 'Search staff by name...',
-                onChanged: (v) => setState(() => _searchQuery = v),
+                onChanged: (v) => setState(() {
+                  _searchQuery = v;
+                  _currentPage = 0;
+                }),
               ),
             ),
             Expanded(
@@ -500,18 +522,27 @@ class _OwnerAssignmentsScreenState extends State<OwnerAssignmentsScreen> {
                           ],
                         ),
                         const SizedBox(height: 14),
-                        ...List.generate(assignments.length, (index) {
-                          final a = assignments[index];
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 10),
-                            child: _AssignmentRow(
-                              assignment: a,
-                              onBranchTap: () => _pickBranch(index, a),
-                              onStatusChanged: (status) =>
-                                  _updateStatus(index, status),
-                            ),
-                          );
-                        }),
+                        ...List.generate(
+                          (assignments.length - (_currentPage * _pageSize)).clamp(0, _pageSize),
+                          (index) {
+                            final a = assignments[(_currentPage * _pageSize) + index];
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 10),
+                              child: _AssignmentRow(
+                                assignment: a,
+                                onBranchTap: () => _pickBranch(a),
+                                onStatusChanged: (status) =>
+                                    _updateStatusForAssignment(a, status),
+                              ),
+                            );
+                          },
+                        ),
+                        AppPaginationBar(
+                          currentPage: _currentPage,
+                          totalItems: assignments.length,
+                          pageSize: _pageSize,
+                          onPageChanged: (p) => setState(() => _currentPage = p),
+                        ),
                         const SizedBox(height: 8),
                         StaffButton(
                           label: 'Save All',

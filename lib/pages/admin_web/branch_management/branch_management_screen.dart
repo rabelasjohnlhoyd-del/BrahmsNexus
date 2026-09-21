@@ -4,6 +4,7 @@ import '../../../services/supabase_service.dart';
 import '../admin_web_colors.dart';
 import '../admin_web_shell.dart';
 import '../admin_web_widgets/glass_card.dart';
+import '../admin_web_widgets/admin_pagination_bar.dart';
 import 'branch_form_screen.dart';
 
 class BranchManagementScreen extends StatefulWidget {
@@ -20,7 +21,7 @@ class _BranchManagementScreenState extends State<BranchManagementScreen> {
   bool _isLoading = false;
 
   int _currentPage = 0;
-  static const int _pageSize = 10;
+  static const int _pageSize = 5;
 
   @override
   void initState() {
@@ -224,7 +225,12 @@ class _BranchManagementScreenState extends State<BranchManagementScreen> {
                             ),
                           ),
                           const SizedBox(height: 16),
-                          _buildPagination(branches.length),
+                          AdminPaginationBar(
+                            currentPage: _currentPage,
+                            totalItems: branches.length,
+                            pageSize: _pageSize,
+                            onPageChanged: (p) => setState(() => _currentPage = p),
+                          ),
                         ],
                       ),
           ),
@@ -260,29 +266,6 @@ class _BranchManagementScreenState extends State<BranchManagementScreen> {
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildPagination(int totalItems) {
-    final totalPages = (totalItems / _pageSize).ceil();
-    if (totalPages <= 1) return const SizedBox.shrink();
-
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        IconButton(
-          icon: const Icon(Icons.chevron_left_rounded),
-          onPressed: _currentPage > 0 ? () => setState(() => _currentPage--) : null,
-        ),
-        Text(
-          'Page ${_currentPage + 1} of $totalPages',
-          style: const TextStyle(fontWeight: FontWeight.bold, color: AdminWebColors.textSecondary),
-        ),
-        IconButton(
-          icon: const Icon(Icons.chevron_right_rounded),
-          onPressed: _currentPage < totalPages - 1 ? () => setState(() => _currentPage++) : null,
-        ),
-      ],
     );
   }
 }

@@ -8,6 +8,7 @@ import '../../widgets/staff_card.dart';
 import '../../widgets/staff_nav_bar.dart';
 import '../../widgets/staff_section_header.dart';
 import '../../widgets/staff_top_actions.dart';
+import '../../widgets/app_pagination_bar.dart';
 
 class OwnerSalesPayrollScreen extends StatefulWidget {
   const OwnerSalesPayrollScreen({super.key});
@@ -19,6 +20,8 @@ class OwnerSalesPayrollScreen extends StatefulWidget {
 class _OwnerSalesPayrollScreenState extends State<OwnerSalesPayrollScreen> {
   String? _branchFilter; // null means "All Branches"
   StreamSubscription<List<SalesRecord>>? _salesSub;
+  int _currentPage = 0;
+  static const int _pageSize = 5;
 
   final List<SalesRecord> _records = [
     SalesRecord(
@@ -61,11 +64,11 @@ class _OwnerSalesPayrollScreenState extends State<OwnerSalesPayrollScreen> {
         title: const Text('Filter by Branch'),
         actions: [
           CupertinoActionSheetAction(
-            onPressed: () { setState(() => _branchFilter = null); Navigator.pop(context); },
+            onPressed: () { setState(() { _branchFilter = null; _currentPage = 0; }); Navigator.pop(context); },
             child: const Text('All Branches'),
           ),
           ...kSampleBranches.map((b) => CupertinoActionSheetAction(
-            onPressed: () { setState(() => _branchFilter = b.id); Navigator.pop(context); },
+            onPressed: () { setState(() { _branchFilter = b.id; _currentPage = 0; }); Navigator.pop(context); },
             child: Text(b.fullName),
           )),
         ],
@@ -123,79 +126,97 @@ class _OwnerSalesPayrollScreenState extends State<OwnerSalesPayrollScreen> {
               ),
             ),
             const SizedBox(height: 12),
-            for (final r in _visibleRecords) ...[
-              StaffCard(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Expanded(child: Text(r.employeeName, style: const TextStyle(fontWeight: FontWeight.bold))),
-                        if (r.remainingStock != null)
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: AppColors.accent.withValues(alpha: 0.12),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: const Text('With Remaining Stock', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.accent)),
-                          ),
-                      ],
-                    ),
-                    Text(r.branchName, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text('Orders: ${r.displayTotalOrders} · Portions: ${r.displayPortions}', style: const TextStyle(fontWeight: FontWeight.w700)),
-                        Text(
-                          'Remit: ₱${r.expectedCashRemittance.toStringAsFixed(0)}',
-                          style: const TextStyle(fontWeight: FontWeight.w800, color: AppColors.accent),
-                        ),
-                      ],
-                    ),
-                    if (r.regularSold != null || r.mediumSold != null || r.b1t1OrdersSold != null)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 3),
-                        child: Text(
-                          'Sold: Reg ${r.regularSold ?? 0} · Med ${r.mediumSold ?? 0} · B1T1 ${r.b1t1OrdersSold ?? 0}',
-                          style: const TextStyle(fontSize: 11.5, color: AppColors.textSecondary),
-                        ),
-                      ),
-                    const SizedBox(height: 8),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text('Sales: ₱${r.totalSalesAmount.toStringAsFixed(0)}', style: const TextStyle(fontWeight: FontWeight.w600)),
-                        Text('Salary: - ₱${r.computedWage.toStringAsFixed(0)}', style: const TextStyle(color: AppColors.error, fontWeight: FontWeight.w600)),
-                      ],
-                    ),
-                    if (r.remainingStock != null) ...[
-                      const SizedBox(height: 10),
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: AppColors.pastelBrown.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text('REMAINING STOCK AT CLOSE', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: AppColors.textSecondary)),
-                            const SizedBox(height: 4),
-                            Text(
-                              'Reg: ${r.remainingStock!.regular}  Med: ${r.remainingStock!.medium}  B1T1: ${r.remainingStock!.b1t1}  '
-                              'Mayo: ${r.remainingStock!.mayo}  Styro: ${r.remainingStock!.styro}  Toyo: ${r.remainingStock!.toyo}',
-                              style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ],
+            if (_visibleRecords.isEmpty)
+              const Center(
+                child: Padding(
+                  padding: EdgeInsets.symmetric(vertical: 24),
+                  child: Text(
+                    'Walang sales record na tumutugma.',
+                    style: TextStyle(color: AppColors.textSecondary),
+                  ),
                 ),
+              )
+            else ...[
+              for (final r in _visibleRecords.skip(_currentPage * _pageSize).take(_pageSize)) ...[
+                StaffCard(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Expanded(child: Text(r.employeeName, style: const TextStyle(fontWeight: FontWeight.bold))),
+                          if (r.remainingStock != null)
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: AppColors.accent.withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: const Text('With Remaining Stock', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.accent)),
+                            ),
+                        ],
+                      ),
+                      Text(r.branchName, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text('Orders: ${r.displayTotalOrders} · Portions: ${r.displayPortions}', style: const TextStyle(fontWeight: FontWeight.w700)),
+                          Text(
+                            'Remit: ₱${r.expectedCashRemittance.toStringAsFixed(0)}',
+                            style: const TextStyle(fontWeight: FontWeight.w800, color: AppColors.accent),
+                          ),
+                        ],
+                      ),
+                      if (r.regularSold != null || r.mediumSold != null || r.b1t1OrdersSold != null)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 3),
+                          child: Text(
+                            'Sold: Reg ${r.regularSold ?? 0} · Med ${r.mediumSold ?? 0} · B1T1 ${r.b1t1OrdersSold ?? 0}',
+                            style: const TextStyle(fontSize: 11.5, color: AppColors.textSecondary),
+                          ),
+                        ),
+                      const SizedBox(height: 8),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text('Sales: ₱${r.totalSalesAmount.toStringAsFixed(0)}', style: const TextStyle(fontWeight: FontWeight.w600)),
+                          Text('Salary: - ₱${r.computedWage.toStringAsFixed(0)}', style: const TextStyle(color: AppColors.error, fontWeight: FontWeight.w600)),
+                        ],
+                      ),
+                      if (r.remainingStock != null) ...[
+                        const SizedBox(height: 10),
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: AppColors.pastelBrown.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text('REMAINING STOCK AT CLOSE', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: AppColors.textSecondary)),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Reg: ${r.remainingStock!.regular}  Med: ${r.remainingStock!.medium}  B1T1: ${r.remainingStock!.b1t1}  '
+                                'Mayo: ${r.remainingStock!.mayo}  Styro: ${r.remainingStock!.styro}  Toyo: ${r.remainingStock!.toyo}',
+                                style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 10),
+              ],
+              AppPaginationBar(
+                currentPage: _currentPage,
+                totalItems: _visibleRecords.length,
+                pageSize: _pageSize,
+                onPageChanged: (p) => setState(() => _currentPage = p),
               ),
-              const SizedBox(height: 10),
             ],
           ],
         ),

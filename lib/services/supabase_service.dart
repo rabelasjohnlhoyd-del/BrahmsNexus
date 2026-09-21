@@ -128,7 +128,7 @@ class SupabaseService {
   /// - [positionFilter]: filter by role/position (optional)
   static Future<PaginatedResponse<StaffMember>> getStaffProfiles({
     int page = 1,
-    int pageSize = 10,
+    int pageSize = 5,
     String query = '',
     bool showArchived = false,
     String? branchFilter,

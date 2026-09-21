@@ -6,6 +6,7 @@ import '../../../services/firestore_service.dart';
 import '../admin_web_colors.dart';
 import '../admin_web_shell.dart';
 import '../admin_web_widgets/glass_card.dart';
+import '../admin_web_widgets/admin_pagination_bar.dart';
 
 /// Admin monitors daily sales per branch/employee here.
 /// Backed by live real-time Firestore sync.
@@ -18,6 +19,9 @@ class SalesPayrollScreen extends StatefulWidget {
 
 class _SalesPayrollScreenState extends State<SalesPayrollScreen> {
   static const double _wideBreakpoint = 700;
+
+  int _currentPage = 0;
+  static const int _pageSize = 5;
 
   StreamSubscription<List<SalesRecord>>? _salesSub;
 
@@ -212,7 +216,10 @@ class _SalesPayrollScreenState extends State<SalesPayrollScreen> {
                         )),
                       ],
                       onChanged: (v) {
-                        setState(() => _branchFilter = (v == 'All' ? null : v));
+                        setState(() {
+                          _branchFilter = (v == 'All' ? null : v);
+                          _currentPage = 0;
+                        });
                       },
                     ),
                   ),
@@ -231,19 +238,27 @@ class _SalesPayrollScreenState extends State<SalesPayrollScreen> {
                     ),
                   ),
                 )
-              else
+              else ...[
                 ListView.separated(
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
-                  itemCount: _visibleRecords.length,
+                  itemCount: (_visibleRecords.length - (_currentPage * _pageSize)).clamp(0, _pageSize),
                   separatorBuilder: (context, index) => const SizedBox(height: 12),
                   itemBuilder: (context, index) {
+                    final record = _visibleRecords[(_currentPage * _pageSize) + index];
                     return _SalesRecordCard(
-                      record: _visibleRecords[index],
+                      record: record,
                       isWide: isWide,
                     );
                   },
                 ),
+                AdminPaginationBar(
+                  currentPage: _currentPage,
+                  totalItems: _visibleRecords.length,
+                  pageSize: _pageSize,
+                  onPageChanged: (p) => setState(() => _currentPage = p),
+                ),
+              ],
               const SizedBox(height: 40),
             ],
           ),

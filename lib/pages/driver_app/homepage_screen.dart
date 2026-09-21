@@ -4,6 +4,7 @@ import '../../models/branch.dart';
 import '../../services/auth_service.dart';
 import '../../services/weather_service.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/app_pagination_bar.dart';
 import '../../widgets/driver_card.dart';
 import '../../widgets/driver_nav_bar.dart';
 import '../../widgets/driver_section_header.dart';
@@ -20,6 +21,8 @@ class DriverHomepageScreen extends StatefulWidget {
 }
 
 class _DriverHomepageScreenState extends State<DriverHomepageScreen> {
+  int _branchesPage = 0;
+  static const int _pageSize = 5;
   bool _isRefreshing = false;
   bool _isCelsius = true;
 
@@ -377,74 +380,97 @@ class _DriverHomepageScreenState extends State<DriverHomepageScreen> {
               icon: CupertinoIcons.list_bullet,
             ),
             const SizedBox(height: 8),
-            ...kSampleBranches.map((branch) {
-              final staffName = _assignedStaff[branch.id];
+            Builder(
+              builder: (context) {
+                final total = kSampleBranches.length;
+                final totalPages = (total / _pageSize).ceil();
+                final effectivePage = totalPages == 0 ? 0 : _branchesPage.clamp(0, totalPages - 1);
+                final pagedBranches = kSampleBranches.skip(effectivePage * _pageSize).take(_pageSize).toList();
 
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: DriverCard(
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 42,
-                        height: 42,
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          color: AppColors.pastelBrown.withValues(alpha: 0.3),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: const Icon(CupertinoIcons.building_2_fill,
-                            color: AppColors.accent),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              branch.fullName,
-                              style: const TextStyle(
-                                fontSize: 14.5,
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.textPrimary,
-                              ),
-                            ),
-                            const SizedBox(height: 3),
-                            Row(
-                              children: [
-                                Icon(
-                                  staffName != null
-                                      ? CupertinoIcons.person_fill
-                                      : CupertinoIcons.person,
-                                  size: 13,
-                                  color: staffName != null
-                                      ? AppColors.success
-                                      : AppColors.textSecondary,
-                                ),
-                                const SizedBox(width: 5),
-                                Expanded(
-                                  child: Text(
-                                    staffName ?? 'No staff assigned yet',
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                      fontSize: 12.5,
-                                      color: staffName != null
-                                          ? AppColors.textSecondary
-                                          : AppColors.warning,
+                return Column(
+                  children: [
+                    for (final branch in pagedBranches) ...[
+                      Builder(
+                        builder: (context) {
+                          final staffName = _assignedStaff[branch.id];
+
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 8),
+                            child: DriverCard(
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 42,
+                                    height: 42,
+                                    alignment: Alignment.center,
+                                    decoration: BoxDecoration(
+                                      color: AppColors.pastelBrown.withValues(alpha: 0.3),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: const Icon(CupertinoIcons.building_2_fill,
+                                        color: AppColors.accent),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          branch.fullName,
+                                          style: const TextStyle(
+                                            fontSize: 14.5,
+                                            fontWeight: FontWeight.w600,
+                                            color: AppColors.textPrimary,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 3),
+                                        Row(
+                                          children: [
+                                            Icon(
+                                              staffName != null
+                                                  ? CupertinoIcons.person_fill
+                                                  : CupertinoIcons.person,
+                                              size: 13,
+                                              color: staffName != null
+                                                  ? AppColors.success
+                                                  : AppColors.textSecondary,
+                                            ),
+                                            const SizedBox(width: 5),
+                                            Expanded(
+                                              child: Text(
+                                                staffName ?? 'No staff assigned yet',
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: TextStyle(
+                                                  fontSize: 12.5,
+                                                  color: staffName != null
+                                                      ? AppColors.textSecondary
+                                                      : AppColors.warning,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ],
                                     ),
                                   ),
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
-                          ],
-                        ),
+                          );
+                        },
                       ),
                     ],
-                  ),
-                ),
-              );
-            }),
+                    AppPaginationBar(
+                      currentPage: effectivePage,
+                      totalItems: total,
+                      pageSize: _pageSize,
+                      onPageChanged: (page) => setState(() => _branchesPage = page),
+                    ),
+                  ],
+                );
+              },
+            ),
           ],
         ),
       ),
