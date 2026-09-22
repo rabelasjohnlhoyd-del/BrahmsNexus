@@ -52,6 +52,9 @@ dependencies:
   # HTTP client for Address API & Validation services
   http: ^1.2.2
 
+  # Phone dialer (android.intent.action.DIAL + tel: scheme)
+  url_launcher: ^6.3.1
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

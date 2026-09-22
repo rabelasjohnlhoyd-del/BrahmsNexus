@@ -269,4 +269,60 @@ class NotificationService {
       targetBranch: branchName,
     );
   }
+
+  /// Triggered when the Driver notifies staff they are "On the way" for deployment or retrieval.
+  static Future<void> notifyStaffDriverOnTheWay({
+    required String staffName,
+    required String branchName,
+    required String mode,
+    String? staffId,
+    String? staffUsername,
+    String? driverName,
+  }) async {
+    final isDeployment = mode.toLowerCase() == 'deployment';
+    final actionText = isDeployment ? 'morning deployment (hatid)' : 'evening retrieval (sundo)';
+    final dName = (driverName != null && driverName.isNotEmpty) ? driverName : 'Driver';
+    await sendNotification(
+      title: 'Driver is On The Way',
+      message: '$dName is on the way to $branchName for $actionText ($staffName).',
+      type: NotificationType.deliveryTask,
+      targetRole: 'staff',
+      targetBranch: branchName,
+      route: 'notifications',
+    );
+  }
+
+  /// Triggered when the Driver drops off a staff member at a branch during deployment.
+  static Future<void> notifyOwnerStaffDroppedOff({
+    required String staffName,
+    required String branchName,
+    String? driverName,
+  }) async {
+    final dName = (driverName != null && driverName.isNotEmpty) ? driverName : 'Driver';
+    await sendNotification(
+      title: 'Staff Dropped Off - $branchName',
+      message: '$staffName has been safely dropped off at $branchName by $dName for deployment.',
+      type: NotificationType.deliveryTask,
+      targetRole: 'owner',
+      targetBranch: branchName,
+      route: 'assignments',
+    );
+  }
+
+  /// Triggered when the Driver picks up a staff member from a branch during retrieval.
+  static Future<void> notifyOwnerStaffPickedUp({
+    required String staffName,
+    required String branchName,
+    String? driverName,
+  }) async {
+    final dName = (driverName != null && driverName.isNotEmpty) ? driverName : 'Driver';
+    await sendNotification(
+      title: 'Staff Picked Up - $branchName',
+      message: '$staffName has been picked up from $branchName by $dName for retrieval.',
+      type: NotificationType.deliveryTask,
+      targetRole: 'owner',
+      targetBranch: branchName,
+      route: 'assignments',
+    );
+  }
 }

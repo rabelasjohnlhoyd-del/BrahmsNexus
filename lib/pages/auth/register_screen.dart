@@ -438,6 +438,60 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
   }
 
+  /// Matches LoginScreen field typography so labels stay readable
+  /// instead of overflowing in compact register rows.
+  InputDecoration _fieldDecoration({
+    required String label,
+    String? hint,
+    Widget? prefixIcon,
+    Widget? suffixIcon,
+  }) {
+    return InputDecoration(
+      labelText: label,
+      hintText: hint,
+      labelStyle: const TextStyle(
+        fontSize: 12.5,
+        fontWeight: FontWeight.w600,
+        color: Color(0xFF6B584C),
+      ),
+      floatingLabelStyle: const TextStyle(
+        fontSize: 12.5,
+        fontWeight: FontWeight.w600,
+        color: Color(0xFF6B584C),
+      ),
+      hintStyle: TextStyle(
+        fontSize: 13,
+        color: const Color(0xFF6B584C).withValues(alpha: 0.4),
+      ),
+      prefixIcon: prefixIcon,
+      suffixIcon: suffixIcon,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: const BorderSide(color: Color(0xFFDCCFC3)),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: const BorderSide(color: AppColors.accent, width: 1.5),
+      ),
+    );
+  }
+
+  static const _fieldTextStyle = TextStyle(
+    fontSize: 13,
+    color: Color(0xFF24140B),
+    fontWeight: FontWeight.w500,
+    height: 1.3,
+  );
+
+  static const _sectionLabelStyle = TextStyle(
+    fontSize: 11,
+    fontWeight: FontWeight.w700,
+    letterSpacing: 0.4,
+    color: Color(0xFF7A6556),
+  );
+
   // ─────────────────────────────────────────────────────────────
   // STEPPER PROGRESS BAR
   // ─────────────────────────────────────────────────────────────
@@ -544,26 +598,18 @@ class _RegisterScreenState extends State<RegisterScreen> {
       key: const ValueKey('step_1_personal'),
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const Text(
-          'APPLYING AS',
-          style: TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 0.8,
-            color: Color(0xFF7A6556),
-          ),
-        ),
+        const Text('APPLYING AS', style: _sectionLabelStyle),
         const SizedBox(height: 8),
         SegmentedButton<String>(
           segments: const [
             ButtonSegment(
               value: 'Staff',
-              label: Text('STAFF / COOK'),
+              label: Text('Staff / Cook'),
               icon: Icon(Icons.badge_outlined, size: 16),
             ),
             ButtonSegment(
               value: 'Driver',
-              label: Text('DRIVER'),
+              label: Text('Driver'),
               icon: Icon(Icons.local_shipping_outlined, size: 16),
             ),
           ],
@@ -580,24 +626,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
             backgroundColor: Colors.white,
             foregroundColor: const Color(0xFF24140B),
             side: const BorderSide(color: Color(0xFFDCCFC3)),
+            visualDensity: VisualDensity.compact,
             textStyle: const TextStyle(
-              fontSize: 11.5,
+              fontSize: 12.5,
               fontWeight: FontWeight.w700,
-              letterSpacing: 0.3,
             ),
           ),
         ),
         const SizedBox(height: 16),
 
-        const Text(
-          'FULL LEGAL NAME',
-          style: TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 0.8,
-            color: Color(0xFF7A6556),
-          ),
-        ),
+        const Text('FULL LEGAL NAME', style: _sectionLabelStyle),
         const SizedBox(height: 8),
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -606,15 +644,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
               child: TextFormField(
                 controller: _firstNameController,
                 textInputAction: TextInputAction.next,
-                decoration: InputDecoration(
-                  labelText: 'First Name *',
-                  hintText: 'Enter first name',
-                  isDense: true,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: const BorderSide(color: Color(0xFFDCCFC3)),
-                  ),
+                style: _fieldTextStyle,
+                decoration: _fieldDecoration(
+                  label: 'First Name',
+                  hint: 'Juan',
                 ),
                 validator: (v) => _required(v, 'First name'),
               ),
@@ -624,22 +657,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
               child: TextFormField(
                 controller: _lastNameController,
                 textInputAction: TextInputAction.next,
-                decoration: InputDecoration(
-                  labelText: 'Last Name *',
-                  hintText: 'Enter last name',
-                  isDense: true,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: const BorderSide(color: Color(0xFFDCCFC3)),
-                  ),
+                style: _fieldTextStyle,
+                decoration: _fieldDecoration(
+                  label: 'Last Name',
+                  hint: 'Dela Cruz',
                 ),
                 validator: (v) => _required(v, 'Last name'),
               ),
             ),
           ],
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 16),
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -648,15 +676,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
               child: TextFormField(
                 controller: _middleNameController,
                 textInputAction: TextInputAction.next,
-                decoration: InputDecoration(
-                  labelText: 'Middle Name (Optional)',
-                  hintText: 'Enter middle name',
-                  isDense: true,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: const BorderSide(color: Color(0xFFDCCFC3)),
-                  ),
+                style: _fieldTextStyle,
+                decoration: _fieldDecoration(
+                  label: 'Middle Name',
+                  hint: 'Optional',
                 ),
               ),
             ),
@@ -665,24 +688,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
               flex: 1,
               child: DropdownButtonFormField<String?>(
                 initialValue: _selectedSuffix,
-                decoration: InputDecoration(
-                  labelText: 'Suffix',
-                  isDense: true,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: const BorderSide(color: Color(0xFFDCCFC3)),
-                  ),
-                ),
+                style: _fieldTextStyle,
+                decoration: _fieldDecoration(label: 'Suffix'),
                 isExpanded: true,
                 items: const [
-                  DropdownMenuItem(value: null, child: Text('None')),
-                  DropdownMenuItem(value: 'Jr.', child: Text('JR.')),
-                  DropdownMenuItem(value: 'Sr.', child: Text('SR.')),
-                  DropdownMenuItem(value: 'II', child: Text('II')),
-                  DropdownMenuItem(value: 'III', child: Text('III')),
-                  DropdownMenuItem(value: 'IV', child: Text('IV')),
-                  DropdownMenuItem(value: 'V', child: Text('V')),
+                  DropdownMenuItem(value: null, child: Text('None', style: _fieldTextStyle)),
+                  DropdownMenuItem(value: 'Jr.', child: Text('Jr.', style: _fieldTextStyle)),
+                  DropdownMenuItem(value: 'Sr.', child: Text('Sr.', style: _fieldTextStyle)),
+                  DropdownMenuItem(value: 'II', child: Text('II', style: _fieldTextStyle)),
+                  DropdownMenuItem(value: 'III', child: Text('III', style: _fieldTextStyle)),
+                  DropdownMenuItem(value: 'IV', child: Text('IV', style: _fieldTextStyle)),
+                  DropdownMenuItem(value: 'V', child: Text('V', style: _fieldTextStyle)),
                 ],
                 onChanged: (value) => setState(() => _selectedSuffix = value),
               ),
@@ -691,54 +707,34 @@ class _RegisterScreenState extends State<RegisterScreen> {
         ),
         const SizedBox(height: 16),
 
-        const Text(
-          'CONTACT & DEMOGRAPHICS',
-          style: TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 0.8,
-            color: Color(0xFF7A6556),
-          ),
-        ),
+        const Text('CONTACT & DEMOGRAPHICS', style: _sectionLabelStyle),
         const SizedBox(height: 8),
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            SizedBox(
-              width: 110,
+            Expanded(
               child: TextFormField(
                 controller: _ageController,
                 keyboardType: TextInputType.number,
                 textInputAction: TextInputAction.next,
-                decoration: InputDecoration(
-                  labelText: 'Age *',
-                  hintText: '21',
-                  isDense: true,
-                  prefixIcon: const Icon(Icons.cake_outlined, size: 17),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: const BorderSide(color: Color(0xFFDCCFC3)),
-                  ),
+                style: _fieldTextStyle,
+                decoration: _fieldDecoration(
+                  label: 'Age',
+                  hint: '21',
                 ),
               ),
             ),
             const SizedBox(width: 10),
             Expanded(
+              flex: 2,
               child: TextFormField(
                 controller: _contactController,
                 keyboardType: TextInputType.phone,
                 textInputAction: TextInputAction.next,
-                decoration: InputDecoration(
-                  labelText: 'Contact Number *',
-                  hintText: '0917 123 4567',
-                  isDense: true,
-                  prefixIcon: const Icon(Icons.phone_outlined, size: 17),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: const BorderSide(color: Color(0xFFDCCFC3)),
-                  ),
+                style: _fieldTextStyle,
+                decoration: _fieldDecoration(
+                  label: 'Contact Number',
+                  hint: '0917 123 4567',
                 ),
               ),
             ),
@@ -756,32 +752,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
       key: const ValueKey('step_2_address'),
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const Text(
-          'RESIDENTIAL LOCATION',
-          style: TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 0.8,
-            color: Color(0xFF7A6556),
-          ),
-        ),
+        const Text('RESIDENTIAL LOCATION', style: _sectionLabelStyle),
         const SizedBox(height: 8),
 
         DropdownButtonFormField<String>(
           initialValue: _selectedProvince,
           isExpanded: true,
-          decoration: InputDecoration(
-            labelText: 'Province',
-            isDense: true,
-            prefixIcon: const Icon(Icons.map_outlined, size: 18),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: const BorderSide(color: Color(0xFFDCCFC3)),
-            ),
+          style: _fieldTextStyle,
+          decoration: _fieldDecoration(
+            label: 'Province',
+            prefixIcon: const Icon(Icons.map_outlined, size: 19),
           ),
           items: PhilippineAddressData.provinces
-              .map((p) => DropdownMenuItem(value: p, child: Text(p)))
+              .map((p) => DropdownMenuItem(value: p, child: Text(p, style: _fieldTextStyle)))
               .toList(),
           onChanged: (value) {
             if (value == null) return;
@@ -793,24 +776,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
             _updateFullAddress();
           },
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 16),
 
         DropdownButtonFormField<String>(
           initialValue: _selectedCity,
           isExpanded: true,
-          decoration: InputDecoration(
-            labelText: 'City / Municipality',
-            isDense: true,
-            prefixIcon: const Icon(Icons.location_city_outlined, size: 18),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: const BorderSide(color: Color(0xFFDCCFC3)),
-            ),
+          style: _fieldTextStyle,
+          decoration: _fieldDecoration(
+            label: 'City / Municipality',
+            prefixIcon: const Icon(Icons.location_city_outlined, size: 19),
           ),
-          hint: const Text('Select city or municipality'),
+          hint: const Text('Select city or municipality', style: _fieldTextStyle),
           items: PhilippineAddressData.getCities(_selectedProvince)
-              .map((c) => DropdownMenuItem(value: c, child: Text(c)))
+              .map((c) => DropdownMenuItem(value: c, child: Text(c, style: _fieldTextStyle)))
               .toList(),
           onChanged: (value) {
             setState(() {
@@ -820,26 +798,21 @@ class _RegisterScreenState extends State<RegisterScreen> {
             _updateFullAddress();
           },
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 16),
 
         DropdownButtonFormField<String>(
           initialValue: _selectedBarangay,
           isExpanded: true,
-          decoration: InputDecoration(
-            labelText: 'Barangay',
-            isDense: true,
-            prefixIcon: const Icon(Icons.holiday_village_outlined, size: 18),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: const BorderSide(color: Color(0xFFDCCFC3)),
-            ),
+          style: _fieldTextStyle,
+          decoration: _fieldDecoration(
+            label: 'Barangay',
+            prefixIcon: const Icon(Icons.holiday_village_outlined, size: 19),
           ),
-          hint: const Text('Select barangay'),
+          hint: const Text('Select barangay', style: _fieldTextStyle),
           items: (_selectedCity == null
                   ? <String>[]
                   : PhilippineAddressData.getBarangays(_selectedCity!))
-              .map((b) => DropdownMenuItem(value: b, child: Text(b)))
+              .map((b) => DropdownMenuItem(value: b, child: Text(b, style: _fieldTextStyle)))
               .toList(),
           onChanged: _selectedCity == null
               ? null
@@ -848,22 +821,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   _updateFullAddress();
                 },
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 16),
 
         TextFormField(
           controller: _streetController,
           textInputAction: TextInputAction.next,
+          style: _fieldTextStyle,
           onChanged: (_) => _updateFullAddress(),
-          decoration: InputDecoration(
-            labelText: 'Street / House No. (Optional)',
-            hintText: 'e.g. 12 Sampaguita St., Purok 3',
-            isDense: true,
-            prefixIcon: const Icon(Icons.home_outlined, size: 18),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: const BorderSide(color: Color(0xFFDCCFC3)),
-            ),
+          decoration: _fieldDecoration(
+            label: 'Street / House No.',
+            hint: 'e.g. 12 Sampaguita St., Purok 3',
+            prefixIcon: const Icon(Icons.home_outlined, size: 19),
           ),
         ),
 
@@ -898,19 +866,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
         // Driver LTO AI Verification Section
         if (_selectedRoleString == 'Driver') ...[
           const SizedBox(height: 16),
-          const Text(
-            'DRIVER\'S LICENSE VERIFICATION',
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 0.8,
-              color: Color(0xFF7A6556),
-            ),
-          ),
+          const Text('DRIVER\'S LICENSE VERIFICATION', style: _sectionLabelStyle),
           const SizedBox(height: 4),
           const Text(
             'Upload a clear photo of your official LTO card for instant verification.',
-            style: TextStyle(fontSize: 11.5, color: Color(0xFF7A6556)),
+            style: TextStyle(fontSize: 13, color: Color(0xFF7A6556), height: 1.35),
           ),
           const SizedBox(height: 8),
 
@@ -1082,98 +1042,72 @@ class _RegisterScreenState extends State<RegisterScreen> {
       key: const ValueKey('step_3_account'),
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const Text(
-          'LOGIN CREDENTIALS',
-          style: TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 0.8,
-            color: Color(0xFF7A6556),
-          ),
-        ),
+        const Text('LOGIN CREDENTIALS', style: _sectionLabelStyle),
         const SizedBox(height: 8),
 
         TextFormField(
           controller: _usernameController,
           textInputAction: TextInputAction.next,
-          decoration: InputDecoration(
-            labelText: 'Username *',
-            hintText: 'Choose a login username',
-            isDense: true,
-            prefixIcon: const Icon(Icons.alternate_email_rounded, size: 17),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: const BorderSide(color: Color(0xFFDCCFC3)),
-            ),
+          style: _fieldTextStyle,
+          decoration: _fieldDecoration(
+            label: 'Username',
+            hint: 'Choose a login username',
+            prefixIcon: const Icon(Icons.alternate_email_rounded, size: 19),
           ),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 16),
 
         TextFormField(
           controller: _emailController,
           keyboardType: TextInputType.emailAddress,
           textInputAction: TextInputAction.next,
-          decoration: InputDecoration(
-            labelText: 'Email Address *',
-            hintText: 'name@example.com',
-            isDense: true,
-            prefixIcon: const Icon(Icons.email_outlined, size: 17),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: const BorderSide(color: Color(0xFFDCCFC3)),
-            ),
+          style: _fieldTextStyle,
+          decoration: _fieldDecoration(
+            label: 'Email Address',
+            hint: 'name@example.com',
+            prefixIcon: const Icon(Icons.email_outlined, size: 19),
           ),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 16),
 
         TextFormField(
           controller: _passwordController,
           obscureText: _obscurePassword,
           textInputAction: TextInputAction.next,
-          decoration: InputDecoration(
-            labelText: 'Password *',
-            hintText: 'At least 6 characters',
-            isDense: true,
-            prefixIcon: const Icon(Icons.lock_outline, size: 17),
+          style: _fieldTextStyle,
+          decoration: _fieldDecoration(
+            label: 'Password',
+            hint: 'At least 6 characters',
+            prefixIcon: const Icon(Icons.lock_outline_rounded, size: 19),
             suffixIcon: IconButton(
               icon: Icon(
                 _obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-                size: 17,
+                size: 19,
+                color: const Color(0xFF7A6556),
               ),
               onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
             ),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: const BorderSide(color: Color(0xFFDCCFC3)),
-            ),
           ),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 16),
 
         TextFormField(
           controller: _confirmPasswordController,
           obscureText: _obscureConfirmPassword,
           textInputAction: TextInputAction.done,
+          style: _fieldTextStyle,
           onFieldSubmitted: (_) => _handleRegister(),
-          decoration: InputDecoration(
-            labelText: 'Confirm Password *',
-            hintText: 'Re-enter your password',
-            isDense: true,
-            prefixIcon: const Icon(Icons.lock_outline, size: 17),
+          decoration: _fieldDecoration(
+            label: 'Confirm Password',
+            hint: 'Re-enter your password',
+            prefixIcon: const Icon(Icons.lock_outline_rounded, size: 19),
             suffixIcon: IconButton(
               icon: Icon(
                 _obscureConfirmPassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-                size: 17,
+                size: 19,
+                color: const Color(0xFF7A6556),
               ),
               onPressed: () => setState(() => _obscureConfirmPassword = !_obscureConfirmPassword),
-            ),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: const BorderSide(color: Color(0xFFDCCFC3)),
             ),
           ),
         ),
@@ -1210,20 +1144,20 @@ class _RegisterScreenState extends State<RegisterScreen> {
   Widget _buildStepButtons() {
     if (_currentStep == 0) {
       return SizedBox(
-        height: 44,
+        height: 46,
         child: ElevatedButton(
           onPressed: _nextStep,
           style: ElevatedButton.styleFrom(
             backgroundColor: const Color(0xFF8B4513),
             foregroundColor: Colors.white,
             elevation: 0,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
           ),
           child: const Text(
             'Continue to Address',
             style: TextStyle(
               fontWeight: FontWeight.w800,
-              fontSize: 13.5,
+              fontSize: 14.5,
               letterSpacing: 0.3,
             ),
           ),
@@ -1242,7 +1176,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 foregroundColor: const Color(0xFF24140B),
                 side: const BorderSide(color: Color(0xFFDCCFC3)),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
               ),
               child: const Text(
                 'Back',
@@ -1257,20 +1191,20 @@ class _RegisterScreenState extends State<RegisterScreen> {
           Expanded(
             flex: 2,
             child: SizedBox(
-              height: 44,
+              height: 46,
               child: ElevatedButton(
                 onPressed: _nextStep,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF8B4513),
                   foregroundColor: Colors.white,
                   elevation: 0,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 ),
                 child: const Text(
                   'Continue',
                   style: TextStyle(
                     fontWeight: FontWeight.w800,
-                    fontSize: 13.5,
+                    fontSize: 14.5,
                     letterSpacing: 0.3,
                   ),
                 ),
@@ -1286,13 +1220,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
       children: [
         Expanded(
           flex: 1,
-          child: OutlinedButton(
+            child: OutlinedButton(
             onPressed: _isSubmitting ? null : _prevStep,
             style: OutlinedButton.styleFrom(
               padding: const EdgeInsets.symmetric(vertical: 12),
               foregroundColor: const Color(0xFF24140B),
               side: const BorderSide(color: Color(0xFFDCCFC3)),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             ),
             child: const Text(
               'Back',

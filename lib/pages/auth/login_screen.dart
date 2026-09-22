@@ -421,13 +421,20 @@ class _LoginScreenState extends State<LoginScreen> {
                     onTap: () {
                       Navigator.of(context).push(
                         PageRouteBuilder(
+                          opaque: false,
                           pageBuilder: (context, animation, secondaryAnimation) =>
                               const RegisterScreen(),
                           transitionsBuilder:
                               (context, animation, secondaryAnimation, child) {
-                            return FadeTransition(opacity: animation, child: child);
+                            final fade = CurvedAnimation(
+                              parent: animation,
+                              curve: Curves.easeInOutCubic,
+                            );
+                            return FadeTransition(opacity: fade, child: child);
                           },
-                          transitionDuration: const Duration(milliseconds: 180),
+                          transitionDuration: const Duration(milliseconds: 400),
+                          reverseTransitionDuration:
+                              const Duration(milliseconds: 400),
                         ),
                       );
                     },

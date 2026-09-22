@@ -13,6 +13,7 @@ import '../models/meat_dispatch.dart';
 import '../models/app_notification.dart';
 import '../models/sales_record.dart';
 import 'auth_service.dart';
+import 'firestore_cache.dart';
 import 'notification_service.dart';
 
 /// Service dedicated to handling high-frequency, operational, and real-time
@@ -68,11 +69,11 @@ class FirestoreService {
 
   /// Stream of all active and upcoming bilao orders for Admin Web & Owner App.
   static Stream<List<BilaoOrder>> watchAllBilaoOrders({int limit = 50}) {
-    return _db
+    final query = _db
         .collection('bilao_orders')
         .orderBy('scheduledDateTime', descending: true)
-        .limit(limit)
-        .snapshots()
+        .limit(limit);
+    return FirestoreListenCache.query('bilao_orders:all:$limit', query)
         .map((snapshot) {
       if (snapshot.docs.isEmpty) {
         return _defaultBilaoOrders;
@@ -83,12 +84,12 @@ class FirestoreService {
 
   /// Stream of active orders for drivers/dispatch.
   static Stream<List<BilaoOrder>> watchActiveBilaoOrders() {
-    return _db
+    final query = _db
         .collection('bilao_orders')
         .where('deliveryStatus', whereIn: ['forDelivery'])
         .orderBy('scheduledDateTime', descending: false)
-        .limit(25) // Strict boundary to protect reads
-        .snapshots()
+        .limit(25); // Strict boundary to protect reads
+    return FirestoreListenCache.query('bilao_orders:active', query)
         .map((snapshot) {
       return snapshot.docs.map((doc) => _bilaoFromDoc(doc)).toList();
     });
@@ -115,8 +116,15 @@ class FirestoreService {
         query = query.startAfterDocument(startAfter);
       }
 
+      final cacheKey =
+          'bilao_page:${statusFilter ?? 'All'}:$pageSize:${startAfter?.id ?? 'first'}';
+      final cached = FirestoreReadCache.get<List<BilaoOrder>>(cacheKey);
+      if (cached != null) return cached;
+
       final snapshot = await query.get();
-      return snapshot.docs.map((doc) => _bilaoFromDoc(doc)).toList();
+      final list = snapshot.docs.map((doc) => _bilaoFromDoc(doc)).toList();
+      FirestoreReadCache.set(cacheKey, list);
+      return list;
     } catch (e) {
       debugPrint('FirestoreService.getPaginatedBilaoOrders error: $e');
       return [];
@@ -211,7 +219,10 @@ class FirestoreService {
     required DateTime date,
   }) {
     final docId = _dailyInventoryDocId(branchId, date);
-    return _db.collection('branch_daily_inventories').doc(docId).snapshots().map((snapshot) {
+    return FirestoreListenCache.doc(
+      'branch_daily_inventories/$docId',
+      _db.collection('branch_daily_inventories').doc(docId),
+    ).map((snapshot) {
       if (!snapshot.exists || snapshot.data() == null) return null;
       final data = snapshot.data()!;
       final allocated = data['allocated'] as Map<String, dynamic>? ?? {};
@@ -549,7 +560,10 @@ class FirestoreService {
     required DateTime date,
   }) {
     final docId = _dailySalesDocId(branchId, date);
-    return _db.collection('daily_sales').doc(docId).snapshots().map((snapshot) {
+    return FirestoreListenCache.doc(
+      'daily_sales/$docId',
+      _db.collection('daily_sales').doc(docId),
+    ).map((snapshot) {
       if (!snapshot.exists || snapshot.data() == null) return null;
       final data = snapshot.data()!;
       final ts = data['date'] as Timestamp?;
@@ -668,11 +682,11 @@ class FirestoreService {
 
   /// Streams real-time owner notifications (sales submitted, inventory verified, etc.)
   static Stream<List<Map<String, dynamic>>> watchOwnerNotifications({int limit = 30}) {
-    return _db
+    final query = _db
         .collection('owner_notifications')
         .orderBy('createdAt', descending: true)
-        .limit(limit)
-        .snapshots()
+        .limit(limit);
+    return FirestoreListenCache.query('owner_notifications:$limit', query)
         .map((snap) => snap.docs.map((d) {
               final data = d.data();
               return {
@@ -735,11 +749,11 @@ class FirestoreService {
 
   /// Streams real-time daily sales records.
   static Stream<List<SalesRecord>> watchRecentSales({int limit = 50}) {
-    return _db
+    final query = _db
         .collection('daily_sales')
         .orderBy('date', descending: true)
-        .limit(limit)
-        .snapshots()
+        .limit(limit);
+    return FirestoreListenCache.query('daily_sales:recent:$limit', query)
         .map((snapshot) {
       if (snapshot.docs.isEmpty) {
         return _defaultSalesRecords;
@@ -786,6 +800,10 @@ class FirestoreService {
   }) async {
     try {
       final from = startDate ?? DateTime.now().subtract(const Duration(days: 7));
+      final cacheKey = 'sales:${from.toIso8601String()}:$limit';
+      final cached = FirestoreReadCache.get<List<SalesRecord>>(cacheKey);
+      if (cached != null) return cached;
+
       final snapshot = await _db
           .collection('daily_sales')
           .where('date', isGreaterThanOrEqualTo: Timestamp.fromDate(from))
@@ -793,7 +811,7 @@ class FirestoreService {
           .limit(limit)
           .get();
 
-      return snapshot.docs.map((doc) {
+      final list = snapshot.docs.map((doc) {
         final data = doc.data();
         final ts = data['date'] as Timestamp?;
         return SalesRecord(
@@ -813,6 +831,8 @@ class FirestoreService {
           totalOrders: (data['totalOrders'] as num?)?.toInt(),
         );
       }).toList();
+      FirestoreReadCache.set(cacheKey, list);
+      return list;
     } catch (e) {
       debugPrint('FirestoreService.getRecentSales error: $e');
       return [];
@@ -848,11 +868,11 @@ class FirestoreService {
 
   /// Streams real-time daily employee reports.
   static Stream<List<DailyReport>> watchDailyReports({int limit = 50}) {
-    return _db
+    final query = _db
         .collection('daily_reports')
         .orderBy('date', descending: true)
-        .limit(limit)
-        .snapshots()
+        .limit(limit);
+    return FirestoreListenCache.query('daily_reports:$limit', query)
         .map((snapshot) {
       if (snapshot.docs.isEmpty) {
         return _defaultReports;
@@ -1069,10 +1089,8 @@ class FirestoreService {
   /// with pending timestamps or missing fields are never silently dropped,
   /// and composite index errors never occur.
   static Stream<List<KarneBatch>> watchProductionBatches({int limit = 50}) {
-    return _db
-        .collection('production_batches')
-        .limit(limit)
-        .snapshots()
+    final query = _db.collection('production_batches').limit(limit);
+    return FirestoreListenCache.query('production_batches:$limit', query)
         .map((snapshot) {
       if (snapshot.docs.isEmpty) {
         return _defaultBatches;
@@ -1092,11 +1110,10 @@ class FirestoreService {
   /// made by either Admin Web or Owner App are reflected live without
   /// needing a page reload.
   static Stream<KarneBatch?> watchSingleBatch(String batchId) {
-    return _db
-        .collection('production_batches')
-        .doc(batchId)
-        .snapshots()
-        .map((doc) {
+    return FirestoreListenCache.doc(
+      'production_batches/$batchId',
+      _db.collection('production_batches').doc(batchId),
+    ).map((doc) {
       if (!doc.exists || doc.data() == null) return null;
       return KarneBatch.fromMap(doc.data()!, doc.id);
     }).handleError((error) {
@@ -1164,12 +1181,14 @@ class FirestoreService {
     int limit = 30,
     String? targetPosition,
   }) {
-    return _db
+    final query = _db
         .collection('announcements')
         .orderBy('datePosted', descending: true)
-        .limit(limit)
-        .snapshots()
-        .asyncMap((snapshot) async {
+        .limit(limit);
+    return FirestoreListenCache.query(
+      'announcements:$limit',
+      query,
+    ).asyncMap((snapshot) async {
       if (!_deletedIdsLoaded) {
         try {
           final deletedDocs =
@@ -1256,7 +1275,10 @@ class FirestoreService {
 
   /// Real-time stream of all staff assignments and rest day statuses.
   static Stream<Map<String, BranchAssignment>> watchStaffAssignmentsMap() {
-    return _db.collection('staff_assignments').snapshots().map((snap) {
+    return FirestoreListenCache.query(
+      'staff_assignments',
+      _db.collection('staff_assignments'),
+    ).map((snap) {
       final map = <String, BranchAssignment>{};
       for (final doc in snap.docs) {
         final data = doc.data();
@@ -1282,6 +1304,10 @@ class FirestoreService {
   /// Fetches the latest staff assignments and rest day status snapshot.
   static Future<Map<String, BranchAssignment>> getStaffAssignmentsMap() async {
     try {
+      const cacheKey = 'staff_assignments_map';
+      final cached = FirestoreReadCache.get<Map<String, BranchAssignment>>(cacheKey);
+      if (cached != null) return cached;
+
       final snap = await _db.collection('staff_assignments').get();
       final map = <String, BranchAssignment>{};
       for (final doc in snap.docs) {
@@ -1301,6 +1327,7 @@ class FirestoreService {
           map[data['employeeId'].toString()] = a;
         }
       }
+      FirestoreReadCache.set(cacheKey, map);
       return map;
     } catch (e) {
       debugPrint('FirestoreService.getStaffAssignmentsMap error: $e');
@@ -1329,6 +1356,7 @@ class FirestoreService {
         'isRestDay': workStatus == WorkStatus.restDay,
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
+      FirestoreReadCache.invalidate('staff_assignments_map');
       return true;
     } catch (e) {
       debugPrint('FirestoreService.setStaffAssignment error: $e');
@@ -1379,11 +1407,17 @@ class FirestoreService {
     });
   }
 
+  static bool _resettingMeatStocks = false;
+  static DateTime? _lastMeatResetDay;
+
   /// Streams real-time branch meat stocks for all 6 branches.
   /// Automatically resets to standard baseline when a new day arrives or at 12:00 AM.
   static Stream<List<BranchMeatStock>> watchBranchMeatStocks() {
     scheduleMidnightAutoReset();
-    return _db.collection('branch_meat_stocks').snapshots().map((snapshot) {
+    return FirestoreListenCache.query(
+      'branch_meat_stocks',
+      _db.collection('branch_meat_stocks'),
+    ).map((snapshot) {
       if (snapshot.docs.isEmpty) {
         return _defaultBranchMeatStocks;
       }
@@ -1409,8 +1443,14 @@ class FirestoreService {
       }
 
       if (dayChanged) {
-        // Auto-commit today's reset stock to Firestore in background
-        resetAllBranchMeatStocksToStandard();
+        final today = DateTime(now.year, now.month, now.day);
+        if (!_resettingMeatStocks && _lastMeatResetDay != today) {
+          _resettingMeatStocks = true;
+          _lastMeatResetDay = today;
+          resetAllBranchMeatStocksToStandard().whenComplete(() {
+            _resettingMeatStocks = false;
+          });
+        }
       }
 
       // Ensure all 6 branches are always present in the returned list
@@ -1467,11 +1507,11 @@ class FirestoreService {
 
   /// Streams all meat dispatches sorted with most recent first.
   static Stream<List<MeatDispatch>> watchMeatDispatches({int limit = 50}) {
-    return _db
+    final query = _db
         .collection('meat_dispatches')
         .orderBy('createdAt', descending: true)
-        .limit(limit)
-        .snapshots()
+        .limit(limit);
+    return FirestoreListenCache.query('meat_dispatches:$limit', query)
         .map((snapshot) {
       return snapshot.docs
           .map((doc) => MeatDispatch.fromMap(doc.data(), docId: doc.id))

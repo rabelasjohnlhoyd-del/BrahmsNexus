@@ -6,6 +6,7 @@ import '../models/user_role.dart';
 import '../models/account_status.dart';
 import '../models/staff_member.dart';
 import 'assignment_service.dart';
+import 'firestore_cache.dart';
 import 'notification_service.dart';
 import 'supabase_service.dart';
 
@@ -314,7 +315,10 @@ class AuthService {
   /// Approvals screens read from, replacing the hardcoded
   /// [RegistrationRequest] lists that used to live in each screen.
   static Stream<List<AppUser>> watchAllUsers() {
-    return _db.collection('users').snapshots().map((snapshot) {
+    return FirestoreListenCache.query(
+      'users',
+      _db.collection('users'),
+    ).map((snapshot) {
       final list = snapshot.docs
           .map((doc) => AppUser.fromMap(doc.id, doc.data()))
           .toList();

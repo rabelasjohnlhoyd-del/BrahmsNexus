@@ -1,6 +1,13 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../models/branch.dart';
+import '../../models/branch_assignment.dart';
+import '../../models/staff_member.dart';
+import '../../services/assignment_service.dart';
+import '../../services/auth_service.dart';
+import '../../services/notification_service.dart';
+import '../../services/supabase_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/driver_card.dart';
 import '../../widgets/driver_nav_bar.dart';
@@ -29,14 +36,97 @@ class _RouteScreenState extends State<RouteScreen> {
   // Track who has been notified in the current session
   final Set<String> _notifiedStaffIds = {};
 
-  static const Map<String, String> _assignedStaff = {
-    'br1': 'Juan Dela Cruz',
-    'br2': 'Pedro Santos',
-    'br3': 'Maria Reyes',
-    'br4': 'Liza Gomez',
-    'br5': 'Ricardo Dalisay',
-    'br6': 'Elena Adarna',
-  };
+  List<Branch> _branches = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadData();
+    AssignmentService.changeNotifier.addListener(_onAssignmentsChanged);
+  }
+
+  @override
+  void dispose() {
+    AssignmentService.changeNotifier.removeListener(_onAssignmentsChanged);
+    super.dispose();
+  }
+
+  void _onAssignmentsChanged() {
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _loadData() async {
+    try {
+      final branches = await SupabaseService.getBranches();
+      if (!mounted) return;
+      setState(() {
+        _branches = branches.isNotEmpty ? branches : List.from(kSampleBranches);
+      });
+      await AssignmentService.ensureInitialized();
+      if (mounted) setState(() {});
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _branches = List.from(kSampleBranches);
+        });
+      }
+    }
+  }
+
+  /// Resolves the currently assigned staff member for a branch based on
+  /// live assignments (AssignmentService + Supabase).
+  StaffMember? _getAssignedStaff(Branch branch) {
+    final allStaff = SupabaseService.getAllStaff();
+    // 1. Find staff whose effective assigned branch matches this branch
+    final matching = allStaff.where((s) {
+      if (s.isArchived || !s.isActive) return false;
+      final assignedBranch = AssignmentService.getAssignedBranch(
+        s.username,
+        fallback: AssignmentService.getAssignedBranch(s.id, fallback: s.branch),
+      );
+      return assignedBranch == branch.fullName ||
+          assignedBranch == branch.name ||
+          (assignedBranch.isNotEmpty && branch.fullName.contains(assignedBranch));
+    }).toList();
+
+    if (matching.isEmpty) return null;
+
+    // 2. Prefer cook who is onDuty today
+    return matching.firstWhere(
+      (s) {
+        final status = AssignmentService.getWorkStatus(
+          s.username,
+          fallback: AssignmentService.getWorkStatus(
+            s.id,
+            fallback: s.isRestDay ? WorkStatus.restDay : WorkStatus.onDuty,
+          ),
+        );
+        return status == WorkStatus.onDuty;
+      },
+      orElse: () => matching.first,
+    );
+  }
+
+  bool _isRestDay(StaffMember staff) {
+    final status = AssignmentService.getWorkStatus(
+      staff.username,
+      fallback: AssignmentService.getWorkStatus(
+        staff.id,
+        fallback: staff.isRestDay ? WorkStatus.restDay : WorkStatus.onDuty,
+      ),
+    );
+    return status == WorkStatus.restDay;
+  }
+
+  bool _hasValidPhone(StaffMember? staff) {
+    if (staff == null) return false;
+    final p = staff.phone?.trim();
+    if (p == null || p.isEmpty || p.toLowerCase().contains('pending')) {
+      return false;
+    }
+    final digits = p.replaceAll(RegExp(r'[^0-9]'), '');
+    return digits.length >= 7;
+  }
 
   static const Map<String, String> _branchHours = {
     'br1': '8:00 AM - 8:00 PM',
@@ -59,55 +149,86 @@ class _RouteScreenState extends State<RouteScreen> {
     }
   }
 
-  void _confirmPhoneCall(String name) {
+  void _confirmPhoneCall(StaffMember staff) {
+    final messenger = ScaffoldMessenger.of(context);
+    final phone = staff.phone ?? '';
+    final cleanNumber = phone.replaceAll(RegExp(r'[^0-9+]'), '');
     showCupertinoDialog(
       context: context,
-      builder: (context) => CupertinoAlertDialog(
+      builder: (dialogCtx) => CupertinoAlertDialog(
         title: const Text('Tawagan ang Staff'),
-        content: Text('Gusto mo bang tawagan si $name?'),
+        content: Text('Gusto mo bang tawagan si ${staff.fullName} ($phone)?'),
         actions: [
           CupertinoDialogAction(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogCtx),
             child: const Text('Cancel'),
           ),
           CupertinoDialogAction(
             isDefaultAction: true,
-            onPressed: () {
-              Navigator.pop(context);
-              // Mock call logic
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Calling $name...')),
-              );
+            onPressed: () async {
+              Navigator.pop(dialogCtx);
+              final Uri uri = Uri(scheme: 'tel', path: cleanNumber);
+              try {
+                if (await canLaunchUrl(uri)) {
+                  await launchUrl(uri);
+                } else {
+                  messenger.showSnackBar(
+                    SnackBar(content: Text('Hindi mabuksan ang phone dialer para sa $cleanNumber')),
+                  );
+                }
+              } catch (e) {
+                messenger.showSnackBar(
+                  SnackBar(content: Text('Error sa pagtawag: $e')),
+                );
+              }
             },
-            child: const Text('Yes'),
+            child: const Text('Tawagan'),
           ),
         ],
       ),
     );
   }
 
-  void _confirmNotifyStaff(String branchId) {
-    final staffName = _assignedStaff[branchId] ?? 'Staff';
+
+
+  void _confirmNotifyStaff(Branch branch, StaffMember? staff) {
+    final messenger = ScaffoldMessenger.of(context);
+    final staffName = staff?.fullName ?? 'Staff';
+    final modeLabel = _activeMode == RouteMode.deployment
+        ? 'Deployment (Hatid)'
+        : 'Retrieval (Sundo)';
+
     showCupertinoDialog(
       context: context,
-      builder: (context) => CupertinoAlertDialog(
+      builder: (dialogCtx) => CupertinoAlertDialog(
         title: const Text('Magpadala ng Notification'),
-        content: Text('I-notify si $staffName na "On the way" ka na?'),
+        content: Text('I-notify si $staffName na "On the way" ka na para sa $modeLabel sa ${branch.name}?'),
         actions: [
           CupertinoDialogAction(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogCtx),
             child: const Text('Cancel'),
           ),
           CupertinoDialogAction(
             isDefaultAction: true,
-            onPressed: () {
-              Navigator.pop(context);
+            onPressed: () async {
+              Navigator.pop(dialogCtx);
               setState(() {
-                _notifiedStaffIds.add(branchId);
+                _notifiedStaffIds.add(branch.id);
               });
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Notified $staffName: "Driver is on the way"')),
+              final driverName = AuthService.currentAppUser?.fullName ?? 'Driver';
+              await NotificationService.notifyStaffDriverOnTheWay(
+                staffName: staffName,
+                branchName: branch.fullName,
+                mode: _activeMode.name,
+                staffId: staff?.id,
+                staffUsername: staff?.username,
+                driverName: driverName,
               );
+              if (mounted) {
+                messenger.showSnackBar(
+                  SnackBar(content: Text('Na-notify si $staffName: "Driver is on the way"')),
+                );
+              }
             },
             child: const Text('Yes'),
           ),
@@ -116,30 +237,50 @@ class _RouteScreenState extends State<RouteScreen> {
     );
   }
 
-  void _confirmMarkCompleted(String branchId) {
-    final action = _activeMode == RouteMode.deployment ? 'Dropped Off' : 'Picked Up';
-    final branchName = kSampleBranches.firstWhere((b) => b.id == branchId).name;
+  void _confirmMarkCompleted(Branch branch, StaffMember? staff) {
+    final messenger = ScaffoldMessenger.of(context);
+    final isDeployment = _activeMode == RouteMode.deployment;
+    final action = isDeployment ? 'Dropped Off' : 'Picked Up';
+    final staffName = staff?.fullName ?? 'Staff';
 
     showCupertinoDialog(
       context: context,
-      builder: (context) => CupertinoAlertDialog(
+      builder: (dialogCtx) => CupertinoAlertDialog(
         title: const Text('Status Update'),
-        content: Text('I-confirm na $action na ang staff sa $branchName?'),
+        content: Text('I-confirm na $action na si $staffName sa ${branch.name}?'),
         actions: [
           CupertinoDialogAction(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogCtx),
             child: const Text('Cancel'),
           ),
           CupertinoDialogAction(
             isDestructiveAction: true,
-            onPressed: () {
-              Navigator.pop(context);
+            onPressed: () async {
+              Navigator.pop(dialogCtx);
               setState(() {
-                _currentCompletedSet.add(branchId);
+                _currentCompletedSet.add(branch.id);
               });
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('$action staff at $branchName recorded.')),
-              );
+
+              final driverName = AuthService.currentAppUser?.fullName ?? 'Driver';
+              if (isDeployment) {
+                await NotificationService.notifyOwnerStaffDroppedOff(
+                  staffName: staffName,
+                  branchName: branch.fullName,
+                  driverName: driverName,
+                );
+              } else {
+                await NotificationService.notifyOwnerStaffPickedUp(
+                  staffName: staffName,
+                  branchName: branch.fullName,
+                  driverName: driverName,
+                );
+              }
+
+              if (mounted) {
+                messenger.showSnackBar(
+                  SnackBar(content: Text('$action: $staffName sa ${branch.name} — Na-notify si Owner!')),
+                );
+              }
             },
             child: const Text('Yes'),
           ),
@@ -226,7 +367,7 @@ class _RouteScreenState extends State<RouteScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final branches = [...kSampleBranches]
+    final branches = (_branches.isNotEmpty ? [..._branches] : [...kSampleBranches])
       ..sort((a, b) => a.dailyRouteSequence.compareTo(b.dailyRouteSequence));
 
     final completedCount = _currentCompletedSet.length;
@@ -432,8 +573,10 @@ class _RouteScreenState extends State<RouteScreen> {
                     final isLast = index == branches.length - 1;
                     final completed = _currentCompletedSet.contains(branch.id);
                     final notified = _notifiedStaffIds.contains(branch.id);
-                    final staffName = _assignedStaff[branch.id] ?? 'Unassigned';
-                    final hours = _branchHours[branch.id] ?? 'TBA';
+                    final staff = _getAssignedStaff(branch);
+                    final hasStaff = staff != null;
+                    final staffName = staff?.fullName ?? 'Unassigned';
+                    final hours = _branchHours[branch.id] ?? '8:00 AM - 8:00 PM';
 
                     return IntrinsicHeight(
                       child: Row(
@@ -542,7 +685,7 @@ class _RouteScreenState extends State<RouteScreen> {
                                     const SizedBox(height: 16),
                                     
                                     Container(
-                                      padding: const EdgeInsets.all(10),
+                                      padding: const EdgeInsets.all(12),
                                       decoration: BoxDecoration(
                                         color: AppColors.background,
                                         borderRadius: BorderRadius.circular(12),
@@ -550,15 +693,15 @@ class _RouteScreenState extends State<RouteScreen> {
                                       child: Row(
                                         children: [
                                           Container(
-                                            width: 32,
-                                            height: 32,
-                                            decoration: const BoxDecoration(
-                                              color: AppColors.accentDark,
+                                            width: 34,
+                                            height: 34,
+                                            decoration: BoxDecoration(
+                                              color: hasStaff ? AppColors.accentDark : AppColors.border,
                                               shape: BoxShape.circle,
                                             ),
                                             alignment: Alignment.center,
                                             child: Text(
-                                              staffName.substring(0, 1),
+                                              hasStaff ? staff.initials : '?',
                                               style: const TextStyle(
                                                 color: CupertinoColors.white,
                                                 fontSize: 12,
@@ -580,22 +723,62 @@ class _RouteScreenState extends State<RouteScreen> {
                                                 ),
                                                 Text(
                                                   staffName,
-                                                  style: const TextStyle(
+                                                  style: TextStyle(
                                                     fontSize: 13,
                                                     fontWeight: FontWeight.w700,
-                                                    color: AppColors.textPrimary,
+                                                    color: hasStaff ? AppColors.textPrimary : AppColors.textSecondary,
                                                   ),
                                                 ),
+                                                if (hasStaff) ...[
+                                                  if (_isRestDay(staff))
+                                                    const Text(
+                                                      'Naka Rest Day ngayon',
+                                                      style: TextStyle(
+                                                        fontSize: 11,
+                                                        color: AppColors.warning,
+                                                        fontWeight: FontWeight.w600,
+                                                      ),
+                                                    )
+                                                  else if (_hasValidPhone(staff))
+                                                    Text(
+                                                      staff.phone!,
+                                                      style: const TextStyle(
+                                                        fontSize: 11,
+                                                        color: AppColors.textSecondary,
+                                                      ),
+                                                    )
+                                                  else
+                                                    const Text(
+                                                      'Walang registered number',
+                                                      style: TextStyle(
+                                                        fontSize: 10.5,
+                                                        fontStyle: FontStyle.italic,
+                                                        color: AppColors.textSecondary,
+                                                      ),
+                                                    ),
+                                                ],
                                               ],
                                             ),
                                           ),
-                                          CupertinoButton(
-                                            padding: EdgeInsets.zero,
-                                            minimumSize: const Size(32, 32),
-                                            child: const Icon(CupertinoIcons.phone_fill, 
-                                                              size: 18, color: AppColors.success),
-                                            onPressed: () => _confirmPhoneCall(staffName),
-                                          ),
+                                          if (hasStaff && _hasValidPhone(staff))
+                                            CupertinoButton(
+                                              padding: EdgeInsets.zero,
+                                              minimumSize: const Size(34, 34),
+                                              child: Container(
+                                                width: 32,
+                                                height: 32,
+                                                decoration: BoxDecoration(
+                                                  color: AppColors.success.withValues(alpha: 0.12),
+                                                  shape: BoxShape.circle,
+                                                ),
+                                                child: const Icon(
+                                                  CupertinoIcons.phone_fill,
+                                                  size: 17,
+                                                  color: AppColors.success,
+                                                ),
+                                              ),
+                                              onPressed: () => _confirmPhoneCall(staff),
+                                            ),
                                         ],
                                       ),
                                     ),
@@ -612,7 +795,7 @@ class _RouteScreenState extends State<RouteScreen> {
                                                 ? AppColors.background 
                                                 : AppColors.accent.withValues(alpha: 0.1),
                                               borderRadius: BorderRadius.circular(12),
-                                              onPressed: () => _confirmNotifyStaff(branch.id),
+                                              onPressed: () => _confirmNotifyStaff(branch, staff),
                                               child: Row(
                                                 mainAxisAlignment: MainAxisAlignment.center,
                                                 children: [
@@ -641,7 +824,7 @@ class _RouteScreenState extends State<RouteScreen> {
                                               minimumSize: const Size(0, 38),
                                               color: AppColors.accent,
                                               borderRadius: BorderRadius.circular(12),
-                                              onPressed: () => _confirmMarkCompleted(branch.id),
+                                              onPressed: () => _confirmMarkCompleted(branch, staff),
                                               child: Text(
                                                 _activeMode == RouteMode.deployment ? 'Dropped Off' : 'Picked Up',
                                                 style: const TextStyle(
