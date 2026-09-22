@@ -3,6 +3,7 @@ import '../../../models/branch.dart';
 import '../../../models/meat_dispatch.dart';
 import '../../../services/firestore_service.dart';
 import '../../../services/notification_service.dart';
+import '../../../services/supabase_service.dart';
 import '../admin_web_colors.dart';
 import '../admin_web_shell.dart';
 import '../admin_web_widgets/glass_card.dart';
@@ -22,7 +23,8 @@ class _RecordTransferScreenState extends State<RecordTransferScreen> {
   // Source is always Main Warehouse (Owner's House)
   final String _sourceName = 'Main Warehouse (Owner\'s House)';
   
-  String _destId = kSampleBranches.first.id;
+  List<Branch> _branches = SupabaseService.getAllBranchesSync();
+  late String _destId;
   final _regController = TextEditingController();
   final _medController = TextEditingController();
   final _b1t1Controller = TextEditingController();
@@ -34,10 +36,26 @@ class _RecordTransferScreenState extends State<RecordTransferScreen> {
   @override
   void initState() {
     super.initState();
-    if (widget.initialBranchId != null && kSampleBranches.any((b) => b.id == widget.initialBranchId)) {
+    if (_branches.isEmpty) _branches = List.from(kSampleBranches);
+    if (widget.initialBranchId != null && _branches.any((b) => b.id == widget.initialBranchId)) {
       _destId = widget.initialBranchId!;
+    } else {
+      _destId = _branches.first.id;
     }
+    _loadBranches();
     _updateShellActions();
+  }
+
+  Future<void> _loadBranches() async {
+    final list = await SupabaseService.getBranches();
+    if (mounted && list.isNotEmpty) {
+      setState(() {
+        _branches = list;
+        if (!_branches.any((b) => b.id == _destId)) {
+          _destId = _branches.first.id;
+        }
+      });
+    }
   }
 
   @override
@@ -160,7 +178,7 @@ class _RecordTransferScreenState extends State<RecordTransferScreen> {
                             isDense: true,
                             prefixIcon: Icon(Icons.storefront_rounded, size: 20),
                           ),
-                          items: kSampleBranches
+                          items: _branches
                               .map((b) =>
                                   DropdownMenuItem(value: b.id, child: Text(b.fullName)))
                               .toList(),

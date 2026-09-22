@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../pages/auth/login_screen.dart';
 import '../services/assignment_service.dart';
 import '../services/auth_service.dart';
+import '../services/firestore_cache.dart';
 import '../services/supabase_service.dart';
 
 /// Wraps any staff/driver/production shell and listens to the
@@ -71,11 +72,12 @@ class _DeactivationGuardState extends State<DeactivationGuard> {
     AssignmentService.changeNotifier.addListener(_assignmentListener!);
 
     // 3) Watch the deactivated_staff/{username} document in real-time (Firestore).
-    _sub = FirebaseFirestore.instance
-        .collection('deactivated_staff')
-        .doc(usernameKey)
-        .snapshots()
-        .listen((snap) {
+    _sub = FirestoreListenCache.doc(
+      'deactivated_staff:$usernameKey',
+      FirebaseFirestore.instance
+          .collection('deactivated_staff')
+          .doc(usernameKey),
+    ).listen((snap) {
       if (!mounted || _isHandlingLogout) return;
 
       if (snap.exists) {
@@ -87,11 +89,12 @@ class _DeactivationGuardState extends State<DeactivationGuard> {
     });
 
     // 4) Watch the staff_assignments/{username} document in real-time for Rest Day.
-    _assignmentSub = FirebaseFirestore.instance
-        .collection('staff_assignments')
-        .doc(usernameKey)
-        .snapshots()
-        .listen((snap) {
+    _assignmentSub = FirestoreListenCache.doc(
+      'staff_assignments:$usernameKey',
+      FirebaseFirestore.instance
+          .collection('staff_assignments')
+          .doc(usernameKey),
+    ).listen((snap) {
       if (!mounted || _isHandlingLogout) return;
 
       if (snap.exists) {

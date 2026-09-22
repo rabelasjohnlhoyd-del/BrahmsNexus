@@ -51,11 +51,23 @@ class SupabaseService {
   // 1. BRANCH MANAGEMENT (Static Master Directory)
   // ===========================================================================
 
-  /// Fetches all branches ordered by route sequence.
-  static Future<List<Branch>> getBranches() async {
+  static DateTime? _branchesCacheTime;
+  static const Duration _branchesCacheTtl = Duration(minutes: 5);
+
+  /// Fetches all branches ordered by route sequence, with a 5-minute memory cache
+  /// to eliminate unnecessary network queries during frequent screen navigation.
+  static Future<List<Branch>> getBranches({bool forceRefresh = false}) async {
+    final now = DateTime.now();
+    if (!forceRefresh &&
+        _branchesCacheTime != null &&
+        now.difference(_branchesCacheTime!) < _branchesCacheTtl &&
+        _inMemoryBranches.isNotEmpty) {
+      return getAllBranchesSync();
+    }
+
     final client = _client;
     if (client == null) {
-      return List<Branch>.from(_inMemoryBranches);
+      return getAllBranchesSync();
     }
 
     try {
@@ -69,17 +81,26 @@ class SupabaseService {
         _inMemoryBranches
           ..clear()
           ..addAll(list);
-        return list;
+        _branchesCacheTime = DateTime.now();
+        return getAllBranchesSync();
       }
-      return List<Branch>.from(_inMemoryBranches);
+      return getAllBranchesSync();
     } catch (e) {
       debugPrint('SupabaseService.getBranches error: $e. Falling back to local cache.');
-      return List<Branch>.from(_inMemoryBranches);
+      return getAllBranchesSync();
     }
+  }
+
+  /// Returns currently loaded branches synchronously from memory.
+  static List<Branch> getAllBranchesSync() {
+    final list = List<Branch>.from(_inMemoryBranches);
+    list.sort((a, b) => a.dailyRouteSequence.compareTo(b.dailyRouteSequence));
+    return list;
   }
 
   /// Inserts or updates a branch record.
   static Future<bool> saveBranch(Branch branch) async {
+    _branchesCacheTime = null; // Invalidate cache immediately on edit
     final index = _inMemoryBranches.indexWhere((b) => b.id == branch.id);
     if (index >= 0) {
       _inMemoryBranches[index] = branch;
@@ -101,6 +122,7 @@ class SupabaseService {
 
   /// Deletes a branch by ID.
   static Future<bool> deleteBranch(String branchId) async {
+    _branchesCacheTime = null; // Invalidate cache immediately on delete
     _inMemoryBranches.removeWhere((b) => b.id == branchId);
 
     final client = _client;
@@ -437,8 +459,20 @@ class SupabaseService {
     }
   }
 
+  static DateTime? _staffRefreshTime;
+  static const Duration _staffRefreshTtl = Duration(minutes: 2);
+
   /// Refreshes all staff profiles from remote Supabase table into in-memory cache.
-  static Future<List<StaffMember>> refreshStaffFromRemote() async {
+  /// Debounced to at most once every 2 minutes to prevent excessive network reads.
+  static Future<List<StaffMember>> refreshStaffFromRemote({bool forceRefresh = false}) async {
+    final now = DateTime.now();
+    if (!forceRefresh &&
+        _staffRefreshTime != null &&
+        now.difference(_staffRefreshTime!) < _staffRefreshTtl &&
+        _inMemoryStaff.isNotEmpty) {
+      return List.from(_inMemoryStaff);
+    }
+
     final client = _client;
     if (client == null) return List.from(_inMemoryStaff);
     try {
@@ -448,6 +482,7 @@ class SupabaseService {
         _inMemoryStaff
           ..clear()
           ..addAll(list);
+        _staffRefreshTime = DateTime.now();
       }
       return list;
     } catch (e) {
@@ -599,49 +634,64 @@ class SupabaseService {
   // 3. BILAO PACKAGES MASTER PRICING (Static Catalog)
   // ===========================================================================
 
+  static List<Map<String, dynamic>>? _cachedBilaoPackages;
+  static DateTime? _bilaoPackagesCacheTime;
+  static const Duration _bilaoPackagesCacheTtl = Duration(hours: 1);
+
+  static final List<Map<String, dynamic>> _defaultBilaoPackages = [
+    {
+      'id': 'bp-small',
+      'size': 'Small',
+      'price': 650.0,
+      'commission': 62.0,
+      'pax': 10,
+      'weight': '1 Kilo and 250 Grams',
+      'description': 'Good for 10 Pax (1.25 kg)',
+    },
+    {
+      'id': 'bp-medium',
+      'size': 'Medium',
+      'price': 900.0,
+      'commission': 87.0,
+      'pax': 15,
+      'weight': '1 Kilo and 750 Grams',
+      'description': 'Good for 15 Pax (1.75 kg)',
+    },
+    {
+      'id': 'bp-large',
+      'size': 'Large',
+      'price': 1300.0,
+      'commission': 125.0,
+      'pax': 20,
+      'weight': '2 Kilos and 500 Grams',
+      'description': 'Good for 20 Pax (2.5 kg)',
+    },
+  ];
+
   static Future<List<Map<String, dynamic>>> getBilaoPackages() async {
-    final client = _client;
-    if (client == null) {
-      return [
-        {
-          'id': 'bp-small',
-          'size': 'Small',
-          'price': 650.0,
-          'commission': 62.0,
-          'pax': 10,
-          'weight': '1 Kilo and 250 Grams',
-          'description': 'Good for 10 Pax (1.25 kg)',
-        },
-        {
-          'id': 'bp-medium',
-          'size': 'Medium',
-          'price': 900.0,
-          'commission': 87.0,
-          'pax': 15,
-          'weight': '1 Kilo and 750 Grams',
-          'description': 'Good for 15 Pax (1.75 kg)',
-        },
-        {
-          'id': 'bp-large',
-          'size': 'Large',
-          'price': 1300.0,
-          'commission': 125.0,
-          'pax': 20,
-          'weight': '2 Kilos and 500 Grams',
-          'description': 'Good for 20 Pax (2.5 kg)',
-        },
-      ];
+    // Return from memory cache if still fresh (1 hour TTL)
+    final now = DateTime.now();
+    if (_cachedBilaoPackages != null &&
+        _bilaoPackagesCacheTime != null &&
+        now.difference(_bilaoPackagesCacheTime!) < _bilaoPackagesCacheTtl) {
+      return _cachedBilaoPackages!;
     }
+
+    final client = _client;
+    if (client == null) return List.from(_defaultBilaoPackages);
 
     try {
       final data = await client
           .from('bilao_packages')
           .select()
           .order('price', ascending: true);
-      return List<Map<String, dynamic>>.from(data);
+      final result = List<Map<String, dynamic>>.from(data);
+      _cachedBilaoPackages = result;
+      _bilaoPackagesCacheTime = now;
+      return result;
     } catch (e) {
       debugPrint('SupabaseService.getBilaoPackages error: $e');
-      return [];
+      return _cachedBilaoPackages ?? List.from(_defaultBilaoPackages);
     }
   }
 }

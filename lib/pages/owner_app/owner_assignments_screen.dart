@@ -30,6 +30,8 @@ class _OwnerAssignmentsScreenState extends State<OwnerAssignmentsScreen> {
   int _currentPage = 0;
   static const int _pageSize = 5;
 
+  List<Branch> _availableBranches = SupabaseService.getAllBranchesSync();
+
   // Mock per-date assignment records, keyed by "yyyy-M-d".
   final Map<String, List<BranchAssignment>> _assignmentsByDate = {};
 
@@ -48,89 +50,97 @@ class _OwnerAssignmentsScreenState extends State<OwnerAssignmentsScreen> {
     super.dispose();
   }
 
-  void _onAssignmentsChanged() {
+  void _syncAssignmentsWithCurrentStaff() {
     if (!mounted) return;
     final key = _dateKey(_selectedDate);
-    final staffList = SupabaseService.getAllStaff()
-        .where((s) => s.position == 'Branch Cook' || s.position == 'Floating Cook')
+    final allStaff = SupabaseService.getAllStaff();
+    final branchCooks = allStaff
+        .where((s) =>
+            !s.isArchived &&
+            (s.position == 'Branch Cook' ||
+                s.position == 'Floating Cook' ||
+                s.position.toLowerCase().contains('cook')))
         .toList();
+
     setState(() {
-      final list = _assignmentsByDate[key];
-      if (list != null) {
-        for (int i = 0; i < list.length; i++) {
-          final a = list[i];
-          final staff = staffList.firstWhere(
-            (s) => s.id == a.employeeId,
-            orElse: () => StaffMember(id: a.employeeId, firstName: '', lastName: '', username: '', branch: '', position: ''),
-          );
+      final existingList = _assignmentsByDate[key] ?? [];
+      final updatedList = <BranchAssignment>[];
 
-          // AssignmentService.lockStatus() is called synchronously before any cloud writes,
-          // so this cache is ALWAYS ahead of Supabase realtime. Use it as source of truth.
-          // Fall back to a.workStatus (current on-screen status) — never revert the UI.
-          final status = staff.username.isNotEmpty
-              ? AssignmentService.getWorkStatus(staff.username,
-                  fallback: AssignmentService.getWorkStatus(a.employeeId, fallback: a.workStatus))
-              : AssignmentService.getWorkStatus(a.employeeId, fallback: a.workStatus);
-
-          // Same for branch — keep a.branchName as fallback so branch never resets on toggle.
-          final branchName = staff.username.isNotEmpty
-              ? AssignmentService.getAssignedBranch(staff.username,
-                  fallback: AssignmentService.getAssignedBranch(a.employeeId, fallback: a.branchName))
-              : AssignmentService.getAssignedBranch(a.employeeId, fallback: a.branchName);
-
-          final branch = kSampleBranches.firstWhere(
-            (b) => b.fullName == branchName,
-            orElse: () => kSampleBranches.first,
-          );
-          list[i] = a.copyWith(
-            workStatus: status,
-            branchId: branch.id,
-            branchName: branch.fullName,
-          );
+      for (final s in branchCooks) {
+        // Find if already exists in existingList
+        BranchAssignment? existing;
+        for (final a in existingList) {
+          if (a.employeeId.trim().toLowerCase() == s.id.trim().toLowerCase() ||
+              (s.username.isNotEmpty &&
+                  a.employeeId.trim().toLowerCase() == s.username.trim().toLowerCase()) ||
+              (a.employeeName.isNotEmpty &&
+                  a.employeeName.trim().toLowerCase() == s.fullName.trim().toLowerCase())) {
+            existing = a;
+            break;
+          }
         }
-      }
-    });
-  }
 
-  void _initializeTodayAssignments() async {
-    final key = _dateKey(_selectedDate);
-    if (!_assignmentsByDate.containsKey(key)) {
-      final staffList = SupabaseService.getAllStaff()
-          .where((s) => s.position == 'Branch Cook' || s.position == 'Floating Cook')
-          .toList();
-      _assignmentsByDate[key] = staffList.map((s) {
-        final cachedStatus = AssignmentService.getWorkStatus(
-          s.username,
-          fallback: AssignmentService.getWorkStatus(
-            s.id,
-            fallback: s.isRestDay ? WorkStatus.restDay : WorkStatus.onDuty,
-          ),
-        );
-        final cachedBranch = AssignmentService.getAssignedBranch(
-          s.username,
-          fallback: AssignmentService.getAssignedBranch(s.id, fallback: s.branch),
-        );
-        final branch = kSampleBranches.firstWhere(
-          (b) => b.fullName == cachedBranch,
-          orElse: () => kSampleBranches.firstWhere((b) => b.fullName == s.branch, orElse: () => kSampleBranches.first),
-        );
-        return BranchAssignment(
-          id: '${key}_${s.id}',
+        final status = s.username.isNotEmpty
+            ? AssignmentService.getWorkStatus(s.username,
+                fallback: AssignmentService.getWorkStatus(s.id,
+                    fallback: existing?.workStatus ??
+                        (s.isRestDay ? WorkStatus.restDay : WorkStatus.onDuty)))
+            : AssignmentService.getWorkStatus(s.id,
+                fallback: existing?.workStatus ??
+                    (s.isRestDay ? WorkStatus.restDay : WorkStatus.onDuty));
+
+        final branchName = s.username.isNotEmpty
+            ? AssignmentService.getAssignedBranch(s.username,
+                fallback: AssignmentService.getAssignedBranch(s.id,
+                    fallback: existing?.branchName ?? s.branch))
+            : AssignmentService.getAssignedBranch(s.id,
+                fallback: existing?.branchName ?? s.branch);
+
+        final isUnassigned =
+            (branchName == 'N/A' || branchName.isEmpty) && (s.branch == 'N/A' || s.branch.isEmpty);
+        final branch = isUnassigned
+            ? Branch.unassigned
+            : _availableBranches.firstWhere(
+                (b) => b.fullName == branchName,
+                orElse: () => _availableBranches.firstWhere(
+                  (b) => b.fullName == s.branch,
+                  orElse: () => _availableBranches.isNotEmpty
+                      ? _availableBranches.first
+                      : Branch.unassigned,
+                ),
+              );
+
+        updatedList.add(BranchAssignment(
+          id: existing?.id ?? '${key}_${s.id}',
           employeeId: s.id,
           employeeName: s.fullName,
           branchId: branch.id,
           branchName: branch.fullName,
           date: _selectedDate,
-          workStatus: cachedStatus,
-        );
-      }).toList();
-    }
+          workStatus: status,
+        ));
+      }
 
-    // Refresh from AssignmentService (memory cache, local file, and Firestore cloud)
+      _assignmentsByDate[key] = updatedList;
+    });
+  }
+
+  void _onAssignmentsChanged() {
+    _syncAssignmentsWithCurrentStaff();
+  }
+
+  void _initializeTodayAssignments() async {
+    _syncAssignmentsWithCurrentStaff();
+
     try {
+      final branches = await SupabaseService.getBranches();
+      if (mounted && branches.isNotEmpty) {
+        setState(() => _availableBranches = branches);
+      }
+      await SupabaseService.refreshStaffFromRemote();
       await AssignmentService.ensureInitialized();
       if (mounted) {
-        _onAssignmentsChanged();
+        _syncAssignmentsWithCurrentStaff();
       }
     } catch (_) {}
   }
@@ -274,7 +284,7 @@ class _OwnerAssignmentsScreenState extends State<OwnerAssignmentsScreen> {
 
   Future<void> _pickBranch(BranchAssignment current) async {
     var tempIndex =
-        kSampleBranches.indexWhere((b) => b.id == current.branchId);
+        _availableBranches.indexWhere((b) => b.id == current.branchId);
     if (tempIndex == -1) tempIndex = 0;
 
     await showCupertinoModalPopup<void>(
@@ -293,7 +303,9 @@ class _OwnerAssignmentsScreenState extends State<OwnerAssignmentsScreen> {
                 ),
                 CupertinoButton(
                   onPressed: () {
-                    _updateBranchForAssignment(current, kSampleBranches[tempIndex]);
+                    if (_availableBranches.isNotEmpty && tempIndex < _availableBranches.length) {
+                      _updateBranchForAssignment(current, _availableBranches[tempIndex]);
+                    }
                     Navigator.of(popupContext).pop();
                   },
                   child: const Text('Done'),
@@ -306,7 +318,7 @@ class _OwnerAssignmentsScreenState extends State<OwnerAssignmentsScreen> {
                 scrollController:
                     FixedExtentScrollController(initialItem: tempIndex),
                 onSelectedItemChanged: (i) => tempIndex = i,
-                children: kSampleBranches
+                children: _availableBranches
                     .map((b) => Center(child: Text(b.fullName)))
                     .toList(),
               ),

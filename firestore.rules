@@ -164,9 +164,9 @@ service cloud.firestore {
       // Staff can read broadcast notifications ('all') or targeted to them
       allow read: if isAuthenticated();
 
-      // Owner or approved staff submitting reports/sales can dispatch alerts
-      allow create: if isSystemOwner() || isApprovedStaff();
-      allow update, delete: if isSystemOwner();
+      // Owner or approved staff submitting reports/sales can dispatch alerts or mark them as read
+      allow create, update: if isSystemOwner() || isApprovedStaff();
+      allow delete: if isSystemOwner();
     }
 
     // =========================================================================

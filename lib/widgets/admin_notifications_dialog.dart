@@ -4,7 +4,9 @@ import '../pages/admin_web/admin_web_colors.dart';
 import '../services/auth_service.dart';
 import '../services/notification_service.dart';
 
-class AdminNotificationsDialog extends StatelessWidget {
+import '../pages/admin_web/admin_web_widgets/admin_pagination_bar.dart';
+
+class AdminNotificationsDialog extends StatefulWidget {
   const AdminNotificationsDialog({
     super.key,
     this.onNavigateRoute,
@@ -20,6 +22,14 @@ class AdminNotificationsDialog extends StatelessWidget {
     );
   }
 
+  @override
+  State<AdminNotificationsDialog> createState() => _AdminNotificationsDialogState();
+}
+
+class _AdminNotificationsDialogState extends State<AdminNotificationsDialog> {
+  int _currentPage = 0;
+  static const int _pageSize = 7;
+
   String _formatTime(DateTime dt) {
     final diff = DateTime.now().difference(dt);
     if (diff.inSeconds < 60) return 'Just now';
@@ -31,6 +41,7 @@ class AdminNotificationsDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final userId = AuthService.currentUserId;
+    final username = AuthService.currentUsername;
 
     return Dialog(
       backgroundColor: Colors.transparent,
@@ -39,7 +50,7 @@ class AdminNotificationsDialog extends StatelessWidget {
         child: Container(
           width: 540,
           constraints: BoxConstraints(
-            maxHeight: MediaQuery.of(context).size.height * 0.82,
+            maxHeight: MediaQuery.of(context).size.height * 0.85,
           ),
           decoration: BoxDecoration(
             color: AdminWebColors.surfaceTint,
@@ -60,7 +71,14 @@ class AdminNotificationsDialog extends StatelessWidget {
             ),
             builder: (context, snapshot) {
               final notifications = snapshot.data ?? [];
-              final unreadCount = notifications.where((n) => !n.isRead(userId)).length;
+              final unreadCount = notifications.where((n) => !n.isRead(userId, username)).length;
+              final total = notifications.length;
+              final totalPages = (total / _pageSize).ceil();
+              final effectivePage = totalPages == 0 ? 0 : _currentPage.clamp(0, totalPages - 1);
+              final pagedNotifications = notifications
+                  .skip(effectivePage * _pageSize)
+                  .take(_pageSize)
+                  .toList();
 
               return Column(
                 mainAxisSize: MainAxisSize.min,
@@ -112,6 +130,7 @@ class AdminNotificationsDialog extends StatelessWidget {
                             onPressed: () => NotificationService.markAllAsRead(
                               notifications: notifications,
                               userId: userId,
+                              username: username,
                             ),
                             child: const Text(
                               'Mark all as read',
@@ -154,24 +173,25 @@ class AdminNotificationsDialog extends StatelessWidget {
                         : ListView.separated(
                             padding: const EdgeInsets.symmetric(vertical: 8),
                             shrinkWrap: true,
-                            itemCount: notifications.length,
+                            itemCount: pagedNotifications.length,
                             separatorBuilder: (_, _) => const Divider(
                               height: 1,
                               color: AdminWebColors.border,
                             ),
                             itemBuilder: (context, index) {
-                              final item = notifications[index];
-                              final isRead = item.isRead(userId);
+                              final item = pagedNotifications[index];
+                              final isRead = item.isRead(userId, username);
 
                               return InkWell(
                                 onTap: () async {
                                   await NotificationService.markAsRead(
                                     notificationId: item.id,
                                     userId: userId,
+                                    username: username,
                                   );
                                   if (item.route != null && context.mounted) {
                                     Navigator.of(context).pop();
-                                    onNavigateRoute?.call(item.route!);
+                                    widget.onNavigateRoute?.call(item.route!);
                                   }
                                 },
                                 child: Container(
@@ -187,12 +207,16 @@ class AdminNotificationsDialog extends StatelessWidget {
                                         height: 36,
                                         alignment: Alignment.center,
                                         decoration: BoxDecoration(
-                                          color: item.type.color.withValues(alpha: 0.12),
+                                          color: isRead
+                                              ? AdminWebColors.border.withValues(alpha: 0.5)
+                                              : item.type.color.withValues(alpha: 0.12),
                                           shape: BoxShape.circle,
                                         ),
                                         child: Icon(
                                           item.type.icon,
-                                          color: item.type.color,
+                                          color: isRead
+                                              ? AdminWebColors.textSecondary
+                                              : item.type.color,
                                           size: 18,
                                         ),
                                       ),
@@ -257,6 +281,21 @@ class AdminNotificationsDialog extends StatelessWidget {
                             },
                           ),
                   ),
+
+                  // Pagination controls if more than 7 items
+                  if (total > _pageSize)
+                    Container(
+                      decoration: const BoxDecoration(
+                        border: Border(top: BorderSide(color: AdminWebColors.border)),
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: AdminPaginationBar(
+                        currentPage: effectivePage,
+                        totalItems: total,
+                        pageSize: _pageSize,
+                        onPageChanged: (p) => setState(() => _currentPage = p),
+                      ),
+                    ),
                 ],
               );
             },

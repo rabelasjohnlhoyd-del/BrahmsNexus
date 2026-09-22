@@ -542,7 +542,10 @@ class AuthService {
   static Stream<AppUser?> watchCurrentUser() {
     final uid = currentAppUser?.uid ?? _auth.currentUser?.uid;
     if (uid == null) return Stream.value(currentAppUser);
-    return _db.collection('users').doc(uid).snapshots().map((doc) {
+    return FirestoreListenCache.doc(
+      'users:$uid',
+      _db.collection('users').doc(uid),
+    ).map((doc) {
       if (!doc.exists || doc.data() == null) return currentAppUser;
       final user = AppUser.fromMap(doc.id, doc.data()!);
       currentAppUser = user;

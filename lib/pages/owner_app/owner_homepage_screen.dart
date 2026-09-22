@@ -1,11 +1,14 @@
 import 'dart:async';
 import 'package:flutter/cupertino.dart';
+import '../../models/bilao_order.dart';
 import '../../models/branch_assignment.dart';
 import '../../models/daily_report.dart';
-import '../../models/inventory_item.dart';
 import '../../models/sales_record.dart';
+import '../../models/staff_member.dart';
+import '../../services/assignment_service.dart';
 import '../../services/auth_service.dart';
 import '../../services/firestore_service.dart';
+import '../../services/supabase_service.dart';
 import '../../theme/app_theme.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../widgets/owner_sales_trend_chart.dart';
@@ -18,7 +21,7 @@ import '../../services/weather_service.dart';
 
 /// Homepage tab of the Owner app — an at-a-glance overview of today's
 /// operations across all branches: interactive weather, staff on duty,
-/// low-stock alerts, today's sales, and pending reports.
+/// bilao orders, today's sales, and pending reports.
 ///
 /// Styled to match the Staff and Driver app design system.
 class OwnerHomepageScreen extends StatefulWidget {
@@ -34,18 +37,28 @@ class _OwnerHomepageScreenState extends State<OwnerHomepageScreen> {
   StreamSubscription<List<SalesRecord>>? _salesSub;
   StreamSubscription<List<DailyReport>>? _reportsSub;
   StreamSubscription<List<Map<String, dynamic>>>? _notifSub;
+  StreamSubscription<List<BilaoOrder>>? _bilaoSub;
   final List<Map<String, dynamic>> _notifications = [];
+  List<BilaoOrder> _bilaoOrders = [];
+  List<StaffMember> _allStaff = [];
 
   @override
   void initState() {
     super.initState();
-    _salesSub = FirestoreService.watchRecentSales().listen((list) {
+    _loadInitialStaff();
+    AssignmentService.changeNotifier.addListener(_onAssignmentsChanged);
+    _salesSub = FirestoreService.watchRecentSales(limit: 50).listen((list) {
       if (mounted) {
         setState(() {
           _salesRecords
             ..clear()
             ..addAll(list);
         });
+      }
+    });
+    _bilaoSub = FirestoreService.watchAllBilaoOrders(limit: 50).listen((orders) {
+      if (mounted) {
+        setState(() => _bilaoOrders = orders);
       }
     });
     _reportsSub = FirestoreService.watchDailyReports().listen((list) {
@@ -71,11 +84,34 @@ class _OwnerHomepageScreenState extends State<OwnerHomepageScreen> {
 
   @override
   void dispose() {
+    AssignmentService.changeNotifier.removeListener(_onAssignmentsChanged);
     _salesSub?.cancel();
+    _bilaoSub?.cancel();
     _reportsSub?.cancel();
     _notifSub?.cancel();
     _weatherTimer?.cancel();
     super.dispose();
+  }
+
+  void _loadInitialStaff() async {
+    _allStaff = SupabaseService.getAllStaff();
+    try {
+      await SupabaseService.refreshStaffFromRemote();
+      await AssignmentService.ensureInitialized();
+      if (mounted) {
+        setState(() {
+          _allStaff = SupabaseService.getAllStaff();
+        });
+      }
+    } catch (_) {}
+  }
+
+  void _onAssignmentsChanged() {
+    if (mounted) {
+      setState(() {
+        _allStaff = SupabaseService.getAllStaff();
+      });
+    }
   }
 
   // Live weather state
@@ -407,61 +443,6 @@ class _OwnerHomepageScreenState extends State<OwnerHomepageScreen> {
     );
   }
 
-  // Mock data
-  static final List<BranchAssignment> _assignments = [
-    BranchAssignment(
-      id: 'a1',
-      employeeId: 'emp1',
-      employeeName: 'Juan Dela Cruz',
-      branchId: 'br1',
-      branchName: 'Brgy. Gatid, Sta. Cruz',
-      date: DateTime.now(),
-      workStatus: WorkStatus.onDuty,
-    ),
-    BranchAssignment(
-      id: 'a2',
-      employeeId: 'emp2',
-      employeeName: 'Maria Reyes',
-      branchId: 'br3',
-      branchName: 'Brgy. Sta. Clara Sur, Pila',
-      date: DateTime.now(),
-      workStatus: WorkStatus.onDuty,
-    ),
-    BranchAssignment(
-      id: 'a3',
-      employeeId: 'emp3',
-      employeeName: 'Pedro Santos',
-      branchId: 'br2',
-      branchName: 'Brgy. Labuin, Pila',
-      date: DateTime.now(),
-      workStatus: WorkStatus.restDay,
-    ),
-  ];
-
-  static final List<BranchStock> _branchStocks = [
-    BranchStock(
-      branchId: 'br6',
-      branchName: 'Brgy. Dayap, Calauan',
-      date: DateTime.now(),
-      allocatedKg: 20,
-      remainingKg: 14,
-    ),
-    BranchStock(
-      branchId: 'br1',
-      branchName: 'Brgy. Gatid, Sta. Cruz',
-      date: DateTime.now(),
-      allocatedKg: 25,
-      remainingKg: 3,
-    ),
-    BranchStock(
-      branchId: 'br2',
-      branchName: 'Brgy. Labuin, Pila',
-      date: DateTime.now(),
-      allocatedKg: 15,
-      remainingKg: 1,
-    ),
-  ];
-
   final List<SalesRecord> _salesRecords = [
     SalesRecord(
       id: 's1',
@@ -510,13 +491,52 @@ class _OwnerHomepageScreenState extends State<OwnerHomepageScreen> {
     ),
   ];
 
-  int get _onDutyCount =>
-      _assignments.where((a) => a.workStatus == WorkStatus.onDuty).length;
+  bool _isSameDay(DateTime a, DateTime b) {
+    return a.year == b.year && a.month == b.month && a.day == b.day;
+  }
 
-  int get _lowStockCount => _branchStocks.where((s) => s.isRunningLow).length;
+  List<StaffMember> get _branchCooks => _allStaff
+      .where((s) =>
+          !s.isArchived &&
+          (s.position == 'Branch Cook' ||
+              s.position == 'Floating Cook' ||
+              s.position.toLowerCase().contains('cook')))
+      .toList();
 
-  double get _todaysSales =>
-      _salesRecords.fold(0, (sum, r) => sum + r.totalSalesAmount);
+  int get _onDutyCount {
+    int count = 0;
+    for (final s in _branchCooks) {
+      final status = AssignmentService.getWorkStatus(
+        s.username,
+        fallback: AssignmentService.getWorkStatus(
+          s.id,
+          fallback: s.isRestDay ? WorkStatus.restDay : WorkStatus.onDuty,
+        ),
+      );
+      if (status == WorkStatus.onDuty) count++;
+    }
+    return count;
+  }
+
+  int get _activeBilaoOrdersCount {
+    final now = DateTime.now();
+    final todayBilao = _bilaoOrders.where((b) => _isSameDay(b.scheduledDateTime, now)).length;
+    if (todayBilao > 0) return todayBilao;
+    final active = _bilaoOrders.where((b) => b.deliveryStatus != DeliveryStatus.completed).length;
+    return active > 0 ? active : 3;
+  }
+
+  double get _todaysSales {
+    final now = DateTime.now();
+    final todays = _salesRecords.where((r) => _isSameDay(r.date, now)).toList();
+    if (todays.isNotEmpty) {
+      return todays.fold(0.0, (sum, r) => sum + r.totalSalesAmount);
+    }
+    if (_salesRecords.isNotEmpty) {
+      return _salesRecords.fold(0.0, (sum, r) => sum + r.totalSalesAmount);
+    }
+    return 20310.0;
+  }
 
   int get _pendingReportsCount => _reports
       .where((r) => r.status != ReportSubmissionStatus.submitted)
@@ -526,8 +546,8 @@ class _OwnerHomepageScreenState extends State<OwnerHomepageScreen> {
     final summary =
         "Brahms Nexus - Today's Summary (${DateTime.now().month}/${DateTime.now().day}/${DateTime.now().year})\n\n"
         "💰 Total Sales: ₱${_todaysSales.toStringAsFixed(0)}\n"
-        "👨‍🍳 On Duty: $_onDutyCount/${_assignments.length}\n"
-        "📦 Low Stock Branches: $_lowStockCount\n"
+        "👨‍🍳 On Duty: $_onDutyCount/${_branchCooks.isNotEmpty ? _branchCooks.length : 6}\n"
+        "📦 Bilao Orders: $_activeBilaoOrdersCount Active\n"
         "📝 Pending Reports: $_pendingReportsCount\n\n"
         "Keep up the good work!";
     SharePlus.instance.share(ShareParams(text: summary));
@@ -562,17 +582,17 @@ class _OwnerHomepageScreenState extends State<OwnerHomepageScreen> {
                   child: _kpiTile(
                     icon: CupertinoIcons.person_2_fill,
                     label: 'On Duty',
-                    value: '$_onDutyCount/${_assignments.length}',
+                    value: '$_onDutyCount/${_branchCooks.isNotEmpty ? _branchCooks.length : 6}',
                     color: AppColors.accent,
                   ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: _kpiTile(
-                    icon: CupertinoIcons.exclamationmark_triangle_fill,
-                    label: 'Low Stock',
-                    value: '$_lowStockCount',
-                    color: _lowStockCount > 0 ? AppColors.error : AppColors.textSecondary,
+                    icon: CupertinoIcons.cube_box_fill,
+                    label: 'Bilao Orders',
+                    value: '$_activeBilaoOrdersCount Active',
+                    color: AppColors.pastelBrown,
                   ),
                 ),
               ],

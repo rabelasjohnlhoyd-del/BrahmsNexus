@@ -6,7 +6,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 class FirestoreReadCache {
   FirestoreReadCache._();
 
-  static const Duration ttl = Duration(seconds: 45);
+  static const Duration ttl = Duration(seconds: 60);
   static final Map<String, _CacheEntry> _entries = {};
 
   static T? get<T>(String key) {
@@ -26,7 +26,20 @@ class FirestoreReadCache {
     );
   }
 
+  static Future<T> getOrFetch<T>(
+    String key,
+    Future<T> Function() fetch, {
+    Duration? ttl,
+  }) async {
+    final cached = get<T>(key);
+    if (cached != null) return cached;
+    final value = await fetch();
+    set(key, value as Object, ttl: ttl);
+    return value;
+  }
+
   static void invalidate(String key) => _entries.remove(key);
+  static void clear() => _entries.clear();
 }
 
 class _CacheEntry {
@@ -35,8 +48,9 @@ class _CacheEntry {
   final DateTime expiresAt;
 }
 
-/// One billed snapshot listener per [key], shared by every subscriber.
-/// When the last listener cancels, the Firestore listener is released.
+/// One billed Firestore snapshot listener per [key], shared by every
+/// widget that subscribes. Multiple StreamBuilders get the same live
+/// stream — only 1 Firestore read is billed.
 class FirestoreListenCache {
   FirestoreListenCache._();
 
@@ -69,10 +83,12 @@ class FirestoreListenCache {
   static void removeDoc(String key) => _docs.remove(key);
 }
 
+/// Wraps a single Firestore Query listener and exposes it as a
+/// broadcast stream. The Firestore subscription is kept alive as long
+/// as there is at least one subscriber.
 class _SharedQueryListen {
   _SharedQueryListen(this.key, this.query) {
-    _controller =
-        StreamController<QuerySnapshot<Map<String, dynamic>>>.broadcast(
+    _controller = StreamController<QuerySnapshot<Map<String, dynamic>>>.broadcast(
       onListen: _onListen,
       onCancel: _onCancel,
     );
@@ -86,6 +102,7 @@ class _SharedQueryListen {
   Stream<QuerySnapshot<Map<String, dynamic>>> get stream => _controller.stream;
 
   void _onListen() {
+    // Start the real Firestore subscription when first subscriber arrives.
     _sub ??= query.snapshots().listen(
       _controller.add,
       onError: _controller.addError,
@@ -93,16 +110,17 @@ class _SharedQueryListen {
   }
 
   void _onCancel() {
+    // Cancel the Firestore subscription and clean up when all subscribers leave.
     _sub?.cancel();
     _sub = null;
     FirestoreListenCache.removeQuery(key);
   }
 }
 
+/// Same as [_SharedQueryListen] but for a single Firestore document.
 class _SharedDocListen {
   _SharedDocListen(this.key, this.ref) {
-    _controller =
-        StreamController<DocumentSnapshot<Map<String, dynamic>>>.broadcast(
+    _controller = StreamController<DocumentSnapshot<Map<String, dynamic>>>.broadcast(
       onListen: _onListen,
       onCancel: _onCancel,
     );
@@ -110,12 +128,10 @@ class _SharedDocListen {
 
   final String key;
   final DocumentReference<Map<String, dynamic>> ref;
-  late final StreamController<DocumentSnapshot<Map<String, dynamic>>>
-      _controller;
+  late final StreamController<DocumentSnapshot<Map<String, dynamic>>> _controller;
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _sub;
 
-  Stream<DocumentSnapshot<Map<String, dynamic>>> get stream =>
-      _controller.stream;
+  Stream<DocumentSnapshot<Map<String, dynamic>>> get stream => _controller.stream;
 
   void _onListen() {
     _sub ??= ref.snapshots().listen(

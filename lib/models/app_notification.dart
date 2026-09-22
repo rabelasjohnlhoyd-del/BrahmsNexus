@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 
 enum NotificationType {
   accountApproval,
@@ -92,7 +92,8 @@ class AppNotification {
   final List<String> readBy;
   final DateTime createdAt;
 
-  bool isRead(String userId) => readBy.contains(userId);
+  bool isRead(String userId, [String? username]) =>
+      readBy.contains(userId) || (username != null && readBy.contains(username));
 
   Map<String, dynamic> toMap() {
     return {
@@ -113,14 +114,20 @@ class AppNotification {
     DateTime parseDate(dynamic val) {
       if (val == null) return DateTime.now();
       if (val is DateTime) return val;
-      if (val is String) return DateTime.tryParse(val) ?? DateTime.now();
-      // Handle Firestore Timestamp if present
+      // Handle Firestore Timestamp if present via direct duck-typing method check
       try {
-        final dynamic ts = val;
-        return ts.toDate() as DateTime;
-      } catch (_) {
-        return DateTime.now();
-      }
+        if (val.runtimeType.toString() == 'Timestamp' || val.toString().contains('Timestamp')) {
+          return val.toDate() as DateTime;
+        }
+      } catch (_) {}
+      
+      try {
+        // Direct call to toDate if it exists on the object
+        return (val as dynamic).toDate() as DateTime;
+      } catch (_) {}
+
+      if (val is String) return DateTime.tryParse(val) ?? DateTime.now();
+      return DateTime.now();
     }
 
     NotificationType parseType(dynamic val) {

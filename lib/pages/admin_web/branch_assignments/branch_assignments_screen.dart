@@ -28,6 +28,8 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
   int _currentPage = 0;
   static const int _pageSize = 5;
 
+  List<Branch> _availableBranches = SupabaseService.getAllBranchesSync();
+
   // derive assignments from staff list, filtered to show only Branch Cooks
   late List<BranchAssignment> _assignments;
 
@@ -61,7 +63,14 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
   void _onAssignmentsChanged() {
     if (!mounted) return;
     final allStaff = SupabaseService.getAllStaff();
-    final branchCooks = allStaff.where((s) => s.position == 'Branch Cook' || s.position == 'Floating Cook').toList();
+    final branchCooks = allStaff
+        .where((s) =>
+            !s.isArchived &&
+            (s.position == 'Branch Cook' ||
+                s.position == 'Floating Cook' ||
+                s.position.toLowerCase().contains('cook')))
+        .toList();
+
     setState(() {
       for (int i = 0; i < _assignments.length; i++) {
         final a = _assignments[i];
@@ -84,9 +93,9 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
         final isUnassigned = branchName == 'N/A' || branchName.isEmpty;
         final branch = isUnassigned
             ? Branch.unassigned
-            : kSampleBranches.firstWhere(
+            : _availableBranches.firstWhere(
                 (b) => b.fullName == branchName,
-                orElse: () => kSampleBranches.first,
+                orElse: () => _availableBranches.isNotEmpty ? _availableBranches.first : Branch.unassigned,
               );
         _assignments[i] = a.copyWith(
           workStatus: status,
@@ -94,13 +103,63 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
           branchName: branch.fullName,
         );
       }
+
+      // Add any newly registered cook who is not yet in _assignments
+      for (final s in branchCooks) {
+        final exists = _assignments.any((a) =>
+            a.employeeId.trim().toLowerCase() == s.id.trim().toLowerCase() ||
+            (s.username.isNotEmpty &&
+                a.employeeId.trim().toLowerCase() == s.username.trim().toLowerCase()) ||
+            (a.employeeName.isNotEmpty &&
+                a.employeeName.trim().toLowerCase() == s.fullName.trim().toLowerCase()));
+        if (!exists) {
+          final cachedStatus = s.username.isNotEmpty
+              ? AssignmentService.getWorkStatus(s.username,
+                  fallback: AssignmentService.getWorkStatus(s.id,
+                      fallback: s.isRestDay ? WorkStatus.restDay : WorkStatus.onDuty))
+              : AssignmentService.getWorkStatus(s.id,
+                  fallback: s.isRestDay ? WorkStatus.restDay : WorkStatus.onDuty);
+          final cachedBranch = s.username.isNotEmpty
+              ? AssignmentService.getAssignedBranch(s.username,
+                  fallback: AssignmentService.getAssignedBranch(s.id, fallback: s.branch))
+              : AssignmentService.getAssignedBranch(s.id, fallback: s.branch);
+          final isUnassigned =
+              (cachedBranch == 'N/A' || cachedBranch.isEmpty) && (s.branch == 'N/A' || s.branch.isEmpty);
+          final branch = isUnassigned
+              ? Branch.unassigned
+              : _availableBranches.firstWhere(
+                  (b) => b.fullName == cachedBranch,
+                  orElse: () => _availableBranches.firstWhere(
+                    (b) => b.fullName == s.branch,
+                    orElse: () => _availableBranches.isNotEmpty
+                        ? _availableBranches.first
+                        : Branch.unassigned,
+                  ),
+                );
+          _assignments.add(BranchAssignment(
+            id: 'ba-${s.id}',
+            employeeId: s.id,
+            employeeName: s.fullName,
+            branchId: branch.id,
+            branchName: branch.fullName,
+            date: _today,
+            workStatus: cachedStatus,
+          ));
+        }
+      }
     });
   }
 
   void _initializeAssignments() async {
     // Read from live/in-memory staff profiles
     final allStaff = SupabaseService.getAllStaff();
-    final branchCooks = allStaff.where((s) => s.position == 'Branch Cook' || s.position == 'Floating Cook').toList();
+    final branchCooks = allStaff
+        .where((s) =>
+            !s.isArchived &&
+            (s.position == 'Branch Cook' ||
+                s.position == 'Floating Cook' ||
+                s.position.toLowerCase().contains('cook')))
+        .toList();
     
     // 1. Synchronously read from AssignmentService cache first
     _assignments = branchCooks.map((s) {
@@ -118,10 +177,10 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
       final isUnassigned = (cachedBranch == 'N/A' || cachedBranch.isEmpty) && (s.branch == 'N/A' || s.branch.isEmpty);
       final branch = isUnassigned
           ? Branch.unassigned
-          : kSampleBranches.firstWhere(
+          : _availableBranches.firstWhere(
               (b) => b.fullName == cachedBranch,
               orElse: () => (s.branch.isNotEmpty && s.branch != 'N/A')
-                  ? kSampleBranches.firstWhere((b) => b.fullName == s.branch, orElse: () => Branch.unassigned)
+                  ? _availableBranches.firstWhere((b) => b.fullName == s.branch, orElse: () => Branch.unassigned)
                   : Branch.unassigned,
             );
 
@@ -138,6 +197,11 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
 
     // 2. Refresh from Supabase and Firestore cloud
     try {
+      final loadedBranches = await SupabaseService.getBranches();
+      if (mounted && loadedBranches.isNotEmpty) {
+        setState(() => _availableBranches = loadedBranches);
+      }
+      await SupabaseService.refreshStaffFromRemote();
       await AssignmentService.ensureInitialized();
       if (mounted) {
         _onAssignmentsChanged();
@@ -449,6 +513,7 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
                                   key: ValueKey('card-${a.employeeId}-${a.employeeName}'),
                                   assignment: a,
                                   allAssignments: _assignments,
+                                  branches: _availableBranches,
                                   isWide: isWide,
                                   onBranchChanged: (branch) => _updateBranch(a, branch),
                                   onStatusChanged: (status) => _updateStatus(a, status),
@@ -525,6 +590,7 @@ class _AssignmentCard extends StatelessWidget {
     super.key,
     required this.assignment,
     required this.allAssignments,
+    required this.branches,
     required this.isWide,
     required this.onBranchChanged,
     required this.onStatusChanged,
@@ -532,6 +598,7 @@ class _AssignmentCard extends StatelessWidget {
 
   final BranchAssignment assignment;
   final List<BranchAssignment> allAssignments;
+  final List<Branch> branches;
   final bool isWide;
   final ValueChanged<Branch> onBranchChanged;
   final ValueChanged<WorkStatus> onStatusChanged;
@@ -703,9 +770,9 @@ class _AssignmentCard extends StatelessWidget {
       key: ValueKey('dd-${assignment.employeeId}-${assignment.branchId}-${assignment.workStatus.name}'),
       initialValue: isUnassigned
           ? 'unassigned'
-          : (kSampleBranches.any((b) => b.id == assignment.branchId)
+          : (branches.any((b) => b.id == assignment.branchId)
               ? assignment.branchId
-              : kSampleBranches.first.id),
+              : (branches.isNotEmpty ? branches.first.id : 'unassigned')),
       isExpanded: true,
       decoration: InputDecoration(
         labelText: isUnassigned
@@ -744,7 +811,7 @@ class _AssignmentCard extends StatelessWidget {
               ),
             ),
           ),
-        ...kSampleBranches.map((b) {
+        ...branches.map((b) {
           BranchAssignment? occupiedCook;
           for (final other in allAssignments) {
             final samePerson = other.employeeId == assignment.employeeId ||

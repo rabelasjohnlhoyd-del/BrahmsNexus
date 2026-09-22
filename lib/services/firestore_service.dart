@@ -1277,7 +1277,7 @@ class FirestoreService {
   static Stream<Map<String, BranchAssignment>> watchStaffAssignmentsMap() {
     return FirestoreListenCache.query(
       'staff_assignments',
-      _db.collection('staff_assignments'),
+      _db.collection('staff_assignments').limit(100),
     ).map((snap) {
       final map = <String, BranchAssignment>{};
       for (final doc in snap.docs) {
@@ -1368,13 +1368,20 @@ class FirestoreService {
   static Future<bool> isStaffOnRestDay(String username) async {
     try {
       final usernameKey = username.trim().toLowerCase();
+      final cacheKey = 'is_rest_day:$usernameKey';
+      final cached = FirestoreReadCache.get<bool>(cacheKey);
+      if (cached != null) return cached;
+
       final doc = await _db.collection('staff_assignments').doc(usernameKey).get();
       if (doc.exists) {
         final data = doc.data();
         final isRestDay = data?['isRestDay'] as bool? ?? false;
         final workStatus = data?['workStatus'] as String? ?? '';
-        return isRestDay || workStatus == 'restDay';
+        final result = isRestDay || workStatus == 'restDay';
+        FirestoreReadCache.set(cacheKey, result, ttl: const Duration(seconds: 30));
+        return result;
       }
+      FirestoreReadCache.set(cacheKey, false, ttl: const Duration(seconds: 30));
       return false;
     } catch (e) {
       debugPrint('FirestoreService.isStaffOnRestDay error: $e');
@@ -1416,7 +1423,7 @@ class FirestoreService {
     scheduleMidnightAutoReset();
     return FirestoreListenCache.query(
       'branch_meat_stocks',
-      _db.collection('branch_meat_stocks'),
+      _db.collection('branch_meat_stocks').limit(20),
     ).map((snapshot) {
       if (snapshot.docs.isEmpty) {
         return _defaultBranchMeatStocks;

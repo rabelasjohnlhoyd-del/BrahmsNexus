@@ -1,4 +1,5 @@
-import 'dart:async';
+﻿import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/app_notification.dart';
 
@@ -59,17 +60,36 @@ class NotificationService {
     String? position,
   }) {
     try {
-      return _db.collection(_collection).snapshots().map((snapshot) {
-        final List<AppNotification> list = snapshot.docs.map((doc) {
-          return AppNotification.fromMap(doc.id, doc.data());
-        }).toList();
+      // Basic query to fetch recent notifications. 
+      // Fetching everything without a query might hit Firestore limits or trigger security rule rejections 
+      // if the collection grows too large or rules require specific filters.
+      return _db
+          .collection(_collection)
+          .orderBy('createdAt', descending: true)
+          .limit(100) // Keep the real-time sync bounded
+          .snapshots()
+          .map((snapshot) {
+        final List<AppNotification> list = [];
+        for (final doc in snapshot.docs) {
+          try {
+            list.add(AppNotification.fromMap(doc.id, doc.data()));
+          } catch (e) {
+            // Log or handle individual doc parsing error so one corrupted document doesn't break the entire stream
+            debugPrint('Error parsing notification document ${doc.id}: $e');
+          }
+        }
 
-        // If Firestore collection is empty, include the seed notifications
-        final combined = list.isEmpty
-            ? List<AppNotification>.from(_inMemoryNotifications)
-            : list;
+        // Include seed notifications along with any live records if available, or if collection is empty
+        // We put in-memory first so they are overwritten by Firestore records in the map
+        final combined = [..._inMemoryNotifications, ...list];
 
-        final filtered = combined
+        // Deduplicate by ID favoring firestore ones (last one in wins)
+        final Map<String, AppNotification> uniqueMap = {};
+        for (final item in combined) {
+          uniqueMap[item.id] = item;
+        }
+
+        final filtered = uniqueMap.values
             .where((n) => _matchesAudience(
                   notification: n,
                   role: role,
@@ -80,8 +100,9 @@ class NotificationService {
 
         filtered.sort((a, b) => b.createdAt.compareTo(a.createdAt));
         return filtered;
-      }).handleError((_) {
-        // Return filtered in-memory list on Firestore connection error
+      }).handleError((error) {
+        debugPrint('Firestore notifications stream error: $error');
+        // Fallback to filtered in-memory list on Firestore stream error but preserve any known updates
         final filtered = _inMemoryNotifications
             .where((n) => _matchesAudience(
                   notification: n,
@@ -93,7 +114,8 @@ class NotificationService {
         filtered.sort((a, b) => b.createdAt.compareTo(a.createdAt));
         return filtered;
       });
-    } catch (_) {
+    } catch (e) {
+      debugPrint('Firestore notifications watch catch error: $e');
       return _localStreamController.stream.map((list) {
         return list
             .where((n) => _matchesAudience(
@@ -121,22 +143,29 @@ class NotificationService {
   static Future<void> markAsRead({
     required String notificationId,
     required String userId,
+    String? username,
   }) async {
     // Update in-memory state
     final index = _inMemoryNotifications.indexWhere((n) => n.id == notificationId);
     if (index != -1) {
       final notif = _inMemoryNotifications[index];
-      if (!notif.readBy.contains(userId)) {
+      if (!notif.isRead(userId, username)) {
+        final List<String> updatedReadBy = List.from(notif.readBy);
+        if (!updatedReadBy.contains(userId)) updatedReadBy.add(userId);
+        if (username != null && !updatedReadBy.contains(username)) updatedReadBy.add(username);
+
         _inMemoryNotifications[index] = notif.copyWith(
-          readBy: [...notif.readBy, userId],
+          readBy: updatedReadBy,
         );
         _localStreamController.add(List.from(_inMemoryNotifications));
       }
     }
 
     try {
+      final List<String> updates = [userId];
+      if (username != null) updates.add(username);
       await _db.collection(_collection).doc(notificationId).update({
-        'readBy': FieldValue.arrayUnion([userId]),
+        'readBy': FieldValue.arrayUnion(updates),
       });
     } catch (_) {
       // Offline fallback succeeded in-memory
@@ -147,12 +176,16 @@ class NotificationService {
   static Future<void> markAllAsRead({
     required List<AppNotification> notifications,
     required String userId,
+    String? username,
   }) async {
-    for (final notif in notifications) {
-      if (!notif.isRead(userId)) {
-        await markAsRead(notificationId: notif.id, userId: userId);
-      }
-    }
+    final unread = notifications.where((n) => !n.isRead(userId, username)).toList();
+    if (unread.isEmpty) return;
+
+    await Future.wait(unread.map((notif) => markAsRead(
+          notificationId: notif.id,
+          userId: userId,
+          username: username,
+        )));
   }
 
   /// Creates and posts a new notification to Firestore.

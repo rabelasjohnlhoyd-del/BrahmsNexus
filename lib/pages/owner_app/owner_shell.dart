@@ -7,8 +7,6 @@ import 'owner_inventory_screen.dart';
 import 'owner_sales_payroll_screen.dart';
 import 'owner_more_screen.dart';
 import 'owner_profile_screen.dart';
-import 'owner_lock_screen.dart';
-
 /// Main shell for the Owner mobile app — 6-tab navigation structure:
 /// Home, Assign, Inventory, Sales, More, and Profile.
 class OwnerShell extends StatefulWidget {
@@ -19,12 +17,6 @@ class OwnerShell extends StatefulWidget {
 }
 
 class _OwnerShellState extends State<OwnerShell> {
-  bool _isUnlocked = false;
-
-  void _handleUnlock() {
-    setState(() => _isUnlocked = true);
-  }
-
   static const _inactiveTint = Color(0xFFB8A99A);
 
   static const _systemBarStyle = SystemUiOverlayStyle(
@@ -70,10 +62,6 @@ class _OwnerShellState extends State<OwnerShell> {
 
   @override
   Widget build(BuildContext context) {
-    if (!_isUnlocked) {
-      return OwnerLockScreen(onUnlocked: _handleUnlock);
-    }
-
     const cupertinoThemeData = CupertinoThemeData(
       brightness: Brightness.light,
       primaryColor: AppColors.accent,

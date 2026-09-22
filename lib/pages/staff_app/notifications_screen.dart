@@ -22,7 +22,7 @@ class NotificationsScreen extends StatefulWidget {
 
 class _NotificationsScreenState extends State<NotificationsScreen> {
   int _currentPage = 0;
-  static const int _pageSize = 5;
+  static const int _pageSize = 7;
 
   String _formatDate(DateTime date) {
     final now = DateTime.now();
@@ -39,9 +39,14 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     BuildContext context,
     AppNotification item,
     String userId,
+    String? username,
   ) {
-    if (!item.isRead(userId)) {
-      NotificationService.markAsRead(notificationId: item.id, userId: userId);
+    if (!item.isRead(userId, username)) {
+      NotificationService.markAsRead(
+        notificationId: item.id,
+        userId: userId,
+        username: username,
+      );
     }
 
     if (item.route == 'account_approvals' &&
@@ -69,6 +74,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   Widget build(BuildContext context) {
     final role = AuthService.currentNotificationRole;
     final userId = AuthService.currentUserId;
+    final username = AuthService.currentUsername;
 
     return StreamBuilder<List<AppNotification>>(
       stream: NotificationService.watchNotifications(
@@ -79,7 +85,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       builder: (context, snapshot) {
         final notifications = snapshot.data ?? [];
         final unreadCount =
-            notifications.where((n) => !n.isRead(userId)).length;
+            notifications.where((n) => !n.isRead(userId, username)).length;
 
         return CupertinoPageScaffold(
           backgroundColor: AppColors.background,
@@ -94,6 +100,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                     onPressed: () => NotificationService.markAllAsRead(
                       notifications: notifications,
                       userId: userId,
+                      username: username,
                     ),
                     child: const Text(
                       'Mark all read',
@@ -162,9 +169,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                           for (final item in pagedNotifications) ...[
                             Builder(
                               builder: (context) {
-                                final isRead = item.isRead(userId);
+                                final isRead = item.isRead(userId, username);
                                 return GestureDetector(
-                                  onTap: () => _onNotificationTap(context, item, userId),
+                                  onTap: () => _onNotificationTap(context, item, userId, username),
                                   child: StaffCard(
                                     padding: const EdgeInsets.all(14),
                                     child: Row(
@@ -175,13 +182,16 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                                           height: 38,
                                           alignment: Alignment.center,
                                           decoration: BoxDecoration(
-                                            color: item.type.color
-                                                .withValues(alpha: isRead ? 0.12 : 0.20),
+                                            color: isRead
+                                                ? CupertinoColors.systemGrey5
+                                                : item.type.color.withValues(alpha: 0.20),
                                             borderRadius: BorderRadius.circular(12),
                                           ),
                                           child: Icon(
                                             item.type.icon,
-                                            color: item.type.color,
+                                            color: isRead
+                                                ? CupertinoColors.systemGrey
+                                                : item.type.color,
                                             size: 20,
                                           ),
                                         ),
@@ -239,8 +249,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                                                     padding: const EdgeInsets.symmetric(
                                                         horizontal: 7, vertical: 2),
                                                     decoration: BoxDecoration(
-                                                      color: item.type.color
-                                                          .withValues(alpha: 0.10),
+                                                      color: isRead
+                                                          ? CupertinoColors.systemGrey6
+                                                          : item.type.color.withValues(alpha: 0.10),
                                                       borderRadius:
                                                           BorderRadius.circular(6),
                                                     ),
@@ -249,7 +260,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                                                       style: TextStyle(
                                                         fontSize: 10.5,
                                                         fontWeight: FontWeight.w600,
-                                                        color: item.type.color,
+                                                        color: isRead
+                                                            ? CupertinoColors.secondaryLabel
+                                                            : item.type.color,
                                                       ),
                                                     ),
                                                   ),

@@ -60,6 +60,17 @@ class AdminWebShellState extends State<AdminWebShell> {
     });
   }
 
+  void navigateToTab(int index, {int? inventoryTab}) {
+    setState(() {
+      _selectedIndex = index;
+      _currentActions = [];
+      _customTitle = null;
+      if (inventoryTab != null) {
+        _inventoryInitialTab = inventoryTab;
+      }
+    });
+  }
+
   void setTitle(String? title) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted && _customTitle != title) {
