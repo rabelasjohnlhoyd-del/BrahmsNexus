@@ -99,8 +99,10 @@ class DriverDisplayTile extends StatelessWidget {
             ),
             child: Text(
               value,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: TextStyle(
-                fontSize: 26,
+                fontSize: value.length > 5 ? 16 : 26,
                 fontWeight: FontWeight.w800,
                 color: dark ? CupertinoColors.white : AppColors.accentDark,
               ),

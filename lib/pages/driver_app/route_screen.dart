@@ -578,6 +578,15 @@ class _RouteScreenState extends State<RouteScreen> {
                     final staffName = staff?.fullName ?? 'Unassigned';
                     final hours = _branchHours[branch.id] ?? '8:00 AM - 8:00 PM';
 
+                    // Sequence Enforcement: A stop is active ONLY if all preceding stops are completed.
+                    bool isLocked = false;
+                    for (int i = 0; i < index; i++) {
+                      if (!_currentCompletedSet.contains(branches[i].id)) {
+                        isLocked = true;
+                        break;
+                      }
+                    }
+
                     return IntrinsicHeight(
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -589,15 +598,17 @@ class _RouteScreenState extends State<RouteScreen> {
                                 height: 28,
                                 alignment: Alignment.center,
                                 decoration: BoxDecoration(
-                                  color: completed ? AppColors.success : AppColors.accent,
+                                  color: completed
+                                      ? AppColors.success
+                                      : (isLocked ? AppColors.border : AppColors.accent),
                                   shape: BoxShape.circle,
                                 ),
                                 child: completed
                                     ? const Icon(CupertinoIcons.check_mark, color: CupertinoColors.white, size: 14)
                                     : Text(
                                         '${index + 1}',
-                                        style: const TextStyle(
-                                          color: CupertinoColors.white,
+                                        style: TextStyle(
+                                          color: isLocked ? AppColors.textSecondary : CupertinoColors.white,
                                           fontSize: 12,
                                           fontWeight: FontWeight.bold,
                                         ),
@@ -610,7 +621,9 @@ class _RouteScreenState extends State<RouteScreen> {
                                     margin: const EdgeInsets.symmetric(vertical: 4),
                                     color: completed
                                         ? AppColors.success.withValues(alpha: 0.3)
-                                        : AppColors.accent.withValues(alpha: 0.15),
+                                        : (isLocked
+                                            ? AppColors.border.withValues(alpha: 0.5)
+                                            : AppColors.accent.withValues(alpha: 0.15)),
                                   ),
                                 ),
                             ],
@@ -620,67 +633,69 @@ class _RouteScreenState extends State<RouteScreen> {
                           Expanded(
                             child: Padding(
                               padding: const EdgeInsets.only(bottom: 20),
-                              child: DriverCard(
-                                padding: const EdgeInsets.all(16),
-                                highlighted: !completed && notified,
-                                borderColor: completed ? AppColors.success.withValues(alpha: 0.2) : null,
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                      children: [
-                                        Expanded(
-                                          child: Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
-                                            children: [
-                                              Text(
-                                                branch.fullName,
-                                                style: const TextStyle(
-                                                  fontSize: 15,
-                                                  fontWeight: FontWeight.w700,
-                                                  color: AppColors.textPrimary,
+                              child: Opacity(
+                                opacity: isLocked ? 0.6 : 1.0,
+                                child: DriverCard(
+                                  padding: const EdgeInsets.all(16),
+                                  highlighted: !completed && notified && !isLocked,
+                                  borderColor: completed ? AppColors.success.withValues(alpha: 0.2) : null,
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                        children: [
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  branch.fullName,
+                                                  style: TextStyle(
+                                                    fontSize: 15,
+                                                    fontWeight: FontWeight.w700,
+                                                    color: isLocked ? AppColors.textSecondary : AppColors.textPrimary,
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 4),
+                                                Row(
+                                                  children: [
+                                                    const Icon(CupertinoIcons.time, size: 12, color: AppColors.textSecondary),
+                                                    const SizedBox(width: 4),
+                                                    Text(
+                                                      'Hours: $hours',
+                                                      style: const TextStyle(
+                                                        fontSize: 12,
+                                                        color: AppColors.textSecondary,
+                                                        fontWeight: FontWeight.w500,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          if (completed)
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                              decoration: BoxDecoration(
+                                                color: AppColors.success.withValues(alpha: 0.1),
+                                                borderRadius: BorderRadius.circular(8),
+                                              ),
+                                              child: const Text(
+                                                'DONE',
+                                                style: TextStyle(
+                                                  fontSize: 10,
+                                                  fontWeight: FontWeight.w800,
+                                                  color: AppColors.success,
                                                 ),
                                               ),
-                                              const SizedBox(height: 4),
-                                              Row(
-                                                children: [
-                                                  const Icon(CupertinoIcons.time, size: 12, color: AppColors.textSecondary),
-                                                  const SizedBox(width: 4),
-                                                  Text(
-                                                    'Hours: $hours',
-                                                    style: const TextStyle(
-                                                      fontSize: 12,
-                                                      color: AppColors.textSecondary,
-                                                      fontWeight: FontWeight.w500,
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                        if (completed)
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                            decoration: BoxDecoration(
-                                              color: AppColors.success.withValues(alpha: 0.1),
-                                              borderRadius: BorderRadius.circular(8),
-                                            ),
-                                            child: const Text(
-                                              'DONE',
-                                              style: TextStyle(
-                                                fontSize: 10,
-                                                fontWeight: FontWeight.w800,
-                                                color: AppColors.success,
-                                              ),
-                                            ),
-                                          )
-                                        else
-                                          const Icon(CupertinoIcons.location_north_fill, 
-                                                     size: 16, color: AppColors.accent),
-                                      ],
-                                    ),
+                                            )
+                                          else
+                                            Icon(CupertinoIcons.location_north_fill, 
+                                                 size: 16, color: isLocked ? AppColors.border : AppColors.accent),
+                                        ],
+                                      ),
                                     
                                     const SizedBox(height: 16),
                                     
@@ -793,16 +808,16 @@ class _RouteScreenState extends State<RouteScreen> {
                                               minimumSize: const Size(0, 38),
                                               color: notified 
                                                 ? AppColors.background 
-                                                : AppColors.accent.withValues(alpha: 0.1),
+                                                : (isLocked ? AppColors.border.withValues(alpha: 0.1) : AppColors.accent.withValues(alpha: 0.1)),
                                               borderRadius: BorderRadius.circular(12),
-                                              onPressed: () => _confirmNotifyStaff(branch, staff),
+                                              onPressed: isLocked ? null : () => _confirmNotifyStaff(branch, staff),
                                               child: Row(
                                                 mainAxisAlignment: MainAxisAlignment.center,
                                                 children: [
                                                   Icon(
                                                     notified ? CupertinoIcons.bell_fill : CupertinoIcons.bell,
                                                     size: 14,
-                                                    color: notified ? AppColors.textSecondary : AppColors.accent,
+                                                    color: isLocked ? AppColors.border : (notified ? AppColors.textSecondary : AppColors.accent),
                                                   ),
                                                   const SizedBox(width: 6),
                                                   Text(
@@ -810,7 +825,7 @@ class _RouteScreenState extends State<RouteScreen> {
                                                     style: TextStyle(
                                                       fontSize: 12,
                                                       fontWeight: FontWeight.w700,
-                                                      color: notified ? AppColors.textSecondary : AppColors.accent,
+                                                      color: isLocked ? AppColors.border : (notified ? AppColors.textSecondary : AppColors.accent),
                                                     ),
                                                   ),
                                                 ],
@@ -822,15 +837,15 @@ class _RouteScreenState extends State<RouteScreen> {
                                             child: CupertinoButton(
                                               padding: EdgeInsets.zero,
                                               minimumSize: const Size(0, 38),
-                                              color: AppColors.accent,
+                                              color: isLocked ? AppColors.border : AppColors.accent,
                                               borderRadius: BorderRadius.circular(12),
-                                              onPressed: () => _confirmMarkCompleted(branch, staff),
+                                              onPressed: isLocked ? null : () => _confirmMarkCompleted(branch, staff),
                                               child: Text(
                                                 _activeMode == RouteMode.deployment ? 'Dropped Off' : 'Picked Up',
-                                                style: const TextStyle(
+                                                style: TextStyle(
                                                   fontSize: 12,
                                                   fontWeight: FontWeight.w700,
-                                                  color: CupertinoColors.white,
+                                                  color: isLocked ? AppColors.textSecondary : CupertinoColors.white,
                                                 ),
                                               ),
                                             ),
@@ -843,6 +858,7 @@ class _RouteScreenState extends State<RouteScreen> {
                               ),
                             ),
                           ),
+                        ),
                         ],
                       ),
                     );

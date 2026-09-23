@@ -300,16 +300,23 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
               color: AppColors.textPrimary,
             ),
           ),
-          const Spacer(),
-          if (value != null)
-            Text(
-              value,
-              style: TextStyle(
-                fontSize: 14,
-                color: color ?? AppColors.textSecondary,
-                fontWeight: FontWeight.w600,
+          if (value != null) ...[
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                value,
+                textAlign: TextAlign.end,
+                style: TextStyle(
+                  fontSize: 14,
+                  color: color ?? AppColors.textSecondary,
+                  fontWeight: FontWeight.w600,
+                ),
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1,
               ),
             ),
+          ] else
+            const Spacer(),
           if (showChevron)
             const Padding(
               padding: EdgeInsets.only(left: 8),

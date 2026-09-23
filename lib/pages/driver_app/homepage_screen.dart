@@ -1,7 +1,11 @@
 import 'dart:async';
 import 'package:flutter/cupertino.dart';
 import '../../models/branch.dart';
+import '../../models/branch_assignment.dart';
+import '../../models/staff_member.dart';
+import '../../services/assignment_service.dart';
 import '../../services/auth_service.dart';
+import '../../services/supabase_service.dart';
 import '../../services/weather_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/app_pagination_bar.dart';
@@ -26,6 +30,9 @@ class _DriverHomepageScreenState extends State<DriverHomepageScreen> {
   bool _isRefreshing = false;
   bool _isCelsius = true;
 
+  List<StaffMember> _allStaff = [];
+  List<Branch> _allBranches = [];
+
   // Live weather state
   int _tempC = 28;
   int _humidity = 81;
@@ -39,13 +46,44 @@ class _DriverHomepageScreenState extends State<DriverHomepageScreen> {
   @override
   void initState() {
     super.initState();
+    _loadInitialData();
+    AssignmentService.changeNotifier.addListener(_onAssignmentsChanged);
     _startWeatherTimer();
   }
 
   @override
   void dispose() {
+    AssignmentService.changeNotifier.removeListener(_onAssignmentsChanged);
     _weatherTimer?.cancel();
     super.dispose();
+  }
+
+  void _loadInitialData() async {
+    // Immediate sync load
+    _allBranches = SupabaseService.getAllBranchesSync();
+    _allStaff = SupabaseService.getAllStaff();
+    if (mounted) setState(() {});
+
+    // Remote refresh
+    try {
+      final branches = await SupabaseService.getBranches();
+      await SupabaseService.refreshStaffFromRemote();
+      await AssignmentService.ensureInitialized();
+      if (mounted) {
+        setState(() {
+          _allBranches = branches;
+          _allStaff = SupabaseService.getAllStaff();
+        });
+      }
+    } catch (_) {}
+  }
+
+  void _onAssignmentsChanged() {
+    if (mounted) {
+      setState(() {
+        _allStaff = SupabaseService.getAllStaff();
+      });
+    }
   }
 
   void _startWeatherTimer() {
@@ -85,12 +123,42 @@ class _DriverHomepageScreenState extends State<DriverHomepageScreen> {
     return _isCelsius ? celsius : ((celsius * 9 / 5) + 32).round();
   }
 
-  static const Map<String, String> _assignedStaff = {
-    'br1': 'Juan Dela Cruz',
-    'br2': 'Pedro Santos',
-    'br3': 'Maria Reyes',
-    'br6': 'Liza Gomez',
-  };
+  /// Helper to find who is assigned to a branch today based on AssignmentService.
+  String? _getStaffForBranch(Branch branch) {
+    for (final s in _allStaff) {
+      if (s.isArchived) continue;
+
+      final status = AssignmentService.getWorkStatus(
+        s.username,
+        fallback: AssignmentService.getWorkStatus(
+          s.id,
+          fallback: s.isRestDay ? WorkStatus.restDay : WorkStatus.onDuty,
+        ),
+      );
+
+      if (status == WorkStatus.restDay) continue;
+
+      final assignedBranch = AssignmentService.getAssignedBranch(
+        s.username,
+        fallback: AssignmentService.getAssignedBranch(s.id, fallback: s.branch),
+      );
+
+      if (assignedBranch == branch.fullName) {
+        return s.fullName;
+      }
+    }
+    return null;
+  }
+
+  int get _staffedBranchesCount {
+    int count = 0;
+    for (final b in _allBranches) {
+      if (_getStaffForBranch(b) != null) {
+        count++;
+      }
+    }
+    return count;
+  }
 
   static const List<String> _months = [
     'January', 'February', 'March', 'April', 'May', 'June',
@@ -333,8 +401,8 @@ class _DriverHomepageScreenState extends State<DriverHomepageScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final totalBranches = kSampleBranches.length;
-    final staffedBranches = _assignedStaff.length;
+    final totalBranches = _allBranches.length;
+    final staffedBranches = _staffedBranchesCount;
 
     return CupertinoPageScaffold(
       backgroundColor: AppColors.background,
@@ -360,7 +428,7 @@ class _DriverHomepageScreenState extends State<DriverHomepageScreen> {
                   child: DriverDisplayTile(
                     icon: CupertinoIcons.building_2_fill,
                     label: 'Total Branches',
-                    value: '$totalBranches',
+                    value: '$staffedBranches/$totalBranches',
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -382,17 +450,17 @@ class _DriverHomepageScreenState extends State<DriverHomepageScreen> {
             const SizedBox(height: 8),
             Builder(
               builder: (context) {
-                final total = kSampleBranches.length;
+                final total = _allBranches.length;
                 final totalPages = (total / _pageSize).ceil();
                 final effectivePage = totalPages == 0 ? 0 : _branchesPage.clamp(0, totalPages - 1);
-                final pagedBranches = kSampleBranches.skip(effectivePage * _pageSize).take(_pageSize).toList();
+                final pagedBranches = _allBranches.skip(effectivePage * _pageSize).take(_pageSize).toList();
 
                 return Column(
                   children: [
                     for (final branch in pagedBranches) ...[
                       Builder(
                         builder: (context) {
-                          final staffName = _assignedStaff[branch.id];
+                          final staffName = _getStaffForBranch(branch);
 
                           return Padding(
                             padding: const EdgeInsets.only(bottom: 8),
