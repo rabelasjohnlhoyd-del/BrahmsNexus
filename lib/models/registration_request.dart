@@ -22,6 +22,8 @@ class RegistrationRequest {
     this.driverLicenseNumber = '',
     this.driverLicenseExpiry = '',
     this.isLicenseVerified = false,
+    this.isEmailVerified = false,
+    this.isPhoneVerified = false,
     DateTime? dateRequested,
   }) : dateRequested = dateRequested ?? DateTime.now();
 
@@ -38,6 +40,8 @@ class RegistrationRequest {
   final String driverLicenseNumber;
   final String driverLicenseExpiry;
   final bool isLicenseVerified;
+  final bool isEmailVerified;
+  final bool isPhoneVerified;
   final DateTime dateRequested;
 
   String get displayRole => position.isNotEmpty ? position : role.label;
@@ -62,6 +66,8 @@ class RegistrationRequest {
       driverLicenseNumber: user.driverLicenseNumber,
       driverLicenseExpiry: user.driverLicenseExpiry,
       isLicenseVerified: user.isLicenseVerified,
+      isEmailVerified: user.isEmailVerified,
+      isPhoneVerified: user.isPhoneVerified,
       dateRequested: user.createdAt,
     );
   }
@@ -75,6 +81,8 @@ class RegistrationRequest {
     String? driverLicenseNumber,
     String? driverLicenseExpiry,
     bool? isLicenseVerified,
+    bool? isEmailVerified,
+    bool? isPhoneVerified,
   }) {
     return RegistrationRequest(
       id: id,
@@ -90,6 +98,8 @@ class RegistrationRequest {
       driverLicenseNumber: driverLicenseNumber ?? this.driverLicenseNumber,
       driverLicenseExpiry: driverLicenseExpiry ?? this.driverLicenseExpiry,
       isLicenseVerified: isLicenseVerified ?? this.isLicenseVerified,
+      isEmailVerified: isEmailVerified ?? this.isEmailVerified,
+      isPhoneVerified: isPhoneVerified ?? this.isPhoneVerified,
       dateRequested: dateRequested,
     );
   }

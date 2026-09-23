@@ -578,6 +578,65 @@ class _ApplicantCard extends StatelessWidget {
                       ),
                     ),
                   ],
+                  const SizedBox(height: 6),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 4,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: (request.isEmailVerified ? AppColors.success : AppColors.textSecondary).withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              request.isEmailVerified ? CupertinoIcons.checkmark_circle_fill : CupertinoIcons.mail,
+                              size: 11,
+                              color: request.isEmailVerified ? AppColors.success : AppColors.textSecondary,
+                            ),
+                            const SizedBox(width: 3),
+                            Text(
+                              request.isEmailVerified ? 'Email Verified' : 'Email Unverified',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                                color: request.isEmailVerified ? AppColors.success : AppColors.textSecondary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: (request.isPhoneVerified ? AppColors.success : AppColors.accent).withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              request.isPhoneVerified ? CupertinoIcons.phone_fill : CupertinoIcons.phone,
+                              size: 11,
+                              color: request.isPhoneVerified ? AppColors.success : AppColors.accent,
+                            ),
+                            const SizedBox(width: 3),
+                            Text(
+                              request.isPhoneVerified ? 'Phone SMS Verified' : 'Pending SMS on App Entry',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                                color: request.isPhoneVerified ? AppColors.success : AppColors.accent,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ],
               ),
             ),

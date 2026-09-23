@@ -80,6 +80,8 @@ class AuthService {
     String driverLicenseNumber = '',
     String driverLicenseExpiry = '',
     bool isLicenseVerified = false,
+    bool isEmailVerified = false,
+    bool isPhoneVerified = false,
   }) async {
     try {
       final credential = await _auth.createUserWithEmailAndPassword(
@@ -102,6 +104,8 @@ class AuthService {
         driverLicenseNumber: driverLicenseNumber.trim(),
         driverLicenseExpiry: driverLicenseExpiry.trim(),
         isLicenseVerified: isLicenseVerified,
+        isEmailVerified: isEmailVerified,
+        isPhoneVerified: isPhoneVerified,
       );
 
       // Lightweight auth record in Firestore
@@ -176,6 +180,38 @@ class AuthService {
     } catch (_) {
       onError('Something went wrong. Please try again.');
       return null;
+    }
+  }
+
+  /// Updates phone verification status in Firestore and in-memory session.
+  static Future<bool> markPhoneAsVerified(String uid) async {
+    try {
+      await _db.collection('users').doc(uid).update({
+        'isPhoneVerified': true,
+      });
+      if (currentAppUser != null && currentAppUser!.uid == uid) {
+        currentAppUser = currentAppUser!.copyWith(isPhoneVerified: true);
+      }
+      return true;
+    } catch (e) {
+      debugPrint('AuthService.markPhoneAsVerified error: $e');
+      return false;
+    }
+  }
+
+  /// Updates email verification status in Firestore and in-memory session.
+  static Future<bool> markEmailAsVerified(String uid) async {
+    try {
+      await _db.collection('users').doc(uid).update({
+        'isEmailVerified': true,
+      });
+      if (currentAppUser != null && currentAppUser!.uid == uid) {
+        currentAppUser = currentAppUser!.copyWith(isEmailVerified: true);
+      }
+      return true;
+    } catch (e) {
+      debugPrint('AuthService.markEmailAsVerified error: $e');
+      return false;
     }
   }
 

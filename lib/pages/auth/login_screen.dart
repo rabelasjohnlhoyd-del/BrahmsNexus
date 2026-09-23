@@ -151,6 +151,7 @@ class _LoginScreenState extends State<LoginScreen> {
           role: user.role,
           status: user.status,
           position: user.position,
+          user: user,
         ),
       ),
       (route) => false,

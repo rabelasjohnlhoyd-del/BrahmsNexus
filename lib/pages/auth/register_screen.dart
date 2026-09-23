@@ -11,6 +11,7 @@ import '../../widgets/auth_admin_layout.dart';
 import '../../widgets/auth_brand_mark.dart';
 import '../../widgets/primary_button.dart';
 import 'account_status_screen.dart';
+import 'email_otp_screen.dart';
 
 /// Clean, simple, and professional Registration Screen for Web Admin & Applicants.
 ///
@@ -246,8 +247,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
       return;
     }
 
-    setState(() => _isSubmitting = true);
-
     final fullName = [
       _firstNameController.text.trim(),
       if (_middleNameController.text.trim().isNotEmpty)
@@ -256,38 +255,48 @@ class _RegisterScreenState extends State<RegisterScreen> {
       if (_selectedSuffix != null && _selectedSuffix!.isNotEmpty) _selectedSuffix!,
     ].join(' ');
 
-    final error = await AuthService.register(
-      username: username,
-      password: password,
-      fullName: fullName,
-      contactNumber: _contactController.text.trim(),
-      role: UserRole.staff,
-      position: _selectedRoleString == 'Driver' ? 'Driver' : 'Branch Cook',
-      email: email,
-      age: _ageController.text.trim(),
-      address: _addressController.text.trim(),
-      driverLicenseNumber: _photoLicenseResult?.licenseNumber ?? '',
-      driverLicenseExpiry: _photoLicenseResult?.expiryDate ?? '',
-      isLicenseVerified: _selectedRoleString == 'Driver' && _photoLicenseResult?.isValid == true,
-    );
+    setState(() => _isSubmitting = true);
 
-    if (!mounted) return;
-
-    if (error != null) {
-      setState(() {
-        _isSubmitting = false;
-        _registerError = error;
-      });
-      return;
-    }
-
-    setState(() => _isSubmitting = false);
-
-    Navigator.of(context).pushReplacement(
+    // Navigate to Email OTP Verification Screen
+    await Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => const AccountStatusScreen(status: AccountStatus.pending),
+        builder: (_) => EmailOtpScreen(
+          email: email,
+          onVerified: () async {
+            final error = await AuthService.register(
+              username: username,
+              password: password,
+              fullName: fullName,
+              contactNumber: _contactController.text.trim(),
+              role: UserRole.staff,
+              position: _selectedRoleString == 'Driver' ? 'Driver' : 'Branch Cook',
+              email: email,
+              age: _ageController.text.trim(),
+              address: _addressController.text.trim(),
+              driverLicenseNumber: _photoLicenseResult?.licenseNumber ?? '',
+              driverLicenseExpiry: _photoLicenseResult?.expiryDate ?? '',
+              isLicenseVerified: _selectedRoleString == 'Driver' && _photoLicenseResult?.isValid == true,
+              isEmailVerified: true,
+              isPhoneVerified: false,
+            );
+
+            if (error == null && mounted) {
+              Navigator.of(context).pushAndRemoveUntil(
+                MaterialPageRoute(
+                  builder: (_) => const AccountStatusScreen(status: AccountStatus.pending),
+                ),
+                (route) => false,
+              );
+            }
+            return error;
+          },
+        ),
       ),
     );
+
+    if (mounted) {
+      setState(() => _isSubmitting = false);
+    }
   }
 
   @override
@@ -1218,9 +1227,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
     // Step 2 (Final submission)
     return Row(
       children: [
-        Expanded(
-          flex: 1,
-            child: OutlinedButton(
+        SizedBox(
+          width: 80,
+          child: OutlinedButton(
             onPressed: _isSubmitting ? null : _prevStep,
             style: OutlinedButton.styleFrom(
               padding: const EdgeInsets.symmetric(vertical: 12),
@@ -1239,9 +1248,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
         ),
         const SizedBox(width: 10),
         Expanded(
-          flex: 2,
           child: PrimaryButton(
-            label: 'SUBMIT APPLICATION',
+            label: 'Submit Application',
             isLoading: _isSubmitting,
             onPressed: _handleRegister,
           ),

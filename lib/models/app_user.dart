@@ -27,6 +27,8 @@ class AppUser {
     this.driverLicenseNumber = '',
     this.driverLicenseExpiry = '',
     this.isLicenseVerified = false,
+    this.isEmailVerified = false,
+    this.isPhoneVerified = false,
     this.createdAt,
   });
 
@@ -43,6 +45,8 @@ class AppUser {
   final String driverLicenseNumber;
   final String driverLicenseExpiry;
   final bool isLicenseVerified;
+  final bool isEmailVerified;
+  final bool isPhoneVerified;
 
   /// When the account was created. Written by [AuthService.register]
   /// via `FieldValue.serverTimestamp()` (not expressible as a plain
@@ -72,6 +76,8 @@ class AppUser {
       driverLicenseNumber: map['driverLicenseNumber'] as String? ?? '',
       driverLicenseExpiry: map['driverLicenseExpiry'] as String? ?? '',
       isLicenseVerified: map['isLicenseVerified'] as bool? ?? false,
+      isEmailVerified: map['isEmailVerified'] as bool? ?? false,
+      isPhoneVerified: map['isPhoneVerified'] as bool? ?? false,
       createdAt: (map['createdAt'] as Timestamp?)?.toDate(),
     );
   }
@@ -105,6 +111,8 @@ class AppUser {
     String? driverLicenseNumber,
     String? driverLicenseExpiry,
     bool? isLicenseVerified,
+    bool? isEmailVerified,
+    bool? isPhoneVerified,
     DateTime? createdAt,
   }) {
     return AppUser(
@@ -121,6 +129,8 @@ class AppUser {
       driverLicenseNumber: driverLicenseNumber ?? this.driverLicenseNumber,
       driverLicenseExpiry: driverLicenseExpiry ?? this.driverLicenseExpiry,
       isLicenseVerified: isLicenseVerified ?? this.isLicenseVerified,
+      isEmailVerified: isEmailVerified ?? this.isEmailVerified,
+      isPhoneVerified: isPhoneVerified ?? this.isPhoneVerified,
       createdAt: createdAt ?? this.createdAt,
     );
   }
@@ -144,6 +154,8 @@ class AppUser {
       'driverLicenseNumber': driverLicenseNumber,
       'driverLicenseExpiry': driverLicenseExpiry,
       'isLicenseVerified': isLicenseVerified,
+      'isEmailVerified': isEmailVerified,
+      'isPhoneVerified': isPhoneVerified,
     };
   }
 }

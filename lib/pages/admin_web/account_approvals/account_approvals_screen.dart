@@ -395,6 +395,65 @@ class _RequestCard extends StatelessWidget {
                   ],
                 ),
               ],
+              const SizedBox(height: 5),
+              Wrap(
+                spacing: 6,
+                runSpacing: 4,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: (request.isEmailVerified ? AdminWebColors.success : AdminWebColors.textSecondary).withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          request.isEmailVerified ? Icons.mark_email_read_rounded : Icons.mail_outline_rounded,
+                          size: 11,
+                          color: request.isEmailVerified ? AdminWebColors.success : AdminWebColors.textSecondary,
+                        ),
+                        const SizedBox(width: 3),
+                        Text(
+                          request.isEmailVerified ? 'Email Verified' : 'Email Unverified',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                            color: request.isEmailVerified ? AdminWebColors.success : AdminWebColors.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: (request.isPhoneVerified ? AdminWebColors.success : AdminWebColors.accent).withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          request.isPhoneVerified ? Icons.phonelink_ring_rounded : Icons.phonelink_lock_rounded,
+                          size: 11,
+                          color: request.isPhoneVerified ? AdminWebColors.success : AdminWebColors.accent,
+                        ),
+                        const SizedBox(width: 3),
+                        Text(
+                          request.isPhoneVerified ? 'Phone SMS Verified' : 'Pending SMS on App Entry',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                            color: request.isPhoneVerified ? AdminWebColors.success : AdminWebColors.accent,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ],
           );
 

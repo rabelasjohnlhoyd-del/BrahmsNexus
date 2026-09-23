@@ -27,6 +27,10 @@ import 'account_status_screen.dart';
 ///      Announcements)
 ///    - Staff -> [StaffShell]
 ///    - Driver -> [DriverShell]
+import '../../models/app_user.dart';
+import '../../services/auth_service.dart';
+import 'phone_sms_screen.dart';
+
 class RoleRouter {
   const RoleRouter._();
 
@@ -34,9 +38,21 @@ class RoleRouter {
     required UserRole role,
     required AccountStatus status,
     String position = '',
+    AppUser? user,
   }) {
     if (status != AccountStatus.approved) {
       return AccountStatusScreen(status: status);
+    }
+
+    // Two-Step Security Verification Guard:
+    // If the account is approved, but the mobile phone number has not yet been
+    // verified via SMS OTP, route them to the PhoneSmsScreen first.
+    final currentUser = user ?? AuthService.currentAppUser;
+    if (currentUser != null &&
+        currentUser.role != UserRole.owner &&
+        !currentUser.isPhoneVerified &&
+        currentUser.contactNumber.trim().isNotEmpty) {
+      return PhoneSmsScreen(user: currentUser);
     }
 
     if (role == UserRole.owner) {
