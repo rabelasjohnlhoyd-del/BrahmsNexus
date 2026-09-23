@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../models/account_status.dart';
 import '../../theme/app_theme.dart';
+import 'login_screen.dart';
 
 /// Shown when the account is not yet [AccountStatus.approved].
 /// - Pending: waiting on Owner/Admin approval.
@@ -85,7 +86,10 @@ class AccountStatusScreen extends StatelessWidget {
                     width: double.infinity,
                     height: 50,
                     child: OutlinedButton(
-                      onPressed: () => Navigator.of(context).pop(),
+                      onPressed: () => Navigator.of(context).pushAndRemoveUntil(
+                        MaterialPageRoute(builder: (_) => const LoginScreen()),
+                        (route) => false,
+                      ),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: AppColors.accent,
                         side: const BorderSide(color: AppColors.accent),

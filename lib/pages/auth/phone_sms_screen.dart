@@ -99,6 +99,8 @@ class _PhoneSmsScreenState extends State<PhoneSmsScreen> {
         if (!mounted) return;
         setState(() {
           _isSendingSms = false;
+          // Still show pin boxes so bypass code 123456 can be used
+          _smsSent = true;
           _errorMessage = message;
         });
       },
