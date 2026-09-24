@@ -15,6 +15,7 @@ import '../models/sales_record.dart';
 import 'auth_service.dart';
 import 'firestore_cache.dart';
 import 'notification_service.dart';
+import 'supabase_service.dart';
 
 /// Service dedicated to handling high-frequency, operational, and real-time
 /// data in Cloud Firestore.
@@ -637,6 +638,30 @@ class FirestoreService {
       }
       await _db.collection('daily_sales').doc(docId).set(data);
 
+      // ── Dual-Sync to Supabase (PostgreSQL - 0 read cost on analytics) ──
+      final salesWithId = sales.id.isNotEmpty
+          ? sales
+          : SalesRecord(
+              id: docId,
+              branchId: sales.branchId,
+              branchName: sales.branchName,
+              employeeId: sales.employeeId,
+              employeeName: sales.employeeName,
+              date: sales.date,
+              portionsSold: sales.portionsSold,
+              commissionRatePerPortion: sales.commissionRatePerPortion,
+              totalSalesAmount: sales.totalSalesAmount,
+              totalOrders: sales.totalOrders,
+              remainingStock: sales.remainingStock,
+              wage: sales.wage,
+              regularSold: sales.regularSold,
+              mediumSold: sales.mediumSold,
+              b1t1OrdersSold: sales.b1t1OrdersSold,
+              discrepancyNote: sales.discrepancyNote,
+            );
+      SupabaseService.saveDailySales(salesWithId).catchError((_) => false);
+      // ──────────────────────────────────────────────────────────────────
+
       // ── Notify Owner in real-time (both notifications and owner_notifications) ──
       final rs = sales.remainingStock;
       final stockNote = rs != null
@@ -798,6 +823,18 @@ class FirestoreService {
     DateTime? startDate,
     int limit = 50,
   }) async {
+    // 1. Try Supabase first (Zero Firestore read consumption!)
+    try {
+      final supabaseSales = await SupabaseService.getRecentSales(
+        startDate: startDate,
+        limit: limit,
+      );
+      if (supabaseSales.isNotEmpty) {
+        return supabaseSales;
+      }
+    } catch (_) {}
+
+    // 2. Fallback to Firestore if Supabase table is not yet seeded or unavailable
     try {
       final from = startDate ?? DateTime.now().subtract(const Duration(days: 7));
       final cacheKey = 'sales:${from.toIso8601String()}:$limit';
@@ -902,7 +939,7 @@ class FirestoreService {
   /// Saves an employee daily incident report in Firestore and notifies the owner.
   static Future<bool> submitDailyReport(DailyReport report) async {
     try {
-      await _db.collection('daily_reports').add({
+      final docRef = await _db.collection('daily_reports').add({
         'employeeId': report.employeeId,
         'employeeName': report.employeeName,
         'branchId': report.branchId,
@@ -912,6 +949,10 @@ class FirestoreService {
         'status': report.status.name,
         'submittedAt': FieldValue.serverTimestamp(),
       });
+
+      // Dual-sync to Supabase
+      final reportWithId = report.copyWith(id: docRef.id);
+      SupabaseService.saveDailyReport(reportWithId).catchError((_) => false);
 
       // Notify owner in real time
       final hasIncident = report.status == ReportSubmissionStatus.incomplete;
@@ -956,6 +997,9 @@ class FirestoreService {
         'repliedAt': FieldValue.serverTimestamp(),
       });
 
+      // Dual-sync to Supabase
+      SupabaseService.replyToDailyReport(reportId: reportId, reply: reply).catchError((_) => false);
+
       // Notify the branch cook that owner replied
       await NotificationService.sendNotification(
         title: '💬 May tugon ang Owner sa iyong report',
@@ -986,6 +1030,9 @@ class FirestoreService {
         'status': ReportSubmissionStatus.submitted.name,
         'receivedConfirmedAt': FieldValue.serverTimestamp(),
       });
+
+      // Dual-sync to Supabase
+      SupabaseService.confirmReportReceived(reportId: reportId).catchError((_) => false);
 
       // Notify owner that the delivery/fix was confirmed by cook
       await NotificationService.sendNotification(
@@ -1122,7 +1169,7 @@ class FirestoreService {
     });
   }
 
-  /// Saves or updates a production batch in Firestore.
+  /// Saves or updates a production batch in Firestore and Supabase.
   static Future<bool> saveProductionBatch(KarneBatch batch) async {
     try {
       final docRef = _db.collection('production_batches').doc(batch.id);
@@ -1131,6 +1178,10 @@ class FirestoreService {
 
       await docRef.set(data, SetOptions(merge: true));
       debugPrint('FirestoreService: Successfully saved batch ${batch.id} (${batch.name})');
+
+      // Dual-sync to Supabase
+      SupabaseService.saveProductionBatch(batch).catchError((_) => false);
+
       return true;
     } catch (e) {
       debugPrint('FirestoreService.saveProductionBatch error: $e');
@@ -1138,11 +1189,15 @@ class FirestoreService {
     }
   }
 
-  /// Deletes a production batch from Firestore.
+  /// Deletes a production batch from Firestore and Supabase.
   static Future<bool> deleteProductionBatch(String batchId) async {
     try {
       await _db.collection('production_batches').doc(batchId).delete();
       debugPrint('FirestoreService: Successfully deleted batch $batchId');
+
+      // Dual-sync to Supabase
+      SupabaseService.deleteProductionBatch(batchId).catchError((_) => false);
+
       return true;
     } catch (e) {
       debugPrint('FirestoreService.deleteProductionBatch error: $e');
@@ -1236,7 +1291,7 @@ class FirestoreService {
     });
   }
 
-  /// Posts a new announcement in Firestore.
+  /// Posts a new announcement in Firestore and Supabase.
   static Future<String?> postAnnouncement(
     String messageContent, {
     String targetPosition = 'All Positions',
@@ -1247,6 +1302,15 @@ class FirestoreService {
         'targetPosition': targetPosition,
         'datePosted': FieldValue.serverTimestamp(),
       });
+
+      // Dual-sync to Supabase
+      SupabaseService.saveAnnouncement(Announcement(
+        id: doc.id,
+        messageContent: messageContent,
+        datePosted: DateTime.now(),
+        targetPosition: targetPosition,
+      )).catchError((_) => false);
+
       return doc.id;
     } catch (e) {
       debugPrint('FirestoreService.postAnnouncement error: $e');
@@ -1254,7 +1318,7 @@ class FirestoreService {
     }
   }
 
-  /// Deletes an announcement from Firestore and marks it persistently deleted.
+  /// Deletes an announcement from Firestore and Supabase and marks it persistently deleted.
   static Future<bool> deleteAnnouncement(String announcementId) async {
     _deletedAnnouncementIds.add(announcementId);
     try {
@@ -1262,6 +1326,10 @@ class FirestoreService {
         'deletedAt': FieldValue.serverTimestamp(),
       });
       await _db.collection('announcements').doc(announcementId).delete();
+
+      // Dual-sync delete to Supabase
+      SupabaseService.deleteAnnouncement(announcementId).catchError((_) => false);
+
       return true;
     } catch (e) {
       debugPrint('FirestoreService.deleteAnnouncement error: $e');

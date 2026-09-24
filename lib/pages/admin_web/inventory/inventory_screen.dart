@@ -244,8 +244,9 @@ class _InventoryScreenState extends State<InventoryScreen>
                             builder: (_) => KarneBatchDetailScreen(
                               batch: batch,
                               onBatchChanged: (updated) {
-                                FirestoreService.saveProductionBatch(updated);
-                                setState(() => _karneBatches[batchIndex] = updated);
+                                if (mounted) {
+                                  setState(() => _karneBatches[batchIndex] = updated);
+                                }
                               },
                             ),
                           ),

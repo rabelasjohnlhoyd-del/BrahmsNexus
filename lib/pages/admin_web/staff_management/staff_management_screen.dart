@@ -34,6 +34,9 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
   @override
   void initState() {
     super.initState();
+    AuthService.syncApprovedUsersToStaffDirectory().then((_) {
+      if (mounted) _loadStaff();
+    });
     _loadStaff();
     _updateShellActions();
   }

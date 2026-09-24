@@ -375,20 +375,107 @@ class AuthService {
       String uid, AccountStatus status) async {
     try {
       await _db.collection('users').doc(uid).update({'status': status.name});
-      // If approved, notify staff/driver that they are approved
+      // If approved, notify staff/driver and sync to Supabase staff_profiles
       if (status == AccountStatus.approved) {
         try {
           final doc = await _db.collection('users').doc(uid).get();
-          final name = doc.data()?['fullName'] as String? ?? 'Staff';
-          NotificationService.notifyStaffOfAccountApproved(
-            userId: uid,
-            fullName: name,
-          );
+          final data = doc.data();
+          if (data != null) {
+            final appUser = AppUser.fromMap(uid, data);
+            NotificationService.notifyStaffOfAccountApproved(
+              userId: uid,
+              fullName: appUser.fullName,
+            );
+
+            // Sync approved user to staff directory so they immediately appear
+            // in Staff Management and Branch Assignments
+            final nameParts = appUser.fullName.trim().split(' ');
+            final firstName = nameParts.isNotEmpty ? nameParts.first : appUser.fullName;
+            final lastName = nameParts.length > 1 ? nameParts.sublist(1).join(' ') : '';
+            final position = appUser.position.isNotEmpty
+                ? appUser.position
+                : (appUser.position.toLowerCase().contains('driver') ? 'Delivery Driver' : 'Branch Cook');
+
+            final staff = StaffMember(
+              id: appUser.uid,
+              firstName: firstName,
+              lastName: lastName,
+              username: appUser.username,
+              branch: 'N/A',
+              position: position,
+              email: appUser.email.isNotEmpty ? appUser.email : null,
+              phone: appUser.contactNumber.isNotEmpty ? appUser.contactNumber : null,
+              address: appUser.address,
+              age: appUser.age,
+              isActive: true,
+              isArchived: false,
+            );
+            await SupabaseService.createStaffProfile(staff);
+          }
         } catch (_) {}
       }
       return true;
     } catch (_) {
       return false;
+    }
+  }
+
+  static bool _hasSyncedApprovedUsers = false;
+
+  /// Syncs all approved users in Firestore into Supabase staff_profiles
+  /// so that any newly or previously approved staff/drivers immediately
+  /// appear in Staff Management and Branch Assignments.
+  /// Guarded to run only ONCE per session to strictly eliminate unnecessary Firestore reads.
+  static Future<void> syncApprovedUsersToStaffDirectory({bool force = false}) async {
+    if (_hasSyncedApprovedUsers && !force) return;
+    _hasSyncedApprovedUsers = true;
+    try {
+      final snap = await _db
+          .collection('users')
+          .where('status', isEqualTo: AccountStatus.approved.name)
+          .get();
+
+      for (final doc in snap.docs) {
+        final data = doc.data();
+        final roleStr = data['role']?.toString();
+        if (roleStr == UserRole.owner.name) continue; // Skip owner
+
+        final appUser = AppUser.fromMap(doc.id, data);
+        final usernameKey = appUser.username.toLowerCase().trim();
+
+        final exists = SupabaseService.getAllStaff().any((s) =>
+            s.id == appUser.uid ||
+            (usernameKey.isNotEmpty && s.username.toLowerCase().trim() == usernameKey));
+
+        if (!exists) {
+          final nameParts = appUser.fullName.trim().split(' ');
+          final firstName = nameParts.isNotEmpty ? nameParts.first : appUser.fullName;
+          final lastName = nameParts.length > 1 ? nameParts.sublist(1).join(' ') : '';
+          final position = appUser.position.isNotEmpty
+              ? appUser.position
+              : (appUser.position.toLowerCase().contains('driver') ? 'Delivery Driver' : 'Branch Cook');
+
+          final staff = StaffMember(
+            id: appUser.uid,
+            firstName: firstName,
+            lastName: lastName,
+            username: appUser.username,
+            branch: 'N/A',
+            position: position,
+            email: appUser.email.isNotEmpty ? appUser.email : null,
+            phone: appUser.contactNumber.isNotEmpty ? appUser.contactNumber : null,
+            address: appUser.address,
+            age: appUser.age,
+            isActive: true,
+            isArchived: false,
+          );
+
+          await SupabaseService.createStaffProfile(staff);
+          debugPrint('AuthService: Auto-synced approved user ${appUser.username} to staff directory.');
+        }
+      }
+    } catch (e) {
+      debugPrint('AuthService.syncApprovedUsersToStaffDirectory error: $e');
     }
   }
 

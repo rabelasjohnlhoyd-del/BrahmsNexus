@@ -3,6 +3,7 @@ import '../../../models/branch.dart';
 import '../../../models/branch_assignment.dart';
 import '../../../models/staff_member.dart';
 import '../../../services/assignment_service.dart';
+import '../../../services/auth_service.dart';
 import '../../../services/supabase_service.dart';
 import '../admin_web_colors.dart';
 import '../admin_web_shell.dart';
@@ -39,6 +40,11 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
     _initializeAssignments();
     _updateShellActions();
     AssignmentService.changeNotifier.addListener(_onAssignmentsChanged);
+    AuthService.syncApprovedUsersToStaffDirectory().then((_) {
+      if (mounted) {
+        _onAssignmentsChanged();
+      }
+    });
   }
 
   @override

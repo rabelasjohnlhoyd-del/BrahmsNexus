@@ -1,7 +1,12 @@
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../config/supabase_config.dart';
+import '../models/announcement.dart';
 import '../models/branch.dart';
+import '../models/branch_daily_inventory.dart';
+import '../models/daily_report.dart';
+import '../models/inventory_batch.dart';
+import '../models/sales_record.dart';
 import '../models/staff_member.dart';
 
 /// Container for paginated data results.
@@ -692,6 +697,457 @@ class SupabaseService {
     } catch (e) {
       debugPrint('SupabaseService.getBilaoPackages error: $e');
       return _cachedBilaoPackages ?? List.from(_defaultBilaoPackages);
+    }
+  }
+
+  // ===========================================================================
+  // 4. DAILY SALES & PAYROLL (Supabase PostgreSQL)
+  // ===========================================================================
+
+  static Map<String, dynamic> _salesRecordToMap(SalesRecord sales) {
+    final rs = sales.remainingStock;
+    return {
+      'id': sales.id,
+      'branch_id': sales.branchId,
+      'branch_name': sales.branchName,
+      'employee_id': sales.employeeId,
+      'employee_name': sales.employeeName,
+      'date': sales.date.toIso8601String(),
+      'portions_sold': sales.portionsSold,
+      'total_orders': sales.totalOrders ?? sales.displayTotalOrders,
+      'commission_rate': sales.commissionRatePerPortion,
+      'total_sales_amount': sales.totalSalesAmount,
+      'wage': sales.wage ?? sales.computedWage,
+      'regular_sold': sales.regularSold ?? 0,
+      'medium_sold': sales.mediumSold ?? 0,
+      'b1t1_sold': sales.b1t1OrdersSold ?? 0,
+      'discrepancy_note': sales.discrepancyNote,
+      'remaining_stock': rs != null
+          ? {
+              'mayo': rs.mayo,
+              'toyo': rs.toyo,
+              'styro': rs.styro,
+              'regular': rs.regular,
+              'medium': rs.medium,
+              'b1t1': rs.b1t1,
+            }
+          : null,
+    };
+  }
+
+  static SalesRecord _salesRecordFromMap(Map<String, dynamic> row) {
+    final rs = row['remaining_stock'] as Map<String, dynamic>?;
+    DateTime parsedDate;
+    final rawDate = row['date'];
+    if (rawDate is String) {
+      parsedDate = DateTime.tryParse(rawDate) ?? DateTime.now();
+    } else {
+      parsedDate = DateTime.now();
+    }
+
+    return SalesRecord(
+      id: row['id']?.toString() ?? '',
+      branchId: row['branch_id']?.toString() ?? '',
+      branchName: row['branch_name']?.toString() ?? '',
+      employeeId: row['employee_id']?.toString() ?? '',
+      employeeName: row['employee_name']?.toString() ?? '',
+      date: parsedDate,
+      portionsSold: (row['portions_sold'] as num?)?.toInt() ?? 0,
+      commissionRatePerPortion: (row['commission_rate'] as num?)?.toDouble() ?? 5.0,
+      totalSalesAmount: (row['total_sales_amount'] as num?)?.toDouble() ?? 0.0,
+      wage: (row['wage'] as num?)?.toDouble(),
+      regularSold: (row['regular_sold'] as num?)?.toInt(),
+      mediumSold: (row['medium_sold'] as num?)?.toInt(),
+      b1t1OrdersSold: (row['b1t1_sold'] as num?)?.toInt(),
+      totalOrders: (row['total_orders'] as num?)?.toInt(),
+      discrepancyNote: row['discrepancy_note']?.toString(),
+      remainingStock: rs == null
+          ? null
+          : ActualReceivedCounts(
+              mayo: (rs['mayo'] as num?)?.toInt() ?? 0,
+              toyo: (rs['toyo'] as num?)?.toInt() ?? 0,
+              styro: (rs['styro'] as num?)?.toInt() ?? 0,
+              regular: (rs['regular'] as num?)?.toInt() ?? 0,
+              medium: (rs['medium'] as num?)?.toInt() ?? 0,
+              b1t1: (rs['b1t1'] as num?)?.toInt() ?? 0,
+            ),
+    );
+  }
+
+  /// Upserts a daily sales record to Supabase.
+  static Future<bool> saveDailySales(SalesRecord sales) async {
+    final client = _client;
+    if (client == null) return false;
+    try {
+      await client.from('daily_sales').upsert(_salesRecordToMap(sales));
+      return true;
+    } catch (e) {
+      debugPrint('SupabaseService.saveDailySales error: $e');
+      return false;
+    }
+  }
+
+  /// Fetches recent sales from Supabase with zero per-document read penalty.
+  static Future<List<SalesRecord>> getRecentSales({
+    DateTime? startDate,
+    int limit = 50,
+  }) async {
+    final client = _client;
+    if (client == null) return [];
+    try {
+      var query = client.from('daily_sales').select();
+      if (startDate != null) {
+        query = query.gte('date', startDate.toIso8601String());
+      }
+      final data = await query.order('date', ascending: false).limit(limit);
+      return (data as List)
+          .map((row) => _salesRecordFromMap(row as Map<String, dynamic>))
+          .toList();
+    } catch (e) {
+      debugPrint('SupabaseService.getRecentSales error: $e');
+      return [];
+    }
+  }
+
+  /// Real-time stream of recent sales from Supabase.
+  static Stream<List<SalesRecord>> watchRecentSales({int limit = 50}) async* {
+    final client = _client;
+    if (client == null) return;
+    try {
+      final initial = await getRecentSales(limit: limit);
+      if (initial.isNotEmpty) yield initial;
+
+      final stream = client
+          .from('daily_sales')
+          .stream(primaryKey: ['id'])
+          .order('date', ascending: false)
+          .limit(limit);
+
+      await for (final rows in stream) {
+        yield rows.map((r) => _salesRecordFromMap(r)).toList();
+      }
+    } catch (e) {
+      debugPrint('SupabaseService.watchRecentSales error: $e');
+    }
+  }
+
+  // ===========================================================================
+  // 5. DAILY REPORTS & INCIDENTS (Supabase PostgreSQL)
+  // ===========================================================================
+
+  static Map<String, dynamic> _dailyReportToMap(DailyReport report) {
+    return {
+      'id': report.id,
+      'employee_id': report.employeeId,
+      'employee_name': report.employeeName,
+      'branch_id': report.branchId,
+      'branch_name': report.branchName,
+      'date': report.date.toIso8601String(),
+      'content': report.content,
+      'status': report.status.name,
+      'owner_reply': report.ownerReply,
+    };
+  }
+
+  static DailyReport _dailyReportFromMap(Map<String, dynamic> row) {
+    DateTime parsedDate;
+    final rawDate = row['date'];
+    if (rawDate is String) {
+      parsedDate = DateTime.tryParse(rawDate) ?? DateTime.now();
+    } else {
+      parsedDate = DateTime.now();
+    }
+    final statusStr = row['status']?.toString() ?? 'submitted';
+
+    return DailyReport(
+      id: row['id']?.toString() ?? '',
+      employeeId: row['employee_id']?.toString() ?? '',
+      employeeName: row['employee_name']?.toString() ?? '',
+      branchId: row['branch_id']?.toString() ?? '',
+      branchName: row['branch_name']?.toString() ?? '',
+      date: parsedDate,
+      content: row['content']?.toString() ?? '',
+      status: ReportSubmissionStatus.values.firstWhere(
+        (e) => e.name == statusStr,
+        orElse: () => ReportSubmissionStatus.submitted,
+      ),
+      ownerReply: row['owner_reply']?.toString(),
+    );
+  }
+
+  /// Inserts a new employee daily report into Supabase.
+  static Future<bool> saveDailyReport(DailyReport report) async {
+    final client = _client;
+    if (client == null) return false;
+    try {
+      await client.from('daily_reports').upsert(_dailyReportToMap(report));
+      return true;
+    } catch (e) {
+      debugPrint('SupabaseService.saveDailyReport error: $e');
+      return false;
+    }
+  }
+
+  /// Fetches daily reports from Supabase.
+  static Future<List<DailyReport>> getDailyReports({int limit = 50}) async {
+    final client = _client;
+    if (client == null) return [];
+    try {
+      final data = await client
+          .from('daily_reports')
+          .select()
+          .order('date', ascending: false)
+          .limit(limit);
+      return (data as List)
+          .map((row) => _dailyReportFromMap(row as Map<String, dynamic>))
+          .toList();
+    } catch (e) {
+      debugPrint('SupabaseService.getDailyReports error: $e');
+      return [];
+    }
+  }
+
+  /// Real-time stream of daily reports from Supabase.
+  static Stream<List<DailyReport>> watchDailyReports({int limit = 50}) async* {
+    final client = _client;
+    if (client == null) return;
+    try {
+      final initial = await getDailyReports(limit: limit);
+      if (initial.isNotEmpty) yield initial;
+
+      final stream = client
+          .from('daily_reports')
+          .stream(primaryKey: ['id'])
+          .order('date', ascending: false)
+          .limit(limit);
+
+      await for (final rows in stream) {
+        yield rows.map((r) => _dailyReportFromMap(r)).toList();
+      }
+    } catch (e) {
+      debugPrint('SupabaseService.watchDailyReports error: $e');
+    }
+  }
+
+  /// Updates owner reply on an employee report in Supabase.
+  static Future<bool> replyToDailyReport({
+    required String reportId,
+    required String reply,
+  }) async {
+    final client = _client;
+    if (client == null) return false;
+    try {
+      await client
+          .from('daily_reports')
+          .update({'owner_reply': reply})
+          .eq('id', reportId);
+      return true;
+    } catch (e) {
+      debugPrint('SupabaseService.replyToDailyReport error: $e');
+      return false;
+    }
+  }
+
+  /// Confirms report received in Supabase.
+  static Future<bool> confirmReportReceived({required String reportId}) async {
+    final client = _client;
+    if (client == null) return false;
+    try {
+      await client
+          .from('daily_reports')
+          .update({'status': ReportSubmissionStatus.submitted.name})
+          .eq('id', reportId);
+      return true;
+    } catch (e) {
+      debugPrint('SupabaseService.confirmReportReceived error: $e');
+      return false;
+    }
+  }
+
+  // ===========================================================================
+  // 6. PRODUCTION BATCHES & RESEKO (Supabase PostgreSQL)
+  // ===========================================================================
+
+  static Map<String, dynamic> _batchToMap(KarneBatch batch) {
+    return {
+      'id': batch.id,
+      'name': batch.name,
+      'total_kilos': batch.totalKilos,
+      'sessions': batch.sessions.map((s) => s.toMap()).toList(),
+      'is_finished': batch.isFinished,
+    };
+  }
+
+  static KarneBatch _batchFromMap(Map<String, dynamic> row) {
+    final rawSessions = row['sessions'] as List<dynamic>? ?? [];
+    return KarneBatch(
+      id: row['id']?.toString() ?? '',
+      name: row['name']?.toString() ?? 'Batch',
+      totalKilos: (row['total_kilos'] as num?)?.toDouble() ?? 0.0,
+      sessions: rawSessions
+          .map((s) => KarneSession.fromMap(Map<String, dynamic>.from(s as Map)))
+          .toList(),
+      isFinished: row['is_finished'] as bool? ?? false,
+    );
+  }
+
+  /// Upserts a production batch into Supabase.
+  static Future<bool> saveProductionBatch(KarneBatch batch) async {
+    final client = _client;
+    if (client == null) return false;
+    try {
+      await client.from('production_batches').upsert(_batchToMap(batch));
+      return true;
+    } catch (e) {
+      debugPrint('SupabaseService.saveProductionBatch error: $e');
+      return false;
+    }
+  }
+
+  /// Fetches production batches from Supabase.
+  static Future<List<KarneBatch>> getProductionBatches({int limit = 50}) async {
+    final client = _client;
+    if (client == null) return [];
+    try {
+      final data = await client
+          .from('production_batches')
+          .select()
+          .order('created_at', ascending: false)
+          .limit(limit);
+      return (data as List)
+          .map((row) => _batchFromMap(row as Map<String, dynamic>))
+          .toList();
+    } catch (e) {
+      debugPrint('SupabaseService.getProductionBatches error: $e');
+      return [];
+    }
+  }
+
+  /// Real-time stream of production batches from Supabase.
+  static Stream<List<KarneBatch>> watchProductionBatches({int limit = 50}) async* {
+    final client = _client;
+    if (client == null) return;
+    try {
+      final initial = await getProductionBatches(limit: limit);
+      if (initial.isNotEmpty) yield initial;
+
+      final stream = client
+          .from('production_batches')
+          .stream(primaryKey: ['id'])
+          .limit(limit);
+
+      await for (final rows in stream) {
+        yield rows.map((r) => _batchFromMap(r)).toList();
+      }
+    } catch (e) {
+      debugPrint('SupabaseService.watchProductionBatches error: $e');
+    }
+  }
+
+  /// Deletes a production batch from Supabase.
+  static Future<bool> deleteProductionBatch(String batchId) async {
+    final client = _client;
+    if (client == null) return false;
+    try {
+      await client.from('production_batches').delete().eq('id', batchId);
+      return true;
+    } catch (e) {
+      debugPrint('SupabaseService.deleteProductionBatch error: $e');
+      return false;
+    }
+  }
+
+  // ===========================================================================
+  // 7. ANNOUNCEMENTS (Supabase PostgreSQL)
+  // ===========================================================================
+
+  static Map<String, dynamic> _announcementToMap(Announcement ann) {
+    return {
+      'id': ann.id,
+      'message_content': ann.messageContent,
+      'date_posted': ann.datePosted.toIso8601String(),
+      'target_position': ann.targetPosition,
+    };
+  }
+
+  static Announcement _announcementFromMap(Map<String, dynamic> row) {
+    DateTime parsedDate;
+    final rawDate = row['date_posted'];
+    if (rawDate is String) {
+      parsedDate = DateTime.tryParse(rawDate) ?? DateTime.now();
+    } else {
+      parsedDate = DateTime.now();
+    }
+    return Announcement(
+      id: row['id']?.toString() ?? '',
+      messageContent: row['message_content']?.toString() ?? '',
+      datePosted: parsedDate,
+      targetPosition: row['target_position']?.toString() ?? 'All Positions',
+    );
+  }
+
+  /// Upserts an announcement into Supabase.
+  static Future<bool> saveAnnouncement(Announcement announcement) async {
+    final client = _client;
+    if (client == null) return false;
+    try {
+      await client.from('announcements').upsert(_announcementToMap(announcement));
+      return true;
+    } catch (e) {
+      debugPrint('SupabaseService.saveAnnouncement error: $e');
+      return false;
+    }
+  }
+
+  /// Fetches announcements from Supabase.
+  static Future<List<Announcement>> getAnnouncements() async {
+    final client = _client;
+    if (client == null) return [];
+    try {
+      final data = await client
+          .from('announcements')
+          .select()
+          .order('date_posted', ascending: false);
+      return (data as List)
+          .map((row) => _announcementFromMap(row as Map<String, dynamic>))
+          .toList();
+    } catch (e) {
+      debugPrint('SupabaseService.getAnnouncements error: $e');
+      return [];
+    }
+  }
+
+  /// Real-time stream of announcements from Supabase.
+  static Stream<List<Announcement>> watchAnnouncements() async* {
+    final client = _client;
+    if (client == null) return;
+    try {
+      final initial = await getAnnouncements();
+      if (initial.isNotEmpty) yield initial;
+
+      final stream = client
+          .from('announcements')
+          .stream(primaryKey: ['id'])
+          .order('date_posted', ascending: false);
+
+      await for (final rows in stream) {
+        yield rows.map((r) => _announcementFromMap(r)).toList();
+      }
+    } catch (e) {
+      debugPrint('SupabaseService.watchAnnouncements error: $e');
+    }
+  }
+
+  /// Deletes an announcement from Supabase.
+  static Future<bool> deleteAnnouncement(String id) async {
+    final client = _client;
+    if (client == null) return false;
+    try {
+      await client.from('announcements').delete().eq('id', id);
+      return true;
+    } catch (e) {
+      debugPrint('SupabaseService.deleteAnnouncement error: $e');
+      return false;
     }
   }
 }

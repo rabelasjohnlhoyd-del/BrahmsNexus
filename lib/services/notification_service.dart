@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/app_notification.dart';
@@ -39,12 +39,20 @@ class NotificationService {
     String? userId,
     String? position,
   }) {
-    if (userId != null && notification.targetUserId == userId) return true;
+    // 1. If notification is specifically targeted to a user (e.g. Account Approved, Owner Reply),
+    // ONLY that specific user should ever see it — never leak to other staff.
+    if (notification.targetUserId != null && notification.targetUserId!.isNotEmpty) {
+      return userId != null && notification.targetUserId == userId;
+    }
+
     final tr = notification.targetRole.toLowerCase().trim();
     final ur = role.toLowerCase().trim();
     final up = (position ?? '').toLowerCase().trim();
 
+    // 2. Broadcast announcements/system alerts intended for all
     if (tr == 'all' || tr == 'all positions') return true;
+
+    // 3. Role and position matches
     if (tr == ur) return true;
     if (up.isNotEmpty && tr == up) return true;
     if (ur == 'production' && tr == 'staff') return true;
