@@ -235,6 +235,10 @@ class AdminWebShellState extends State<AdminWebShell> {
         targetIndex = 4; // Inventory
         _inventoryInitialTab = 2; // Dispatch Logs
         break;
+      case 'inventory_supply_requests':
+        targetIndex = 4; // Inventory
+        _inventoryInitialTab = 3; // Supply Requests
+        break;
       case 'inventory':
         targetIndex = 4; // Inventory
         _inventoryInitialTab = 0;

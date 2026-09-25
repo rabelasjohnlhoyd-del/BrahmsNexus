@@ -111,14 +111,14 @@ const Map<String, MockAccount> kMockAccounts = {
     password: 'pass123',
     role: UserRole.staff,
     status: AccountStatus.approved,
-    position: 'Production Area Cook',
+    position: 'Production Cook',
     fullName: 'Menes Bantug',
   ),
   'abby_cutter': MockAccount(
     password: 'pass123',
     role: UserRole.staff,
     status: AccountStatus.approved,
-    position: 'Production Area Meat Cutter',
+    position: 'Production Meat Cutter',
     fullName: 'Abby Torres',
   ),
 

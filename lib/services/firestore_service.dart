@@ -12,6 +12,7 @@ import '../models/inventory_batch.dart';
 import '../models/meat_dispatch.dart';
 import '../models/app_notification.dart';
 import '../models/sales_record.dart';
+import '../models/supply_request.dart';
 import 'auth_service.dart';
 import 'firestore_cache.dart';
 import 'notification_service.dart';
@@ -926,6 +927,7 @@ class FirestoreService {
           branchName: data['branchName']?.toString() ?? '',
           date: ts?.toDate() ?? DateTime.now(),
           content: data['content']?.toString() ?? '',
+          reportType: data['reportType']?.toString() ?? 'branch',
           status: ReportSubmissionStatus.values.firstWhere(
             (e) => e.name == statusStr,
             orElse: () => ReportSubmissionStatus.submitted,
@@ -1099,36 +1101,10 @@ class FirestoreService {
   // 6. PRODUCTION KARNE BATCHES & SESSIONS (Warehouse / Commissary)
   // ===========================================================================
 
-  static final List<KarneBatch> _defaultBatches = [
-    KarneBatch(
-      id: 'kb1',
-      name: 'Batch Danish Crown - July',
-      totalKilos: 1000,
-    ),
-  ];
-
   /// Seeds the default batches to Firestore once if the collection is empty.
+  /// (Deprecated: Auto-seeding mock batches disabled to prevent unwanted test data).
   static Future<void> seedDefaultBatchesIfEmpty() async {
-    try {
-      final snapshot = await _db
-          .collection('production_batches')
-          .limit(1)
-          .get();
-      if (snapshot.docs.isNotEmpty) return; // Already seeded
-
-      for (final batch in _defaultBatches) {
-        final data = batch.toMap();
-        data['createdAt'] = FieldValue.serverTimestamp();
-        data['updatedAt'] = FieldValue.serverTimestamp();
-        await _db
-            .collection('production_batches')
-            .doc(batch.id)
-            .set(data, SetOptions(merge: true));
-        debugPrint('FirestoreService: Seeded default batch ${batch.id}');
-      }
-    } catch (e) {
-      debugPrint('FirestoreService.seedDefaultBatchesIfEmpty error: $e');
-    }
+    // Disabled to prevent unwanted test/mock batches from reappearing.
   }
 
   /// Streams real-time production batches from Firestore.
@@ -1140,7 +1116,7 @@ class FirestoreService {
     return FirestoreListenCache.query('production_batches:$limit', query)
         .map((snapshot) {
       if (snapshot.docs.isEmpty) {
-        return _defaultBatches;
+        return <KarneBatch>[];
       }
       final list = snapshot.docs
           .map((doc) => KarneBatch.fromMap(doc.data(), doc.id))
@@ -1148,7 +1124,7 @@ class FirestoreService {
       return list;
     }).handleError((error) {
       debugPrint('FirestoreService.watchProductionBatches stream error: $error');
-      return _defaultBatches;
+      return <KarneBatch>[];
     });
   }
 
@@ -1202,6 +1178,24 @@ class FirestoreService {
     } catch (e) {
       debugPrint('FirestoreService.deleteProductionBatch error: $e');
       return false;
+    }
+  }
+
+  /// Clears all production batches from Firestore and Supabase (used for cleaning up old test batches).
+  static Future<int> clearAllProductionBatches() async {
+    try {
+      final snap = await _db.collection('production_batches').get();
+      int count = 0;
+      for (final doc in snap.docs) {
+        await doc.reference.delete();
+        SupabaseService.deleteProductionBatch(doc.id).catchError((_) => false);
+        count++;
+      }
+      debugPrint('FirestoreService: Cleared $count old production batches');
+      return count;
+    } catch (e) {
+      debugPrint('FirestoreService.clearAllProductionBatches error: $e');
+      return 0;
     }
   }
 
@@ -1801,13 +1795,26 @@ class FirestoreService {
       // 5. Also notify owner that delivery has been completed
       final driverLabel = driverName != null && driverName.isNotEmpty ? driverName : 'Driver';
       await NotificationService.sendNotification(
-        title: '🚗 Naihatid na — ${dispatch.destinationBranchName}',
+        title: 'Naihatid na — ${dispatch.destinationBranchName}',
         message: '$driverLabel ay nakapag-deliver na ng ${dispatch.itemsSummary} sa ${dispatch.destinationBranchName}.',
         type: NotificationType.inventoryAlert,
         targetRole: 'owner',
         route: 'inventory',
         targetBranch: dispatch.destinationBranchName,
       );
+
+      // Write to daily_reports so the driver's stock delivery shows in Employee Reports
+      await _db.collection('daily_reports').add({
+        'employeeId': driverLabel,
+        'employeeName': driverLabel,
+        'branchId': 'driver',
+        'branchName': 'Driver',
+        'reportType': 'driver',
+        'date': Timestamp.fromDate(now),
+        'content': 'Naihatid ni $driverLabel ang ${dispatch.itemsSummary} sa ${dispatch.destinationBranchName}.',
+        'status': ReportSubmissionStatus.submitted.name,
+        'submittedAt': FieldValue.serverTimestamp(),
+      });
 
       // 6. Update incomplete reports for this branch to 'missing' (delivered by driver, awaiting branch cook confirmation)
       try {
@@ -1842,6 +1849,530 @@ class FirestoreService {
       return true;
     } catch (e) {
       debugPrint('FirestoreService.markDispatchAsDelivered error: $e');
+      return false;
+    }
+  }
+
+  /// Records a Bilao delivery report in daily_reports and alerts Owner.
+  static Future<bool> recordBilaoDeliveryReport({
+    required String orderId,
+    required String customerName,
+    required String deliveryAddress,
+    required String sizeLabel,
+    required int quantity,
+    String? driverName,
+  }) async {
+    try {
+      final now = DateTime.now();
+      final dName = (driverName != null && driverName.isNotEmpty) ? driverName : 'Driver';
+      final desc = '$sizeLabel x $quantity para kay $customerName sa $deliveryAddress';
+
+      await _db.collection('daily_reports').add({
+        'employeeId': dName,
+        'employeeName': dName,
+        'branchId': 'driver',
+        'branchName': 'Driver',
+        'reportType': 'driver',
+        'date': Timestamp.fromDate(now),
+        'content': 'Naihatid ni $dName ang Bilao Order ($desc).',
+        'status': ReportSubmissionStatus.submitted.name,
+        'submittedAt': FieldValue.serverTimestamp(),
+      });
+
+      await NotificationService.sendNotification(
+        title: 'Bilao Delivered',
+        message: '$dName: Naihatid na ang $desc.',
+        type: NotificationType.deliveryTask,
+        targetRole: 'owner',
+        route: 'deliveries',
+      );
+
+      return true;
+    } catch (e) {
+      debugPrint('FirestoreService.recordBilaoDeliveryReport error: $e');
+      return false;
+    }
+  }
+
+  // ===========================================================================
+  // 10. PRODUCTION & MEAT CUTTER INTEGRATION
+  // ===========================================================================
+
+  /// Streams meat portioning targets set by Owner/Admin (250g, 300g, 400g).
+  static Stream<Map<String, int>> watchPortioningTargets() {
+    return _db
+        .collection('settings')
+        .doc('portioning_targets')
+        .snapshots()
+        .map((snapshot) {
+      if (snapshot.exists && snapshot.data() != null) {
+        final data = snapshot.data()!;
+        return {
+          '250g': (data['target250g'] as num?)?.toInt() ?? 150,
+          '300g': (data['target300g'] as num?)?.toInt() ?? 100,
+          '400g': (data['target400g'] as num?)?.toInt() ?? 100,
+        };
+      }
+      return {'250g': 150, '300g': 100, '400g': 100};
+    });
+  }
+
+  /// Saves meat portioning targets set by Owner/Admin on the Web side.
+  static Future<bool> savePortioningTargets({
+    required int target250g,
+    required int target300g,
+    required int target400g,
+    String? updatedBy,
+  }) async {
+    try {
+      final data = <String, dynamic>{
+        'target250g': target250g,
+        'target300g': target300g,
+        'target400g': target400g,
+        'updatedAt': FieldValue.serverTimestamp(),
+      };
+      if (updatedBy != null) {
+        data['updatedBy'] = updatedBy;
+      }
+      await _db.collection('settings').doc('portioning_targets').set(data, SetOptions(merge: true));
+      return true;
+    } catch (e) {
+      debugPrint('FirestoreService.savePortioningTargets error: $e');
+      return false;
+    }
+  }
+
+  /// Submits the daily portioning report from the Meat Cutter staff
+  /// and notifies the Owner in real time.
+  static Future<bool> submitPortioningReport({
+    required String employeeId,
+    required String employeeName,
+    required int count250g,
+    required int count300g,
+    required int count400g,
+    required int target250g,
+    required int target300g,
+    required int target400g,
+    required int remainingGrams,
+    String? cutterNotes,
+  }) async {
+    try {
+      final docRef = await _db.collection('portioning_reports').add({
+        'employeeId': employeeId,
+        'employeeName': employeeName,
+        'date': Timestamp.fromDate(DateTime.now()),
+        'count250g': count250g,
+        'count300g': count300g,
+        'count400g': count400g,
+        'target250g': target250g,
+        'target300g': target300g,
+        'target400g': target400g,
+        'remainingGrams': remainingGrams,
+        'cutterNotes': cutterNotes,
+        'submittedAt': FieldValue.serverTimestamp(),
+      });
+
+      // Notify Owner
+      final title = 'Meat Portioning Report';
+      final notesText = (cutterNotes != null && cutterNotes.isNotEmpty) ? ' Ulat: $cutterNotes' : '';
+      final message = '$employeeName: 250g ($count250g/$target250g pcs), 300g ($count300g/$target300g pcs), 400g ($count400g/$target400g pcs), Natitirang karne: ${remainingGrams}g.$notesText';
+
+      await NotificationService.sendNotification(
+        title: title,
+        message: message,
+        type: NotificationType.inventoryAlert,
+        targetRole: 'owner',
+        route: 'inventory',
+      );
+
+      await _db.collection('owner_notifications').add({
+        'type': 'portioning_report',
+        'title': title,
+        'body': message,
+        'isRead': false,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+
+      // Write to daily_reports so the cutter's submission shows in Employee Reports
+      final notesLine = (cutterNotes != null && cutterNotes.isNotEmpty) ? ' Ulat sa natirang karne: $cutterNotes' : '';
+      await _db.collection('daily_reports').add({
+        'employeeId': employeeId,
+        'employeeName': employeeName,
+        'branchId': 'production_cutter',
+        'branchName': 'Production Meat Cutter',
+        'reportType': 'production_cutter',
+        'date': Timestamp.fromDate(DateTime.now()),
+        'content':
+            'Nagawa ni $employeeName — 400G: $count400g pcs, 300G: $count300g pcs, 250G: $count250g pcs. Natirang karne: ${remainingGrams}g.$notesLine',
+        'status': ReportSubmissionStatus.submitted.name,
+        'submittedAt': FieldValue.serverTimestamp(),
+      });
+
+      return docRef.id.isNotEmpty;
+    } catch (e) {
+      debugPrint('FirestoreService.submitPortioningReport error: $e');
+      return false;
+    }
+  }
+
+  /// Streams packaging / supply requests from Central Kitchen.
+  static Stream<List<SupplyRequest>> watchSupplyRequests() {
+    return _db
+        .collection('supply_requests')
+        .orderBy('createdAt', descending: true)
+        .limit(50)
+        .snapshots()
+        .map((snap) => snap.docs
+            .map((doc) => SupplyRequest.fromMap(doc.data(), docId: doc.id))
+            .toList());
+  }
+
+  /// Creates a supply request from Meat Cutter / Central Kitchen.
+  static Future<bool> createSupplyRequest({
+    required String itemName,
+    required String requestedBy,
+    required String requestedById,
+  }) async {
+    try {
+      final now = DateTime.now();
+      await _db.collection('supply_requests').add({
+        'itemName': itemName,
+        'requestedBy': requestedBy,
+        'requestedById': requestedById,
+        'createdAt': now.toIso8601String(),
+        'status': SupplyRequestStatus.pending.name,
+        'ownerReply': null,
+        'repliedAt': null,
+        'serverCreatedAt': FieldValue.serverTimestamp(),
+      });
+
+      // Notify owner in real-time
+      final title = '📦 Supply Request — Central Kitchen';
+      final message = '$requestedBy nag-request ng stock para sa: $itemName.';
+
+      await NotificationService.sendNotification(
+        title: title,
+        message: message,
+        type: NotificationType.inventoryAlert,
+        targetRole: 'owner',
+        route: 'inventory_supply_requests',
+      );
+
+      await _db.collection('owner_notifications').add({
+        'type': 'supply_request',
+        'title': title,
+        'body': message,
+        'isRead': false,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+
+      return true;
+    } catch (e) {
+      debugPrint('FirestoreService.createSupplyRequest error: $e');
+      return false;
+    }
+  }
+
+  /// Saves the Owner's / Admin's response to a supply request and notifies the requester.
+  static Future<bool> replyToSupplyRequest({
+    required String requestId,
+    required String reply,
+    required String itemName,
+    String? requestedById,
+  }) async {
+    try {
+      await _db.collection('supply_requests').doc(requestId).update({
+        'ownerReply': reply,
+        'status': SupplyRequestStatus.replied.name,
+        'repliedAt': DateTime.now().toIso8601String(),
+        'serverRepliedAt': FieldValue.serverTimestamp(),
+      });
+
+      // Notify the production staff
+      await NotificationService.sendNotification(
+        title: '💬 Tugon sa Request: $itemName',
+        message: 'Sinabi ni Owner: "$reply"',
+        type: NotificationType.inventoryAlert,
+        targetRole: 'production',
+        targetUserId: requestedById,
+      );
+
+      return true;
+    } catch (e) {
+      debugPrint('FirestoreService.replyToSupplyRequest error: $e');
+      return false;
+    }
+  }
+
+  /// Submits the cooking output for an assigned batch by the Production Cook.
+  /// Updates the batch and alerts the Owner so they can set portioning targets.
+  static Future<bool> submitCookBatchReport({
+    required String batchId,
+    required String batchName,
+    required double cookedKilos,
+    required String cookName,
+  }) async {
+    try {
+      final now = DateTime.now();
+      final batchDoc = await _db.collection('production_batches').doc(batchId).get();
+      List<dynamic> rawSessions = [];
+      String? brand;
+      int? boilingMinutes;
+      double? resekoApplied;
+      double totalKilos = cookedKilos;
+
+      if (batchDoc.exists) {
+        final data = batchDoc.data() ?? {};
+        rawSessions = (data['sessions'] as List<dynamic>?) ?? [];
+        brand = data['brand']?.toString();
+        boilingMinutes = (data['boilingMinutes'] as num?)?.toInt();
+        resekoApplied = (data['resekoApplied'] as num?)?.toDouble();
+        totalKilos = (data['totalKilos'] as num?)?.toDouble() ?? cookedKilos;
+      }
+
+      final sessions = rawSessions
+          .map((s) => KarneSession.fromMap(Map<String, dynamic>.from(s as Map)))
+          .toList();
+
+      if (sessions.isNotEmpty) {
+        // Find active pending session or use the last one
+        final activeIdx = sessions.lastIndexWhere((s) => s.status == 'pending');
+        final targetIdx = activeIdx != -1 ? activeIdx : sessions.length - 1;
+        sessions[targetIdx] = sessions[targetIdx].copyWith(
+          cookedKilos: cookedKilos,
+          cookedBy: cookName,
+          cookedAt: now,
+          status: 'cooked',
+        );
+      } else {
+        sessions.add(KarneSession(
+          date: now,
+          brand: brand ?? 'Karne',
+          resekoApplied: resekoApplied ?? 28.0,
+          boilingMinutes: boilingMinutes ?? 25,
+          kilosCooked: totalKilos,
+          cookedKilos: cookedKilos,
+          cookedBy: cookName,
+          cookedAt: now,
+          status: 'cooked',
+        ));
+      }
+
+      await _db.collection('production_batches').doc(batchId).update({
+        'cookedKilos': cookedKilos,
+        'cookedBy': cookName,
+        'cookedAt': now.toIso8601String(),
+        'cookingStatus': 'cooked',
+        'sessions': sessions.map((s) => s.toMap()).toList(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      final title = 'Natapos Lutuin: $batchName';
+      final message = 'Naluto na ni $cookName ang ${cookedKilos.toStringAsFixed(2)} kg. Maaari nang mag-set ng portioning targets para kay Meat Cutter.';
+
+      await NotificationService.sendNotification(
+        title: title,
+        message: message,
+        type: NotificationType.inventoryAlert,
+        targetRole: 'owner',
+        route: 'inventory',
+      );
+
+      await _db.collection('owner_notifications').add({
+        'type': 'batch_cooked',
+        'title': title,
+        'body': message,
+        'isRead': false,
+        'batchId': batchId,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+
+      // Write to daily_reports so the cook's submission shows in Employee Reports
+      await _db.collection('daily_reports').add({
+        'employeeId': cookName,
+        'employeeName': cookName,
+        'branchId': 'production_cook',
+        'branchName': 'Production Cook',
+        'reportType': 'production_cook',
+        'date': Timestamp.fromDate(now),
+        'content': 'Naluto ni $cookName ang ${cookedKilos.toStringAsFixed(2)} kg ng karne para sa batch "$batchName" (Batch ID: $batchId).',
+        'status': ReportSubmissionStatus.submitted.name,
+        'submittedAt': FieldValue.serverTimestamp(),
+      });
+
+      return true;
+    } catch (e) {
+      debugPrint('FirestoreService.submitCookBatchReport error: $e');
+      return false;
+    }
+  }
+
+  /// Sets the portioning targets on a batch by the Owner, and notifies Meat Cutter.
+  static Future<bool> setBatchPortioningTargets({
+    required String batchId,
+    required String batchName,
+    required int target250g,
+    required int target300g,
+    required int target400g,
+  }) async {
+    try {
+      final now = DateTime.now();
+      final batchDoc = await _db.collection('production_batches').doc(batchId).get();
+      List<dynamic> rawSessions = [];
+      if (batchDoc.exists) {
+        final data = batchDoc.data() ?? {};
+        rawSessions = (data['sessions'] as List<dynamic>?) ?? [];
+      }
+
+      final sessions = rawSessions
+          .map((s) => KarneSession.fromMap(Map<String, dynamic>.from(s as Map)))
+          .toList();
+
+      if (sessions.isNotEmpty) {
+        final activeIdx = sessions.lastIndexWhere((s) => s.status == 'cooked' || s.status == 'pending');
+        final targetIdx = activeIdx != -1 ? activeIdx : sessions.length - 1;
+        sessions[targetIdx] = sessions[targetIdx].copyWith(
+          target250g: target250g,
+          target300g: target300g,
+          target400g: target400g,
+          status: 'cutting',
+        );
+      }
+
+      await _db.collection('production_batches').doc(batchId).update({
+        'target250g': target250g,
+        'target300g': target300g,
+        'target400g': target400g,
+        'targetsSetAt': now.toIso8601String(),
+        'cookingStatus': 'cutting',
+        'sessions': sessions.map((s) => s.toMap()).toList(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      // Keep settings/portioning_targets in sync
+      await savePortioningTargets(
+        target250g: target250g,
+        target300g: target300g,
+        target400g: target400g,
+      );
+
+      final title = 'Targets para sa Batch: $batchName';
+      final message = 'Nai-set na ni Owner ang target pcs: 400G ($target400g pcs), 300G ($target300g pcs). Ideal 250G: $target250g pcs (lahat ng tira).';
+
+      await NotificationService.sendNotification(
+        title: title,
+        message: message,
+        type: NotificationType.inventoryAlert,
+        targetRole: 'production',
+      );
+
+      return true;
+    } catch (e) {
+      debugPrint('FirestoreService.setBatchPortioningTargets error: $e');
+      return false;
+    }
+  }
+
+  /// Submits the final cutter output for an assigned batch by the Meat Cutter.
+  static Future<bool> submitBatchCutterReport({
+    required String batchId,
+    required String batchName,
+    required String employeeId,
+    required String cutterName,
+    required int count250g,
+    required int count300g,
+    required int count400g,
+    required int target250g,
+    required int target300g,
+    required int target400g,
+    required int remainingGrams,
+    String? cutterNotes,
+  }) async {
+    try {
+      final now = DateTime.now();
+      final batchDoc = await _db.collection('production_batches').doc(batchId).get();
+      List<dynamic> rawSessions = [];
+      if (batchDoc.exists) {
+        final data = batchDoc.data() ?? {};
+        rawSessions = (data['sessions'] as List<dynamic>?) ?? [];
+      }
+
+      final sessions = rawSessions
+          .map((s) => KarneSession.fromMap(Map<String, dynamic>.from(s as Map)))
+          .toList();
+
+      final totalPcs = count250g + count300g + count400g;
+      final nalutoKg = ((count400g * 400) + (count300g * 300) + (count250g * 250)) / 1000.0;
+
+      if (sessions.isNotEmpty) {
+        final activeIdx = sessions.lastIndexWhere((s) => s.status == 'cutting' || s.status == 'cooked');
+        final targetIdx = activeIdx != -1 ? activeIdx : sessions.length - 1;
+        sessions[targetIdx] = sessions[targetIdx].copyWith(
+          actual250g: count250g,
+          actual300g: count300g,
+          actual400g: count400g,
+          actualPcs: totalPcs,
+          cookedKilos: nalutoKg,
+          cutterRemainingGrams: remainingGrams,
+          cutterNotes: cutterNotes,
+          cutterName: cutterName,
+          cutterReportedAt: now,
+          status: 'completed',
+        );
+      }
+
+      await _db.collection('production_batches').doc(batchId).update({
+        'actual250g': count250g,
+        'actual300g': count300g,
+        'actual400g': count400g,
+        'cookedKilos': nalutoKg,
+        'cutterRemainingGrams': remainingGrams,
+        'cutterNotes': cutterNotes,
+        'cutterName': cutterName,
+        'cutterReportedAt': now.toIso8601String(),
+        'cookingStatus': 'completed',
+        'isFinished': true,
+        'sessions': sessions.map((s) => s.toMap()).toList(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      // Also record in portioning_reports collection for logs
+      await submitPortioningReport(
+        employeeId: employeeId,
+        employeeName: cutterName,
+        count250g: count250g,
+        count300g: count300g,
+        count400g: count400g,
+        target250g: target250g,
+        target300g: target300g,
+        target400g: target400g,
+        remainingGrams: remainingGrams,
+        cutterNotes: cutterNotes,
+      );
+
+      final title = 'Natapos ang Portioning: $batchName';
+      final message = '$cutterName: Nagawa = $totalPcs pcs (400G: $count400g, 300G: $count300g, 250G: $count250g). Kabuuang Naluto = ${nalutoKg.toStringAsFixed(2)} KG.';
+
+      await NotificationService.sendNotification(
+        title: title,
+        message: message,
+        type: NotificationType.inventoryAlert,
+        targetRole: 'owner',
+        route: 'inventory',
+      );
+
+      await _db.collection('owner_notifications').add({
+        'type': 'batch_portioning_completed',
+        'title': title,
+        'body': message,
+        'isRead': false,
+        'batchId': batchId,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+
+      return true;
+    } catch (e) {
+      debugPrint('FirestoreService.submitBatchCutterReport error: $e');
       return false;
     }
   }

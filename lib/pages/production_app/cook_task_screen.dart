@@ -1,7 +1,10 @@
 import 'dart:async';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import '../../models/inventory_batch.dart';
 import '../../services/auth_service.dart';
+import '../../services/firestore_service.dart';
 import '../../services/weather_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/staff_button.dart';
@@ -18,9 +21,10 @@ class CookTaskScreen extends StatefulWidget {
 }
 
 class _CookTaskScreenState extends State<CookTaskScreen> {
-  final _kiloController = TextEditingController();
   final List<bool> _checkSteps = [false, false, false];
-  bool _showSubmitButton = false;
+
+  KarneBatch? _activeBatch;
+  StreamSubscription<List<KarneBatch>>? _batchesSub;
 
   bool _isRefreshing = false;
   int _tempC = 28;
@@ -32,8 +36,25 @@ class _CookTaskScreenState extends State<CookTaskScreen> {
   @override
   void initState() {
     super.initState();
-    _kiloController.addListener(_onKiloChanged);
     _startWeatherTimer();
+
+    _batchesSub = FirestoreService.watchProductionBatches().listen((batches) {
+      if (mounted) {
+        setState(() {
+          final sorted = List<KarneBatch>.from(batches)
+            ..sort((a, b) => b.date.compareTo(a.date));
+
+          _activeBatch = sorted.firstWhere(
+            (b) => b.cookingStatus == 'pending' || b.cookingStatus == 'cooked',
+            orElse: () => sorted.isNotEmpty ? sorted.first : KarneBatch(
+              id: 'default',
+              name: 'KARNE BATCH',
+              totalKilos: 150.0,
+            ),
+          );
+        });
+      }
+    });
   }
 
   void _startWeatherTimer() {
@@ -56,18 +77,6 @@ class _CookTaskScreenState extends State<CookTaskScreen> {
     });
   }
 
-  void _onKiloChanged() {
-    final text = _kiloController.text.trim();
-    final hasInput = text.isNotEmpty;
-    
-    // Update local UI state (colors) immediately
-    setState(() {});
-
-    if (hasInput != _showSubmitButton) {
-      setState(() => _showSubmitButton = hasInput);
-    }
-  }
-
   void _refreshWeather() async {
     if (_isRefreshing) return;
     setState(() => _isRefreshing = true);
@@ -83,34 +92,58 @@ class _CookTaskScreenState extends State<CookTaskScreen> {
 
   @override
   void dispose() {
+    _batchesSub?.cancel();
     _weatherTimer?.cancel();
-    _kiloController.removeListener(_onKiloChanged);
-    _kiloController.dispose();
     super.dispose();
   }
 
-  void _submitReport() {
-    final val = _kiloController.text.trim();
+  void _confirmCookingFinished(double targetCookKilos) {
+    final batch = _activeBatch;
+    final messenger = ScaffoldMessenger.of(context);
+
     showCupertinoDialog(
       context: context,
-      builder: (context) => CupertinoAlertDialog(
-        title: const Text('Submit Report'),
-        content: Text('Sigurado ka bang tapos na ang lahat at $val kg ang kabuuang naluto?'),
+      builder: (dialogCtx) => CupertinoAlertDialog(
+        title: const Text('Kumpirmahin ang Pagluto'),
+        content: Text('Sigurado ka bang tapos na ang pagluluto ng ${targetCookKilos.toStringAsFixed(1)} kg ng karne para sa ${batch?.name ?? "batch"}? Aabisuhan si Owner upang makapag-set ng targets para kay Meat Cutter.'),
         actions: [
-          CupertinoDialogAction(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          CupertinoDialogAction(onPressed: () => Navigator.pop(dialogCtx), child: const Text('Cancel')),
           CupertinoDialogAction(
             isDestructiveAction: true,
-            onPressed: () {
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Daily production report submitted!')),
-              );
-              setState(() {
-                _checkSteps.fillRange(0, 3, false);
-                _kiloController.clear();
-              });
+            onPressed: () async {
+              Navigator.pop(dialogCtx);
+              final user = AuthService.currentUser;
+              final empName = user?.fullName.isNotEmpty == true ? user!.fullName : AuthService.currentUsername;
+
+              bool ok = false;
+              if (batch != null && batch.id != 'default') {
+                ok = await FirestoreService.submitCookBatchReport(
+                  batchId: batch.id,
+                  batchName: batch.name,
+                  cookedKilos: targetCookKilos,
+                  cookName: empName,
+                );
+              } else {
+                ok = true;
+              }
+
+              if (mounted) {
+                messenger.showSnackBar(
+                  SnackBar(
+                    content: Text(ok
+                        ? 'Nakumpirma na ang pagluto! Aabisuhan si Owner para mag-set ng portion targets.'
+                        : 'May error sa pag-submit. Subukan ulit.'),
+                    backgroundColor: ok ? AppColors.success : AppColors.error,
+                  ),
+                );
+                if (ok) {
+                  setState(() {
+                    _checkSteps.fillRange(0, 3, true);
+                  });
+                }
+              }
             },
-            child: const Text('Submit'),
+            child: const Text('Kumpirmahin'),
           ),
         ],
       ),
@@ -119,6 +152,18 @@ class _CookTaskScreenState extends State<CookTaskScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final activeSession = (_activeBatch != null && _activeBatch!.sessions.isNotEmpty)
+        ? _activeBatch!.sessions.last
+        : null;
+    final double targetCookKilos = activeSession != null
+        ? activeSession.hilawKilos
+        : (_activeBatch?.totalKilos ?? 150.0);
+    final String displayBrand = activeSession?.brand ??
+        ((_activeBatch?.brand != null && _activeBatch!.brand!.isNotEmpty)
+            ? _activeBatch!.brand!
+            : 'Standard Karne');
+    final int displayBoilingMins = activeSession?.boilingMinutes ?? _activeBatch?.boilingMinutes ?? 25;
+
     return CupertinoPageScaffold(
       backgroundColor: AppColors.background,
       navigationBar: const StaffNavBar(
@@ -131,7 +176,132 @@ class _CookTaskScreenState extends State<CookTaskScreen> {
           children: [
             // 0. WEATHER WIDGET
             _weatherWidget(),
-            const SizedBox(height: 22),
+            const SizedBox(height: 18),
+
+            // ASSIGNED BATCH CARD (MULA KAY OWNER)
+            if (_activeBatch != null) ...[
+              StaffCard(
+                padding: const EdgeInsets.all(18),
+                highlighted: _activeBatch!.cookingStatus == 'cooked',
+                borderColor: _activeBatch!.cookingStatus == 'cooked' ? AppColors.success : AppColors.accent,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: AppColors.accent.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Icon(CupertinoIcons.flame_fill, color: AppColors.accent, size: 20),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                activeSession != null
+                                    ? 'SESSION #${activeSession.sessionNumber}: ILULUTO NI COOK'
+                                    : 'ASSIGNED BATCH MULA KAY OWNER',
+                                style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: AppColors.accent, letterSpacing: 0.8),
+                              ),
+                              Text(
+                                _activeBatch!.name,
+                                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: AppColors.textPrimary),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: (_activeBatch!.cookingStatus == 'cooked' ? AppColors.success : AppColors.accent).withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            _activeBatch!.cookingStatus == 'cooked' ? 'NALUTO NA' : 'ILULUTO',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800,
+                              color: _activeBatch!.cookingStatus == 'cooked' ? AppColors.success : AppColors.accent,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: AppColors.background,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: AppColors.border),
+                      ),
+                      child: Column(
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text('BRAND NG KARNE', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: AppColors.textSecondary)),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    displayBrand,
+                                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: AppColors.textPrimary),
+                                  ),
+                                ],
+                              ),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                children: [
+                                  const Text('ORAS NG LAGA', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: AppColors.textSecondary)),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    '$displayBoilingMins Mins Boiling',
+                                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: AppColors.accent),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                          const Divider(height: 18),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text('PETSA', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: AppColors.textSecondary)),
+                                  const SizedBox(height: 2),
+                                  Text(DateFormat('MMM dd, yyyy').format(activeSession?.date ?? _activeBatch!.date), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+                                ],
+                              ),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                children: [
+                                  const Text('TARGET NA KILOS (HILAW)', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: AppColors.textSecondary)),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    '${targetCookKilos.toStringAsFixed(2)} KG',
+                                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: AppColors.accent),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 18),
+            ],
 
             // 1. COOKING STATUS
             const StaffSectionHeader(
@@ -150,7 +320,7 @@ class _CookTaskScreenState extends State<CookTaskScreen> {
                     style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16, color: AppColors.textPrimary)),
                   const SizedBox(height: 16),
                   _buildCheckItem('Preparation of Raw Meat', 0),
-                  _buildCheckItem('Cooking Process (140-150kg)', 1),
+                  _buildCheckItem('Cooking Process (${targetCookKilos.toStringAsFixed(1)}kg • $displayBoilingMins mins boiling)', 1),
                   _buildCheckItem('Cleaning & Proper Storage', 2),
                 ],
               ),
@@ -158,82 +328,75 @@ class _CookTaskScreenState extends State<CookTaskScreen> {
             
             const SizedBox(height: 26),
 
-            // 2. RECORD OUTPUT
+            // 2. COOKING CONFIRMATION
             const StaffSectionHeader(
-              label: 'Record Output',
-              icon: CupertinoIcons.chart_bar_square_fill,
+              label: 'Cooking Confirmation',
+              icon: CupertinoIcons.checkmark_seal_fill,
               large: true,
-              subtitle: 'Report total kilos produced',
+              subtitle: 'Kumpirmahin kapag naluto na ang karne',
             ),
             const SizedBox(height: 14),
             Builder(
               builder: (context) {
-                final double? val = double.tryParse(_kiloController.text.trim());
-                final bool isInRange = val != null && val >= 140 && val <= 150;
-                
+                final bool isCooked = activeSession?.status == 'cooked' ||
+                    activeSession?.status == 'cutting' ||
+                    activeSession?.status == 'completed' ||
+                    _activeBatch?.cookingStatus == 'cooked' ||
+                    _activeBatch?.cookingStatus == 'cutting' ||
+                    _activeBatch?.cookingStatus == 'completed';
+
                 return StaffCard(
-                  padding: const EdgeInsets.all(24),
-                  highlighted: isInRange,
-                  borderColor: isInRange ? AppColors.accent : null,
+                  padding: const EdgeInsets.all(22),
+                  highlighted: isCooked,
+                  borderColor: isCooked ? AppColors.success : AppColors.accent,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      const Text(
-                        'TOTAL KILOS COOKED',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: AppColors.textSecondary, letterSpacing: 1),
-                      ),
-                      const SizedBox(height: 16),
-                      CupertinoTextField(
-                        controller: _kiloController,
-                        placeholder: '0.0',
-                        textAlign: TextAlign.center,
-                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                        style: TextStyle(
-                          fontSize: 42, 
-                          fontWeight: FontWeight.w900, 
-                          color: isInRange ? AppColors.success : AppColors.accent,
-                        ),
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        decoration: BoxDecoration(
-                          color: AppColors.background,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: AppColors.border),
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      const Text('Standard range: 140 - 150 kg', 
-                        textAlign: TextAlign.center, 
-                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textSecondary)),
-                      
-                      const SizedBox(height: 12),
-                      if (!_showSubmitButton)
-                        const Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 4),
-                          child: Text(
-                            'Note: Pakilagay ang kabuuang kilos na naluto para lumabas ang submit button.',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: AppColors.textSecondary,
-                              fontStyle: FontStyle.italic,
+                      if (isCooked) ...[
+                        Row(
+                          children: [
+                            const Icon(CupertinoIcons.checkmark_circle_fill, color: AppColors.success, size: 24),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'NAKUMPIRMA NA: NALUTO NA ANG KARNE',
+                                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: AppColors.success),
+                                  ),
+                                  const SizedBox(height: 3),
+                                  Text(
+                                    'Naluto na ang ${targetCookKilos.toStringAsFixed(1)} KG ($displayBrand). Hinihintay na ang portioning targets mula kay Owner.',
+                                    style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                                  ),
+                                ],
+                              ),
                             ),
-                          ),
+                          ],
                         ),
-
-                      // DYNAMIC SUBMIT BUTTON - Only rendered when there is input
-                      if (_showSubmitButton)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 28),
-                          child: StaffButton(
-                            label: 'SUBMIT REPORT',
-                            onPressed: _submitReport,
-                          ),
+                      ] else ...[
+                        const Text(
+                          'KUMPIRMASYON SA PAGLUTO',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: AppColors.textSecondary, letterSpacing: 0.8),
                         ),
+                        const SizedBox(height: 10),
+                        Text(
+                          'Kapag tapos na ang pagpapakulo ng ${targetCookKilos.toStringAsFixed(1)} KG sa loob ng $displayBoilingMins minuto, pindutin ang button sa ibaba upang makumpirma.',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
+                        ),
+                        const SizedBox(height: 18),
+                        StaffButton(
+                          label: 'KUMPIRMAHIN NA NALUTO NA',
+                          onPressed: () => _confirmCookingFinished(targetCookKilos),
+                        ),
+                      ],
                     ],
                   ),
                 );
-              }
+              },
             ),
             const SizedBox(height: 40),
           ],

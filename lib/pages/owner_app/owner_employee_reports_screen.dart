@@ -140,8 +140,10 @@ class _OwnerEmployeeReportsScreenState
     final list = _reports.where((r) {
       final matchesSearch = _searchQuery.isEmpty ||
           r.employeeName.toLowerCase().contains(_searchQuery.toLowerCase());
-      final matchesBranch =
-          _branchFilter == null || r.branchId == _branchFilter;
+      final matchesBranch = _branchFilter == null ||
+          r.branchId == _branchFilter ||
+          r.reportType == _branchFilter ||
+          r.branchName.toLowerCase() == _branchFilter!.toLowerCase();
       return matchesSearch && matchesBranch;
     }).toList();
     list.sort((a, b) =>
@@ -155,11 +157,23 @@ class _OwnerEmployeeReportsScreenState
   String _formatDate(DateTime date) =>
       '${date.month}/${date.day}/${date.year}';
 
+  String _getFilterLabel() {
+    if (_branchFilter == null) return 'All';
+    if (_branchFilter == 'production_cook') return 'Production Cook';
+    if (_branchFilter == 'production_cutter') return 'Production Meat Cutter';
+    if (_branchFilter == 'driver') return 'Driver';
+    final branch = kSampleBranches.where((b) => b.id == _branchFilter).firstOrNull;
+    if (branch != null) return branch.fullName;
+    final rep = _reports.where((r) => r.branchId == _branchFilter || r.branchName == _branchFilter).firstOrNull;
+    if (rep != null) return rep.branchName;
+    return _branchFilter!;
+  }
+
   void _showBranchPicker() {
     showCupertinoModalPopup(
       context: context,
       builder: (context) => CupertinoActionSheet(
-        title: const Text('Filter by Branch'),
+        title: const Text('Filter'),
         actions: [
           CupertinoActionSheetAction(
             onPressed: () {
@@ -169,7 +183,7 @@ class _OwnerEmployeeReportsScreenState
               });
               Navigator.pop(context);
             },
-            child: const Text('All Branches'),
+            child: const Text('All'),
           ),
           ...kSampleBranches.map((b) => CupertinoActionSheetAction(
                 onPressed: () {
@@ -181,6 +195,36 @@ class _OwnerEmployeeReportsScreenState
                 },
                 child: Text(b.fullName),
               )),
+          CupertinoActionSheetAction(
+            onPressed: () {
+              setState(() {
+                _branchFilter = 'production_cook';
+                _currentPage = 0;
+              });
+              Navigator.pop(context);
+            },
+            child: const Text('Production Cook'),
+          ),
+          CupertinoActionSheetAction(
+            onPressed: () {
+              setState(() {
+                _branchFilter = 'production_cutter';
+                _currentPage = 0;
+              });
+              Navigator.pop(context);
+            },
+            child: const Text('Production Meat Cutter'),
+          ),
+          CupertinoActionSheetAction(
+            onPressed: () {
+              setState(() {
+                _branchFilter = 'driver';
+                _currentPage = 0;
+              });
+              Navigator.pop(context);
+            },
+            child: const Text('Driver'),
+          ),
         ],
         cancelButton: CupertinoActionSheetAction(
           onPressed: () => Navigator.pop(context),
@@ -460,11 +504,7 @@ class _OwnerEmployeeReportsScreenState
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(
-                            _branchFilter == null
-                                ? 'All Branches'
-                                : kSampleBranches
-                                    .firstWhere((b) => b.id == _branchFilter)
-                                    .fullName,
+                            _getFilterLabel(),
                             style: const TextStyle(
                                 fontSize: 13,
                                 color: AppColors.textPrimary,

@@ -417,7 +417,13 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final branches = _reports.map((r) => r.branchName).toSet().toList();
+    final filterOptions = <String>{
+      ...kSampleBranches.map((b) => b.fullName),
+      'Production Cook',
+      'Production Meat Cutter',
+      'Driver',
+      ..._reports.map((r) => r.branchName),
+    }.where((b) => b.isNotEmpty).toList();
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -638,13 +644,13 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
                             child: DropdownButtonFormField<String>(
                               initialValue: _branchFilter ?? 'All',
                               decoration: const InputDecoration(
-                                labelText: 'FILTER BY BRANCH',
+                                labelText: 'FILTER',
                                 isDense: true,
-                                prefixIcon: Icon(Icons.storefront_rounded, size: 18),
+                                prefixIcon: Icon(Icons.filter_list_rounded, size: 18),
                               ),
                               items: [
-                                const DropdownMenuItem(value: 'All', child: Text('ALL BRANCHES')),
-                                ...branches.map((b) => DropdownMenuItem(
+                                const DropdownMenuItem(value: 'All', child: Text('ALL')),
+                                ...filterOptions.map((b) => DropdownMenuItem(
                                   value: b,
                                   child: Text(b.toUpperCase()),
                                 )),
@@ -677,13 +683,13 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
                           DropdownButtonFormField<String>(
                             initialValue: _branchFilter ?? 'All',
                             decoration: const InputDecoration(
-                              labelText: 'FILTER BY BRANCH',
+                              labelText: 'FILTER',
                               isDense: true,
-                              prefixIcon: Icon(Icons.storefront_rounded, size: 18),
+                              prefixIcon: Icon(Icons.filter_list_rounded, size: 18),
                             ),
                             items: [
-                              const DropdownMenuItem(value: 'All', child: Text('ALL BRANCHES')),
-                              ...branches.map((b) => DropdownMenuItem(
+                              const DropdownMenuItem(value: 'All', child: Text('ALL')),
+                              ...filterOptions.map((b) => DropdownMenuItem(
                                 value: b,
                                 child: Text(b.toUpperCase()),
                               )),

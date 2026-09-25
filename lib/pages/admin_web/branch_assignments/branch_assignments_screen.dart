@@ -72,6 +72,7 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
     final branchCooks = allStaff
         .where((s) =>
             !s.isArchived &&
+            !s.position.toLowerCase().startsWith('production') &&
             (s.position == 'Branch Cook' ||
                 s.position == 'Floating Cook' ||
                 s.position.toLowerCase().contains('cook')))
@@ -162,6 +163,7 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
     final branchCooks = allStaff
         .where((s) =>
             !s.isArchived &&
+            !s.position.toLowerCase().startsWith('production') &&
             (s.position == 'Branch Cook' ||
                 s.position == 'Floating Cook' ||
                 s.position.toLowerCase().contains('cook')))

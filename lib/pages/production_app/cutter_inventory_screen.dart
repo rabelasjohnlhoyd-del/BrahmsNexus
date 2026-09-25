@@ -1,5 +1,9 @@
+import 'dart:async';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import '../../models/supply_request.dart';
+import '../../services/auth_service.dart';
+import '../../services/firestore_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/app_pagination_bar.dart';
 import '../../widgets/staff_button.dart';
@@ -24,21 +28,90 @@ class _CutterInventoryScreenState extends State<CutterInventoryScreen> {
     'Plastic Sando Bag (10kg)',
   ];
 
+  StreamSubscription<List<SupplyRequest>>? _requestsSub;
+  List<SupplyRequest> _requests = [];
+  final Set<String> _pendingSubmissions = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _requestsSub = FirestoreService.watchSupplyRequests().listen((requests) {
+      if (mounted) {
+        setState(() {
+          _requests = requests;
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _requestsSub?.cancel();
+    super.dispose();
+  }
+
+  SupplyRequest? _getLatestRequest(String name) {
+    try {
+      return _requests.firstWhere((r) => r.itemName.toLowerCase() == name.toLowerCase());
+    } catch (_) {
+      return null;
+    }
+  }
+
   void _requestStock(String name) {
+    // Anti-spam check
+    if (_pendingSubmissions.contains(name)) return;
+
+    final latest = _getLatestRequest(name);
+    if (latest != null && latest.isPending) {
+      showCupertinoDialog(
+        context: context,
+        builder: (context) => CupertinoAlertDialog(
+          title: const Text('Kasalukuyang May Pending Request'),
+          content: Text('Mayroon nang nakabinbing request para sa $name na naghihintay ng tugon ni Owner. Iwasang mag-spam upang hindi magkadoble ang tala.'),
+          actions: [
+            CupertinoDialogAction(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
+    final messenger = ScaffoldMessenger.of(context);
     showCupertinoDialog(
       context: context,
-      builder: (context) => CupertinoAlertDialog(
+      builder: (dialogCtx) => CupertinoAlertDialog(
         title: const Text('Request Supply'),
-        content: Text('Sigurado ka bang kailangan na ng bagong stock ng $name?'),
+        content: Text('Sigurado ka bang kailangan na ng bagong stock ng $name? Magpapadala ito ng alert kay Owner.'),
         actions: [
-          CupertinoDialogAction(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          CupertinoDialogAction(onPressed: () => Navigator.pop(dialogCtx), child: const Text('Cancel')),
           CupertinoDialogAction(
             isDestructiveAction: true,
-            onPressed: () {
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Request for $name sent to Owner!')),
+            onPressed: () async {
+              Navigator.pop(dialogCtx);
+              setState(() => _pendingSubmissions.add(name));
+
+              final user = AuthService.currentUser;
+              final empName = user?.fullName.isNotEmpty == true ? user!.fullName : AuthService.currentUsername;
+
+              final ok = await FirestoreService.createSupplyRequest(
+                itemName: name,
+                requestedBy: empName,
+                requestedById: AuthService.currentUserId,
               );
+
+              if (mounted) {
+                setState(() => _pendingSubmissions.remove(name));
+                messenger.showSnackBar(
+                  SnackBar(
+                    content: Text(ok ? 'Naipadala na ang request para sa $name kay Owner!' : 'May error. Subukan ulit.'),
+                    backgroundColor: ok ? AppColors.success : AppColors.error,
+                  ),
+                );
+              }
             },
             child: const Text('Request'),
           ),
@@ -86,44 +159,117 @@ class _CutterInventoryScreenState extends State<CutterInventoryScreen> {
   }
 
   Widget _buildPackagingRow(String name) {
+    final latest = _getLatestRequest(name);
+    final isPending = (latest != null && latest.isPending) || _pendingSubmissions.contains(name);
+    final hasReply = latest != null && latest.ownerReply != null && latest.ownerReply!.isNotEmpty;
+
     return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.only(bottom: 12),
       child: StaffCard(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        child: Row(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              width: 32,
-              height: 32,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: AppColors.accent.withValues(alpha: 0.08),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(CupertinoIcons.bag,
-                  size: 16, color: AppColors.accent),
+            Row(
+              children: [
+                Container(
+                  width: 36,
+                  height: 36,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: AppColors.accent.withValues(alpha: 0.08),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(CupertinoIcons.bag,
+                      size: 18, color: AppColors.accent),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        name,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      if (isPending) ...[
+                        const SizedBox(height: 3),
+                        const Row(
+                          children: [
+                            CupertinoActivityIndicator(radius: 5),
+                            SizedBox(width: 6),
+                            Text(
+                              'Naghihintay ng tugon mula kay Owner...',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: AppColors.warning,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                StaffButton(
+                  label: isPending ? 'Pending' : 'Request',
+                  onPressed: isPending ? () => _requestStock(name) : () => _requestStock(name),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                ),
+              ],
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                name,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.textPrimary,
+            if (hasReply) ...[
+              const SizedBox(height: 12),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: AppColors.accent.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: AppColors.accent.withValues(alpha: 0.2)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Row(
+                      children: [
+                        Icon(CupertinoIcons.reply, size: 12, color: AppColors.accent),
+                        SizedBox(width: 6),
+                        Text(
+                          'TUGON NI OWNER',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.accent,
+                            letterSpacing: 0.4,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      latest.ownerReply!,
+                      style: const TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ),
-            const SizedBox(width: 8),
-            StaffButton(
-              label: 'Request',
-              onPressed: () => _requestStock(name),
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-            ),
+            ],
           ],
         ),
       ),
     );
   }
 }
+
 

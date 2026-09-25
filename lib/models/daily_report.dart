@@ -18,6 +18,12 @@ enum ReportSubmissionStatus {
 /// An employee's daily operational report — replaces the client's old
 /// group-chat-based reporting. The Owner monitors these by employee,
 /// branch, and date (Employee Reports / Reports Monitor screens).
+///
+/// [reportType] distinguishes the source of the report:
+/// - `'branch'` — regular branch staff daily report
+/// - `'production_cook'` — Production Cook batch cooking report
+/// - `'production_cutter'` — Production Meat Cutter portioning report
+/// - `'driver'` — Driver delivery or route report
 class DailyReport {
   const DailyReport({
     required this.id,
@@ -27,6 +33,7 @@ class DailyReport {
     required this.branchName,
     required this.date,
     required this.content,
+    this.reportType = 'branch',
     this.status = ReportSubmissionStatus.submitted,
     this.ownerReply,
   });
@@ -38,6 +45,8 @@ class DailyReport {
   final String branchName;
   final DateTime date;
   final String content;
+  /// One of: 'branch', 'production_cook', 'production_cutter', 'driver'
+  final String reportType;
   final ReportSubmissionStatus status;
   final String? ownerReply;
 
@@ -49,6 +58,7 @@ class DailyReport {
     String? branchName,
     DateTime? date,
     String? content,
+    String? reportType,
     ReportSubmissionStatus? status,
     String? ownerReply,
   }) {
@@ -60,6 +70,7 @@ class DailyReport {
       branchName: branchName ?? this.branchName,
       date: date ?? this.date,
       content: content ?? this.content,
+      reportType: reportType ?? this.reportType,
       status: status ?? this.status,
       ownerReply: ownerReply ?? this.ownerReply,
     );

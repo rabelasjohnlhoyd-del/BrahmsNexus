@@ -60,7 +60,7 @@ class ProductionShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isCook = position == 'Production Area Cook';
+    final isCook = position == 'Production Cook';
 
     return DeactivationGuard(
       child: AnnotatedRegion<SystemUiOverlayStyle>(

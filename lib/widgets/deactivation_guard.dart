@@ -54,7 +54,8 @@ class _DeactivationGuardState extends State<DeactivationGuard> {
             _forceLogout(isRestDay: false);
             return;
           }
-          if (s.isRestDay) {
+          // Production staff are exempt from rest day kick-out.
+          if (s.isRestDay && !AuthService.isProductionPosition(s.position)) {
             _forceLogout(isRestDay: true);
             return;
           }
@@ -65,6 +66,9 @@ class _DeactivationGuardState extends State<DeactivationGuard> {
     // 2) Listen to AssignmentService change notifier
     _assignmentListener = () {
       if (!mounted || _isHandlingLogout) return;
+      // Production staff are never part of branch assignments — skip rest day check.
+      final pos = AuthService.currentAppUser?.position ?? '';
+      if (AuthService.isProductionPosition(pos)) return;
       if (AssignmentService.isRestDay(usernameKey)) {
         _forceLogout(isRestDay: true);
       }

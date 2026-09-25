@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/app_notification.dart';
+import '../models/daily_report.dart';
 
 class NotificationService {
   const NotificationService._();
@@ -380,6 +381,19 @@ class NotificationService {
       targetBranch: branchName,
       route: 'assignments',
     );
+
+    // Write to daily_reports so the driver drop-off shows in Employee Reports
+    await _db.collection('daily_reports').add({
+      'employeeId': dName,
+      'employeeName': dName,
+      'branchId': 'driver',
+      'branchName': 'Driver',
+      'reportType': 'driver',
+      'date': Timestamp.fromDate(DateTime.now()),
+      'content': 'Ini-deploy ni $dName si $staffName sa $branchName.',
+      'status': ReportSubmissionStatus.submitted.name,
+      'submittedAt': FieldValue.serverTimestamp(),
+    });
   }
 
   /// Triggered when the Driver picks up a staff member from a branch during retrieval.
@@ -397,5 +411,18 @@ class NotificationService {
       targetBranch: branchName,
       route: 'assignments',
     );
+
+    // Write to daily_reports so the driver pick-up shows in Employee Reports
+    await _db.collection('daily_reports').add({
+      'employeeId': dName,
+      'employeeName': dName,
+      'branchId': 'driver',
+      'branchName': 'Driver',
+      'reportType': 'driver',
+      'date': Timestamp.fromDate(DateTime.now()),
+      'content': 'Sinalundo ni $dName si $staffName mula sa $branchName.',
+      'status': ReportSubmissionStatus.submitted.name,
+      'submittedAt': FieldValue.serverTimestamp(),
+    });
   }
 }

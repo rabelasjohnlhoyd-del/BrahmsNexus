@@ -624,10 +624,37 @@ class AuthService {
     }
   }
 
+  /// Returns true if the given position belongs to Production Area staff
+  /// (Production Area Cook or Production Area Meat Cutter).
+  /// Production staff work at the central kitchen — they are never part of
+  /// the Branch Assignments system, so rest day checks don't apply to them.
+  static bool isProductionPosition(String position) {
+    final p = position.trim().toLowerCase();
+    // Catches: 'Production Cook', 'Production Area Cook',
+    //          'Production Meat Cutter', 'Production Area Meat Cutter'
+    return p.startsWith('production');
+  }
+
   /// Checks if a staff account is scheduled on Rest Day today.
   /// When on Rest Day, staff members are barred from logging in until put back on duty.
+  ///
+  /// IMPORTANT: Production staff (Production Area Cook, Production Area Meat Cutter)
+  /// are ALWAYS exempt from the Rest Day check — they work at the central kitchen
+  /// and are never assigned to a branch.
   static Future<bool> isAccountOnRestDay(String username) async {
     final usernameKey = username.trim().toLowerCase();
+
+    // 0. If this is a production staff account, skip the rest day check entirely.
+    //    Check mock accounts first (fast, no network), then Supabase.
+    try {
+      // Check mock accounts (covers dev/test accounts like menes_cook)
+      final mock = _getMockPosition(usernameKey);
+      if (mock != null && isProductionPosition(mock)) return false;
+
+      // Check Supabase position (covers real registered accounts)
+      final staff = await SupabaseService.getStaffByUsernameOrId(usernameKey);
+      if (staff != null && isProductionPosition(staff.position)) return false;
+    } catch (_) {}
 
     // 1. Check local/memory cache via AssignmentService first (instant, 0 latency)
     try {
@@ -659,6 +686,15 @@ class AuthService {
       debugPrint('AuthService.isAccountOnRestDay error: $e');
       return AssignmentService.isRestDay(usernameKey);
     }
+  }
+
+  /// Internal helper — looks up position from mock accounts without importing login_screen.
+  static String? _getMockPosition(String username) {
+    const productionUsernames = {
+      'menes_cook': 'Production Cook',
+      'abby_cutter': 'Production Meat Cutter',
+    };
+    return productionUsernames[username.trim().toLowerCase()];
   }
 
   /// Real-time stream of the current user's profile document from Firestore.

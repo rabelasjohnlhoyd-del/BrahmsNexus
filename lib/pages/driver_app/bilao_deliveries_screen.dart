@@ -1,5 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import '../../models/bilao_order.dart';
+import '../../services/auth_service.dart';
+import '../../services/firestore_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/app_pagination_bar.dart';
 import '../../widgets/driver_card.dart';
@@ -177,6 +179,15 @@ class _BilaoDeliveriesScreenState extends State<BilaoDeliveriesScreen> {
                 );
                 if (result == true) {
                   _markDelivered(order.id);
+                  final driverName = AuthService.currentAppUser?.fullName ?? 'Driver';
+                  FirestoreService.recordBilaoDeliveryReport(
+                    orderId: order.id,
+                    customerName: order.customerName,
+                    deliveryAddress: order.deliveryAddress,
+                    sizeLabel: order.size.label,
+                    quantity: order.quantity,
+                    driverName: driverName,
+                  );
                 }
               },
         child: DriverCard(

@@ -63,8 +63,8 @@ class RoleRouter {
     switch (position) {
       case 'Driver':
         return const DriverShell();
-      case 'Production Area Cook':
-      case 'Production Area Meat Cutter':
+      case 'Production Cook':
+      case 'Production Meat Cutter':
         return ProductionShell(position: position);
       default:
         // Default for Branch Cook or undefined positions
