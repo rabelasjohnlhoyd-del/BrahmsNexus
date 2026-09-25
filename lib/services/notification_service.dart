@@ -37,12 +37,23 @@ class NotificationService {
     required AppNotification notification,
     required String role,
     String? userId,
+    String? username,
     String? position,
   }) {
-    // 1. If notification is specifically targeted to a user (e.g. Account Approved, Owner Reply),
+    // 1. If notification is specifically targeted to a user (e.g. Account Approved, Owner Reply, Driver on the way),
     // ONLY that specific user should ever see it — never leak to other staff.
     if (notification.targetUserId != null && notification.targetUserId!.isNotEmpty) {
-      return userId != null && notification.targetUserId == userId;
+      if (userId == null && username == null) return false;
+      final targets = notification.targetUserId!
+          .toLowerCase()
+          .split(',')
+          .map((s) => s.trim())
+          .where((s) => s.isNotEmpty)
+          .toList();
+      final uId = (userId ?? '').toLowerCase().trim();
+      final uName = (username ?? '').toLowerCase().trim();
+      return (uId.isNotEmpty && targets.contains(uId)) ||
+             (uName.isNotEmpty && targets.contains(uName));
     }
 
     final tr = notification.targetRole.toLowerCase().trim();
@@ -65,6 +76,7 @@ class NotificationService {
   static Stream<List<AppNotification>> watchNotifications({
     required String role,
     String? userId,
+    String? username,
     String? position,
   }) {
     try {
@@ -102,6 +114,7 @@ class NotificationService {
                   notification: n,
                   role: role,
                   userId: userId,
+                  username: username,
                   position: position,
                 ))
             .toList();
@@ -116,6 +129,7 @@ class NotificationService {
                   notification: n,
                   role: role,
                   userId: userId,
+                  username: username,
                   position: position,
                 ))
             .toList();
@@ -130,6 +144,7 @@ class NotificationService {
                   notification: n,
                   role: role,
                   userId: userId,
+                  username: username,
                   position: position,
                 ))
             .toList();
@@ -141,9 +156,16 @@ class NotificationService {
   static Stream<int> watchUnreadCount({
     required String role,
     required String userId,
+    String? username,
+    String? position,
   }) {
-    return watchNotifications(role: role, userId: userId).map((list) {
-      return list.where((n) => !n.isRead(userId)).length;
+    return watchNotifications(
+      role: role,
+      userId: userId,
+      username: username,
+      position: position,
+    ).map((list) {
+      return list.where((n) => !n.isRead(userId, username)).length;
     });
   }
 
@@ -323,11 +345,21 @@ class NotificationService {
     final isDeployment = mode.toLowerCase() == 'deployment';
     final actionText = isDeployment ? 'morning deployment (hatid)' : 'evening retrieval (sundo)';
     final dName = (driverName != null && driverName.isNotEmpty) ? driverName : 'Driver';
+
+    // Target specifically the designated staff member so other branch staff do not receive it
+    final targets = <String>[];
+    if (staffId != null && staffId.trim().isNotEmpty) targets.add(staffId.trim());
+    if (staffUsername != null && staffUsername.trim().isNotEmpty && staffUsername.trim() != staffId?.trim()) {
+      targets.add(staffUsername.trim());
+    }
+    final targetUserId = targets.isNotEmpty ? targets.join(',') : null;
+
     await sendNotification(
       title: 'Driver is On The Way',
       message: '$dName is on the way to $branchName for $actionText ($staffName).',
       type: NotificationType.deliveryTask,
       targetRole: 'staff',
+      targetUserId: targetUserId,
       targetBranch: branchName,
       route: 'notifications',
     );

@@ -80,6 +80,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       stream: NotificationService.watchNotifications(
         role: role,
         userId: userId,
+        username: username,
         position: AuthService.currentAppUser?.position,
       ),
       builder: (context, snapshot) {

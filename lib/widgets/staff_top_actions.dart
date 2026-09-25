@@ -19,11 +19,14 @@ class StaffTopActions extends StatelessWidget {
   Widget build(BuildContext context) {
     final role = AuthService.currentNotificationRole;
     final userId = AuthService.currentUserId;
+    final username = AuthService.currentUsername;
 
     return StreamBuilder<int>(
       stream: NotificationService.watchUnreadCount(
         role: role,
         userId: userId,
+        username: username,
+        position: AuthService.currentAppUser?.position,
       ),
       builder: (context, snapshot) {
         final unreadCount = snapshot.data ?? 0;

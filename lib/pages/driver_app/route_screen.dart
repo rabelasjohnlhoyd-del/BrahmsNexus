@@ -193,7 +193,17 @@ class _RouteScreenState extends State<RouteScreen> {
 
   void _confirmNotifyStaff(Branch branch, StaffMember? staff) {
     final messenger = ScaffoldMessenger.of(context);
-    final staffName = staff?.fullName ?? 'Staff';
+    if (staff == null) {
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text('Walang assigned staff sa ${branch.name}.'),
+          backgroundColor: AppColors.warning,
+        ),
+      );
+      return;
+    }
+
+    final staffName = staff.fullName;
     final modeLabel = _activeMode == RouteMode.deployment
         ? 'Deployment (Hatid)'
         : 'Retrieval (Sundo)';
@@ -220,8 +230,8 @@ class _RouteScreenState extends State<RouteScreen> {
                 staffName: staffName,
                 branchName: branch.fullName,
                 mode: _activeMode.name,
-                staffId: staff?.id,
-                staffUsername: staff?.username,
+                staffId: staff.id,
+                staffUsername: staff.username,
                 driverName: driverName,
               );
               if (mounted) {
@@ -808,24 +818,24 @@ class _RouteScreenState extends State<RouteScreen> {
                                               minimumSize: const Size(0, 38),
                                               color: notified 
                                                 ? AppColors.background 
-                                                : (isLocked ? AppColors.border.withValues(alpha: 0.1) : AppColors.accent.withValues(alpha: 0.1)),
+                                                : ((isLocked || !hasStaff) ? AppColors.border.withValues(alpha: 0.1) : AppColors.accent.withValues(alpha: 0.1)),
                                               borderRadius: BorderRadius.circular(12),
-                                              onPressed: isLocked ? null : () => _confirmNotifyStaff(branch, staff),
+                                              onPressed: (isLocked || !hasStaff) ? null : () => _confirmNotifyStaff(branch, staff),
                                               child: Row(
                                                 mainAxisAlignment: MainAxisAlignment.center,
                                                 children: [
                                                   Icon(
                                                     notified ? CupertinoIcons.bell_fill : CupertinoIcons.bell,
                                                     size: 14,
-                                                    color: isLocked ? AppColors.border : (notified ? AppColors.textSecondary : AppColors.accent),
+                                                    color: (isLocked || !hasStaff) ? AppColors.border : (notified ? AppColors.textSecondary : AppColors.accent),
                                                   ),
                                                   const SizedBox(width: 6),
                                                   Text(
-                                                    notified ? 'Notified' : 'On the way',
+                                                    notified ? 'Notified' : (!hasStaff ? 'No Staff' : 'On the way'),
                                                     style: TextStyle(
                                                       fontSize: 12,
                                                       fontWeight: FontWeight.w700,
-                                                      color: isLocked ? AppColors.border : (notified ? AppColors.textSecondary : AppColors.accent),
+                                                      color: (isLocked || !hasStaff) ? AppColors.border : (notified ? AppColors.textSecondary : AppColors.accent),
                                                     ),
                                                   ),
                                                 ],

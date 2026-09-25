@@ -4,7 +4,7 @@ import '../../models/account_status.dart';
 import '../../models/user_role.dart';
 import '../admin_web/admin_web_shell.dart';
 import '../driver_app/driver_shell.dart';
-import '../owner_app/owner_shell.dart';
+import 'admin_web_only_screen.dart';
 import '../production_app/production_shell.dart';
 import '../staff_app/staff_shell.dart';
 import 'account_status_screen.dart';
@@ -56,7 +56,7 @@ class RoleRouter {
     }
 
     if (role == UserRole.owner) {
-      return kIsWeb ? const AdminWebShell() : const OwnerShell();
+      return kIsWeb ? const AdminWebShell() : const AdminWebOnlyScreen();
     }
 
     // Staff routing based on position

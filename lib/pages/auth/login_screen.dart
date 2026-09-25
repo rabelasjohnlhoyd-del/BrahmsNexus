@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import '../../models/account_status.dart';
 import '../../models/app_user.dart';
@@ -110,6 +111,15 @@ class _LoginScreenState extends State<LoginScreen> {
       }
 
       if (liveUser != null) {
+        if (!kIsWeb && liveUser.role == UserRole.owner) {
+          await AuthService.signOut();
+          if (!mounted) return;
+          setState(() {
+            _isLoading = false;
+            _authError = 'Ang Administrator / Owner Portal ay maa-access lamang sa Web browser gamit ang computer o laptop.';
+          });
+          return;
+        }
         if (!mounted) return;
         setState(() => _isLoading = false);
         _navigateToRole(liveUser);
@@ -137,6 +147,16 @@ class _LoginScreenState extends State<LoginScreen> {
     if (user.status == AccountStatus.rejected) {
       setState(() {
         _authError = 'Your registration was not approved. Contact management.';
+      });
+      return;
+    }
+
+    // Web-Only Admin Guard: Prevent Owner from accessing the mobile app
+    if (!kIsWeb && user.role == UserRole.owner) {
+      await AuthService.signOut();
+      if (!mounted) return;
+      setState(() {
+        _authError = 'Ang Administrator / Owner Portal ay maa-access lamang sa Web browser gamit ang computer o laptop.';
       });
       return;
     }
