@@ -97,9 +97,22 @@ enum DeliveryStatus {
   }
 }
 
-/// A confirmed advance/special bilao order recorded by the Owner after
-/// receiving it via Messenger/phone (customers never order directly
-/// in-app — this is out of scope per the requirements doc).
+enum BilaoFulfillmentType {
+  branchPickup,
+  directDelivery;
+
+  String get label {
+    switch (this) {
+      case BilaoFulfillmentType.branchPickup:
+        return 'Branch Pickup';
+      case BilaoFulfillmentType.directDelivery:
+        return 'Direct Delivery';
+    }
+  }
+}
+
+/// A confirmed advance/special bilao order recorded by the Owner or Staff after
+/// receiving it via Messenger/phone or in-store walk-in.
 class BilaoOrder {
   const BilaoOrder({
     required this.id,
@@ -109,6 +122,12 @@ class BilaoOrder {
     required this.quantity,
     required this.scheduledDateTime,
     this.deliveryAddress = '',
+    this.fulfillmentType = BilaoFulfillmentType.directDelivery,
+    this.pickupBranchId,
+    this.pickupBranchName,
+    this.notes,
+    this.unitPrice,
+    this.createdAt,
     this.preparationStatus = PreparationStatus.pending,
     this.deliveryStatus = DeliveryStatus.forDelivery,
   });
@@ -120,10 +139,28 @@ class BilaoOrder {
   final int quantity;
   final DateTime scheduledDateTime;
   final String deliveryAddress;
+  final BilaoFulfillmentType fulfillmentType;
+  final String? pickupBranchId;
+  final String? pickupBranchName;
+  final String? notes;
+  final double? unitPrice;
+  final DateTime? createdAt;
   final PreparationStatus preparationStatus;
   final DeliveryStatus deliveryStatus;
 
-  double get totalAmount => size.price * quantity;
+  double get effectiveUnitPrice => unitPrice ?? size.price;
+  double get totalAmount => effectiveUnitPrice * quantity;
+
+  bool get isBranchPickup => fulfillmentType == BilaoFulfillmentType.branchPickup;
+
+  String get destinationDisplay {
+    if (isBranchPickup) {
+      return (pickupBranchName != null && pickupBranchName!.isNotEmpty)
+          ? 'Pickup: $pickupBranchName'
+          : 'Branch Pickup';
+    }
+    return deliveryAddress.isNotEmpty ? deliveryAddress : 'Direct Delivery';
+  }
 
   BilaoOrder copyWith({
     String? id,
@@ -133,6 +170,12 @@ class BilaoOrder {
     int? quantity,
     DateTime? scheduledDateTime,
     String? deliveryAddress,
+    BilaoFulfillmentType? fulfillmentType,
+    String? pickupBranchId,
+    String? pickupBranchName,
+    String? notes,
+    double? unitPrice,
+    DateTime? createdAt,
     PreparationStatus? preparationStatus,
     DeliveryStatus? deliveryStatus,
   }) {
@@ -144,6 +187,12 @@ class BilaoOrder {
       quantity: quantity ?? this.quantity,
       scheduledDateTime: scheduledDateTime ?? this.scheduledDateTime,
       deliveryAddress: deliveryAddress ?? this.deliveryAddress,
+      fulfillmentType: fulfillmentType ?? this.fulfillmentType,
+      pickupBranchId: pickupBranchId ?? this.pickupBranchId,
+      pickupBranchName: pickupBranchName ?? this.pickupBranchName,
+      notes: notes ?? this.notes,
+      unitPrice: unitPrice ?? this.unitPrice,
+      createdAt: createdAt ?? this.createdAt,
       preparationStatus: preparationStatus ?? this.preparationStatus,
       deliveryStatus: deliveryStatus ?? this.deliveryStatus,
     );

@@ -425,4 +425,55 @@ class NotificationService {
       'submittedAt': FieldValue.serverTimestamp(),
     });
   }
+
+  /// Triggered when a new Bilao order is recorded (Pending). Notifies driver to be aware.
+  static Future<void> notifyDriverOfPendingBilao({
+    required String customerName,
+    required String sizeLabel,
+    required int quantity,
+    required String destination,
+  }) async {
+    await sendNotification(
+      title: 'Bagong Bilao Order (Pending)',
+      message: 'May bagong bilao order para kay $customerName ($sizeLabel x$quantity) para sa $destination. Maghanda kapag naging Ready na.',
+      type: NotificationType.deliveryTask,
+      targetRole: 'driver',
+      route: 'deliveries',
+    );
+  }
+
+  /// Triggered when Bilao order preparation reaches Ready status. Notifies driver to pick up at Owner's house.
+  static Future<void> notifyDriverOfReadyBilao({
+    required String customerName,
+    required String sizeLabel,
+    required int quantity,
+    required String destination,
+  }) async {
+    await sendNotification(
+      title: 'Bilao Order Ready sa Bahay ni Owner',
+      message: 'Ready na ang bilao order para kay $customerName ($sizeLabel x$quantity)! Pakipuntahan sa bahay ni Owner para ma-pickup.',
+      type: NotificationType.deliveryTask,
+      targetRole: 'driver',
+      route: 'deliveries',
+    );
+  }
+
+  /// Triggered when driver picks up the Bilao order and clicks "For Delivery" to a branch.
+  static Future<void> notifyBranchStaffOfIncomingBilao({
+    required String customerName,
+    required String branchName,
+    required String sizeLabel,
+    required int quantity,
+    String? driverName,
+  }) async {
+    final dName = (driverName != null && driverName.isNotEmpty) ? driverName : 'Driver';
+    await sendNotification(
+      title: 'Bilao Order Paparating Na sa Branch',
+      message: 'Nakuha na ni $dName ang bilao order para kay $customerName ($sizeLabel x$quantity). Paparating na sa inyong branch ($branchName)!',
+      type: NotificationType.deliveryTask,
+      targetRole: 'staff',
+      targetBranch: branchName,
+      route: 'staff_bilao_orders',
+    );
+  }
 }

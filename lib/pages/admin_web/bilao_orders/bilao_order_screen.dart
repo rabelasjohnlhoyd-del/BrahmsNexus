@@ -24,7 +24,7 @@ class _BilaoOrderScreenState extends State<BilaoOrderScreen> {
   static const double _wideBreakpoint = 700;
 
   int _currentPage = 0;
-  static const int _pageSize = 5;
+  static const int _pageSize = 6;
   StreamSubscription<List<BilaoOrder>>? _ordersSub;
 
   final List<BilaoOrder> _orders = [
@@ -35,6 +35,10 @@ class _BilaoOrderScreenState extends State<BilaoOrderScreen> {
       size: BilaoSize.large,
       quantity: 2,
       scheduledDateTime: DateTime.now().add(const Duration(hours: 5)),
+      fulfillmentType: BilaoFulfillmentType.branchPickup,
+      pickupBranchId: 'br1',
+      pickupBranchName: 'Brgy. Gatid, Sta. Cruz',
+      notes: 'Customer nag-aantay sa Table 2',
       preparationStatus: PreparationStatus.preparing,
       deliveryStatus: DeliveryStatus.forDelivery,
     ),
@@ -45,6 +49,9 @@ class _BilaoOrderScreenState extends State<BilaoOrderScreen> {
       size: BilaoSize.medium,
       quantity: 1,
       scheduledDateTime: DateTime.now().add(const Duration(days: 1)),
+      fulfillmentType: BilaoFulfillmentType.directDelivery,
+      deliveryAddress: 'Blk 5 Lot 2, Brgy. Labuin, Pila, Laguna',
+      notes: 'Katabi ng kapilya, tawagan bago pumunta',
       preparationStatus: PreparationStatus.pending,
       deliveryStatus: DeliveryStatus.forDelivery,
     ),
@@ -55,6 +62,9 @@ class _BilaoOrderScreenState extends State<BilaoOrderScreen> {
       size: BilaoSize.small,
       quantity: 3,
       scheduledDateTime: DateTime.now().subtract(const Duration(days: 2)),
+      fulfillmentType: BilaoFulfillmentType.branchPickup,
+      pickupBranchId: 'br2',
+      pickupBranchName: 'Brgy. Labuin, Pila',
       preparationStatus: PreparationStatus.ready,
       deliveryStatus: DeliveryStatus.completed,
     ),
@@ -62,6 +72,7 @@ class _BilaoOrderScreenState extends State<BilaoOrderScreen> {
 
   String _searchQuery = '';
   String _statusFilter = 'All';
+  String _fulfillmentFilter = 'All';
 
   static const _statusFilters = [
     'All',
@@ -73,28 +84,59 @@ class _BilaoOrderScreenState extends State<BilaoOrderScreen> {
     'Completed',
   ];
 
+  static const _fulfillmentFilters = [
+    'All',
+    'Branch Pickup',
+    'Direct Delivery',
+  ];
+
   List<BilaoOrder> get _visibleOrders {
     var list = _orders.where((o) {
-      final matchesSearch = _searchQuery.isEmpty ||
-          o.customerName.toLowerCase().contains(_searchQuery.toLowerCase());
-      final matchesFilter = _statusFilter == 'All' ||
+      final q = _searchQuery.trim().toLowerCase();
+      final matchesSearch = q.isEmpty ||
+          o.customerName.toLowerCase().contains(q) ||
+          o.contactNumber.toLowerCase().contains(q) ||
+          o.id.toLowerCase().contains(q) ||
+          (o.pickupBranchName != null && o.pickupBranchName!.toLowerCase().contains(q)) ||
+          o.deliveryAddress.toLowerCase().contains(q);
+
+      final matchesStatus = _statusFilter == 'All' ||
           o.preparationStatus.label == _statusFilter ||
           o.deliveryStatus.label == _statusFilter;
-      return matchesSearch && matchesFilter;
+
+      final matchesFulfillment = _fulfillmentFilter == 'All' ||
+          (_fulfillmentFilter == 'Branch Pickup' && o.isBranchPickup) ||
+          (_fulfillmentFilter == 'Direct Delivery' && !o.isBranchPickup);
+
+      return matchesSearch && matchesStatus && matchesFulfillment;
     }).toList();
 
     list.sort((a, b) => a.scheduledDateTime.compareTo(b.scheduledDateTime));
     return list;
   }
 
-  void _updatePreparation(String id, PreparationStatus status) {
-    FirestoreService.updateBilaoStatus(orderId: id, preparationStatus: status);
-    setState(() {
-      final index = _orders.indexWhere((o) => o.id == id);
-      if (index >= 0) {
-        _orders[index] = _orders[index].copyWith(preparationStatus: status);
-      }
-    });
+  Future<void> _advancePreparation(BilaoOrder order) async {
+    final nextStatus = await FirestoreService.advanceBilaoPreparation(order);
+    if (nextStatus != null && mounted) {
+      setState(() {
+        final index = _orders.indexWhere((o) => o.id == order.id);
+        if (index >= 0) {
+          _orders[index] = _orders[index].copyWith(preparationStatus: nextStatus);
+        }
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            nextStatus == PreparationStatus.ready
+                ? 'Order para kay ${order.customerName} ay READY na. Naka-notif na si Driver para ma-pickup sa bahay ni Owner!'
+                : 'Order para kay ${order.customerName} ay kasalukuyan nang inihahanda (PREPARING).',
+          ),
+          backgroundColor: nextStatus == PreparationStatus.ready
+              ? AdminWebColors.success
+              : AdminWebColors.accent,
+        ),
+      );
+    }
   }
 
   void _updateDelivery(String id, DeliveryStatus status) {
@@ -105,6 +147,403 @@ class _BilaoOrderScreenState extends State<BilaoOrderScreen> {
         _orders[index] = _orders[index].copyWith(deliveryStatus: status);
       }
     });
+  }
+
+  Future<void> _deleteOrder(BilaoOrder order) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: AdminWebColors.error),
+            SizedBox(width: 10),
+            Text('Delete Order', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17)),
+          ],
+        ),
+        content: Text(
+          'Sigurado ka bang nais mong tanggalin ang order para kay "${order.customerName}"? Hindi na ito maibabalik.',
+          style: const TextStyle(fontSize: 13.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('CANCEL', style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AdminWebColors.error,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('DELETE', style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    await FirestoreService.deleteBilaoOrder(order.id);
+    setState(() {
+      _orders.removeWhere((o) => o.id == order.id);
+    });
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Order para kay ${order.customerName} ay natanggal na.')),
+      );
+    }
+  }
+
+  void _showOrderDetails(BilaoOrder initialOrder) {
+    var currentOrder = initialOrder;
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          final prepColor = _prepColor(currentOrder.preparationStatus);
+          final deliveryColor = _deliveryColor(currentOrder.deliveryStatus);
+
+          return AlertDialog(
+            backgroundColor: Colors.white,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AdminWebColors.accent.withValues(alpha: 0.12),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.receipt_long_rounded, color: AdminWebColors.accent, size: 20),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(currentOrder.customerName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                      Text('#${currentOrder.id.toUpperCase()}',
+                          style: const TextStyle(fontSize: 11, color: AdminWebColors.textSecondary)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            content: SizedBox(
+              width: 520,
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _detailTile(
+                      icon: Icons.phone_outlined,
+                      label: 'CONTACT NUMBER',
+                      value: currentOrder.contactNumber,
+                    ),
+                    const SizedBox(height: 12),
+                    _detailTile(
+                      icon: currentOrder.isBranchPickup ? Icons.storefront_rounded : Icons.local_shipping_outlined,
+                      label: currentOrder.isBranchPickup ? 'BRANCH PICKUP (NAG-AANTAY SA BRANCH)' : 'DELIVERY ADDRESS',
+                      value: currentOrder.destinationDisplay,
+                      valueColor: currentOrder.isBranchPickup ? AdminWebColors.accent : AdminWebColors.textPrimary,
+                    ),
+                    if (currentOrder.notes != null && currentOrder.notes!.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      _detailTile(
+                        icon: Icons.edit_note_rounded,
+                        label: 'NOTES / REMARKS',
+                        value: currentOrder.notes!,
+                      ),
+                    ],
+                    const Divider(height: 24),
+                    _detailTile(
+                      icon: Icons.shopping_basket_outlined,
+                      label: 'PACKAGE & QUANTITY',
+                      value: '${currentOrder.size.label} Bilao (${currentOrder.size.pax} Pax · ${currentOrder.size.weightLabel}) × ${currentOrder.quantity}',
+                    ),
+                    const SizedBox(height: 12),
+                    _detailTile(
+                      icon: Icons.payments_outlined,
+                      label: 'TOTAL AMOUNT',
+                      value: '₱${currentOrder.totalAmount.toStringAsFixed(0)} (₱${currentOrder.effectiveUnitPrice.toStringAsFixed(0)} bawat isa)',
+                      valueColor: AdminWebColors.accent,
+                    ),
+                    const Divider(height: 24),
+                    _detailTile(
+                      icon: Icons.schedule_rounded,
+                      label: 'SCHEDULED DATE & TIME',
+                      value: '${currentOrder.scheduledDateTime.month}/${currentOrder.scheduledDateTime.day}/${currentOrder.scheduledDateTime.year} at ${currentOrder.scheduledDateTime.hour.toString().padLeft(2, '0')}:${currentOrder.scheduledDateTime.minute.toString().padLeft(2, '0')}',
+                    ),
+                    const Divider(height: 24),
+
+                    // ── STEP-BY-STEP PREPARATION WORKFLOW ─────────────────
+                    Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: AdminWebColors.background,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: prepColor.withValues(alpha: 0.35)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(Icons.restaurant_rounded, size: 16, color: prepColor),
+                              const SizedBox(width: 8),
+                              const Text(
+                                'STEP-BY-STEP PREPARATION PROGRESS',
+                                style: TextStyle(
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 0.5,
+                                  color: AdminWebColors.textPrimary,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 14),
+
+                          // Step 1: Pending
+                          _buildDetailStepItem(
+                            stepNumber: 1,
+                            title: 'Pending',
+                            subtitle: 'Nakapila ang order para lutuin',
+                            isDone: currentOrder.preparationStatus == PreparationStatus.preparing || currentOrder.preparationStatus == PreparationStatus.ready,
+                            isCurrent: currentOrder.preparationStatus == PreparationStatus.pending,
+                          ),
+                          const SizedBox(height: 10),
+
+                          // Step 2: Preparing
+                          _buildDetailStepItem(
+                            stepNumber: 2,
+                            title: 'Preparing',
+                            subtitle: 'Kasalukuyang inihahanda at niluluto sa kusina',
+                            isDone: currentOrder.preparationStatus == PreparationStatus.ready,
+                            isCurrent: currentOrder.preparationStatus == PreparationStatus.preparing,
+                          ),
+                          const SizedBox(height: 10),
+
+                          // Step 3: Ready
+                          _buildDetailStepItem(
+                            stepNumber: 3,
+                            title: 'Ready',
+                            subtitle: 'Luto na sa bahay ni Owner, handa nang kunin ni Driver',
+                            isDone: currentOrder.preparationStatus == PreparationStatus.ready,
+                            isCurrent: currentOrder.preparationStatus == PreparationStatus.ready,
+                          ),
+                          const SizedBox(height: 14),
+
+                          // Action button or completed badge (forward-only, non-reversible)
+                          if (currentOrder.preparationStatus == PreparationStatus.pending)
+                            SizedBox(
+                              width: double.infinity,
+                              child: ElevatedButton.icon(
+                                onPressed: () async {
+                                  final next = await FirestoreService.advanceBilaoPreparation(currentOrder);
+                                  if (next != null) {
+                                    setDialogState(() {
+                                      currentOrder = currentOrder.copyWith(preparationStatus: next);
+                                    });
+                                    setState(() {
+                                      final idx = _orders.indexWhere((o) => o.id == currentOrder.id);
+                                      if (idx >= 0) _orders[idx] = currentOrder;
+                                    });
+                                  }
+                                },
+                                icon: const Icon(Icons.play_arrow_rounded, size: 16),
+                                label: const Text('PROCEED TO STEP 2: SIMULAN ANG PAG-PREPARE'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AdminWebColors.accent,
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(vertical: 12),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                ),
+                              ),
+                            )
+                          else if (currentOrder.preparationStatus == PreparationStatus.preparing)
+                            SizedBox(
+                              width: double.infinity,
+                              child: ElevatedButton.icon(
+                                onPressed: () async {
+                                  final next = await FirestoreService.advanceBilaoPreparation(currentOrder);
+                                  if (next != null) {
+                                    setDialogState(() {
+                                      currentOrder = currentOrder.copyWith(preparationStatus: next);
+                                    });
+                                    setState(() {
+                                      final idx = _orders.indexWhere((o) => o.id == currentOrder.id);
+                                      if (idx >= 0) _orders[idx] = currentOrder;
+                                    });
+                                  }
+                                },
+                                icon: const Icon(Icons.check_circle_outline_rounded, size: 16),
+                                label: const Text('PROCEED TO STEP 3: GAWING READY (NOTIF KAY DRIVER)'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AdminWebColors.success,
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(vertical: 12),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                ),
+                              ),
+                            )
+                          else
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.symmetric(vertical: 10),
+                              decoration: BoxDecoration(
+                                color: AdminWebColors.success.withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: AdminWebColors.success.withValues(alpha: 0.4)),
+                              ),
+                              child: const Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.check_circle_rounded, size: 16, color: AdminWebColors.success),
+                                  SizedBox(width: 8),
+                                  Text(
+                                    'HANDA NA SA BAHAY NI OWNER (READY FOR DRIVER PICKUP)',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w800,
+                                      color: AdminWebColors.success,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          const SizedBox(height: 6),
+                          const Text(
+                            'Paalala: Bawal umatras sa nakaraang hakbang kapag nakapag-proceed na.',
+                            style: TextStyle(
+                              fontSize: 10.5,
+                              fontStyle: FontStyle.italic,
+                              color: AdminWebColors.textSecondary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+
+                    // Delivery status tile
+                    _detailTile(
+                      icon: Icons.moped_rounded,
+                      label: 'DELIVERY STATUS',
+                      value: currentOrder.deliveryStatus.label.toUpperCase(),
+                      valueColor: deliveryColor,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('CLOSE', style: TextStyle(fontWeight: FontWeight.bold)),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  static Widget _buildDetailStepItem({
+    required int stepNumber,
+    required String title,
+    required String subtitle,
+    required bool isDone,
+    required bool isCurrent,
+  }) {
+    final Color badgeColor = isDone
+        ? AdminWebColors.success
+        : (isCurrent ? AdminWebColors.accent : AdminWebColors.border);
+    final Color textColor = isDone
+        ? AdminWebColors.success
+        : (isCurrent ? AdminWebColors.textPrimary : AdminWebColors.textSecondary);
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 24,
+          height: 24,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: isDone
+                ? AdminWebColors.success
+                : (isCurrent ? AdminWebColors.accent.withValues(alpha: 0.15) : AdminWebColors.background),
+            shape: BoxShape.circle,
+            border: Border.all(color: badgeColor, width: 2),
+          ),
+          child: isDone
+              ? const Icon(Icons.check, size: 14, color: Colors.white)
+              : Text(
+                  '$stepNumber',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    color: isCurrent ? AdminWebColors.accent : AdminWebColors.textSecondary,
+                  ),
+                ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title.toUpperCase(),
+                style: TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: isCurrent || isDone ? FontWeight.w800 : FontWeight.w600,
+                  color: textColor,
+                ),
+              ),
+              Text(
+                subtitle,
+                style: const TextStyle(fontSize: 10.5, color: AdminWebColors.textSecondary),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _detailTile({
+    required IconData icon,
+    required String label,
+    required String value,
+    Color? valueColor,
+  }) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 16, color: AdminWebColors.textSecondary),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label,
+                  style: const TextStyle(
+                      fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 0.5, color: AdminWebColors.textSecondary)),
+              const SizedBox(height: 2),
+              Text(value,
+                  style: TextStyle(
+                      fontSize: 13, fontWeight: FontWeight.w600, color: valueColor ?? AdminWebColors.textPrimary)),
+            ],
+          ),
+        ),
+      ],
+    );
   }
 
   Future<void> _openAddOrder() async {
@@ -127,7 +566,7 @@ class _BilaoOrderScreenState extends State<BilaoOrderScreen> {
     });
 
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Order for ${result.customerName} recorded.')),
+      SnackBar(content: Text('Order para kay ${result.customerName} ay matagumpay na naitala.')),
     );
   }
 
@@ -223,7 +662,7 @@ class _BilaoOrderScreenState extends State<BilaoOrderScreen> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  size.label.toUpperCase(),
+                                  '${size.label.toUpperCase()} (${size.pax} PAX)',
                                   style: const TextStyle(
                                     fontWeight: FontWeight.w800,
                                     fontSize: 13,
@@ -302,8 +741,61 @@ class _BilaoOrderScreenState extends State<BilaoOrderScreen> {
     shell?.setActions([]);
   }
 
+  Widget _statCard(String label, String value, Color color, IconData icon) {
+    return GlassCard(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, color: color, size: 20),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  label.toUpperCase(),
+                  style: const TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.5,
+                    color: AdminWebColors.textSecondary,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  value,
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                    color: color,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final totalOrders = _orders.length;
+    final pendingCount = _orders.where((o) => o.preparationStatus == PreparationStatus.pending).length;
+    final inPrepCount = _orders.where((o) => o.preparationStatus == PreparationStatus.preparing || o.preparationStatus == PreparationStatus.ready).length;
+    final forDeliveryCount = _orders.where((o) => o.deliveryStatus == DeliveryStatus.forDelivery).length;
+    final completedCount = _orders.where((o) => o.deliveryStatus == DeliveryStatus.completed || o.deliveryStatus == DeliveryStatus.delivered).length;
+    final totalSales = _orders.fold<double>(0, (sum, o) => sum + o.totalAmount);
+
     return LayoutBuilder(
       builder: (context, constraints) {
         final isWide = constraints.maxWidth >= _wideBreakpoint;
@@ -313,7 +805,40 @@ class _BilaoOrderScreenState extends State<BilaoOrderScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const SizedBox(height: 20),
+              const SizedBox(height: 16),
+              // ── KPI SUMMARY CARDS ──────────────────────────────────
+              Padding(
+                padding: EdgeInsets.symmetric(horizontal: isWide ? 24 : 16),
+                child: isWide
+                    ? Row(
+                        children: [
+                          Expanded(child: _statCard('Total Orders', '$totalOrders', AdminWebColors.textPrimary, Icons.inventory_2_outlined)),
+                          const SizedBox(width: 10),
+                          Expanded(child: _statCard('Pending Prep', '$pendingCount', AdminWebColors.warning, Icons.hourglass_top_rounded)),
+                          const SizedBox(width: 10),
+                          Expanded(child: _statCard('In Kitchen', '$inPrepCount', AdminWebColors.accent, Icons.restaurant_rounded)),
+                          const SizedBox(width: 10),
+                          Expanded(child: _statCard('For Delivery', '$forDeliveryCount', AdminWebColors.warning, Icons.moped_rounded)),
+                          const SizedBox(width: 10),
+                          Expanded(child: _statCard('Completed', '$completedCount', AdminWebColors.success, Icons.check_circle_outline_rounded)),
+                          const SizedBox(width: 10),
+                          Expanded(child: _statCard('Total Sales', '₱${totalSales.toStringAsFixed(0)}', AdminWebColors.accent, Icons.payments_outlined)),
+                        ],
+                      )
+                    : Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          SizedBox(width: (constraints.maxWidth - 40) / 2, child: _statCard('Total Orders', '$totalOrders', AdminWebColors.textPrimary, Icons.inventory_2_outlined)),
+                          SizedBox(width: (constraints.maxWidth - 40) / 2, child: _statCard('Pending Prep', '$pendingCount', AdminWebColors.warning, Icons.hourglass_top_rounded)),
+                          SizedBox(width: (constraints.maxWidth - 40) / 2, child: _statCard('For Delivery', '$forDeliveryCount', AdminWebColors.warning, Icons.moped_rounded)),
+                          SizedBox(width: (constraints.maxWidth - 40) / 2, child: _statCard('Completed', '$completedCount', AdminWebColors.success, Icons.check_circle_outline_rounded)),
+                        ],
+                      ),
+              ),
+              const SizedBox(height: 16),
+
+              // ── TOP CONTROLS & FILTERS ──────────────────────────────
               Padding(
                 padding: EdgeInsets.symmetric(horizontal: isWide ? 24 : 16),
                 child: Column(
@@ -361,15 +886,15 @@ class _BilaoOrderScreenState extends State<BilaoOrderScreen> {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 14),
                     isWide
                         ? Row(
                             children: [
                               Expanded(
-                                flex: 2,
+                                flex: 3,
                                 child: TextField(
                                   decoration: const InputDecoration(
-                                    hintText: 'Search by customer name...',
+                                    hintText: 'Search by customer, phone, branch, or order ID...',
                                     prefixIcon: Icon(Icons.search_rounded, size: 20),
                                     isDense: true,
                                   ),
@@ -377,10 +902,12 @@ class _BilaoOrderScreenState extends State<BilaoOrderScreen> {
                                       setState(() => _searchQuery = v),
                                 ),
                               ),
-                              const SizedBox(width: 16),
+                              const SizedBox(width: 12),
                               Expanded(
+                                flex: 2,
                                 child: DropdownButtonFormField<String>(
-                                  initialValue: _statusFilter,
+                                  // ignore: deprecated_member_use
+                                  value: _statusFilter,
                                   decoration: const InputDecoration(
                                     labelText: 'FILTER BY STATUS',
                                     isDense: true,
@@ -397,6 +924,28 @@ class _BilaoOrderScreenState extends State<BilaoOrderScreen> {
                                   },
                                 ),
                               ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                flex: 2,
+                                child: DropdownButtonFormField<String>(
+                                  // ignore: deprecated_member_use
+                                  value: _fulfillmentFilter,
+                                  decoration: const InputDecoration(
+                                    labelText: 'FULFILLMENT TYPE',
+                                    isDense: true,
+                                    prefixIcon:
+                                        Icon(Icons.place_outlined, size: 18),
+                                  ),
+                                  items: _fulfillmentFilters
+                                      .map((s) => DropdownMenuItem(
+                                          value: s,
+                                          child: Text(s.toUpperCase())))
+                                      .toList(),
+                                  onChanged: (v) {
+                                    if (v != null) setState(() => _fulfillmentFilter = v);
+                                  },
+                                ),
+                              ),
                             ],
                           )
                         : Column(
@@ -404,28 +953,51 @@ class _BilaoOrderScreenState extends State<BilaoOrderScreen> {
                             children: [
                               TextField(
                                 decoration: const InputDecoration(
-                                  hintText: 'Search by customer name...',
+                                  hintText: 'Search by customer, phone, or branch...',
                                   prefixIcon: Icon(Icons.search_rounded, size: 20),
                                   isDense: true,
                                 ),
                                 onChanged: (v) => setState(() => _searchQuery = v),
                               ),
-                              const SizedBox(height: 12),
-                              DropdownButtonFormField<String>(
-                                initialValue: _statusFilter,
-                                decoration: const InputDecoration(
-                                  labelText: 'FILTER BY STATUS',
-                                  isDense: true,
-                                  prefixIcon:
-                                      Icon(Icons.filter_list_rounded, size: 18),
-                                ),
-                                items: _statusFilters
-                                    .map((s) => DropdownMenuItem(
-                                        value: s, child: Text(s.toUpperCase())))
-                                    .toList(),
-                                onChanged: (v) {
-                                  if (v != null) setState(() => _statusFilter = v);
-                                },
+                              const SizedBox(height: 10),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: DropdownButtonFormField<String>(
+                                      // ignore: deprecated_member_use
+                                      value: _statusFilter,
+                                      decoration: const InputDecoration(
+                                        labelText: 'STATUS',
+                                        isDense: true,
+                                      ),
+                                      items: _statusFilters
+                                          .map((s) => DropdownMenuItem(
+                                              value: s, child: Text(s.toUpperCase(), style: const TextStyle(fontSize: 12))))
+                                          .toList(),
+                                      onChanged: (v) {
+                                        if (v != null) setState(() => _statusFilter = v);
+                                      },
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: DropdownButtonFormField<String>(
+                                      // ignore: deprecated_member_use
+                                      value: _fulfillmentFilter,
+                                      decoration: const InputDecoration(
+                                        labelText: 'TYPE',
+                                        isDense: true,
+                                      ),
+                                      items: _fulfillmentFilters
+                                          .map((s) => DropdownMenuItem(
+                                              value: s, child: Text(s.toUpperCase(), style: const TextStyle(fontSize: 12))))
+                                          .toList(),
+                                      onChanged: (v) {
+                                        if (v != null) setState(() => _fulfillmentFilter = v);
+                                      },
+                                    ),
+                                  ),
+                                ],
                               ),
                             ],
                           ),
@@ -433,11 +1005,13 @@ class _BilaoOrderScreenState extends State<BilaoOrderScreen> {
                 ),
               ),
               const SizedBox(height: 16),
+
+              // ── ORDER CARDS LIST ───────────────────────────────────
               Expanded(
                 child: _visibleOrders.isEmpty
                     ? const Center(
                         child: Text(
-                          'Walang order na tumutugma.',
+                          'Walang bilao order na tumutugma sa filter.',
                           style: TextStyle(color: AdminWebColors.textSecondary),
                         ),
                       )
@@ -462,22 +1036,24 @@ class _BilaoOrderScreenState extends State<BilaoOrderScreen> {
                                   prepColor: _prepColor(order.preparationStatus),
                                   deliveryColor:
                                       _deliveryColor(order.deliveryStatus),
-                                  onPreparationChanged: (s) =>
-                                      _updatePreparation(order.id, s),
+                                  onAdvancePreparation: (o) =>
+                                      _advancePreparation(o),
                                   onDeliveryChanged: (s) =>
                                       _updateDelivery(order.id, s),
+                                  onViewDetails: () => _showOrderDetails(order),
+                                  onDelete: () => _deleteOrder(order),
                                 );
                               },
                             ),
                           ),
-                          const SizedBox(height: 16),
+                          const SizedBox(height: 12),
                           AdminPaginationBar(
                             currentPage: _currentPage,
                             totalItems: _visibleOrders.length,
                             pageSize: _pageSize,
                             onPageChanged: (p) => setState(() => _currentPage = p),
                           ),
-                          const SizedBox(height: 24),
+                          const SizedBox(height: 16),
                         ],
                       ),
               ),
@@ -489,34 +1065,62 @@ class _BilaoOrderScreenState extends State<BilaoOrderScreen> {
   }
 }
 
-/// A single order row — Row (3-across: info / Preparation / Delivery)
-/// on a wide screen; Column (info on top, then the two status
-/// dropdowns side by side underneath) on a narrow/phone-browser
-/// screen, so the dropdowns always have enough width for their label
-/// and value text instead of being squeezed into a sliver and
-/// overflowing.
+/// A comprehensive, responsive order card showing customer info,
+/// pickup branch vs delivery address badge, package sizing, notes,
+/// step-by-step preparation workflow, and delivery tracking.
 class _OrderCard extends StatelessWidget {
   const _OrderCard({
     required this.order,
     required this.isWide,
     required this.prepColor,
     required this.deliveryColor,
-    required this.onPreparationChanged,
+    required this.onAdvancePreparation,
     required this.onDeliveryChanged,
+    required this.onViewDetails,
+    required this.onDelete,
   });
 
   final BilaoOrder order;
   final bool isWide;
   final Color prepColor;
   final Color deliveryColor;
-  final ValueChanged<PreparationStatus> onPreparationChanged;
+  final ValueChanged<BilaoOrder> onAdvancePreparation;
   final ValueChanged<DeliveryStatus> onDeliveryChanged;
+  final VoidCallback onViewDetails;
+  final VoidCallback onDelete;
+
+  static Widget _stepPill(String label, bool isCurrent, bool isDone) {
+    final color = isDone
+        ? AdminWebColors.success
+        : (isCurrent ? AdminWebColors.accent : AdminWebColors.textSecondary.withValues(alpha: 0.5));
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: isDone
+            ? AdminWebColors.success.withValues(alpha: 0.12)
+            : (isCurrent ? AdminWebColors.accent.withValues(alpha: 0.12) : Colors.transparent),
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(
+          color: isDone || isCurrent ? color : AdminWebColors.border,
+        ),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 9.5,
+          fontWeight: isCurrent || isDone ? FontWeight.w800 : FontWeight.w500,
+          color: color,
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     final customerInfo = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // Name & Order Reference
         Row(
           children: [
             Expanded(
@@ -524,83 +1128,163 @@ class _OrderCard extends StatelessWidget {
                 order.customerName,
                 style: const TextStyle(
                   fontWeight: FontWeight.w700,
-                  fontSize: 15,
+                  fontSize: 15.5,
                   color: AdminWebColors.textPrimary,
                 ),
               ),
             ),
-            Text(
-              '#${order.id.toUpperCase()}',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.bold,
-                color: AdminWebColors.accent.withValues(alpha: 0.6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: AdminWebColors.accent.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Text(
+                '#${order.id.toUpperCase()}',
+                style: const TextStyle(
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.bold,
+                  color: AdminWebColors.accent,
+                ),
               ),
             ),
           ],
         ),
-        const SizedBox(height: 2),
+        const SizedBox(height: 4),
+
+        // Contact Number
         Row(
           children: [
-            const Icon(Icons.phone_outlined, size: 12, color: AdminWebColors.textSecondary),
-            const SizedBox(width: 4),
+            const Icon(Icons.phone_outlined, size: 13, color: AdminWebColors.textSecondary),
+            const SizedBox(width: 5),
             Text(
               order.contactNumber,
               style: const TextStyle(
-                fontSize: 12,
+                fontSize: 12.5,
                 fontWeight: FontWeight.w500,
                 color: AdminWebColors.textSecondary,
               ),
             ),
           ],
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 8),
+
+        // ── LOCATION / FULFILLMENT BADGE ──────────────────────────
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
           decoration: BoxDecoration(
-            color: AdminWebColors.background,
+            color: order.isBranchPickup
+                ? AdminWebColors.accent.withValues(alpha: 0.08)
+                : const Color(0xFF0F9D58).withValues(alpha: 0.08),
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: AdminWebColors.border),
+            border: Border.all(
+              color: order.isBranchPickup
+                  ? AdminWebColors.accent.withValues(alpha: 0.3)
+                  : const Color(0xFF0F9D58).withValues(alpha: 0.3),
+            ),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.shopping_basket_outlined, size: 14, color: AdminWebColors.accent),
-              const SizedBox(width: 6),
-              Text(
-                '${order.size.label} × ${order.quantity}',
-                style: const TextStyle(
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w600,
-                  color: AdminWebColors.textPrimary,
-                ),
+              Icon(
+                order.isBranchPickup
+                    ? Icons.storefront_rounded
+                    : Icons.local_shipping_outlined,
+                size: 14,
+                color: order.isBranchPickup
+                    ? AdminWebColors.accent
+                    : const Color(0xFF0F9D58),
               ),
-              const SizedBox(width: 8),
-              const Text('·', style: TextStyle(color: AdminWebColors.border, fontWeight: FontWeight.bold)),
-              const SizedBox(width: 8),
-              Text(
-                '₱${order.totalAmount.toStringAsFixed(0)}',
-                style: const TextStyle(
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w700,
-                  color: AdminWebColors.accent,
+              const SizedBox(width: 6),
+              Flexible(
+                child: Text(
+                  order.isBranchPickup
+                      ? 'NAG-AANTAY SA BRANCH: ${order.pickupBranchName ?? order.deliveryAddress}'
+                      : 'DELIVERY ADDRESS: ${order.deliveryAddress}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w700,
+                    color: order.isBranchPickup
+                        ? AdminWebColors.accent
+                        : const Color(0xFF0F9D58),
+                  ),
                 ),
               ),
             ],
           ),
         ),
+
+        // Waiting notes if available
+        if (order.notes != null && order.notes!.isNotEmpty) ...[
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              const Icon(Icons.edit_note_rounded, size: 14, color: AdminWebColors.textSecondary),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(
+                  order.notes!,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 11.5,
+                    color: AdminWebColors.textSecondary,
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
         const SizedBox(height: 8),
+
+        // Package details + Scheduled Time
         Row(
           children: [
-            const Icon(Icons.event_available_rounded, size: 13, color: AdminWebColors.textSecondary),
-            const SizedBox(width: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: AdminWebColors.background,
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: AdminWebColors.border),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.shopping_basket_outlined, size: 13, color: AdminWebColors.accent),
+                  const SizedBox(width: 5),
+                  Text(
+                    '${order.size.label} (${order.size.pax}pax) × ${order.quantity}',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: AdminWebColors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  const Text('·', style: TextStyle(color: AdminWebColors.border, fontWeight: FontWeight.bold)),
+                  const SizedBox(width: 6),
+                  Text(
+                    '₱${order.totalAmount.toStringAsFixed(0)}',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      color: AdminWebColors.accent,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 10),
+            Icon(Icons.event_available_rounded, size: 13, color: AdminWebColors.textSecondary.withValues(alpha: 0.8)),
+            const SizedBox(width: 4),
             Text(
-              '${order.scheduledDateTime.month}/${order.scheduledDateTime.day}/'
-              '${order.scheduledDateTime.year} at '
-              '${order.scheduledDateTime.hour.toString().padLeft(2, '0')}:'
-              '${order.scheduledDateTime.minute.toString().padLeft(2, '0')}',
+              '${order.scheduledDateTime.month}/${order.scheduledDateTime.day} at '
+              '${order.scheduledDateTime.hour.toString().padLeft(2, '0')}:${order.scheduledDateTime.minute.toString().padLeft(2, '0')}',
               style: const TextStyle(
-                fontSize: 12,
+                fontSize: 11.5,
                 fontWeight: FontWeight.w500,
                 color: AdminWebColors.textSecondary,
               ),
@@ -610,35 +1294,117 @@ class _OrderCard extends StatelessWidget {
       ],
     );
 
-    final preparationDropdown = DropdownButtonFormField<PreparationStatus>(
-      initialValue: order.preparationStatus,
-      decoration: InputDecoration(
-        labelText: 'PREPARATION',
-        isDense: true,
-        labelStyle: TextStyle(
-          color: prepColor,
-          fontWeight: FontWeight.w800,
-          fontSize: 11,
-          letterSpacing: 0.5,
-        ),
-        prefixIcon: Icon(Icons.restaurant_rounded, size: 16, color: prepColor),
+    // ── STEP-BY-STEP PREPARATION STEPPER (FORWARD-ONLY, NON-REVERSIBLE) ──
+    final preparationControl = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: AdminWebColors.background,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: prepColor.withValues(alpha: 0.35)),
       ),
-      items: PreparationStatus.values
-          .map((s) => DropdownMenuItem(
-                value: s,
-                child: Text(
-                  s.label.toUpperCase(),
-                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.restaurant_rounded, size: 13, color: prepColor),
+              const SizedBox(width: 5),
+              Text(
+                'PREP: ${order.preparationStatus.label.toUpperCase()}',
+                style: TextStyle(
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.5,
+                  color: prepColor,
                 ),
-              ))
-          .toList(),
-      onChanged: (s) {
-        if (s != null) onPreparationChanged(s);
-      },
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          // 3-step mini tracker
+          Row(
+            children: [
+              _stepPill('1. PENDING', order.preparationStatus == PreparationStatus.pending, order.preparationStatus != PreparationStatus.pending),
+              const SizedBox(width: 4),
+              const Icon(Icons.chevron_right, size: 12, color: AdminWebColors.border),
+              const SizedBox(width: 4),
+              _stepPill('2. PREP', order.preparationStatus == PreparationStatus.preparing, order.preparationStatus == PreparationStatus.ready),
+              const SizedBox(width: 4),
+              const Icon(Icons.chevron_right, size: 12, color: AdminWebColors.border),
+              const SizedBox(width: 4),
+              _stepPill('3. READY', order.preparationStatus == PreparationStatus.ready, order.preparationStatus == PreparationStatus.ready),
+            ],
+          ),
+          const SizedBox(height: 6),
+          // Action button (forward-only, non-reversible)
+          if (order.preparationStatus == PreparationStatus.pending)
+            SizedBox(
+              width: double.infinity,
+              height: 28,
+              child: ElevatedButton.icon(
+                onPressed: () => onAdvancePreparation(order),
+                icon: const Icon(Icons.play_arrow_rounded, size: 14),
+                label: const Text('START PREP', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AdminWebColors.accent,
+                  foregroundColor: Colors.white,
+                  padding: EdgeInsets.zero,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                ),
+              ),
+            )
+          else if (order.preparationStatus == PreparationStatus.preparing)
+            SizedBox(
+              width: double.infinity,
+              height: 28,
+              child: ElevatedButton.icon(
+                onPressed: () => onAdvancePreparation(order),
+                icon: const Icon(Icons.check_circle_outline_rounded, size: 14),
+                label: const Text('MARK READY', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AdminWebColors.success,
+                  foregroundColor: Colors.white,
+                  padding: EdgeInsets.zero,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                ),
+              ),
+            )
+          else
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: AdminWebColors.success.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: AdminWebColors.success.withValues(alpha: 0.3)),
+              ),
+              child: const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.check_circle_rounded, size: 12, color: AdminWebColors.success),
+                  SizedBox(width: 4),
+                  Text(
+                    'READY PARA KAY DRIVER',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                      color: AdminWebColors.success,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
     );
 
     final deliveryDropdown = DropdownButtonFormField<DeliveryStatus>(
-      initialValue: order.deliveryStatus,
+      // ignore: deprecated_member_use
+      value: order.deliveryStatus,
       decoration: InputDecoration(
         labelText: 'DELIVERY',
         isDense: true,
@@ -655,7 +1421,7 @@ class _OrderCard extends StatelessWidget {
                 value: s,
                 child: Text(
                   s.label.toUpperCase(),
-                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                  style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600),
                 ),
               ))
           .toList(),
@@ -664,29 +1430,61 @@ class _OrderCard extends StatelessWidget {
       },
     );
 
+    final actionButtons = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        OutlinedButton.icon(
+          onPressed: onViewDetails,
+          icon: const Icon(Icons.info_outline_rounded, size: 14),
+          label: const Text('DETAILS', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: AdminWebColors.accent,
+            side: const BorderSide(color: AdminWebColors.accent),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          ),
+        ),
+        const SizedBox(width: 8),
+        IconButton(
+          icon: const Icon(Icons.delete_outline_rounded, size: 18, color: AdminWebColors.error),
+          tooltip: 'Delete Order',
+          onPressed: onDelete,
+        ),
+      ],
+    );
+
     return GlassCard(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(18),
       child: isWide
           ? Row(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                Expanded(flex: 2, child: customerInfo),
-                const SizedBox(width: 20),
-                Expanded(child: preparationDropdown),
-                const SizedBox(width: 12),
-                Expanded(child: deliveryDropdown),
+                Expanded(flex: 3, child: customerInfo),
+                const SizedBox(width: 18),
+                Expanded(flex: 2, child: preparationControl),
+                const SizedBox(width: 10),
+                Expanded(flex: 2, child: deliveryDropdown),
+                const SizedBox(width: 14),
+                actionButtons,
               ],
             )
           : Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 customerInfo,
-                const SizedBox(height: 16),
+                const SizedBox(height: 14),
                 Row(
                   children: [
-                    Expanded(child: preparationDropdown),
-                    const SizedBox(width: 12),
+                    Expanded(child: preparationControl),
+                    const SizedBox(width: 10),
                     Expanded(child: deliveryDropdown),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    actionButtons,
                   ],
                 ),
               ],
@@ -694,4 +1492,3 @@ class _OrderCard extends StatelessWidget {
     );
   }
 }
-

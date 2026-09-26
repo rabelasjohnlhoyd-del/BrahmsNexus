@@ -108,14 +108,14 @@ class _BilaoDeliveryDetailScreenState
                     _infoRow(CupertinoIcons.person_fill, order.customerName),
                     _infoRow(CupertinoIcons.phone_fill, order.contactNumber),
                     _infoRow(
-                      CupertinoIcons.location_solid,
-                      order.deliveryAddress.isEmpty
-                          ? 'No address on file'
-                          : order.deliveryAddress,
+                      order.isBranchPickup ? CupertinoIcons.location_solid : CupertinoIcons.map_fill,
+                      order.destinationDisplay,
                     ),
+                    if (order.notes != null && order.notes!.isNotEmpty)
+                      _infoRow(CupertinoIcons.doc_text_fill, 'Note: ${order.notes!}'),
                     _infoRow(
                       CupertinoIcons.bag_fill,
-                      '${order.size.label} × ${order.quantity} — '
+                      '${order.size.label} (${order.size.pax}pax) × ${order.quantity} — '
                       '₱${order.totalAmount.toStringAsFixed(0)}',
                     ),
                   ],

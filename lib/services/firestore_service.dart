@@ -141,18 +141,124 @@ class FirestoreService {
         'contactNumber': order.contactNumber,
         'size': order.size.name,
         'quantity': order.quantity,
+        'unitPrice': order.unitPrice,
         'scheduledDateTime': Timestamp.fromDate(order.scheduledDateTime),
         'deliveryAddress': order.deliveryAddress,
+        'fulfillmentType': order.fulfillmentType.name,
+        'pickupBranchId': order.pickupBranchId,
+        'pickupBranchName': order.pickupBranchName,
+        'notes': order.notes,
         'preparationStatus': order.preparationStatus.name,
         'deliveryStatus': order.deliveryStatus.name,
         'createdAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
       });
+
+      // Notify driver of the new pending bilao order so they are aware of the upcoming delivery
+      NotificationService.notifyDriverOfPendingBilao(
+        customerName: order.customerName,
+        sizeLabel: order.size.label,
+        quantity: order.quantity,
+        destination: order.destinationDisplay,
+      ).catchError((e) {
+        debugPrint('notifyDriverOfPendingBilao failed: $e');
+      });
+
       return docRef.id;
     } catch (e) {
       debugPrint('FirestoreService.createBilaoOrder error: $e');
       return null;
     }
+  }
+
+  /// Strictly advances the preparation status of a Bilao order step-by-step:
+  /// Pending -> Preparing -> Ready.
+  /// Enforces that status CANNOT be moved backwards.
+  /// Automatically notifies driver when order reaches Ready status to pick up at Owner's house.
+  static Future<PreparationStatus?> advanceBilaoPreparation(BilaoOrder order) async {
+    PreparationStatus nextStatus;
+    switch (order.preparationStatus) {
+      case PreparationStatus.pending:
+        nextStatus = PreparationStatus.preparing;
+        break;
+      case PreparationStatus.preparing:
+        nextStatus = PreparationStatus.ready;
+        break;
+      case PreparationStatus.ready:
+        return null; // Already at final prep stage
+    }
+
+    final success = await updateBilaoStatus(
+      orderId: order.id,
+      preparationStatus: nextStatus,
+    );
+
+    if (success && nextStatus == PreparationStatus.ready) {
+      NotificationService.notifyDriverOfReadyBilao(
+        customerName: order.customerName,
+        sizeLabel: order.size.label,
+        quantity: order.quantity,
+        destination: order.destinationDisplay,
+      ).catchError((e) {
+        debugPrint('notifyDriverOfReadyBilao failed: $e');
+      });
+    }
+
+    return success ? nextStatus : null;
+  }
+
+  /// Triggered by the driver when picking up the Bilao from Owner's house
+  /// and clicking "For Delivery".
+  /// If the order is going to a branch (Branch Pickup), automatically alerts the branch staff!
+  static Future<bool> startBilaoDelivery({
+    required BilaoOrder order,
+    String? driverName,
+  }) async {
+    final success = await updateBilaoStatus(
+      orderId: order.id,
+      deliveryStatus: DeliveryStatus.forDelivery,
+    );
+
+    if (success) {
+      if (order.isBranchPickup &&
+          order.pickupBranchName != null &&
+          order.pickupBranchName!.isNotEmpty) {
+        NotificationService.notifyBranchStaffOfIncomingBilao(
+          customerName: order.customerName,
+          branchName: order.pickupBranchName!,
+          sizeLabel: order.size.label,
+          quantity: order.quantity,
+          driverName: driverName,
+        ).catchError((e) {
+          debugPrint('notifyBranchStaffOfIncomingBilao failed: $e');
+        });
+      }
+    }
+    return success;
+  }
+
+  /// Triggered by the driver when completing delivery.
+  /// Sets status to delivered and records the report in daily_reports.
+  static Future<bool> completeBilaoDelivery({
+    required BilaoOrder order,
+    String? driverName,
+  }) async {
+    final success = await updateBilaoStatus(
+      orderId: order.id,
+      deliveryStatus: DeliveryStatus.delivered,
+    );
+
+    if (success) {
+      await recordBilaoDeliveryReport(
+        orderId: order.id,
+        customerName: order.customerName,
+        deliveryAddress: order.destinationDisplay,
+        sizeLabel: order.size.label,
+        quantity: order.quantity,
+        driverName: driverName,
+      );
+    }
+    return success;
   }
 
   /// Updates preparation or delivery status in real-time.
@@ -180,6 +286,41 @@ class FirestoreService {
     }
   }
 
+  /// Deletes or cancels a bilao order.
+  static Future<bool> deleteBilaoOrder(String orderId) async {
+    try {
+      await _db.collection('bilao_orders').doc(orderId).delete();
+      return true;
+    } catch (e) {
+      debugPrint('FirestoreService.deleteBilaoOrder error: $e');
+      return false;
+    }
+  }
+
+  /// Stream of bilao orders assigned to or waiting at a specific branch (for Staff app).
+  static Stream<List<BilaoOrder>> watchBranchBilaoOrders({
+    required String branchId,
+    String? branchName,
+  }) {
+    return watchAllBilaoOrders(limit: 100).map((orders) {
+      return orders.where((o) {
+        if (o.pickupBranchId != null && o.pickupBranchId!.isNotEmpty) {
+          if (o.pickupBranchId == branchId) return true;
+        }
+        if (branchName != null && branchName.isNotEmpty) {
+          if (o.pickupBranchName != null &&
+              o.pickupBranchName!.toLowerCase().contains(branchName.toLowerCase())) {
+            return true;
+          }
+          if (o.deliveryAddress.toLowerCase().contains(branchName.toLowerCase())) {
+            return true;
+          }
+        }
+        return false;
+      }).toList();
+    });
+  }
+
   static BilaoOrder _bilaoFromDoc(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>? ?? {};
     final timestamp = data['scheduledDateTime'] as Timestamp?;
@@ -188,6 +329,19 @@ class FirestoreService {
     final sizeStr = data['size']?.toString() ?? 'small';
     final prepStr = data['preparationStatus']?.toString() ?? 'pending';
     final delivStr = data['deliveryStatus']?.toString() ?? 'forDelivery';
+    final fulfillStr = data['fulfillmentType']?.toString() ?? 'directDelivery';
+    final fulfillType = BilaoFulfillmentType.values.firstWhere(
+      (e) => e.name == fulfillStr,
+      orElse: () {
+        if ((data['pickupBranchId']?.toString() ?? '').isNotEmpty ||
+            (data['pickupBranchName']?.toString() ?? '').isNotEmpty) {
+          return BilaoFulfillmentType.branchPickup;
+        }
+        return BilaoFulfillmentType.directDelivery;
+      },
+    );
+
+    final createdTs = data['createdAt'] as Timestamp?;
 
     return BilaoOrder(
       id: doc.id,
@@ -197,6 +351,12 @@ class FirestoreService {
       quantity: (data['quantity'] as num?)?.toInt() ?? 1,
       scheduledDateTime: scheduledDate,
       deliveryAddress: data['deliveryAddress']?.toString() ?? '',
+      fulfillmentType: fulfillType,
+      pickupBranchId: data['pickupBranchId']?.toString(),
+      pickupBranchName: data['pickupBranchName']?.toString(),
+      notes: data['notes']?.toString(),
+      unitPrice: (data['unitPrice'] as num?)?.toDouble(),
+      createdAt: createdTs?.toDate(),
       preparationStatus: PreparationStatus.values.firstWhere((e) => e.name == prepStr, orElse: () => PreparationStatus.pending),
       deliveryStatus: DeliveryStatus.values.firstWhere((e) => e.name == delivStr, orElse: () => DeliveryStatus.forDelivery),
     );
