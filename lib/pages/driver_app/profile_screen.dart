@@ -7,6 +7,7 @@ import '../../widgets/driver_card.dart';
 import '../../widgets/driver_nav_bar.dart';
 import '../../widgets/driver_section_header.dart';
 import '../../widgets/driver_top_actions.dart';
+import '../../widgets/user_avatar.dart';
 import '../auth/login_screen.dart';
 import 'edit_profile_screen.dart';
 
@@ -35,6 +36,7 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
             : 'Not provided';
         final position = user?.displayRole ?? 'Driver';
         final initials = user?.initials ?? 'DR';
+        final photoUrl = user?.photoUrl ?? '';
         final userEmail = user?.email.isNotEmpty == true
             ? user!.email
             : '$username@brahmsnexus.ph';
@@ -61,6 +63,7 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
                 // --- PREMIUM HEADER ---
                 _buildProfileHeader(
                   initials: initials,
+                  photoUrl: photoUrl,
                   fullName: fullName,
                   position: position,
                 ),
@@ -94,8 +97,8 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
 
                 const SizedBox(height: 20),
 
-                // --- VEHICLE ---
-                const DriverSectionHeader(label: 'Vehicle & Documents'),
+                // --- DRIVER CREDENTIALS ---
+                const DriverSectionHeader(label: 'Driver Credentials'),
                 const SizedBox(height: 8),
                 DriverCard(
                   padding: EdgeInsets.zero,
@@ -109,12 +112,6 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
                             : licenseStr,
                         color: licenseVerified ? AppColors.success : null,
                       ),
-                      _divider(),
-                      _listTile(CupertinoIcons.car_detailed, 'Vehicle Type',
-                          'Multicab (L300)'),
-                      _divider(),
-                      _listTile(
-                          CupertinoIcons.number, 'Plate Number', 'ABC 1234'),
                     ],
                   ),
                 ),
@@ -164,6 +161,7 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
 
   Widget _buildProfileHeader({
     required String initials,
+    required String photoUrl,
     required String fullName,
     required String position,
   }) {
@@ -173,61 +171,20 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
         children: [
           Row(
             children: [
-              GestureDetector(
+              UserAvatar(
+                initials: initials,
+                photoUrl: photoUrl,
+                size: 80,
+                fontSize: 28,
+                showEditBadge: true,
                 onTap: () {
                   Navigator.push(
                     context,
                     CupertinoPageRoute(
-                        builder: (_) => const EditProfileScreen()),
+                      builder: (_) => const EditProfileScreen(),
+                    ),
                   );
                 },
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    Container(
-                      width: 80,
-                      height: 80,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: AppColors.accent,
-                        border:
-                            Border.all(color: AppColors.background, width: 3),
-                        boxShadow: [
-                          BoxShadow(
-                            color: AppColors.accentDark.withValues(alpha: 0.1),
-                            blurRadius: 10,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
-                      ),
-                      alignment: Alignment.center,
-                      child: Text(
-                        initials,
-                        style: const TextStyle(
-                          color: CupertinoColors.white,
-                          fontSize: 28,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                    Positioned(
-                      right: 0,
-                      bottom: 0,
-                      child: Container(
-                        padding: const EdgeInsets.all(4),
-                        decoration: const BoxDecoration(
-                          color: AppColors.accentDark,
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(
-                          CupertinoIcons.pencil,
-                          size: 12,
-                          color: CupertinoColors.white,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
               ),
               const SizedBox(width: 20),
               Expanded(

@@ -82,6 +82,9 @@ class AuthService {
     bool isLicenseVerified = false,
     bool isEmailVerified = false,
     bool isPhoneVerified = false,
+    String? firstName,
+    String? middleName,
+    String? lastName,
   }) async {
     try {
       final credential = await _auth.createUserWithEmailAndPassword(
@@ -116,12 +119,18 @@ class AuthService {
 
       // Split static profile info directly into Supabase (saving Firestore costs)
       final names = fullName.trim().split(' ');
-      final firstName = names.isNotEmpty ? names.first : fullName;
-      final lastName = names.length > 1 ? names.sublist(1).join(' ') : '';
+      final fName = (firstName != null && firstName.trim().isNotEmpty)
+          ? firstName.trim()
+          : (names.isNotEmpty ? names.first : fullName);
+      final mName = middleName?.trim() ?? '';
+      final lName = (lastName != null && lastName.trim().isNotEmpty)
+          ? lastName.trim()
+          : (names.length > 1 ? names.sublist(1).join(' ') : '');
       final staffProfile = StaffMember(
         id: uid,
-        firstName: firstName,
-        lastName: lastName,
+        firstName: fName,
+        middleName: mName,
+        lastName: lName,
         username: username.trim(),
         branch: 'N/A',
         position: position.isNotEmpty ? position : role.label,
@@ -712,7 +721,7 @@ class AuthService {
     }).handleError((_) => currentAppUser);
   }
 
-  /// Updates the current user's profile fields in Firestore and local state.
+  /// Updates the current user's profile fields in Firestore, Supabase, and local state.
   static Future<bool> updateProfile({
     String? username,
     String? contactNumber,
@@ -720,6 +729,7 @@ class AuthService {
     String? email,
     String? age,
     String? address,
+    String? photoUrl,
     String? driverLicenseNumber,
   }) async {
     final uid = currentAppUser?.uid ?? _auth.currentUser?.uid;
@@ -744,6 +754,9 @@ class AuthService {
     if (address != null && address.trim().isNotEmpty) {
       updates['address'] = address.trim();
     }
+    if (photoUrl != null && photoUrl.trim().isNotEmpty) {
+      updates['photoUrl'] = photoUrl.trim();
+    }
     if (driverLicenseNumber != null && driverLicenseNumber.trim().isNotEmpty) {
       updates['driverLicenseNumber'] = driverLicenseNumber.trim();
     }
@@ -756,15 +769,35 @@ class AuthService {
         email: email?.trim() ?? currentAppUser!.email,
         age: age?.trim() ?? currentAppUser!.age,
         address: address?.trim() ?? currentAppUser!.address,
+        photoUrl: photoUrl?.trim() ?? currentAppUser!.photoUrl,
         driverLicenseNumber: driverLicenseNumber?.trim() ?? currentAppUser!.driverLicenseNumber,
       );
     }
 
+    // 1. Sync updates to Supabase staff_profiles in real time (0 Firebase reads)
     try {
-      await _db.collection('users').doc(uid).update(updates);
+      await SupabaseService.updateStaffFields(
+        id: uid,
+        username: username,
+        fullName: fullName,
+        phone: contactNumber,
+        email: email,
+        address: address,
+        age: age,
+        photoUrl: photoUrl,
+      );
+    } catch (e) {
+      debugPrint('AuthService.updateProfile Supabase sync error: $e');
+    }
+
+    // 2. Persist to Firestore
+    try {
+      if (updates.isNotEmpty) {
+        await _db.collection('users').doc(uid).update(updates);
+      }
       return true;
     } catch (_) {
-      return true; // Local state updated
+      return true; // Local and Supabase state updated
     }
   }
 

@@ -6,6 +6,7 @@ import '../../models/account_status.dart';
 import '../../models/user_role.dart';
 import '../../services/auth_service.dart';
 import '../../services/gemini_service.dart';
+import '../../services/supabase_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/auth_admin_layout.dart';
 import '../../widgets/auth_brand_mark.dart';
@@ -39,11 +40,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _usernameController = TextEditingController();
   final _contactController = TextEditingController();
   final _emailController = TextEditingController();
+  final _birthDateController = TextEditingController();
   final _ageController = TextEditingController();
   final _addressController = TextEditingController();
   final _streetController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
+
+  DateTime? _selectedBirthDate;
+  String _selectedPosition = 'Branch Cook';
 
   // Philippine Address Cascading Selector
   String _selectedProvince = 'Laguna';
@@ -72,6 +77,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     _usernameController.dispose();
     _contactController.dispose();
     _emailController.dispose();
+    _birthDateController.dispose();
     _ageController.dispose();
     _addressController.dispose();
     _streetController.dispose();
@@ -80,9 +86,84 @@ class _RegisterScreenState extends State<RegisterScreen> {
     super.dispose();
   }
 
-  String? _required(String? value, String label) {
+  void _setBirthDate(DateTime birthDate) {
+    final now = DateTime.now();
+    int age = now.year - birthDate.year;
+    if (now.month < birthDate.month ||
+        (now.month == birthDate.month && now.day < birthDate.day)) {
+      age--;
+    }
+    setState(() {
+      _selectedBirthDate = birthDate;
+      _birthDateController.text =
+          '${birthDate.year}-${birthDate.month.toString().padLeft(2, '0')}-${birthDate.day.toString().padLeft(2, '0')}';
+      _ageController.text = age.toString();
+      _stepError = null;
+    });
+  }
+
+  Future<void> _pickBirthDate() async {
+    final now = DateTime.now();
+    final initialDate = _selectedBirthDate ?? DateTime(now.year - 20, now.month, now.day);
+    final firstDate = DateTime(now.year - 80, 1, 1);
+    final lastDate = DateTime(now.year - 1, 12, 31);
+
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: initialDate.isAfter(lastDate) ? lastDate : initialDate,
+      firstDate: firstDate,
+      lastDate: lastDate,
+      helpText: 'Select Date of Birth',
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: Color(0xFF8B4513),
+              onPrimary: Colors.white,
+              surface: Colors.white,
+              onSurface: Color(0xFF24140B),
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+
+    if (picked != null) {
+      _setBirthDate(picked);
+    }
+  }
+
+  String? _validatePhilippinePhone(String? value) {
     if (value == null || value.trim().isEmpty) {
-      return '$label is required';
+      return 'Philippine contact number is required.';
+    }
+    final raw = value.trim().replaceAll(RegExp(r'[\s\-]'), '');
+    final phRegex = RegExp(r'^(09|\+639)\d{9}$');
+    if (!phRegex.hasMatch(raw)) {
+      return 'Enter a valid Philippine mobile number (e.g. 0917 123 4567 or +639171234567).';
+    }
+    return null;
+  }
+
+  String _normalizePhPhone(String phone) {
+    var p = phone.trim().replaceAll(RegExp(r'[\s\-]'), '');
+    if (p.startsWith('+639')) {
+      p = '09${p.substring(4)}';
+    }
+    return p;
+  }
+
+  String? _validateName(String? value, String label) {
+    if (value == null || value.trim().isEmpty) {
+      return '$label is required.';
+    }
+    if (value.trim().length < 2) {
+      return '$label must be at least 2 characters.';
+    }
+    final nameRegex = RegExp(r"^[a-zA-ZñÑáéíóúÁÉÍÓÚ\s\-'.]+$");
+    if (!nameRegex.hasMatch(value.trim())) {
+      return '$label must only contain letters.';
     }
     return null;
   }
@@ -154,26 +235,60 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
   }
 
-  void _nextStep() {
+  Future<void> _nextStep() async {
     FocusScope.of(context).unfocus();
     setState(() => _stepError = null);
 
     if (_currentStep == 0) {
-      if (_firstNameController.text.trim().isEmpty) {
-        setState(() => _stepError = 'Please enter your first name.');
+      final fNameErr = _validateName(_firstNameController.text, 'First name');
+      if (fNameErr != null) {
+        setState(() => _stepError = fNameErr);
         return;
       }
-      if (_lastNameController.text.trim().isEmpty) {
-        setState(() => _stepError = 'Please enter your last name.');
+
+      final lNameErr = _validateName(_lastNameController.text, 'Last name');
+      if (lNameErr != null) {
+        setState(() => _stepError = lNameErr);
         return;
       }
+
+      if (_middleNameController.text.trim().isNotEmpty) {
+        final mNameErr = _validateName(_middleNameController.text, 'Middle name');
+        if (mNameErr != null) {
+          setState(() => _stepError = mNameErr);
+          return;
+        }
+      }
+
+      if (_selectedBirthDate == null || _birthDateController.text.trim().isEmpty) {
+        setState(() => _stepError = 'Please select your Date of Birth.');
+        return;
+      }
+
       final age = int.tryParse(_ageController.text.trim());
-      if (age == null || age < 18) {
-        setState(() => _stepError = 'Applicant must be at least 18 years old.');
+      if (age == null) {
+        setState(() => _stepError = 'Invalid birthdate. Please select your date of birth.');
         return;
       }
-      if (_contactController.text.trim().isEmpty) {
-        setState(() => _stepError = 'Please enter a contact number.');
+      if (age < 18) {
+        setState(() => _stepError = 'Applicant must be at least 18 years old (Calculated age: $age).');
+        return;
+      }
+      if (age > 80) {
+        setState(() => _stepError = 'Applicant must be at most 80 years old (Calculated age: $age).');
+        return;
+      }
+
+      final phoneErr = _validatePhilippinePhone(_contactController.text);
+      if (phoneErr != null) {
+        setState(() => _stepError = phoneErr);
+        return;
+      }
+
+      final normalizedPhone = _normalizePhPhone(_contactController.text);
+      final phoneRegistered = await SupabaseService.isPhoneRegistered(normalizedPhone);
+      if (phoneRegistered) {
+        setState(() => _stepError = 'Ang contact number na ito ay mayroon nang rehistradong account.');
         return;
       }
 
@@ -187,6 +302,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
         setState(() => _stepError = 'Please select your Barangay.');
         return;
       }
+      if (_streetController.text.trim().isEmpty) {
+        setState(() => _stepError = 'Please enter your street name or house number.');
+        return;
+      }
+      if (_streetController.text.trim().length < 3) {
+        setState(() => _stepError = 'Street address must be at least 3 characters.');
+        return;
+      }
+
       if (_selectedRoleString == 'Driver') {
         if (_photoLicenseResult == null || !_photoLicenseResult!.isValid) {
           setState(() => _stepError =
@@ -228,15 +352,48 @@ class _RegisterScreenState extends State<RegisterScreen> {
       setState(() => _registerError = 'Username must be at least 3 characters.');
       return;
     }
+    if (username.length > 20) {
+      setState(() => _registerError = 'Username must not exceed 20 characters.');
+      return;
+    }
+    if (username.contains(' ')) {
+      setState(() => _registerError = 'Username must not contain spaces.');
+      return;
+    }
+    final usernameRegex = RegExp(r'^[a-zA-Z0-9_.]+$');
+    if (!usernameRegex.hasMatch(username)) {
+      setState(() => _registerError = 'Username can only contain letters, numbers, underscores, and dots.');
+      return;
+    }
+
+    final isUsernameTaken = await SupabaseService.isUsernameRegistered(username);
+    if (isUsernameTaken) {
+      setState(() => _registerError = 'Ang username na ito ay nagamit na. Pumili ng iba.');
+      return;
+    }
 
     final email = _emailController.text.trim();
-    final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
+    final emailRegex = RegExp(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$');
+    if (email.isEmpty) {
+      setState(() => _registerError = 'Please enter your email address.');
+      return;
+    }
     if (!emailRegex.hasMatch(email)) {
-      setState(() => _registerError = 'Please enter a valid email address.');
+      setState(() => _registerError = 'Please enter a valid email address (e.g. name@example.com).');
+      return;
+    }
+
+    final isEmailTaken = await SupabaseService.isEmailRegistered(email);
+    if (isEmailTaken) {
+      setState(() => _registerError = 'Ang email address na ito ay mayroon nang rehistradong account.');
       return;
     }
 
     final password = _passwordController.text;
+    if (password.isEmpty) {
+      setState(() => _registerError = 'Please enter a password.');
+      return;
+    }
     if (password.length < 6) {
       setState(() => _registerError = 'Password must be at least 6 characters.');
       return;
@@ -255,7 +412,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
       if (_selectedSuffix != null && _selectedSuffix!.isNotEmpty) _selectedSuffix!,
     ].join(' ');
 
+    final normalizedPhone = _normalizePhPhone(_contactController.text);
+    final targetPosition = _selectedRoleString == 'Driver' ? 'Driver' : _selectedPosition;
+
     setState(() => _isSubmitting = true);
+
+    if (!mounted) return;
 
     // Navigate to Email OTP Verification Screen
     await Navigator.of(context).push(
@@ -267,9 +429,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
               username: username,
               password: password,
               fullName: fullName,
-              contactNumber: _contactController.text.trim(),
+              contactNumber: normalizedPhone,
               role: UserRole.staff,
-              position: _selectedRoleString == 'Driver' ? 'Driver' : 'Branch Cook',
+              position: targetPosition,
               email: email,
               age: _ageController.text.trim(),
               address: _addressController.text.trim(),
@@ -278,6 +440,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
               isLicenseVerified: _selectedRoleString == 'Driver' && _photoLicenseResult?.isValid == true,
               isEmailVerified: true,
               isPhoneVerified: false,
+              firstName: _firstNameController.text.trim(),
+              middleName: _middleNameController.text.trim(),
+              lastName: _lastNameController.text.trim(),
             );
 
             if (error == null && mounted) {
@@ -642,6 +807,27 @@ class _RegisterScreenState extends State<RegisterScreen> {
             ),
           ),
         ),
+        if (_selectedRoleString == 'Staff') ...[
+          const SizedBox(height: 12),
+          DropdownButtonFormField<String>(
+            initialValue: _selectedPosition,
+            style: _fieldTextStyle,
+            decoration: _fieldDecoration(
+              label: 'Target Position',
+              prefixIcon: const Icon(Icons.work_outline_rounded, size: 19),
+            ),
+            isExpanded: true,
+            items: const [
+              DropdownMenuItem(value: 'Branch Cook', child: Text('Branch Cook')),
+              DropdownMenuItem(value: 'Floating Cook', child: Text('Floating Cook')),
+              DropdownMenuItem(value: 'Production Cook', child: Text('Production Cook')),
+              DropdownMenuItem(value: 'Production Meat Cutter', child: Text('Production Meat Cutter')),
+            ],
+            onChanged: (val) {
+              if (val != null) setState(() => _selectedPosition = val);
+            },
+          ),
+        ],
         const SizedBox(height: 16),
 
         const Text('FULL LEGAL NAME', style: _sectionLabelStyle),
@@ -658,7 +844,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   label: 'First Name',
                   hint: 'Juan',
                 ),
-                validator: (v) => _required(v, 'First name'),
               ),
             ),
             const SizedBox(width: 10),
@@ -671,7 +856,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   label: 'Last Name',
                   hint: 'Dela Cruz',
                 ),
-                validator: (v) => _required(v, 'Last name'),
               ),
             ),
           ],
@@ -716,20 +900,27 @@ class _RegisterScreenState extends State<RegisterScreen> {
         ),
         const SizedBox(height: 16),
 
-        const Text('CONTACT & DEMOGRAPHICS', style: _sectionLabelStyle),
+        const Text('DEMOGRAPHICS & CONTACT', style: _sectionLabelStyle),
         const SizedBox(height: 8),
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Expanded(
-              child: TextFormField(
-                controller: _ageController,
-                keyboardType: TextInputType.number,
-                textInputAction: TextInputAction.next,
-                style: _fieldTextStyle,
-                decoration: _fieldDecoration(
-                  label: 'Age',
-                  hint: '21',
+              flex: 3,
+              child: InkWell(
+                onTap: _pickBirthDate,
+                borderRadius: BorderRadius.circular(10),
+                child: IgnorePointer(
+                  child: TextFormField(
+                    controller: _birthDateController,
+                    style: _fieldTextStyle,
+                    decoration: _fieldDecoration(
+                      label: 'Date of Birth',
+                      hint: 'YYYY-MM-DD',
+                      prefixIcon: const Icon(Icons.cake_outlined, size: 19),
+                      suffixIcon: const Icon(Icons.calendar_month_outlined, size: 19, color: Color(0xFF8B4513)),
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -737,17 +928,29 @@ class _RegisterScreenState extends State<RegisterScreen> {
             Expanded(
               flex: 2,
               child: TextFormField(
-                controller: _contactController,
-                keyboardType: TextInputType.phone,
-                textInputAction: TextInputAction.next,
-                style: _fieldTextStyle,
+                controller: _ageController,
+                readOnly: true,
+                style: _fieldTextStyle.copyWith(fontWeight: FontWeight.bold),
                 decoration: _fieldDecoration(
-                  label: 'Contact Number',
-                  hint: '0917 123 4567',
+                  label: 'Age (Auto)',
+                  hint: 'Auto',
+                  prefixIcon: const Icon(Icons.numbers_rounded, size: 18),
                 ),
               ),
             ),
           ],
+        ),
+        const SizedBox(height: 16),
+        TextFormField(
+          controller: _contactController,
+          keyboardType: TextInputType.phone,
+          textInputAction: TextInputAction.next,
+          style: _fieldTextStyle,
+          decoration: _fieldDecoration(
+            label: 'Philippine Mobile Number',
+            hint: '0917 123 4567',
+            prefixIcon: const Icon(Icons.phone_iphone_outlined, size: 19),
+          ),
         ),
       ],
     );

@@ -147,3 +147,31 @@ VALUES
     ('emp11', 'Extra Cook 2', '', '(Floating)', 'floating_cook_2', NULL, 'Floating / Any Branch', 'Floating Cook', 'Pending Info', 'Laguna', true, false),
     ('emp12', 'Extra Cook 3', '', '(Floating)', 'floating_cook_3', NULL, 'Floating / Any Branch', 'Floating Cook', 'Pending Info', 'Laguna', true, false)
 ON CONFLICT (username) DO NOTHING;
+
+-- ==============================================================================
+-- 6. PROFILE PHOTO & ANNOUNCEMENTS EXTENSIONS
+-- ==============================================================================
+
+-- Add photo_url column to staff_profiles
+ALTER TABLE public.staff_profiles ADD COLUMN IF NOT EXISTS photo_url TEXT DEFAULT '';
+
+-- Create announcements table for zero Firebase reads
+CREATE TABLE IF NOT EXISTS public.announcements (
+    id TEXT PRIMARY KEY DEFAULT ('ann-' || substring(uuid_generate_v4()::text, 1, 8)),
+    message_content TEXT NOT NULL,
+    date_posted TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()),
+    target_position TEXT DEFAULT 'All Positions'
+);
+
+ALTER TABLE public.announcements ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow anon read announcements" ON public.announcements FOR SELECT USING (true);
+CREATE POLICY "Allow anon modify announcements" ON public.announcements FOR ALL USING (true);
+
+-- Create Storage bucket for avatars / profile pictures
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('avatars', 'avatars', true)
+ON CONFLICT (id) DO UPDATE SET public = true;
+
+CREATE POLICY "Public Access avatars" ON storage.objects FOR SELECT USING (bucket_id = 'avatars');
+CREATE POLICY "Public Upload avatars" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'avatars');
+CREATE POLICY "Public Update avatars" ON storage.objects FOR UPDATE USING (bucket_id = 'avatars');

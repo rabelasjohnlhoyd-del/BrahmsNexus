@@ -12,6 +12,7 @@ import '../models/inventory_batch.dart';
 import '../models/meat_dispatch.dart';
 import '../models/app_notification.dart';
 import '../models/sales_record.dart';
+import '../models/staff_member.dart';
 import '../models/supply_request.dart';
 import 'auth_service.dart';
 import 'firestore_cache.dart';
@@ -1397,19 +1398,59 @@ class FirestoreService {
     ),
   ];
 
-  /// Streams real-time announcements posted by Owner.
+  /// Streams real-time announcements from Supabase PostgreSQL (0 Firebase reads)
+  /// with automatic fallback to Firestore and local defaults if offline.
   static Stream<List<Announcement>> watchAnnouncements({
     int limit = 30,
     String? targetPosition,
-  }) {
+  }) async* {
+    // 1. Initial responsive yield
+    List<Announcement> initialList = _defaultAnnouncements
+        .where((a) => !_deletedAnnouncementIds.contains(a.id))
+        .toList();
+    if (targetPosition != null &&
+        targetPosition.isNotEmpty &&
+        targetPosition != 'All Positions') {
+      final tp = targetPosition.toLowerCase().trim();
+      initialList = initialList.where((a) {
+        final atp = a.targetPosition.toLowerCase().trim();
+        return atp == 'all positions' || atp == 'all' || atp == tp;
+      }).toList();
+    }
+    yield initialList;
+
+    // 2. Stream from Supabase (Zero Firebase Reads)
+    if (SupabaseService.isAvailable) {
+      try {
+        final stream = SupabaseService.watchAnnouncements();
+        await for (final list in stream) {
+          if (list.isNotEmpty) {
+            var filtered = list;
+            if (targetPosition != null &&
+                targetPosition.isNotEmpty &&
+                targetPosition != 'All Positions') {
+              final tp = targetPosition.toLowerCase().trim();
+              filtered = filtered.where((a) {
+                final atp = a.targetPosition.toLowerCase().trim();
+                return atp == 'all positions' || atp == 'all' || atp == tp;
+              }).toList();
+            }
+            yield filtered.take(limit).toList();
+          }
+        }
+        return;
+      } catch (e) {
+        debugPrint('Supabase watchAnnouncements error: $e. Falling back to Firestore.');
+      }
+    }
+
+    // 3. Fallback to Firestore if Supabase stream unavailable
     final query = _db
         .collection('announcements')
         .orderBy('datePosted', descending: true)
         .limit(limit);
-    return FirestoreListenCache.query(
-      'announcements:$limit',
-      query,
-    ).asyncMap((snapshot) async {
+    final fsStream = FirestoreListenCache.query('announcements:$limit', query);
+    await for (final snapshot in fsStream) {
       if (!_deletedIdsLoaded) {
         try {
           final deletedDocs =
@@ -1453,8 +1494,8 @@ class FirestoreService {
         }).toList();
       }
 
-      return list;
-    });
+      yield list;
+    }
   }
 
   /// Posts a new announcement in Firestore and Supabase.
@@ -1569,7 +1610,7 @@ class FirestoreService {
     }
   }
 
-  /// Sets or updates a staff member's branch assignment and rest day status in Firestore.
+  /// Sets or updates a staff member's branch assignment and rest day status in Firestore & Supabase.
   static Future<bool> setStaffAssignment({
     required String username,
     required String employeeId,
@@ -1580,6 +1621,26 @@ class FirestoreService {
   }) async {
     try {
       final usernameKey = username.trim().toLowerCase();
+      final isRestDay = workStatus == WorkStatus.restDay;
+
+      // 1. Dual-sync to Supabase staff_profiles in real time (0 Firebase reads)
+      try {
+        final staffList = SupabaseService.getAllStaff();
+        final idx = staffList.indexWhere(
+          (s) => (employeeId.isNotEmpty && s.id == employeeId) || s.username.toLowerCase() == usernameKey,
+        );
+        if (idx >= 0) {
+          final updated = staffList[idx].copyWith(
+            branch: branchName,
+            rfidTag: isRestDay ? 'REST_DAY' : '',
+          );
+          await SupabaseService.updateStaffProfile(updated);
+        }
+      } catch (e) {
+        debugPrint('setStaffAssignment Supabase sync error: $e');
+      }
+
+      // 2. Persist to Firestore
       await _db.collection('staff_assignments').doc(usernameKey).set({
         'username': usernameKey,
         'employeeId': employeeId,
@@ -1587,7 +1648,7 @@ class FirestoreService {
         'branchId': branchId,
         'branchName': branchName,
         'workStatus': workStatus.name,
-        'isRestDay': workStatus == WorkStatus.restDay,
+        'isRestDay': isRestDay,
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
       FirestoreReadCache.invalidate('staff_assignments_map');
@@ -1598,7 +1659,8 @@ class FirestoreService {
     }
   }
 
-  /// Checks if a staff member is currently on Rest Day in Firestore.
+  /// Checks if a staff member is currently on Rest Day.
+  /// Checks Supabase in-memory staff first (0 Firebase reads) with Firestore fallback.
   static Future<bool> isStaffOnRestDay(String username) async {
     try {
       final usernameKey = username.trim().toLowerCase();
@@ -1606,6 +1668,28 @@ class FirestoreService {
       final cached = FirestoreReadCache.get<bool>(cacheKey);
       if (cached != null) return cached;
 
+      // 1. Check in-memory staff from Supabase first (0 network, 0 Firebase reads)
+      final inMemoryStaff = SupabaseService.getAllStaff();
+      final member = inMemoryStaff.firstWhere(
+        (s) => s.username.toLowerCase() == usernameKey,
+        orElse: () => StaffMember(
+          id: '',
+          firstName: '',
+          lastName: '',
+          username: '',
+          branch: '',
+          position: '',
+          isActive: true,
+          isArchived: false,
+        ),
+      );
+      if (member.id.isNotEmpty) {
+        final result = member.isRestDay;
+        FirestoreReadCache.set(cacheKey, result, ttl: const Duration(seconds: 30));
+        return result;
+      }
+
+      // 2. Fallback to Firestore
       final doc = await _db.collection('staff_assignments').doc(usernameKey).get();
       if (doc.exists) {
         final data = doc.data();
@@ -2072,11 +2156,10 @@ class FirestoreService {
 
   /// Streams meat portioning targets set by Owner/Admin (250g, 300g, 400g).
   static Stream<Map<String, int>> watchPortioningTargets() {
-    return _db
-        .collection('settings')
-        .doc('portioning_targets')
-        .snapshots()
-        .map((snapshot) {
+    return FirestoreListenCache.doc(
+      'settings:portioning_targets',
+      _db.collection('settings').doc('portioning_targets'),
+    ).map((snapshot) {
       if (snapshot.exists && snapshot.data() != null) {
         final data = snapshot.data()!;
         return {

@@ -62,11 +62,13 @@ class AssignmentService {
       _startRealtimeListener();
     }
 
-    // 2. Synchronize from Supabase cloud (cross-device source of truth)
+    // 2. Synchronize from Supabase cloud (cross-device source of truth - 0 reads)
     await syncFromSupabase();
 
-    // 3. Refresh from Firestore cloud
-    await syncFromCloud();
+    // 3. Fallback to Firestore cloud only if local/Supabase cache is empty
+    if (_workStatusCache.isEmpty) {
+      await syncFromCloud();
+    }
   }
 
   static void _startRealtimeListener() {

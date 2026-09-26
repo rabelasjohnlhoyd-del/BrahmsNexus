@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../config/supabase_config.dart';
@@ -327,6 +328,228 @@ class SupabaseService {
       debugPrint('SupabaseService.updateStaffProfile error: $e');
       return false;
     }
+  }
+
+  /// Checks if a contact number is already registered in Supabase or local cache.
+  /// Strictly costs 0 Firebase reads.
+  static Future<bool> isPhoneRegistered(String phone) async {
+    final cleanPhone = phone.trim().replaceAll(RegExp(r'[\s\-]'), '');
+    if (cleanPhone.isEmpty) return false;
+
+    // Check in-memory cache first (0 network cost)
+    final inMemoryMatch = _inMemoryStaff.any((s) {
+      final p = s.phone?.replaceAll(RegExp(r'[\s\-]'), '');
+      if (p == null || p.isEmpty) return false;
+      return p == cleanPhone ||
+          (cleanPhone.length >= 10 && p.endsWith(cleanPhone.substring(cleanPhone.length - 10)));
+    });
+    if (inMemoryMatch) return true;
+
+    final client = _client;
+    if (client == null) return false;
+
+    try {
+      final last10 = cleanPhone.length >= 10 ? cleanPhone.substring(cleanPhone.length - 10) : cleanPhone;
+      final res = await client
+          .from('staff_profiles')
+          .select('id')
+          .or('phone.eq.$cleanPhone,phone.ilike.%$last10%')
+          .limit(1);
+      return (res as List).isNotEmpty;
+    } catch (e) {
+      debugPrint('SupabaseService.isPhoneRegistered error: $e');
+      return false;
+    }
+  }
+
+  /// Checks if an email address is already registered in Supabase or local cache.
+  /// Strictly costs 0 Firebase reads.
+  static Future<bool> isEmailRegistered(String email) async {
+    final cleanEmail = email.trim().toLowerCase();
+    if (cleanEmail.isEmpty) return false;
+
+    // Check in-memory cache first (0 network cost)
+    final inMemoryMatch = _inMemoryStaff.any((s) {
+      final e = s.email?.trim().toLowerCase();
+      return e != null && e == cleanEmail;
+    });
+    if (inMemoryMatch) return true;
+
+    final client = _client;
+    if (client == null) return false;
+
+    try {
+      final res = await client
+          .from('staff_profiles')
+          .select('id')
+          .ilike('email', cleanEmail)
+          .limit(1);
+      return (res as List).isNotEmpty;
+    } catch (e) {
+      debugPrint('SupabaseService.isEmailRegistered error: $e');
+      return false;
+    }
+  }
+
+  /// Checks if a username is already registered in Supabase or local cache.
+  /// Strictly costs 0 Firebase reads.
+  static Future<bool> isUsernameRegistered(String username) async {
+    final cleanUsername = username.trim().toLowerCase();
+    if (cleanUsername.isEmpty) return false;
+
+    // Check in-memory cache first (0 network cost)
+    final inMemoryMatch = _inMemoryStaff.any((s) {
+      return s.username.trim().toLowerCase() == cleanUsername;
+    });
+    if (inMemoryMatch) return true;
+
+    final client = _client;
+    if (client == null) return false;
+
+    try {
+      final res = await client
+          .from('staff_profiles')
+          .select('id')
+          .ilike('username', cleanUsername)
+          .limit(1);
+      return (res as List).isNotEmpty;
+    } catch (e) {
+      debugPrint('SupabaseService.isUsernameRegistered error: $e');
+      return false;
+    }
+  }
+
+  /// Updates specific fields of a staff profile in Supabase and local cache.
+  /// Handles partial updates and column fallback safely.
+  static Future<bool> updateStaffFields({
+    required String id,
+    String? username,
+    String? fullName,
+    String? phone,
+    String? email,
+    String? address,
+    String? age,
+    String? photoUrl,
+  }) async {
+    // 1. Update in-memory cache immediately
+    final index = _inMemoryStaff.indexWhere(
+      (s) => s.id == id || (username != null && s.username.toLowerCase() == username.toLowerCase().trim()),
+    );
+    if (index >= 0) {
+      final existing = _inMemoryStaff[index];
+      String fName = existing.firstName;
+      String lName = existing.lastName;
+      if (fullName != null && fullName.trim().isNotEmpty) {
+        final parts = fullName.trim().split(' ');
+        fName = parts.isNotEmpty ? parts.first : fullName;
+        lName = parts.length > 1 ? parts.sublist(1).join(' ') : '';
+      }
+      _inMemoryStaff[index] = existing.copyWith(
+        firstName: fName,
+        lastName: lName,
+        username: username?.trim() ?? existing.username,
+        phone: phone?.trim() ?? existing.phone,
+        email: email?.trim() ?? existing.email,
+        address: address?.trim() ?? existing.address,
+        age: age?.trim() ?? existing.age,
+        photoUrl: photoUrl ?? existing.photoUrl,
+      );
+    }
+
+    final client = _client;
+    if (client == null) return true;
+
+    // 2. Prepare payload for Supabase
+    final updateMap = <String, dynamic>{};
+    if (username != null && username.trim().isNotEmpty) {
+      updateMap['username'] = username.trim();
+    }
+    if (phone != null && phone.trim().isNotEmpty) {
+      updateMap['phone'] = phone.trim();
+    }
+    if (email != null && email.trim().isNotEmpty) {
+      updateMap['email'] = email.trim();
+    }
+    if (address != null && address.trim().isNotEmpty) {
+      updateMap['address'] = address.trim();
+    }
+    if (age != null && age.trim().isNotEmpty) {
+      updateMap['age'] = age.trim();
+    }
+    if (fullName != null && fullName.trim().isNotEmpty) {
+      final parts = fullName.trim().split(' ');
+      updateMap['first_name'] = parts.isNotEmpty ? parts.first : fullName;
+      if (parts.length > 1) {
+        updateMap['last_name'] = parts.sublist(1).join(' ');
+      }
+    }
+    if (photoUrl != null && photoUrl.isNotEmpty) {
+      updateMap['photo_url'] = photoUrl;
+    }
+
+    if (updateMap.isEmpty) return true;
+
+    try {
+      await client
+          .from('staff_profiles')
+          .update(updateMap)
+          .or('id.eq.$id${username != null && username.isNotEmpty ? ',username.eq.${username.trim()}' : ''}');
+      return true;
+    } catch (e) {
+      // If error might be due to photo_url column not existing in Postgres schema yet,
+      // retry without photo_url so remaining fields are saved successfully!
+      if (updateMap.containsKey('photo_url')) {
+        updateMap.remove('photo_url');
+        if (updateMap.isNotEmpty) {
+          try {
+            await client
+                .from('staff_profiles')
+                .update(updateMap)
+                .or('id.eq.$id${username != null && username.isNotEmpty ? ',username.eq.${username.trim()}' : ''}');
+            return true;
+          } catch (innerErr) {
+            debugPrint('SupabaseService.updateStaffFields retry error: $innerErr');
+          }
+        }
+      }
+      debugPrint('SupabaseService.updateStaffFields error: $e');
+      return false;
+    }
+  }
+
+  /// Uploads user profile photo to Supabase Storage bucket 'avatars'.
+  /// If the bucket does not exist or fails, returns a base64 data URI fallback.
+  static Future<String?> uploadProfilePhoto({
+    required String userId,
+    required Uint8List bytes,
+    String extension = 'jpg',
+  }) async {
+    final client = _client;
+    if (client != null) {
+      try {
+        final timestamp = DateTime.now().millisecondsSinceEpoch;
+        final filePath = 'avatars/${userId}_$timestamp.$extension';
+
+        await client.storage.from('avatars').uploadBinary(
+          filePath,
+          bytes,
+          fileOptions: FileOptions(
+            upsert: true,
+            contentType: extension == 'png' ? 'image/png' : 'image/jpeg',
+          ),
+        );
+
+        final publicUrl = client.storage.from('avatars').getPublicUrl(filePath);
+        return publicUrl;
+      } catch (e) {
+        debugPrint('Supabase storage upload failed ($e). Using base64 data URI fallback.');
+      }
+    }
+
+    // Bulletproof fallback: convert to base64 data URI so user's photo is never lost!
+    final mimeType = extension == 'png' ? 'image/png' : 'image/jpeg';
+    final base64String = base64Encode(bytes);
+    return 'data:$mimeType;base64,$base64String';
   }
 
   /// Returns all staff in the in-memory cache.
