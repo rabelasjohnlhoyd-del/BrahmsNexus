@@ -476,4 +476,22 @@ class NotificationService {
       route: 'staff_bilao_orders',
     );
   }
+
+  /// Triggered when driver marks the Bilao order as Out For Delivery. Notifies Owner.
+  static Future<void> notifyOwnerOfBilaoOutForDelivery({
+    required String customerName,
+    required String destination,
+    required String sizeLabel,
+    required int quantity,
+    String? driverName,
+  }) async {
+    final dName = (driverName != null && driverName.isNotEmpty) ? driverName : 'Driver';
+    await sendNotification(
+      title: 'Bilao Order Out For Delivery',
+      message: 'Kinuha na ni $dName ang bilao order para kay $customerName ($sizeLabel x$quantity) at Out For Delivery na papuntang $destination.',
+      type: NotificationType.deliveryTask,
+      targetRole: 'owner',
+      route: 'bilao_orders',
+    );
+  }
 }

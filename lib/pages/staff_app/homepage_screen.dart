@@ -18,7 +18,6 @@ import '../../widgets/staff_section_header.dart';
 import '../../widgets/staff_stat_tile.dart';
 import '../../widgets/staff_top_actions.dart';
 import '../../services/weather_service.dart';
-import 'staff_bilao_orders_screen.dart';
 
 /// Homepage tab of the Cook/Staff app:
 /// 1. Shows which branch Owner assigned them to today.
@@ -1071,92 +1070,6 @@ class _HomepageScreenState extends State<HomepageScreen> with WidgetsBindingObse
                   ),
                 ),
               ),
-            const SizedBox(height: 26),
-
-            // Bilao Orders quick-access card
-            StaffSectionHeader(
-              label: 'Bilao Orders',
-              icon: CupertinoIcons.cart_fill,
-              subtitle: 'Orders na para sa branch na ito',
-              large: true,
-            ),
-            const SizedBox(height: 10),
-            GestureDetector(
-              onTap: () {
-                Navigator.of(context).push(
-                  CupertinoPageRoute<void>(
-                    builder: (_) => StaffBilaoOrdersScreen(
-                      branchId: _currentBranchId,
-                      branchName: _inventory.branchName,
-                    ),
-                  ),
-                );
-              },
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                decoration: BoxDecoration(
-                  color: CupertinoColors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.border),
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppColors.accentDark.withValues(alpha: 0.06),
-                      blurRadius: 10,
-                      offset: const Offset(0, 3),
-                    ),
-                  ],
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 40,
-                      height: 40,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: AppColors.accent.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: const Icon(
-                        CupertinoIcons.cart_fill,
-                        size: 20,
-                        color: AppColors.accent,
-                      ),
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Tingnan ang Bilao Orders',
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.textPrimary,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            _inventory.branchName,
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: AppColors.textSecondary,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const Icon(
-                      CupertinoIcons.chevron_right,
-                      size: 16,
-                      color: AppColors.textSecondary,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 26),
-
             // Co-workers Section
             Builder(
               builder: (context) {

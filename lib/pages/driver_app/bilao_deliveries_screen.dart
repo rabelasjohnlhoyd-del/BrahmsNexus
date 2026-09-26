@@ -63,9 +63,11 @@ class _BilaoDeliveriesScreenState extends State<BilaoDeliveriesScreen> {
       final isDeliveredOrDone =
           o.deliveryStatus == DeliveryStatus.delivered || o.deliveryStatus == DeliveryStatus.completed;
       if (isDeliveredOrDone) return false;
-      // Active if ready at owner's house OR already for delivery
-      return o.preparationStatus == PreparationStatus.ready ||
-          o.deliveryStatus == DeliveryStatus.forDelivery;
+      // Only show orders that have reached Ready preparation status.
+      // This avoids showing brand-new orders (which default to deliveryStatus=forDelivery
+      // but are still pending/preparing). Once driver clicks "Out For Delivery",
+      // preparationStatus stays ready so the order remains visible here.
+      return o.preparationStatus == PreparationStatus.ready;
     }).toList();
   }
 
@@ -94,10 +96,10 @@ class _BilaoDeliveriesScreenState extends State<BilaoDeliveriesScreen> {
     final confirmed = await showCupertinoDialog<bool>(
       context: context,
       builder: (dialogCtx) => CupertinoAlertDialog(
-        title: const Text('Kunin sa Bahay ni Owner?'),
+        title: const Text('Out For Delivery?'),
         content: Text(
-          'Kukunin mo na ba ang bilao order para kay ${order.customerName} sa bahay ni Owner para i-deliver $destinationText?'
-          '${order.isBranchPickup ? "\n\nMagpapadala ng abiso sa staff ng nasabing branch na paparating ka na." : ""}',
+          'Kukunin mo na ba ang bilao order para kay ${order.customerName} sa bahay ni Owner at ilalagay sa Out For Delivery $destinationText?\n\n'
+          'Magpapadala ito ng abiso kay Owner${order.isBranchPickup ? " at sa staff ng nasabing branch" : ""}.',
         ),
         actions: [
           CupertinoDialogAction(
@@ -107,7 +109,7 @@ class _BilaoDeliveriesScreenState extends State<BilaoDeliveriesScreen> {
           CupertinoDialogAction(
             isDefaultAction: true,
             onPressed: () => Navigator.pop(dialogCtx, true),
-            child: const Text('Simulan ang Delivery'),
+            child: const Text('Out For Delivery'),
           ),
         ],
       ),
@@ -127,11 +129,11 @@ class _BilaoDeliveriesScreenState extends State<BilaoDeliveriesScreen> {
       showCupertinoDialog<void>(
         context: context,
         builder: (ctx) => CupertinoAlertDialog(
-          title: const Text('Delivery Started'),
+          title: const Text('Out For Delivery'),
           content: Text(
             order.isBranchPickup
-                ? 'Naka-set na sa For Delivery! Naka-notif na ang staff ng ${order.pickupBranchName ?? "branch"} na paparating ka na.'
-                : 'Naka-set na sa For Delivery! Makikita na ito ni Owner sa system.',
+                ? 'Naka-set na sa Out For Delivery! Naka-notif na si Owner at ang staff ng ${order.pickupBranchName ?? "branch"} na paparating ka na.'
+                : 'Naka-set na sa Out For Delivery! Naka-notif na si Owner sa system.',
           ),
           actions: [
             CupertinoDialogAction(
@@ -203,7 +205,7 @@ class _BilaoDeliveriesScreenState extends State<BilaoDeliveriesScreen> {
                     0: Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
                       child: Text(
-                        'Ready / En Route (${active.length})',
+                        'Ready (${active.length})',
                         style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600),
                       ),
                     ),
@@ -456,16 +458,16 @@ class _BilaoDeliveriesScreenState extends State<BilaoDeliveriesScreen> {
           // Actions
           if (!isForDelivery)
             DriverButton(
-              label: 'Kunin sa Bahay ni Owner & For Delivery',
-              icon: CupertinoIcons.arrow_right_circle_fill,
+              label: 'Out For Delivery',
+              icon: CupertinoIcons.car_fill,
               color: AppColors.accent,
               padding: const EdgeInsets.symmetric(vertical: 11),
               onPressed: () => _startDelivery(order),
             )
           else
             DriverButton(
-              label: 'I-deliver (Complete Delivery with Photo)',
-              icon: CupertinoIcons.checkmark_seal_fill,
+              label: 'Complete the delivery with a photo',
+              icon: CupertinoIcons.camera_fill,
               color: AppColors.success,
               padding: const EdgeInsets.symmetric(vertical: 11),
               onPressed: () => _completeDelivery(order),

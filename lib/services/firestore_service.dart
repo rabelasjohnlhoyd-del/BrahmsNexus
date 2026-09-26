@@ -208,8 +208,8 @@ class FirestoreService {
   }
 
   /// Triggered by the driver when picking up the Bilao from Owner's house
-  /// and clicking "For Delivery".
-  /// If the order is going to a branch (Branch Pickup), automatically alerts the branch staff!
+  /// and clicking "Out For Delivery".
+  /// Alerts Owner, and if going to a branch (Branch Pickup), also alerts branch staff!
   static Future<bool> startBilaoDelivery({
     required BilaoOrder order,
     String? driverName,
@@ -220,6 +220,18 @@ class FirestoreService {
     );
 
     if (success) {
+      // 1. Notify Owner that the order is Out For Delivery
+      NotificationService.notifyOwnerOfBilaoOutForDelivery(
+        customerName: order.customerName,
+        destination: order.destinationDisplay,
+        sizeLabel: order.size.label,
+        quantity: order.quantity,
+        driverName: driverName,
+      ).catchError((e) {
+        debugPrint('notifyOwnerOfBilaoOutForDelivery failed: $e');
+      });
+
+      // 2. If branch pickup, also alert branch staff that driver is on the way
       if (order.isBranchPickup &&
           order.pickupBranchName != null &&
           order.pickupBranchName!.isNotEmpty) {
@@ -237,15 +249,15 @@ class FirestoreService {
     return success;
   }
 
-  /// Triggered by the driver when completing delivery.
-  /// Sets status to delivered and records the report in daily_reports.
+  /// Triggered by the driver when completing delivery with photo proof.
+  /// Sets status to completed and records the report in daily_reports.
   static Future<bool> completeBilaoDelivery({
     required BilaoOrder order,
     String? driverName,
   }) async {
     final success = await updateBilaoStatus(
       orderId: order.id,
-      deliveryStatus: DeliveryStatus.delivered,
+      deliveryStatus: DeliveryStatus.completed,
     );
 
     if (success) {

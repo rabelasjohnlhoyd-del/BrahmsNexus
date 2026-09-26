@@ -6,6 +6,7 @@ import 'daily_report_screen.dart';
 import 'homepage_screen.dart';
 import 'profile_screen.dart';
 import 'sales_screen.dart';
+import 'staff_bilao_orders_screen.dart';
 
 /// Main shell of the Cook/Staff app — a CupertinoTabScaffold with 4
 /// tabs (Homepage, Sales, Daily Report, Timer), following iOS Human
@@ -127,6 +128,10 @@ class StaffShell extends StatelessWidget {
                       activeIcon: _tabItem(CupertinoIcons.chart_bar_alt_fill, 'Sales', active: true),
                     ),
                     BottomNavigationBarItem(
+                      icon: _tabItem(CupertinoIcons.bag_fill, 'Bilao Orders', active: false),
+                      activeIcon: _tabItem(CupertinoIcons.bag_fill, 'Bilao Orders', active: true),
+                    ),
+                    BottomNavigationBarItem(
                       icon: _tabItem(CupertinoIcons.doc_text_fill, 'Report', active: false),
                       activeIcon: _tabItem(CupertinoIcons.doc_text_fill, 'Report', active: true),
                     ),
@@ -147,6 +152,10 @@ class StaffShell extends StatelessWidget {
                         builder: (context) => const SalesScreen(),
                       );
                     case 2:
+                      return CupertinoTabView(
+                        builder: (context) => const StaffBilaoOrdersScreen(),
+                      );
+                    case 3:
                       return CupertinoTabView(
                         builder: (context) => const DailyReportScreen(),
                       );

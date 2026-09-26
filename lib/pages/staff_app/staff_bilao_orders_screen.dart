@@ -1,23 +1,29 @@
 import 'dart:async';
 import 'package:flutter/cupertino.dart';
 import '../../models/bilao_order.dart';
+import '../../models/branch.dart';
+import '../../services/assignment_service.dart';
+import '../../services/auth_service.dart';
 import '../../services/firestore_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/staff_card.dart';
 import '../../widgets/staff_button.dart';
 import '../../widgets/staff_nav_bar.dart';
+import '../../widgets/staff_top_actions.dart';
 
 /// Screen for Branch Staff to monitor Bilao Orders assigned to or waiting
 /// at their specific branch location.
 class StaffBilaoOrdersScreen extends StatefulWidget {
   const StaffBilaoOrdersScreen({
     super.key,
-    required this.branchId,
-    required this.branchName,
+    this.branchId,
+    this.branchName,
+    this.isRootTab = true,
   });
 
-  final String branchId;
-  final String branchName;
+  final String? branchId;
+  final String? branchName;
+  final bool isRootTab;
 
   @override
   State<StaffBilaoOrdersScreen> createState() => _StaffBilaoOrdersScreenState();
@@ -30,12 +36,48 @@ class _StaffBilaoOrdersScreenState extends State<StaffBilaoOrdersScreen> {
   String _searchQuery = '';
   int _tabIndex = 0; // 0: All, 1: Active/Waiting, 2: Completed
 
+  String _currentBranchId = 'br1';
+  String _currentBranchName = 'Brgy. Gatid, Sta. Cruz';
+
   @override
   void initState() {
     super.initState();
+    _setupBranchAndStream();
+    AssignmentService.changeNotifier.addListener(_onAssignmentChanged);
+  }
+
+  void _onAssignmentChanged() {
+    if (mounted) {
+      _setupBranchAndStream();
+    }
+  }
+
+  void _setupBranchAndStream() {
+    if (widget.branchId != null && widget.branchName != null) {
+      _currentBranchId = widget.branchId!;
+      _currentBranchName = widget.branchName!;
+    } else {
+      final username = AuthService.currentUsername;
+      final currentUid = AuthService.currentUserId;
+      var assignedBranchName = AssignmentService.getAssignedBranch(username);
+      if (assignedBranchName.isEmpty && currentUid.isNotEmpty) {
+        assignedBranchName = AssignmentService.getAssignedBranch(currentUid);
+      }
+
+      if (assignedBranchName.isNotEmpty) {
+        _currentBranchName = assignedBranchName;
+        final matchedBranch = kSampleBranches.firstWhere(
+          (b) => b.name == assignedBranchName || b.fullName == assignedBranchName,
+          orElse: () => kSampleBranches.first,
+        );
+        _currentBranchId = matchedBranch.id;
+      }
+    }
+
+    _ordersSub?.cancel();
     _ordersSub = FirestoreService.watchBranchBilaoOrders(
-      branchId: widget.branchId,
-      branchName: widget.branchName,
+      branchId: _currentBranchId,
+      branchName: _currentBranchName,
     ).listen((orders) {
       if (mounted) {
         setState(() {
@@ -50,6 +92,7 @@ class _StaffBilaoOrdersScreenState extends State<StaffBilaoOrdersScreen> {
 
   @override
   void dispose() {
+    AssignmentService.changeNotifier.removeListener(_onAssignmentChanged);
     _ordersSub?.cancel();
     super.dispose();
   }
@@ -168,161 +211,6 @@ class _StaffBilaoOrdersScreenState extends State<StaffBilaoOrdersScreen> {
     }
   }
 
-  Future<void> _recordWalkInOrder() async {
-    final nameCtrl = TextEditingController();
-    final phoneCtrl = TextEditingController();
-    final qtyCtrl = TextEditingController(text: '1');
-    final notesCtrl = TextEditingController();
-    var size = BilaoSize.medium;
-    var scheduled = DateTime.now().add(const Duration(hours: 2));
-
-    await showCupertinoDialog<void>(
-      context: context,
-      builder: (dialogCtx) => StatefulBuilder(
-        builder: (dialogCtx, setModalState) => CupertinoAlertDialog(
-          title: const Text('Bagong Bilao Order (Walk-In)'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const SizedBox(height: 8),
-                Text(
-                  'Branch: ${widget.branchName}',
-                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.accent),
-                ),
-                const SizedBox(height: 12),
-                CupertinoTextField(
-                  controller: nameCtrl,
-                  placeholder: 'Pangalan ng Customer',
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: AppColors.background,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: AppColors.border),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                CupertinoTextField(
-                  controller: phoneCtrl,
-                  placeholder: 'Contact Number',
-                  keyboardType: TextInputType.phone,
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: AppColors.background,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: AppColors.border),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                CupertinoButton(
-                  padding: EdgeInsets.zero,
-                  onPressed: () async {
-                    final picked = await showCupertinoModalPopup<BilaoSize>(
-                      context: dialogCtx,
-                      builder: (sheetCtx) => CupertinoActionSheet(
-                        title: const Text('Piliin ang Bilao Size'),
-                        actions: BilaoSize.values.map((s) {
-                          return CupertinoActionSheetAction(
-                            onPressed: () => Navigator.pop(sheetCtx, s),
-                            child: Text('${s.label} (${s.pax} Pax · ₱${s.price.toStringAsFixed(0)})'),
-                          );
-                        }).toList(),
-                        cancelButton: CupertinoActionSheetAction(
-                          onPressed: () => Navigator.pop(sheetCtx),
-                          child: const Text('Cancel'),
-                        ),
-                      ),
-                    );
-                    if (picked != null) {
-                      setModalState(() => size = picked);
-                    }
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: AppColors.background,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: AppColors.border),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          'Size: ${size.label} (₱${size.price.toStringAsFixed(0)})',
-                          style: const TextStyle(fontSize: 13, color: AppColors.textPrimary, fontWeight: FontWeight.w600),
-                        ),
-                        const Icon(CupertinoIcons.chevron_down, size: 14, color: AppColors.textSecondary),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                CupertinoTextField(
-                  controller: qtyCtrl,
-                  placeholder: 'Bilang (Quantity)',
-                  keyboardType: TextInputType.number,
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: AppColors.background,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: AppColors.border),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                CupertinoTextField(
-                  controller: notesCtrl,
-                  placeholder: 'Notes / Pwesto ng customer (hal. Table 3)',
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: AppColors.background,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: AppColors.border),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            CupertinoDialogAction(
-              onPressed: () => Navigator.pop(dialogCtx),
-              child: const Text('Cancel'),
-            ),
-            CupertinoDialogAction(
-              isDefaultAction: true,
-              onPressed: () async {
-                final name = nameCtrl.text.trim();
-                final phone = phoneCtrl.text.trim();
-                final qty = int.tryParse(qtyCtrl.text.trim()) ?? 1;
-                if (name.isEmpty || phone.isEmpty) return;
-
-                final newOrder = BilaoOrder(
-                  id: 'ord${DateTime.now().millisecondsSinceEpoch}',
-                  customerName: name,
-                  contactNumber: phone,
-                  size: size,
-                  quantity: qty,
-                  scheduledDateTime: scheduled,
-                  fulfillmentType: BilaoFulfillmentType.branchPickup,
-                  pickupBranchId: widget.branchId,
-                  pickupBranchName: widget.branchName,
-                  notes: notesCtrl.text.trim().isNotEmpty ? notesCtrl.text.trim() : 'Walk-in order sa branch',
-                  createdAt: DateTime.now(),
-                );
-
-                final nav = Navigator.of(dialogCtx);
-                await FirestoreService.createBilaoOrder(newOrder);
-                if (mounted) {
-                  nav.pop();
-                }
-              },
-              child: const Text('I-save Order'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   void _showOrderDetails(BilaoOrder order) {
     showCupertinoDialog<void>(
       context: context,
@@ -422,12 +310,8 @@ class _StaffBilaoOrdersScreenState extends State<StaffBilaoOrdersScreen> {
       backgroundColor: AppColors.background,
       navigationBar: StaffNavBar(
         title: 'Bilao Orders',
-        showBackButton: true,
-        trailing: CupertinoButton(
-          padding: EdgeInsets.zero,
-          onPressed: _recordWalkInOrder,
-          child: const Icon(CupertinoIcons.add, color: CupertinoColors.white, size: 22),
-        ),
+        showBackButton: !widget.isRootTab,
+        trailing: const StaffTopActions(),
       ),
       child: SafeArea(
         child: Column(
@@ -453,7 +337,7 @@ class _StaffBilaoOrdersScreenState extends State<StaffBilaoOrdersScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          widget.branchName,
+                          _currentBranchName,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
@@ -473,24 +357,11 @@ class _StaffBilaoOrdersScreenState extends State<StaffBilaoOrdersScreen> {
                       ],
                     ),
                   ),
-                  CupertinoButton(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    color: AppColors.accent,
-                    borderRadius: BorderRadius.circular(8),
-                    onPressed: _recordWalkInOrder,
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(CupertinoIcons.plus, size: 14, color: CupertinoColors.white),
-                        SizedBox(width: 4),
-                        Text('Walk-in', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: CupertinoColors.white)),
-                      ],
-                    ),
-                  ),
                 ],
               ),
             ),
             Container(height: 1, color: AppColors.border),
+
 
             // ── SEARCH & SEGMENTED TABS ─────────────────────────
             Padding(
