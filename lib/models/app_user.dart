@@ -24,6 +24,7 @@ class AppUser {
     this.email = '',
     this.age = '',
     this.address = '',
+    this.photoUrl = '',
     this.driverLicenseNumber = '',
     this.driverLicenseExpiry = '',
     this.isLicenseVerified = false,
@@ -42,6 +43,7 @@ class AppUser {
   final String email;
   final String age;
   final String address;
+  final String photoUrl;
   final String driverLicenseNumber;
   final String driverLicenseExpiry;
   final bool isLicenseVerified;
@@ -73,6 +75,7 @@ class AppUser {
       email: map['email'] as String? ?? '',
       age: map['age'] as String? ?? '',
       address: map['address'] as String? ?? '',
+      photoUrl: map['photoUrl'] as String? ?? map['photo_url'] as String? ?? '',
       driverLicenseNumber: map['driverLicenseNumber'] as String? ?? '',
       driverLicenseExpiry: map['driverLicenseExpiry'] as String? ?? '',
       isLicenseVerified: map['isLicenseVerified'] as bool? ?? false,
@@ -108,6 +111,7 @@ class AppUser {
     String? email,
     String? age,
     String? address,
+    String? photoUrl,
     String? driverLicenseNumber,
     String? driverLicenseExpiry,
     bool? isLicenseVerified,
@@ -126,6 +130,7 @@ class AppUser {
       email: email ?? this.email,
       age: age ?? this.age,
       address: address ?? this.address,
+      photoUrl: photoUrl ?? this.photoUrl,
       driverLicenseNumber: driverLicenseNumber ?? this.driverLicenseNumber,
       driverLicenseExpiry: driverLicenseExpiry ?? this.driverLicenseExpiry,
       isLicenseVerified: isLicenseVerified ?? this.isLicenseVerified,
@@ -151,6 +156,7 @@ class AppUser {
       'email': email,
       'age': age,
       'address': address,
+      'photoUrl': photoUrl,
       'driverLicenseNumber': driverLicenseNumber,
       'driverLicenseExpiry': driverLicenseExpiry,
       'isLicenseVerified': isLicenseVerified,

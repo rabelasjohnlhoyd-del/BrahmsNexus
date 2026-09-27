@@ -44,14 +44,20 @@ class _LoginScreenState extends State<LoginScreen> {
 
   String? _validateUsername(String? value) {
     if (value == null || value.trim().isEmpty) {
-      return 'Please enter your username or email';
+      return 'Please enter your username or email.';
+    }
+    if (value.trim().length < 3) {
+      return 'Username must be at least 3 characters.';
     }
     return null;
   }
 
   String? _validatePassword(String? value) {
     if (value == null || value.isEmpty) {
-      return 'Please enter your password';
+      return 'Please enter your password.';
+    }
+    if (value.length < 6) {
+      return 'Password must be at least 6 characters.';
     }
     return null;
   }

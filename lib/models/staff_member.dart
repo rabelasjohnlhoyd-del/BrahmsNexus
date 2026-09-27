@@ -14,6 +14,7 @@ class StaffMember {
     this.phone,
     this.address = '',
     this.age = '',
+    this.photoUrl = '',
     this.rfidTag = '',
     this.isActive = true,
     this.isArchived = false,
@@ -31,6 +32,7 @@ class StaffMember {
   final String? phone;
   final String address;
   final String age;
+  final String photoUrl;
   final String rfidTag;
   final bool isActive;
   final bool isArchived;
@@ -52,6 +54,7 @@ class StaffMember {
     String? phone,
     String? address,
     String? age,
+    String? photoUrl,
     String? rfidTag,
     bool? isActive,
     bool? isArchived,
@@ -68,6 +71,7 @@ class StaffMember {
       phone: phone ?? this.phone,
       address: address ?? this.address,
       age: age ?? this.age,
+      photoUrl: photoUrl ?? this.photoUrl,
       rfidTag: rfidTag ?? this.rfidTag,
       isActive: isActive ?? this.isActive,
       isArchived: isArchived ?? this.isArchived,
@@ -94,6 +98,7 @@ class StaffMember {
       'phone': phone,
       'address': address,
       'age': age,
+      if (photoUrl.isNotEmpty) 'photo_url': photoUrl,
       'rfid_tag': rfidTag,
       'is_active': isActive,
       'is_archived': isArchived,
@@ -118,6 +123,7 @@ class StaffMember {
       phone: map['phone']?.toString(),
       address: map['address']?.toString() ?? '',
       age: map['age']?.toString() ?? '',
+      photoUrl: map['photo_url']?.toString() ?? map['photoUrl']?.toString() ?? '',
       rfidTag: map['rfid_tag']?.toString() ?? '',
       isActive: map['is_active'] as bool? ?? true,
       isArchived: map['is_archived'] as bool? ?? false,
