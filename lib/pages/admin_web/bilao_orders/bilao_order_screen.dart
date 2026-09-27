@@ -80,6 +80,7 @@ class _BilaoOrderScreenState extends State<BilaoOrderScreen> {
     'Preparing',
     'Ready',
     'For Delivery',
+    'Out For Delivery',
     'Delivered',
     'Completed',
   ];

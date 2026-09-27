@@ -83,7 +83,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       }
     });
 
-    _bilaoOrdersSub = FirestoreService.watchAllBilaoOrders(limit: 50).listen((orders) {
+    _bilaoOrdersSub = FirestoreService.watchAllBilaoOrders().listen((orders) {
       if (mounted) {
         setState(() => _bilaoOrders = orders);
       }

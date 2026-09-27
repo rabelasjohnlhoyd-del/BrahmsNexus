@@ -32,28 +32,50 @@ class _OwnerBilaoOrdersScreenState extends State<OwnerBilaoOrdersScreen> {
   final List<BilaoOrder> _orders = [];
 
   String _searchQuery = '';
-  String _statusFilter = 'All';
+  int _tabIndex = 0; // 0: Active, 1: Kitchen, 2: Transit, 3: Completed, 4: All
 
-  static const _statusFilters = [
-    'All',
-    'Pending',
-    'Preparing',
-    'Ready',
-    'For Delivery',
-    'Delivered',
-    'Completed',
-  ];
+  bool _isCompleted(BilaoOrder o) {
+    return o.deliveryStatus == DeliveryStatus.completed ||
+        o.deliveryStatus == DeliveryStatus.delivered;
+  }
+
+  bool _isInTransit(BilaoOrder o) {
+    if (_isCompleted(o)) return false;
+    return o.deliveryStatus == DeliveryStatus.outForDelivery ||
+        o.preparationStatus == PreparationStatus.ready;
+  }
+
+  bool _isKitchen(BilaoOrder o) {
+    if (_isCompleted(o) || _isInTransit(o)) return false;
+    return o.preparationStatus == PreparationStatus.pending ||
+        o.preparationStatus == PreparationStatus.preparing;
+  }
+
+  bool _isActive(BilaoOrder o) {
+    return !_isCompleted(o);
+  }
 
   List<BilaoOrder> get _visibleOrders {
     final list = _orders.where((o) {
-      final matchesSearch = _searchQuery.isEmpty ||
-          o.customerName.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-          o.contactNumber.contains(_searchQuery) ||
-          o.destinationDisplay.toLowerCase().contains(_searchQuery.toLowerCase());
-      final matchesFilter = _statusFilter == 'All' ||
-          o.preparationStatus.label == _statusFilter ||
-          o.deliveryStatus.label == _statusFilter;
-      return matchesSearch && matchesFilter;
+      final q = _searchQuery.trim().toLowerCase();
+      final matchesSearch = q.isEmpty ||
+          o.customerName.toLowerCase().contains(q) ||
+          o.contactNumber.contains(q) ||
+          o.destinationDisplay.toLowerCase().contains(q);
+
+      bool matchesTab = true;
+      if (_tabIndex == 0) {
+        matchesTab = _isActive(o);
+      } else if (_tabIndex == 1) {
+        matchesTab = _isKitchen(o);
+      } else if (_tabIndex == 2) {
+        matchesTab = _isInTransit(o);
+      } else if (_tabIndex == 3) {
+        matchesTab = _isCompleted(o);
+      } else {
+        matchesTab = true;
+      }
+      return matchesSearch && matchesTab;
     }).toList();
     list.sort((a, b) => a.scheduledDateTime.compareTo(b.scheduledDateTime));
     return list;
@@ -546,24 +568,48 @@ class _OwnerBilaoOrdersScreenState extends State<OwnerBilaoOrdersScreen> {
                 }),
               ),
             ),
-            SizedBox(
-              height: 34,
-              child: ListView(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                scrollDirection: Axis.horizontal,
-                children: [
-                  for (final status in _statusFilters) ...[
-                    _filterChip(
-                      label: status,
-                      selected: _statusFilter == status,
-                      onTap: () => setState(() {
-                        _statusFilter = status;
-                        _currentPage = 0;
-                      }),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: SizedBox(
+                width: double.infinity,
+                child: CupertinoSlidingSegmentedControl<int>(
+                  groupValue: _tabIndex,
+                  children: {
+                    0: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 7),
+                      child: Text('Active (${_orders.where(_isActive).length})',
+                          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
                     ),
-                    const SizedBox(width: 8),
-                  ],
-                ],
+                    1: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 7),
+                      child: Text('Kitchen (${_orders.where(_isKitchen).length})',
+                          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
+                    ),
+                    2: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 7),
+                      child: Text('Transit (${_orders.where(_isInTransit).length})',
+                          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
+                    ),
+                    3: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 7),
+                      child: Text('Done (${_orders.where(_isCompleted).length})',
+                          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
+                    ),
+                    4: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 7),
+                      child: Text('All (${_orders.length})',
+                          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
+                    ),
+                  },
+                  onValueChanged: (val) {
+                    if (val != null) {
+                      setState(() {
+                        _tabIndex = val;
+                        _currentPage = 0;
+                      });
+                    }
+                  },
+                ),
               ),
             ),
             const SizedBox(height: 12),
@@ -604,35 +650,6 @@ class _OwnerBilaoOrdersScreenState extends State<OwnerBilaoOrdersScreen> {
                     ),
             ),
           ],
-        ),
-      ),
-    );
-  }
-
-  Widget _filterChip({
-    required String label,
-    required bool selected,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: selected ? AppColors.accent : CupertinoColors.white,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: selected ? AppColors.accent : AppColors.border,
-          ),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: 12.5,
-            fontWeight: FontWeight.w600,
-            color: selected ? CupertinoColors.white : AppColors.textPrimary,
-          ),
         ),
       ),
     );

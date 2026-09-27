@@ -11,13 +11,10 @@ import '../../widgets/driver_top_actions.dart';
 import 'bilao_delivery_detail_screen.dart';
 
 /// Bilao Deliveries for Driver:
-/// - 2 Tabs: All and Completed.
-/// - Simple order box with customer name, number, package, and destination.
-/// - Tap the box to view full order details.
-/// - When Ready at Owner's house: shows "FOR DELIVERY" badge and "Out For Delivery" button.
-/// - Clicking "Out For Delivery": updates status to Out For Delivery (alerts Owner & Staff),
-///   and unlocks the "Complete the delivery with a photo" button.
-/// - Completing with photo: automatically marks the order as Completed across Driver, Staff, and Owner.
+/// - 4 Filter Tabs: Active (Ready/Out for Delivery), Preparing (In Kitchen), Completed, All.
+/// - Unlocks "Out For Delivery" when order is Ready at Commissary/Owner's house.
+/// - Unlocks "Complete with Photo" once in Out For Delivery status.
+/// - Submits photo proof and automatically updates across Driver, Staff, and Owner apps.
 class BilaoDeliveriesScreen extends StatefulWidget {
   const BilaoDeliveriesScreen({super.key});
 
@@ -30,7 +27,7 @@ class _BilaoDeliveriesScreenState extends State<BilaoDeliveriesScreen> {
   final List<BilaoOrder> _orders = [];
   bool _isLoading = true;
   String _searchQuery = '';
-  int _tabIndex = 0; // 0: All, 1: Completed
+  int _tabIndex = 0; // 0: Active, 1: Preparing, 2: Completed, 3: All
 
   @override
   void initState() {
@@ -53,6 +50,24 @@ class _BilaoDeliveriesScreenState extends State<BilaoDeliveriesScreen> {
     super.dispose();
   }
 
+  bool _isOrderCompleted(BilaoOrder o) {
+    return o.deliveryStatus == DeliveryStatus.completed ||
+        o.deliveryStatus == DeliveryStatus.delivered;
+  }
+
+  bool _isOrderActive(BilaoOrder o) {
+    if (_isOrderCompleted(o)) return false;
+    return o.deliveryStatus == DeliveryStatus.outForDelivery ||
+        o.preparationStatus == PreparationStatus.ready;
+  }
+
+  bool _isOrderPreparing(BilaoOrder o) {
+    if (_isOrderCompleted(o)) return false;
+    if (_isOrderActive(o)) return false;
+    return o.preparationStatus == PreparationStatus.pending ||
+        o.preparationStatus == PreparationStatus.preparing;
+  }
+
   List<BilaoOrder> get _filteredOrders {
     var list = _orders.where((o) {
       final q = _searchQuery.trim().toLowerCase();
@@ -64,9 +79,18 @@ class _BilaoDeliveriesScreenState extends State<BilaoDeliveriesScreen> {
           (o.notes != null && o.notes!.toLowerCase().contains(q));
 
       bool matchesTab = true;
-      if (_tabIndex == 1) {
-        matchesTab = o.deliveryStatus == DeliveryStatus.completed ||
-            o.deliveryStatus == DeliveryStatus.delivered;
+      if (_tabIndex == 0) {
+        // Active: Ready to pick up or on the road
+        matchesTab = _isOrderActive(o);
+      } else if (_tabIndex == 1) {
+        // Preparing: In the kitchen, upcoming for driver
+        matchesTab = _isOrderPreparing(o);
+      } else if (_tabIndex == 2) {
+        // Completed
+        matchesTab = _isOrderCompleted(o);
+      } else {
+        // All
+        matchesTab = true;
       }
 
       return matchesSearch && matchesTab;
@@ -79,36 +103,34 @@ class _BilaoDeliveriesScreenState extends State<BilaoDeliveriesScreen> {
   // ── Status helpers ──────────────────────────────────────────────────────────
 
   String _cardStatusLabel(BilaoOrder o) {
-    if (o.deliveryStatus == DeliveryStatus.completed ||
-        o.deliveryStatus == DeliveryStatus.delivered) {
+    if (_isOrderCompleted(o)) {
       return 'COMPLETED';
     }
     if (o.deliveryStatus == DeliveryStatus.outForDelivery) {
       return 'OUT FOR DELIVERY';
     }
     if (o.preparationStatus == PreparationStatus.ready) {
-      return 'FOR DELIVERY';
+      return 'READY FOR PICKUP';
     }
     switch (o.preparationStatus) {
       case PreparationStatus.pending:
-        return 'PENDING';
+        return 'PENDING ORDER';
       case PreparationStatus.preparing:
         return 'PREPARING';
       case PreparationStatus.ready:
-        return 'FOR DELIVERY';
+        return 'READY FOR PICKUP';
     }
   }
 
   Color _cardStatusColor(BilaoOrder o) {
-    if (o.deliveryStatus == DeliveryStatus.completed ||
-        o.deliveryStatus == DeliveryStatus.delivered) {
+    if (_isOrderCompleted(o)) {
       return AppColors.success;
     }
     if (o.deliveryStatus == DeliveryStatus.outForDelivery) {
       return const Color(0xFF1976D2);
     }
     if (o.preparationStatus == PreparationStatus.ready) {
-      return AppColors.warning;
+      return const Color(0xFFE65100); // Amber-Orange for Ready
     }
     switch (o.preparationStatus) {
       case PreparationStatus.pending:
@@ -116,7 +138,7 @@ class _BilaoDeliveriesScreenState extends State<BilaoDeliveriesScreen> {
       case PreparationStatus.preparing:
         return AppColors.accent;
       case PreparationStatus.ready:
-        return AppColors.warning;
+        return const Color(0xFFE65100);
     }
   }
 
@@ -218,10 +240,9 @@ class _BilaoDeliveriesScreenState extends State<BilaoDeliveriesScreen> {
   void _showOrderDetails(BilaoOrder order) {
     final statusLabel = _cardStatusLabel(order);
     final statusColor = _cardStatusColor(order);
-    final isCompleted = order.deliveryStatus == DeliveryStatus.completed ||
-        order.deliveryStatus == DeliveryStatus.delivered;
+    final isCompleted = _isOrderCompleted(order);
     final isOutForDelivery = order.deliveryStatus == DeliveryStatus.outForDelivery;
-    final isReady = order.preparationStatus == PreparationStatus.ready;
+    final isReady = order.preparationStatus == PreparationStatus.ready && !isCompleted;
 
     showCupertinoDialog<void>(
       context: context,
@@ -250,8 +271,8 @@ class _BilaoDeliveriesScreenState extends State<BilaoDeliveriesScreen> {
             const SizedBox(height: 8),
             Text(
               order.isBranchPickup
-                  ? 'Pickup: ${order.pickupBranchName ?? "Branch"}'
-                  : 'Delivery: ${order.deliveryAddress}',
+                  ? 'Fulfillment: Branch Pickup (${order.pickupBranchName ?? "Branch"})'
+                  : 'Fulfillment: Direct Delivery (${order.deliveryAddress})',
               style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600),
             ),
             if (order.notes != null && order.notes!.isNotEmpty) ...[
@@ -301,7 +322,7 @@ class _BilaoDeliveriesScreenState extends State<BilaoDeliveriesScreen> {
                 Navigator.pop(ctx);
                 _startDelivery(order);
               },
-              child: const Text('Out For Delivery'),
+              child: const Text('Start Delivery'),
             ),
           if (isOutForDelivery && !isCompleted)
             CupertinoDialogAction(
@@ -321,15 +342,11 @@ class _BilaoDeliveriesScreenState extends State<BilaoDeliveriesScreen> {
     );
   }
 
-  // ── Build ───────────────────────────────────────────────────────────────────
-
   @override
   Widget build(BuildContext context) {
-    final completedCount = _orders
-        .where((o) =>
-            o.deliveryStatus == DeliveryStatus.completed ||
-            o.deliveryStatus == DeliveryStatus.delivered)
-        .length;
+    final activeCount = _orders.where(_isOrderActive).length;
+    final prepCount = _orders.where(_isOrderPreparing).length;
+    final completedCount = _orders.where(_isOrderCompleted).length;
     final allCount = _orders.length;
 
     return CupertinoPageScaffold(
@@ -341,7 +358,7 @@ class _BilaoDeliveriesScreenState extends State<BilaoDeliveriesScreen> {
       child: SafeArea(
         child: Column(
           children: [
-            // ── SEARCH & TABS ───────────────────────────────────────────────
+            // ── SEARCH & 4 DISTINCT TABS ─────────────────────────────────────
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
               child: Column(
@@ -357,17 +374,31 @@ class _BilaoDeliveriesScreenState extends State<BilaoDeliveriesScreen> {
                       groupValue: _tabIndex,
                       children: {
                         0: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
                           child: Text(
-                            'All ($allCount)',
-                            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                            'Active ($activeCount)',
+                            style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700),
                           ),
                         ),
                         1: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
                           child: Text(
-                            'Completed ($completedCount)',
-                            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                            'Prep ($prepCount)',
+                            style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700),
+                          ),
+                        ),
+                        2: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+                          child: Text(
+                            'Done ($completedCount)',
+                            style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700),
+                          ),
+                        ),
+                        3: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+                          child: Text(
+                            'All ($allCount)',
+                            style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700),
                           ),
                         ),
                       },
@@ -392,8 +423,8 @@ class _BilaoDeliveriesScreenState extends State<BilaoDeliveriesScreen> {
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 Container(
-                                  width: 72,
-                                  height: 72,
+                                  width: 64,
+                                  height: 64,
                                   alignment: Alignment.center,
                                   decoration: BoxDecoration(
                                     color: AppColors.pastelBrown.withValues(alpha: 0.15),
@@ -401,29 +432,26 @@ class _BilaoDeliveriesScreenState extends State<BilaoDeliveriesScreen> {
                                   ),
                                   child: const Icon(
                                     CupertinoIcons.bag_fill,
-                                    size: 30,
+                                    size: 28,
                                     color: AppColors.accent,
                                   ),
                                 ),
                                 const SizedBox(height: 16),
                                 Text(
-                                  _tabIndex == 1
-                                      ? 'Walang Completed Orders'
-                                      : 'Walang Bilao Deliveries',
+                                  _emptyStateTitle(_tabIndex),
+                                  textAlign: TextAlign.center,
                                   style: const TextStyle(
-                                    fontSize: 16,
+                                    fontSize: 15,
                                     fontWeight: FontWeight.w700,
                                     color: AppColors.textPrimary,
                                   ),
                                 ),
                                 const SizedBox(height: 6),
                                 Text(
-                                  _tabIndex == 1
-                                      ? 'Wala pang bilao orders na naihatid at nakumpleto.'
-                                      : 'Lalabas dito ang mga bilao orders na nakatakdang i-deliver.',
+                                  _emptyStateSubtitle(_tabIndex),
                                   textAlign: TextAlign.center,
                                   style: const TextStyle(
-                                    fontSize: 13,
+                                    fontSize: 12.5,
                                     color: AppColors.textSecondary,
                                   ),
                                 ),
@@ -453,6 +481,32 @@ class _BilaoDeliveriesScreenState extends State<BilaoDeliveriesScreen> {
       ),
     );
   }
+
+  String _emptyStateTitle(int tab) {
+    switch (tab) {
+      case 0:
+        return 'Walang Active Deliveries';
+      case 1:
+        return 'Walang Inihahandang Order';
+      case 2:
+        return 'Walang Completed Deliveries';
+      default:
+        return 'Walang Bilao Orders';
+    }
+  }
+
+  String _emptyStateSubtitle(int tab) {
+    switch (tab) {
+      case 0:
+        return 'Lalabas dito kapag Ready for Delivery na ang nilulutong bilao sa bahay ni Owner.';
+      case 1:
+        return 'Lalabas dito ang mga darating na order na inihahanda pa sa kusina.';
+      case 2:
+        return 'Makikita rito ang mga matagumpay nang naihatid na bilao.';
+      default:
+        return 'Walang nahanap na bilao order sa talaan.';
+    }
+  }
 }
 
 // ── Driver Order Box ─────────────────────────────────────────────────────────
@@ -479,7 +533,7 @@ class _DriverOrderBox extends StatelessWidget {
     final isCompleted = order.deliveryStatus == DeliveryStatus.completed ||
         order.deliveryStatus == DeliveryStatus.delivered;
     final isOutForDelivery = order.deliveryStatus == DeliveryStatus.outForDelivery;
-    final isReady = order.preparationStatus == PreparationStatus.ready;
+    final isReady = order.preparationStatus == PreparationStatus.ready && !isCompleted;
     final isPendingOrPreparing = !isReady && !isOutForDelivery && !isCompleted;
 
     IconData leadIcon;
@@ -492,7 +546,7 @@ class _DriverOrderBox extends StatelessWidget {
       leadColor = const Color(0xFF1976D2);
     } else if (isReady) {
       leadIcon = CupertinoIcons.house_fill;
-      leadColor = AppColors.warning;
+      leadColor = const Color(0xFFE65100);
     } else if (order.preparationStatus == PreparationStatus.preparing) {
       leadIcon = CupertinoIcons.flame_fill;
       leadColor = AppColors.accent;
@@ -510,7 +564,7 @@ class _DriverOrderBox extends StatelessWidget {
             : isOutForDelivery
                 ? const Color(0xFF1976D2).withValues(alpha: 0.35)
                 : isReady
-                    ? AppColors.warning.withValues(alpha: 0.4)
+                    ? const Color(0xFFE65100).withValues(alpha: 0.4)
                     : null,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,

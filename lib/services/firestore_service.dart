@@ -71,7 +71,7 @@ class FirestoreService {
   ];
 
   /// Stream of all active and upcoming bilao orders for Admin Web & Owner App.
-  static Stream<List<BilaoOrder>> watchAllBilaoOrders({int limit = 50}) {
+  static Stream<List<BilaoOrder>> watchAllBilaoOrders({int limit = 100}) {
     final query = _db
         .collection('bilao_orders')
         .orderBy('scheduledDateTime', descending: true)
@@ -270,6 +270,39 @@ class FirestoreService {
         quantity: order.quantity,
         driverName: driverName,
       );
+    }
+    return success;
+  }
+
+  /// Triggered by branch staff when the customer arrives and claims their Bilao order.
+  /// Sets deliveryStatus to completed, notifies Owner, and logs the report.
+  static Future<bool> completeBranchBilaoPickup({
+    required BilaoOrder order,
+    String? staffName,
+  }) async {
+    final success = await updateBilaoStatus(
+      orderId: order.id,
+      deliveryStatus: DeliveryStatus.completed,
+    );
+
+    if (success) {
+      final sName = (staffName != null && staffName.isNotEmpty) ? staffName : 'Branch Staff';
+      await recordBilaoDeliveryReport(
+        orderId: order.id,
+        customerName: order.customerName,
+        deliveryAddress: 'Branch Pickup: ${order.pickupBranchName ?? "Branch"}',
+        sizeLabel: order.size.label,
+        quantity: order.quantity,
+        driverName: sName,
+      );
+
+      NotificationService.sendNotification(
+        title: '🎉 Bilao Claimed — ${order.pickupBranchName ?? "Branch"}',
+        message: '$sName released the ${order.size.label} Bilao to ${order.customerName}. Order is now Completed!',
+        type: NotificationType.system,
+        targetRole: 'owner',
+        route: 'bilao_orders',
+      ).catchError((_) => false);
     }
     return success;
   }
