@@ -82,6 +82,7 @@ enum PreparationStatus {
 
 enum DeliveryStatus {
   forDelivery,
+  outForDelivery,
   delivered,
   completed;
 
@@ -89,6 +90,8 @@ enum DeliveryStatus {
     switch (this) {
       case DeliveryStatus.forDelivery:
         return 'For Delivery';
+      case DeliveryStatus.outForDelivery:
+        return 'Out For Delivery';
       case DeliveryStatus.delivered:
         return 'Delivered';
       case DeliveryStatus.completed:

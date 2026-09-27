@@ -552,6 +552,8 @@ class _BilaoOrderScreenState extends State<BilaoOrderScreen> {
     switch (s) {
       case DeliveryStatus.forDelivery:
         return AdminWebColors.warning;
+      case DeliveryStatus.outForDelivery:
+        return const Color(0xFF1976D2);
       case DeliveryStatus.delivered:
         return AdminWebColors.accent;
       case DeliveryStatus.completed:
@@ -1057,6 +1059,8 @@ class _OrderCard extends StatelessWidget {
     switch (s) {
       case DeliveryStatus.forDelivery:
         return AdminWebColors.warning;
+      case DeliveryStatus.outForDelivery:
+        return const Color(0xFF1976D2);
       case DeliveryStatus.delivered:
         return AdminWebColors.accent;
       case DeliveryStatus.completed:

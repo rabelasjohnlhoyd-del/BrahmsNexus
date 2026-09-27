@@ -216,7 +216,7 @@ class FirestoreService {
   }) async {
     final success = await updateBilaoStatus(
       orderId: order.id,
-      deliveryStatus: DeliveryStatus.forDelivery,
+      deliveryStatus: DeliveryStatus.outForDelivery,
     );
 
     if (success) {

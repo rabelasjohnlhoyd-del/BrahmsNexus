@@ -4,7 +4,6 @@ import '../../models/bilao_order.dart';
 import '../../services/auth_service.dart';
 import '../../services/firestore_service.dart';
 import '../../theme/app_theme.dart';
-import '../../widgets/app_pagination_bar.dart';
 import '../../widgets/driver_button.dart';
 import '../../widgets/driver_card.dart';
 import '../../widgets/driver_nav_bar.dart';
@@ -12,13 +11,13 @@ import '../../widgets/driver_top_actions.dart';
 import 'bilao_delivery_detail_screen.dart';
 
 /// Bilao Deliveries for Driver:
-/// 1. Awareness of pending/preparing orders currently in kitchen.
-/// 2. Notification when order reaches "Ready" at Owner's house.
-/// 3. "For Delivery" button to mark pickup from Owner's house:
-///    - If going to branch -> alerts branch staff that driver is on the way!
-///    - If direct delivery -> reflects to owner as "For Delivery".
-/// 4. "Complete Delivery" with photo proof -> marks delivered, records report
-///    in Employee Reports, and alerts Owner.
+/// - 2 Tabs: All and Completed.
+/// - Simple order box with customer name, number, package, and destination.
+/// - Tap the box to view full order details.
+/// - When Ready at Owner's house: shows "FOR DELIVERY" badge and "Out For Delivery" button.
+/// - Clicking "Out For Delivery": updates status to Out For Delivery (alerts Owner & Staff),
+///   and unlocks the "Complete the delivery with a photo" button.
+/// - Completing with photo: automatically marks the order as Completed across Driver, Staff, and Owner.
 class BilaoDeliveriesScreen extends StatefulWidget {
   const BilaoDeliveriesScreen({super.key});
 
@@ -30,12 +29,8 @@ class _BilaoDeliveriesScreenState extends State<BilaoDeliveriesScreen> {
   StreamSubscription<List<BilaoOrder>>? _ordersSub;
   final List<BilaoOrder> _orders = [];
   bool _isLoading = true;
-
-  int _selectedTab = 0; // 0: Active / Ready, 1: Niluluto Pa (Upcoming), 2: Delivered
-  int _activePage = 0;
-  int _upcomingPage = 0;
-  int _deliveredPage = 0;
-  static const int _pageSize = 5;
+  String _searchQuery = '';
+  int _tabIndex = 0; // 0: All, 1: Completed
 
   @override
   void initState() {
@@ -58,35 +53,74 @@ class _BilaoDeliveriesScreenState extends State<BilaoDeliveriesScreen> {
     super.dispose();
   }
 
-  List<BilaoOrder> get _activeOrders {
-    return _orders.where((o) {
-      final isDeliveredOrDone =
-          o.deliveryStatus == DeliveryStatus.delivered || o.deliveryStatus == DeliveryStatus.completed;
-      if (isDeliveredOrDone) return false;
-      // Only show orders that have reached Ready preparation status.
-      // This avoids showing brand-new orders (which default to deliveryStatus=forDelivery
-      // but are still pending/preparing). Once driver clicks "Out For Delivery",
-      // preparationStatus stays ready so the order remains visible here.
-      return o.preparationStatus == PreparationStatus.ready;
+  List<BilaoOrder> get _filteredOrders {
+    var list = _orders.where((o) {
+      final q = _searchQuery.trim().toLowerCase();
+      final matchesSearch = q.isEmpty ||
+          o.customerName.toLowerCase().contains(q) ||
+          o.contactNumber.toLowerCase().contains(q) ||
+          (o.pickupBranchName != null && o.pickupBranchName!.toLowerCase().contains(q)) ||
+          o.deliveryAddress.toLowerCase().contains(q) ||
+          (o.notes != null && o.notes!.toLowerCase().contains(q));
+
+      bool matchesTab = true;
+      if (_tabIndex == 1) {
+        matchesTab = o.deliveryStatus == DeliveryStatus.completed ||
+            o.deliveryStatus == DeliveryStatus.delivered;
+      }
+
+      return matchesSearch && matchesTab;
     }).toList();
+
+    list.sort((a, b) => a.scheduledDateTime.compareTo(b.scheduledDateTime));
+    return list;
   }
 
-  List<BilaoOrder> get _upcomingOrders {
-    return _orders.where((o) {
-      final isDeliveredOrDone =
-          o.deliveryStatus == DeliveryStatus.delivered || o.deliveryStatus == DeliveryStatus.completed;
-      if (isDeliveredOrDone) return false;
-      return o.preparationStatus == PreparationStatus.pending ||
-          o.preparationStatus == PreparationStatus.preparing;
-    }).toList();
+  // ── Status helpers ──────────────────────────────────────────────────────────
+
+  String _cardStatusLabel(BilaoOrder o) {
+    if (o.deliveryStatus == DeliveryStatus.completed ||
+        o.deliveryStatus == DeliveryStatus.delivered) {
+      return 'COMPLETED';
+    }
+    if (o.deliveryStatus == DeliveryStatus.outForDelivery) {
+      return 'OUT FOR DELIVERY';
+    }
+    if (o.preparationStatus == PreparationStatus.ready) {
+      return 'FOR DELIVERY';
+    }
+    switch (o.preparationStatus) {
+      case PreparationStatus.pending:
+        return 'PENDING';
+      case PreparationStatus.preparing:
+        return 'PREPARING';
+      case PreparationStatus.ready:
+        return 'FOR DELIVERY';
+    }
   }
 
-  List<BilaoOrder> get _deliveredOrders {
-    return _orders.where((o) {
-      return o.deliveryStatus == DeliveryStatus.delivered ||
-          o.deliveryStatus == DeliveryStatus.completed;
-    }).toList();
+  Color _cardStatusColor(BilaoOrder o) {
+    if (o.deliveryStatus == DeliveryStatus.completed ||
+        o.deliveryStatus == DeliveryStatus.delivered) {
+      return AppColors.success;
+    }
+    if (o.deliveryStatus == DeliveryStatus.outForDelivery) {
+      return const Color(0xFF1976D2);
+    }
+    if (o.preparationStatus == PreparationStatus.ready) {
+      return AppColors.warning;
+    }
+    switch (o.preparationStatus) {
+      case PreparationStatus.pending:
+        return AppColors.warning;
+      case PreparationStatus.preparing:
+        return AppColors.accent;
+      case PreparationStatus.ready:
+        return AppColors.warning;
+    }
   }
+
+  // ── Actions ─────────────────────────────────────────────────────────────────
 
   Future<void> _startDelivery(BilaoOrder order) async {
     final destinationText = order.isBranchPickup
@@ -166,7 +200,7 @@ class _BilaoDeliveriesScreenState extends State<BilaoDeliveriesScreen> {
         builder: (ctx) => CupertinoAlertDialog(
           title: const Text('Delivery Completed'),
           content: Text(
-            'Matagumpay na nai-record ang delivery para kay ${order.customerName}. Nai-post na ito sa Employee Reports at may notification na si Owner.',
+            'Matagumpay na nai-record ang delivery para kay ${order.customerName}. Nai-post na ito sa Employee Reports at automated completed na sa Owner at Staff apps.',
           ),
           actions: [
             CupertinoDialogAction(
@@ -179,11 +213,124 @@ class _BilaoDeliveriesScreenState extends State<BilaoDeliveriesScreen> {
     }
   }
 
+  // ── Details Dialog ──────────────────────────────────────────────────────────
+
+  void _showOrderDetails(BilaoOrder order) {
+    final statusLabel = _cardStatusLabel(order);
+    final statusColor = _cardStatusColor(order);
+    final isCompleted = order.deliveryStatus == DeliveryStatus.completed ||
+        order.deliveryStatus == DeliveryStatus.delivered;
+    final isOutForDelivery = order.deliveryStatus == DeliveryStatus.outForDelivery;
+    final isReady = order.preparationStatus == PreparationStatus.ready;
+
+    showCupertinoDialog<void>(
+      context: context,
+      builder: (ctx) => CupertinoAlertDialog(
+        title: Text(order.customerName),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(height: 8),
+            Text('Contact: ${order.contactNumber}',
+                style: const TextStyle(fontSize: 13)),
+            const SizedBox(height: 6),
+            Text(
+              'Package: ${order.size.label} Bilao (${order.size.pax} Pax) × ${order.quantity}',
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+            ),
+            Text(
+              'Total: \u20b1${order.totalAmount.toStringAsFixed(0)}',
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.bold,
+                color: AppColors.accent,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              order.isBranchPickup
+                  ? 'Pickup: ${order.pickupBranchName ?? "Branch"}'
+                  : 'Delivery: ${order.deliveryAddress}',
+              style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600),
+            ),
+            if (order.notes != null && order.notes!.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Text(
+                'Note: ${order.notes}',
+                style: const TextStyle(fontSize: 12, fontStyle: FontStyle.italic),
+              ),
+            ],
+            const SizedBox(height: 6),
+            Text(
+              'Schedule: ${order.scheduledDateTime.month}/${order.scheduledDateTime.day} at '
+              '${order.scheduledDateTime.hour.toString().padLeft(2, '0')}:'
+              '${order.scheduledDateTime.minute.toString().padLeft(2, '0')}',
+              style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+            ),
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: statusColor.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(CupertinoIcons.circle_fill, size: 9, color: statusColor),
+                  const SizedBox(width: 6),
+                  Text(
+                    statusLabel,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: statusColor,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          if (isReady && !isOutForDelivery && !isCompleted)
+            CupertinoDialogAction(
+              isDefaultAction: true,
+              onPressed: () {
+                Navigator.pop(ctx);
+                _startDelivery(order);
+              },
+              child: const Text('Out For Delivery'),
+            ),
+          if (isOutForDelivery && !isCompleted)
+            CupertinoDialogAction(
+              isDefaultAction: true,
+              onPressed: () {
+                Navigator.pop(ctx);
+                _completeDelivery(order);
+              },
+              child: const Text('Complete with Photo'),
+            ),
+          CupertinoDialogAction(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Build ───────────────────────────────────────────────────────────────────
+
   @override
   Widget build(BuildContext context) {
-    final active = _activeOrders;
-    final upcoming = _upcomingOrders;
-    final delivered = _deliveredOrders;
+    final completedCount = _orders
+        .where((o) =>
+            o.deliveryStatus == DeliveryStatus.completed ||
+            o.deliveryStatus == DeliveryStatus.delivered)
+        .length;
+    final allCount = _orders.length;
 
     return CupertinoPageScaffold(
       backgroundColor: AppColors.background,
@@ -194,451 +341,329 @@ class _BilaoDeliveriesScreenState extends State<BilaoDeliveriesScreen> {
       child: SafeArea(
         child: Column(
           children: [
-            // Segmented Tab Controls
+            // ── SEARCH & TABS ───────────────────────────────────────────────
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-              child: SizedBox(
-                width: double.infinity,
-                child: CupertinoSlidingSegmentedControl<int>(
-                  groupValue: _selectedTab,
-                  children: {
-                    0: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
-                      child: Text(
-                        'Ready (${active.length})',
-                        style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600),
-                      ),
+              child: Column(
+                children: [
+                  CupertinoSearchTextField(
+                    placeholder: 'Search customer name o contact...',
+                    onChanged: (v) => setState(() => _searchQuery = v),
+                  ),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    width: double.infinity,
+                    child: CupertinoSlidingSegmentedControl<int>(
+                      groupValue: _tabIndex,
+                      children: {
+                        0: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                          child: Text(
+                            'All ($allCount)',
+                            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                        1: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                          child: Text(
+                            'Completed ($completedCount)',
+                            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                      },
+                      onValueChanged: (val) {
+                        if (val != null) setState(() => _tabIndex = val);
+                      },
                     ),
-                    1: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
-                      child: Text(
-                        'Niluluto Pa (${upcoming.length})',
-                        style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600),
-                      ),
-                    ),
-                    2: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
-                      child: Text(
-                        'Naihatid Na (${delivered.length})',
-                        style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600),
-                      ),
-                    ),
-                  },
-                  onValueChanged: (val) {
-                    if (val != null) setState(() => _selectedTab = val);
-                  },
-                ),
+                  ),
+                ],
               ),
             ),
 
-            // Tab Content
+            // ── ORDERS LIST ─────────────────────────────────────────────────
             Expanded(
               child: _isLoading
                   ? const Center(child: CupertinoActivityIndicator())
-                  : _buildSelectedTabContent(active: active, upcoming: upcoming, delivered: delivered),
+                  : _filteredOrders.isEmpty
+                      ? Center(
+                          child: Padding(
+                            padding: const EdgeInsets.all(32),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Container(
+                                  width: 72,
+                                  height: 72,
+                                  alignment: Alignment.center,
+                                  decoration: BoxDecoration(
+                                    color: AppColors.pastelBrown.withValues(alpha: 0.15),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(
+                                    CupertinoIcons.bag_fill,
+                                    size: 30,
+                                    color: AppColors.accent,
+                                  ),
+                                ),
+                                const SizedBox(height: 16),
+                                Text(
+                                  _tabIndex == 1
+                                      ? 'Walang Completed Orders'
+                                      : 'Walang Bilao Deliveries',
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w700,
+                                    color: AppColors.textPrimary,
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  _tabIndex == 1
+                                      ? 'Wala pang bilao orders na naihatid at nakumpleto.'
+                                      : 'Lalabas dito ang mga bilao orders na nakatakdang i-deliver.',
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                    fontSize: 13,
+                                    color: AppColors.textSecondary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        )
+                      : ListView.separated(
+                          padding: const EdgeInsets.all(16),
+                          itemCount: _filteredOrders.length,
+                          separatorBuilder: (_, _) => const SizedBox(height: 12),
+                          itemBuilder: (context, index) {
+                            final order = _filteredOrders[index];
+                            return _DriverOrderBox(
+                              order: order,
+                              statusLabel: _cardStatusLabel(order),
+                              statusColor: _cardStatusColor(order),
+                              onTap: () => _showOrderDetails(order),
+                              onStartDelivery: () => _startDelivery(order),
+                              onCompleteDelivery: () => _completeDelivery(order),
+                            );
+                          },
+                        ),
             ),
           ],
         ),
       ),
     );
   }
+}
 
-  Widget _buildSelectedTabContent({
-    required List<BilaoOrder> active,
-    required List<BilaoOrder> upcoming,
-    required List<BilaoOrder> delivered,
-  }) {
-    if (_selectedTab == 0) {
-      if (active.isEmpty) {
-        return _emptyState(
-          title: 'Walang Active Delivery',
-          subtitle: 'Walang order na Ready sa bahay ni Owner o kasalukuyang For Delivery ngayon.',
-        );
-      }
-      return _pagedOrderList(
-        orders: active,
-        page: _activePage,
-        onPageChanged: (p) => setState(() => _activePage = p),
-        itemBuilder: (order) => _buildActiveOrderCard(order),
-      );
-    } else if (_selectedTab == 1) {
-      if (upcoming.isEmpty) {
-        return _emptyState(
-          title: 'Walang Niluluto Pa',
-          subtitle: 'Walang pending o preparing na bilao order sa kusina sa ngayon.',
-        );
-      }
-      return _pagedOrderList(
-        orders: upcoming,
-        page: _upcomingPage,
-        onPageChanged: (p) => setState(() => _upcomingPage = p),
-        itemBuilder: (order) => _buildUpcomingOrderCard(order),
-      );
+// ── Driver Order Box ─────────────────────────────────────────────────────────
+
+class _DriverOrderBox extends StatelessWidget {
+  const _DriverOrderBox({
+    required this.order,
+    required this.statusLabel,
+    required this.statusColor,
+    required this.onTap,
+    required this.onStartDelivery,
+    required this.onCompleteDelivery,
+  });
+
+  final BilaoOrder order;
+  final String statusLabel;
+  final Color statusColor;
+  final VoidCallback onTap;
+  final VoidCallback onStartDelivery;
+  final VoidCallback onCompleteDelivery;
+
+  @override
+  Widget build(BuildContext context) {
+    final isCompleted = order.deliveryStatus == DeliveryStatus.completed ||
+        order.deliveryStatus == DeliveryStatus.delivered;
+    final isOutForDelivery = order.deliveryStatus == DeliveryStatus.outForDelivery;
+    final isReady = order.preparationStatus == PreparationStatus.ready;
+    final isPendingOrPreparing = !isReady && !isOutForDelivery && !isCompleted;
+
+    IconData leadIcon;
+    Color leadColor;
+    if (isCompleted) {
+      leadIcon = CupertinoIcons.checkmark_seal_fill;
+      leadColor = AppColors.success;
+    } else if (isOutForDelivery) {
+      leadIcon = CupertinoIcons.car_fill;
+      leadColor = const Color(0xFF1976D2);
+    } else if (isReady) {
+      leadIcon = CupertinoIcons.house_fill;
+      leadColor = AppColors.warning;
+    } else if (order.preparationStatus == PreparationStatus.preparing) {
+      leadIcon = CupertinoIcons.flame_fill;
+      leadColor = AppColors.accent;
     } else {
-      if (delivered.isEmpty) {
-        return _emptyState(
-          title: 'Walang Naihatid Na',
-          subtitle: 'Wala pang bilao delivery na natapos para sa araw na ito.',
-        );
-      }
-      return _pagedOrderList(
-        orders: delivered,
-        page: _deliveredPage,
-        onPageChanged: (p) => setState(() => _deliveredPage = p),
-        itemBuilder: (order) => _buildDeliveredOrderCard(order),
-      );
+      leadIcon = CupertinoIcons.clock_fill;
+      leadColor = AppColors.warning;
     }
-  }
 
-  Widget _pagedOrderList({
-    required List<BilaoOrder> orders,
-    required int page,
-    required ValueChanged<int> onPageChanged,
-    required Widget Function(BilaoOrder order) itemBuilder,
-  }) {
-    final total = orders.length;
-    final totalPages = (total / _pageSize).ceil();
-    final effectivePage = totalPages == 0 ? 0 : page.clamp(0, totalPages - 1);
-    final paged = orders.skip(effectivePage * _pageSize).take(_pageSize).toList();
-
-    return Column(
-      children: [
-        Expanded(
-          child: ListView.separated(
-            padding: const EdgeInsets.all(16),
-            itemCount: paged.length,
-            separatorBuilder: (_, _) => const SizedBox(height: 12),
-            itemBuilder: (context, index) => itemBuilder(paged[index]),
-          ),
-        ),
-        if (total > _pageSize)
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: AppPaginationBar(
-              currentPage: effectivePage,
-              totalItems: total,
-              pageSize: _pageSize,
-              onPageChanged: onPageChanged,
-            ),
-          ),
-      ],
-    );
-  }
-
-  Widget _buildActiveOrderCard(BilaoOrder order) {
-    final isForDelivery = order.deliveryStatus == DeliveryStatus.forDelivery;
-
-    return DriverCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 38,
-                height: 38,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: isForDelivery
-                      ? AppColors.warning.withValues(alpha: 0.15)
-                      : AppColors.success.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(
-                  isForDelivery ? CupertinoIcons.car_fill : CupertinoIcons.house_fill,
-                  size: 20,
-                  color: isForDelivery ? AppColors.warning : AppColors.success,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      order.customerName,
-                      style: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.textPrimary,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      order.contactNumber,
-                      style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
-                    ),
-                  ],
-                ),
-              ),
-              // Status Pill
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: isForDelivery
-                      ? AppColors.warning.withValues(alpha: 0.12)
-                      : AppColors.success.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color: isForDelivery
-                        ? AppColors.warning.withValues(alpha: 0.35)
-                        : AppColors.success.withValues(alpha: 0.35),
-                  ),
-                ),
-                child: Text(
-                  isForDelivery ? 'FOR DELIVERY' : 'READY SA OWNER',
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w800,
-                    color: isForDelivery ? AppColors.warning : AppColors.success,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-
-          // Destination
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              color: AppColors.background,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: AppColors.border),
-            ),
-            child: Row(
+    return GestureDetector(
+      onTap: onTap,
+      child: DriverCard(
+        padding: const EdgeInsets.all(14),
+        borderColor: isCompleted
+            ? AppColors.success.withValues(alpha: 0.3)
+            : isOutForDelivery
+                ? const Color(0xFF1976D2).withValues(alpha: 0.35)
+                : isReady
+                    ? AppColors.warning.withValues(alpha: 0.4)
+                    : null,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header Row: Lead Icon, Name, Contact, Status Pill
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(
-                  order.isBranchPickup ? CupertinoIcons.location_solid : CupertinoIcons.map_pin_ellipse,
-                  size: 13,
-                  color: order.isBranchPickup ? const Color(0xFF6366F1) : AppColors.accent,
+                Container(
+                  width: 38,
+                  height: 38,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: leadColor.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(leadIcon, size: 20, color: leadColor),
                 ),
-                const SizedBox(width: 6),
+                const SizedBox(width: 12),
                 Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        order.customerName,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        order.contactNumber,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                // Status Pill
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: statusColor.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: statusColor.withValues(alpha: 0.35)),
+                  ),
                   child: Text(
-                    order.destinationDisplay,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
+                    statusLabel,
                     style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: order.isBranchPickup ? const Color(0xFF6366F1) : AppColors.textPrimary,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                      color: statusColor,
                     ),
                   ),
                 ),
               ],
             ),
-          ),
-          if (order.notes != null && order.notes!.isNotEmpty) ...[
-            const SizedBox(height: 6),
-            Text(
-              'Note: ${order.notes}',
-              style: const TextStyle(fontSize: 11.5, fontStyle: FontStyle.italic, color: AppColors.textSecondary),
-            ),
-          ],
-          const SizedBox(height: 8),
+            const SizedBox(height: 10),
 
-          // Package & Scheduled time
-          Row(
-            children: [
-              Text(
-                '${order.size.label} (${order.size.pax}pax) × ${order.quantity}',
-                style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
+            // Destination Pill
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: AppColors.background,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: AppColors.border),
               ),
-              const Spacer(),
-              Text(
-                '${order.scheduledDateTime.month}/${order.scheduledDateTime.day} ${order.scheduledDateTime.hour.toString().padLeft(2, '0')}:${order.scheduledDateTime.minute.toString().padLeft(2, '0')}',
-                style: const TextStyle(fontSize: 11.5, color: AppColors.textSecondary),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-
-          // Actions
-          if (!isForDelivery)
-            DriverButton(
-              label: 'Out For Delivery',
-              icon: CupertinoIcons.car_fill,
-              color: AppColors.accent,
-              padding: const EdgeInsets.symmetric(vertical: 11),
-              onPressed: () => _startDelivery(order),
-            )
-          else
-            DriverButton(
-              label: 'Complete the delivery with a photo',
-              icon: CupertinoIcons.camera_fill,
-              color: AppColors.success,
-              padding: const EdgeInsets.symmetric(vertical: 11),
-              onPressed: () => _completeDelivery(order),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildUpcomingOrderCard(BilaoOrder order) {
-    final isPreparing = order.preparationStatus == PreparationStatus.preparing;
-
-    return DriverCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 36,
-                height: 36,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: isPreparing
-                      ? AppColors.accent.withValues(alpha: 0.15)
-                      : AppColors.warning.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(
-                  isPreparing ? CupertinoIcons.flame_fill : CupertinoIcons.clock_fill,
-                  size: 18,
-                  color: isPreparing ? AppColors.accent : AppColors.warning,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      order.customerName,
-                      style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
-                    ),
-                    Text(
+              child: Row(
+                children: [
+                  Icon(
+                    order.isBranchPickup
+                        ? CupertinoIcons.location_solid
+                        : CupertinoIcons.map_pin_ellipse,
+                    size: 13,
+                    color: order.isBranchPickup
+                        ? const Color(0xFF6366F1)
+                        : AppColors.accent,
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
                       order.destinationDisplay,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: order.isBranchPickup
+                            ? const Color(0xFF6366F1)
+                            : AppColors.textPrimary,
+                      ),
                     ),
-                  ],
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: isPreparing
-                      ? AppColors.accent.withValues(alpha: 0.12)
-                      : AppColors.warning.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  isPreparing ? 'PREPARING' : 'PENDING',
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w800,
-                    color: isPreparing ? AppColors.accent : AppColors.warning,
                   ),
-                ),
+                ],
               ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Text(
-            'Package: ${order.size.label} (${order.size.pax}pax) × ${order.quantity}',
-            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
-          ),
-          const SizedBox(height: 4),
-          const Text(
-            'Kasalukuyang inihahanda sa kusina. Aabisuhan ka kapag Ready na para puntahan sa bahay ni Owner.',
-            style: TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: AppColors.textSecondary),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDeliveredOrderCard(BilaoOrder order) {
-    return DriverCard(
-      highlighted: true,
-      borderColor: AppColors.success.withValues(alpha: 0.4),
-      child: Row(
-        children: [
-          Container(
-            width: 40,
-            height: 40,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: AppColors.success.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(10),
             ),
-            child: const Icon(CupertinoIcons.checkmark_seal_fill, size: 20, color: AppColors.success),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            const SizedBox(height: 8),
+
+            // Package & Scheduled Time
+            Row(
               children: [
                 Text(
-                  order.customerName,
-                  style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
+                  '${order.size.label} (${order.size.pax} Pax) × ${order.quantity} · \u20b1${order.totalAmount.toStringAsFixed(0)}',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary,
+                  ),
                 ),
-                const SizedBox(height: 2),
+                const Spacer(),
                 Text(
-                  order.destinationDisplay,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  '${order.size.label} × ${order.quantity} · ₱${order.totalAmount.toStringAsFixed(0)}',
-                  style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: AppColors.textSecondary),
+                  '${order.scheduledDateTime.month}/${order.scheduledDateTime.day} '
+                  '${order.scheduledDateTime.hour.toString().padLeft(2, '0')}:'
+                  '${order.scheduledDateTime.minute.toString().padLeft(2, '0')}',
+                  style: const TextStyle(fontSize: 11.5, color: AppColors.textSecondary),
                 ),
               ],
             ),
-          ),
-          const SizedBox(width: 8),
-          const Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                'DELIVERED',
-                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: AppColors.success),
-              ),
-              SizedBox(height: 2),
-              Icon(CupertinoIcons.check_mark_circled_solid, size: 16, color: AppColors.success),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
 
-  Widget _emptyState({required String title, required String subtitle}) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 72,
-              height: 72,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: AppColors.pastelBrown.withValues(alpha: 0.15),
-                shape: BoxShape.circle,
+            // Action Buttons
+            if (isReady && !isOutForDelivery && !isCompleted) ...[
+              const SizedBox(height: 12),
+              DriverButton(
+                label: 'Out For Delivery',
+                icon: CupertinoIcons.car_fill,
+                color: AppColors.accent,
+                padding: const EdgeInsets.symmetric(vertical: 11),
+                onPressed: onStartDelivery,
               ),
-              child: const Icon(CupertinoIcons.bag_fill, size: 30, color: AppColors.accent),
-            ),
-            const SizedBox(height: 18),
-            Text(
-              title,
-              style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: AppColors.textPrimary),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              subtitle,
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 13.5, color: AppColors.textSecondary, height: 1.4),
-            ),
+            ] else if (isOutForDelivery && !isCompleted) ...[
+              const SizedBox(height: 12),
+              DriverButton(
+                label: 'Complete the delivery with a photo',
+                icon: CupertinoIcons.camera_fill,
+                color: AppColors.success,
+                padding: const EdgeInsets.symmetric(vertical: 11),
+                onPressed: onCompleteDelivery,
+              ),
+            ] else if (isPendingOrPreparing) ...[
+              const SizedBox(height: 8),
+              const Text(
+                'Inihahanda pa sa kusina. Aabisuhan ka kapag Ready na sa bahay ni Owner.',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontStyle: FontStyle.italic,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ],
           ],
         ),
       ),

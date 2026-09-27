@@ -74,6 +74,8 @@ class _OwnerBilaoOrdersScreenState extends State<OwnerBilaoOrdersScreen> {
     switch (s) {
       case DeliveryStatus.forDelivery:
         return AppColors.warning;
+      case DeliveryStatus.outForDelivery:
+        return const Color(0xFF1976D2);
       case DeliveryStatus.delivered:
         return AppColors.accent;
       case DeliveryStatus.completed:
