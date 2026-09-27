@@ -4,6 +4,7 @@ import '../../../models/app_user.dart';
 import '../../../models/registration_request.dart';
 import '../../../models/user_role.dart';
 import '../../../services/auth_service.dart';
+import '../../../services/firestore_service.dart';
 import '../admin_web_colors.dart';
 import '../admin_web_shell.dart';
 import '../admin_web_widgets/glass_card.dart';
@@ -31,6 +32,26 @@ class _AccountApprovalsScreenState extends State<AccountApprovalsScreen> {
   static const int _pageSize = 5;
   void _decide(RegistrationRequest request, AccountStatus status) async {
     await AuthService.updateAccountStatus(request.id, status);
+
+    final adminName = AuthService.currentAppUser?.fullName ?? 'Admin';
+    if (status == AccountStatus.approved) {
+      FirestoreService.logActivity(
+        actor: adminName,
+        role: 'Admin',
+        action: 'Approved account registration for ${request.fullName}',
+        detail: 'Role: ${request.role.label} · Email: ${request.email}',
+        type: 'Staff',
+      ).catchError((_) {});
+    } else if (status == AccountStatus.rejected) {
+      FirestoreService.logActivity(
+        actor: adminName,
+        role: 'Admin',
+        action: 'Rejected account registration for ${request.fullName}',
+        detail: 'Role: ${request.role.label} · Email: ${request.email}',
+        type: 'Staff',
+      ).catchError((_) {});
+    }
+
     if (!mounted) return;
 
     ScaffoldMessenger.of(context).showSnackBar(

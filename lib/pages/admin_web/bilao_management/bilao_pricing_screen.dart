@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../models/bilao_order.dart';
+import '../../../services/firestore_service.dart';
 import '../admin_web_colors.dart';
 import '../admin_web_shell.dart';
 import '../admin_web_widgets/glass_card.dart';
@@ -48,6 +49,13 @@ class _BilaoPricingScreenState extends State<BilaoPricingScreen> {
               final newPrice = double.tryParse(controller.text);
               if (newPrice != null) {
                 setState(() => _prices[size] = newPrice);
+                FirestoreService.logActivity(
+                  actor: 'Admin',
+                  role: 'Admin',
+                  action: 'Updated price for ${size.label} Bilao',
+                  detail: 'New price: ₱${newPrice.toStringAsFixed(0)}',
+                  type: 'System',
+                ).catchError((_) {});
               }
               Navigator.pop(context);
             },

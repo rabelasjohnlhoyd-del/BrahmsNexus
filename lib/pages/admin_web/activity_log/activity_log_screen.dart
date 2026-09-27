@@ -1,26 +1,11 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import '../../../models/activity_entry.dart';
+import '../../../services/firestore_service.dart';
 import '../admin_web_colors.dart';
 import '../admin_web_shell.dart';
 import '../admin_web_widgets/glass_card.dart';
 import '../admin_web_widgets/admin_pagination_bar.dart';
-
-class ActivityEntry {
-  final String actor;
-  final String role; // 'Admin', 'Staff', 'Driver', 'System'
-  final String action;
-  final String detail;
-  final DateTime timestamp;
-  final String type; // 'Orders', 'Staff', 'Sales', 'System'
-
-  const ActivityEntry({
-    required this.actor,
-    required this.role,
-    required this.action,
-    this.detail = '',
-    required this.timestamp,
-    required this.type,
-  });
-}
 
 class ActivityLogScreen extends StatefulWidget {
   const ActivityLogScreen({super.key});
@@ -30,15 +15,21 @@ class ActivityLogScreen extends StatefulWidget {
 }
 
 class _ActivityLogScreenState extends State<ActivityLogScreen> {
-  int _currentPage = 0;
-  static const int _pageSize = 6;
+  StreamSubscription<List<ActivityEntry>>? _sub;
+  List<ActivityEntry> _liveEntries = [];
+  bool _isLoading = true;
 
+  int _currentPage = 0;
+  static const int _pageSize = 8;
   static const List<String> _types = ['Orders', 'Staff', 'Sales', 'System'];
+
+  String? _selectedType;
 
   @override
   void initState() {
     super.initState();
     _updateShellActions();
+    _listenToActivities();
   }
 
   @override
@@ -47,84 +38,39 @@ class _ActivityLogScreenState extends State<ActivityLogScreen> {
     _updateShellActions();
   }
 
+  @override
+  void dispose() {
+    _sub?.cancel();
+    super.dispose();
+  }
+
   void _updateShellActions() {
     final shell = context.findAncestorStateOfType<AdminWebShellState>();
     shell?.setActions([]);
   }
 
-  final List<ActivityEntry> _allEntries = [
-    ActivityEntry(
-      actor: 'Staff - Labuin',
-      role: 'Staff',
-      action: 'Released branch pickup bilao order to customer',
-      detail: 'Customer: Mark Villanueva · Medium Bilao (₱900)',
-      timestamp: DateTime.now().subtract(const Duration(minutes: 25)),
-      type: 'Orders',
-    ),
-    ActivityEntry(
-      actor: 'Driver - Noel',
-      role: 'Driver',
-      action: 'Completed direct delivery with photo proof',
-      detail: 'Customer: Ana Lopez · Large Bilao (₱1,300) in Pila',
-      timestamp: DateTime.now().subtract(const Duration(hours: 1, minutes: 15)),
-      type: 'Orders',
-    ),
-    ActivityEntry(
-      actor: 'Admin',
-      role: 'Admin',
-      action: 'Approved account registration for Maria Santos',
-      detail: 'Assigned role: Branch Staff (Sta. Cruz)',
-      timestamp: DateTime.now().subtract(const Duration(hours: 2, minutes: 40)),
-      type: 'Staff',
-    ),
-    ActivityEntry(
-      actor: 'Admin',
-      role: 'Admin',
-      action: 'Assigned Juan Dela Cruz to Dayap branch',
-      detail: 'Schedule: Mon-Sat · Position: Branch Cook',
-      timestamp: DateTime.now().subtract(const Duration(hours: 5)),
-      type: 'Staff',
-    ),
-    ActivityEntry(
-      actor: 'Staff - Sta. Cruz',
-      role: 'Staff',
-      action: 'Submitted branch End-of-Day (EOD) sales report',
-      detail: 'Total Sales: ₱4,850 · 32 Meat Portions sold',
-      timestamp: DateTime.now().subtract(const Duration(hours: 7, minutes: 30)),
-      type: 'Sales',
-    ),
-    ActivityEntry(
-      actor: 'System',
-      role: 'System',
-      action: 'Daily sales summary and cook commissions generated',
-      detail: 'Automated EOD audit across all 6 active branches',
-      timestamp: DateTime.now().subtract(const Duration(days: 1, hours: 2)),
-      type: 'Sales',
-    ),
-    ActivityEntry(
-      actor: 'Admin',
-      role: 'Admin',
-      action: 'Updated special bilao package pricing',
-      detail: 'Small: ₱650 · Medium: ₱900 · Large: ₱1,300',
-      timestamp: DateTime.now().subtract(const Duration(days: 1, hours: 8)),
-      type: 'System',
-    ),
-    ActivityEntry(
-      actor: 'Admin',
-      role: 'Admin',
-      action: 'Published new branch operational announcement',
-      detail: 'Topic: Proper food safety handling & inventory recording',
-      timestamp: DateTime.now().subtract(const Duration(days: 2)),
-      type: 'System',
-    ),
-  ];
-
-  String? _selectedType;
+  void _listenToActivities() {
+    _sub = FirestoreService.watchRecentActivities(limit: 50).listen(
+      (entries) {
+        if (mounted) {
+          setState(() {
+            _liveEntries = entries;
+            _isLoading = false;
+          });
+        }
+      },
+      onError: (err) {
+        if (mounted) {
+          setState(() => _isLoading = false);
+        }
+      },
+    );
+  }
 
   Color _typeColor(String type) {
     switch (type) {
       case 'Orders':
-        return const Color(0xFFE65100); // Warm Amber/Orange
+        return const Color(0xFFE65100); // Warm Amber
       case 'Staff':
         return const Color(0xFF2E7D32); // Green
       case 'Sales':
@@ -162,7 +108,7 @@ class _ActivityLogScreenState extends State<ActivityLogScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final filtered = _allEntries
+    final filtered = _liveEntries
         .where((e) => _selectedType == null || e.type == _selectedType)
         .toList();
 
@@ -215,13 +161,45 @@ class _ActivityLogScreenState extends State<ActivityLogScreen> {
               ),
             ),
             const SizedBox(height: 24),
-            if (filtered.isEmpty)
+
+            if (_isLoading)
               const Center(
                 child: Padding(
                   padding: EdgeInsets.symmetric(vertical: 40),
-                  child: Text(
-                    'Walang activity logs para sa napiling filter.',
-                    style: TextStyle(color: AdminWebColors.textSecondary),
+                  child: CircularProgressIndicator(),
+                ),
+              )
+            else if (filtered.isEmpty)
+              Center(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 60),
+                  child: Column(
+                    children: [
+                      Icon(
+                        Icons.history_rounded,
+                        size: 48,
+                        color: AdminWebColors.textSecondary.withValues(alpha: 0.4),
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        _selectedType == null
+                            ? 'Walang naitalang activity logs sa database.'
+                            : 'Walang activity logs para sa kategoryang $_selectedType.',
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: AdminWebColors.textSecondary,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      const Text(
+                        'Kusang lilitaw dito kapag may na-approve na account, na-deliver na bilao, o naipasang EOD report.',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AdminWebColors.textSecondary,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               )

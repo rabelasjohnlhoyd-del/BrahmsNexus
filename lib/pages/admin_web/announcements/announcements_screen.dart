@@ -87,6 +87,16 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
       messageContent: text,
       targetPosition: _selectedTargetPosition,
     );
+
+    final preview = text.length > 50 ? '${text.substring(0, 50)}...' : text;
+    FirestoreService.logActivity(
+      actor: 'Admin',
+      role: 'Admin',
+      action: 'Published new branch announcement',
+      detail: 'Target: $_selectedTargetPosition · "$preview"',
+      type: 'System',
+    ).catchError((_) {});
+
     if (!mounted) return;
 
     setState(() {

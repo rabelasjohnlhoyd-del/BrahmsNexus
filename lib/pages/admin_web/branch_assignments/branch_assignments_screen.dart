@@ -4,6 +4,7 @@ import '../../../models/branch_assignment.dart';
 import '../../../models/staff_member.dart';
 import '../../../services/assignment_service.dart';
 import '../../../services/auth_service.dart';
+import '../../../services/firestore_service.dart';
 import '../../../services/supabase_service.dart';
 import '../admin_web_colors.dart';
 import '../admin_web_shell.dart';
@@ -263,6 +264,15 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
       branchName: branch.fullName,
       status: a.workStatus,
     );
+
+    final adminName = AuthService.currentAppUser?.fullName ?? 'Admin';
+    FirestoreService.logActivity(
+      actor: adminName,
+      role: 'Admin',
+      action: 'Reassigned ${a.employeeName} to ${branch.fullName}',
+      detail: 'Position: Branch Cook',
+      type: 'Staff',
+    ).catchError((_) {});
   }
 
   void _updateStatus(BranchAssignment target, WorkStatus status) async {

@@ -126,6 +126,15 @@ class _LoginScreenState extends State<LoginScreen> {
           });
           return;
         }
+        if (kIsWeb && liveUser.role != UserRole.owner) {
+          await AuthService.signOut();
+          if (!mounted) return;
+          setState(() {
+            _isLoading = false;
+            _authError = 'Ang Web Portal ay para lamang sa Administrator / Owner. Paki-login ang iyong account sa Brahms Mobile App gamit ang cellphone.';
+          });
+          return;
+        }
         if (!mounted) return;
         setState(() => _isLoading = false);
         _navigateToRole(liveUser);
@@ -167,6 +176,16 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
 
+    // Mobile-Only Staff Guard: Prevent Staff/Driver from logging in on Web Portal
+    if (kIsWeb && user.role != UserRole.owner) {
+      await AuthService.signOut();
+      if (!mounted) return;
+      setState(() {
+        _authError = 'Ang Web Portal ay para lamang sa Administrator / Owner. Paki-login ang iyong account sa Brahms Mobile App gamit ang cellphone.';
+      });
+      return;
+    }
+
     _navigateToRole(user);
   }
 
@@ -202,10 +221,10 @@ class _LoginScreenState extends State<LoginScreen> {
               const SizedBox(height: 16),
 
               // Title & Description
-              const Text(
-                'Sign In',
+              Text(
+                kIsWeb ? 'Administrator Portal' : 'Sign In',
                 textAlign: TextAlign.center,
-                style: TextStyle(
+                style: const TextStyle(
                   fontSize: 24,
                   fontWeight: FontWeight.w900,
                   color: Color(0xFF24140B),
@@ -213,10 +232,12 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
               ),
               const SizedBox(height: 5),
-              const Text(
-                'Welcome back. Enter your credentials to access the portal.',
+              Text(
+                kIsWeb
+                    ? 'Enter your owner credentials to access the Brahms Nexus management system.'
+                    : 'Welcome back. Enter your credentials to access the portal.',
                 textAlign: TextAlign.center,
-                style: TextStyle(
+                style: const TextStyle(
                   fontSize: 13,
                   color: Color(0xFF7A6556),
                   height: 1.35,
@@ -426,56 +447,55 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
               ),
 
-              const SizedBox(height: 20),
-
-              // Clean subtle divider
-              const Divider(color: Color(0xFFEBE2D8), height: 1),
-              const SizedBox(height: 18),
-
-              // Register Link
-              Wrap(
-                alignment: WrapAlignment.center,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                children: [
-                  const Text(
-                    "Don't have an account? ",
-                    style: TextStyle(
-                      color: Color(0xFF7A6556),
-                      fontSize: 12.5,
-                    ),
-                  ),
-                  GestureDetector(
-                    onTap: () {
-                      Navigator.of(context).push(
-                        PageRouteBuilder(
-                          opaque: false,
-                          pageBuilder: (context, animation, secondaryAnimation) =>
-                              const RegisterScreen(),
-                          transitionsBuilder:
-                              (context, animation, secondaryAnimation, child) {
-                            final fade = CurvedAnimation(
-                              parent: animation,
-                              curve: Curves.easeInOutCubic,
-                            );
-                            return FadeTransition(opacity: fade, child: child);
-                          },
-                          transitionDuration: const Duration(milliseconds: 400),
-                          reverseTransitionDuration:
-                              const Duration(milliseconds: 400),
-                        ),
-                      );
-                    },
-                    child: const Text(
-                      'Register here',
+              // Register Link (Mobile App only — Owner does not register via web)
+              if (!kIsWeb) ...[
+                const SizedBox(height: 20),
+                const Divider(color: Color(0xFFEBE2D8), height: 1),
+                const SizedBox(height: 18),
+                Wrap(
+                  alignment: WrapAlignment.center,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    const Text(
+                      "Don't have an account? ",
                       style: TextStyle(
-                        color: AppColors.accent,
-                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF7A6556),
                         fontSize: 12.5,
                       ),
                     ),
-                  ),
-                ],
-              ),
+                    GestureDetector(
+                      onTap: () {
+                        Navigator.of(context).push(
+                          PageRouteBuilder(
+                            opaque: false,
+                            pageBuilder: (context, animation, secondaryAnimation) =>
+                                const RegisterScreen(),
+                            transitionsBuilder:
+                                (context, animation, secondaryAnimation, child) {
+                              final fade = CurvedAnimation(
+                                parent: animation,
+                                curve: Curves.easeInOutCubic,
+                              );
+                              return FadeTransition(opacity: fade, child: child);
+                            },
+                            transitionDuration: const Duration(milliseconds: 400),
+                            reverseTransitionDuration:
+                                const Duration(milliseconds: 400),
+                          ),
+                        );
+                      },
+                      child: const Text(
+                        'Register here',
+                        style: TextStyle(
+                          color: AppColors.accent,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 12.5,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ],
           ),
         ),

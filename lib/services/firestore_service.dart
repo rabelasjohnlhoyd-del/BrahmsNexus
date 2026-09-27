@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
+import '../models/activity_entry.dart';
 import '../models/announcement.dart';
 import '../models/bilao_order.dart';
 import '../models/branch.dart';
@@ -262,14 +263,23 @@ class FirestoreService {
     );
 
     if (success) {
+      final dName = (driverName != null && driverName.isNotEmpty) ? driverName : 'Driver';
       await recordBilaoDeliveryReport(
         orderId: order.id,
         customerName: order.customerName,
         deliveryAddress: order.destinationDisplay,
         sizeLabel: order.size.label,
         quantity: order.quantity,
-        driverName: driverName,
+        driverName: dName,
       );
+
+      logActivity(
+        actor: dName,
+        role: 'Driver',
+        action: 'Completed direct delivery for ${order.customerName}',
+        detail: '${order.size.label} Bilao (${order.quantity} pcs) · ${order.deliveryAddress}',
+        type: 'Orders',
+      ).catchError((_) {});
     }
     return success;
   }
@@ -303,6 +313,14 @@ class FirestoreService {
         targetRole: 'owner',
         route: 'bilao_orders',
       ).catchError((_) => false);
+
+      logActivity(
+        actor: sName,
+        role: 'Staff',
+        action: 'Released branch pickup bilao order to ${order.customerName}',
+        detail: '${order.size.label} Bilao (${order.quantity} pcs) · ${order.pickupBranchName ?? "Branch"}',
+        type: 'Orders',
+      ).catchError((_) {});
     }
     return success;
   }
@@ -363,6 +381,52 @@ class FirestoreService {
           }
         }
         return false;
+      }).toList();
+    });
+  }
+
+  // ===========================================================================
+  // ACTIVITY LOGS (Auditing & Major Business Events Only)
+  // ===========================================================================
+
+  /// Records a key operational activity log to Firestore.
+  /// Only triggered for meaningful business milestones (approvals, deliveries, EODs).
+  static Future<void> logActivity({
+    required String actor,
+    required String role,
+    required String action,
+    String detail = '',
+    required String type, // 'Orders', 'Staff', 'Sales', 'System'
+  }) async {
+    try {
+      await _db.collection('activity_logs').add({
+        'actor': actor,
+        'role': role,
+        'action': action,
+        'detail': detail,
+        'type': type,
+        'timestamp': FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      debugPrint('FirestoreService.logActivity error: $e');
+    }
+  }
+
+  /// Streams the most recent activity logs strictly bounded by [limit] (default: 30)
+  /// and cached via FirestoreListenCache to prevent duplicate query costs.
+  static Stream<List<ActivityEntry>> watchRecentActivities({int limit = 30}) {
+    final query = _db
+        .collection('activity_logs')
+        .orderBy('timestamp', descending: true)
+        .limit(limit);
+
+    return FirestoreListenCache.query('activity_logs:recent:$limit', query)
+        .map((snapshot) {
+      return snapshot.docs.map((doc) {
+        return ActivityEntry.fromDoc(
+          doc.id,
+          doc.data(),
+        );
       }).toList();
     });
   }
@@ -903,7 +967,13 @@ class FirestoreService {
         'isRead': false,
         'createdAt': FieldValue.serverTimestamp(),
       });
-      // ─────────────────────────────────────────────────────────────────────
+      logActivity(
+        actor: 'Staff - ${sales.branchName}',
+        role: 'Staff',
+        action: 'Submitted branch End-of-Day (EOD) sales report',
+        detail: 'Total Sales: ₱${sales.totalSalesAmount.toStringAsFixed(0)} · ${sales.displayPortions} meat portions sold',
+        type: 'Sales',
+      ).catchError((_) {});
 
       return true;
     } catch (e) {
