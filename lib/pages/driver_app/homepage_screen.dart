@@ -411,6 +411,7 @@ class _DriverHomepageScreenState extends State<DriverHomepageScreen> {
         trailing: DriverTopActions(),
       ),
       child: SafeArea(
+        bottom: false,
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
@@ -539,6 +540,7 @@ class _DriverHomepageScreenState extends State<DriverHomepageScreen> {
                 );
               },
             ),
+            const SizedBox(height: 80),
           ],
         ),
       ),

@@ -8,88 +8,34 @@ import 'route_screen.dart';
 import 'stock_transfer_screen.dart';
 import 'profile_screen.dart';
 
-/// Main shell of the Driver app — a CupertinoTabScaffold with 5 tabs
-/// (Home, Route, Transfer, Deliveries, Profile), following iOS
-/// Human Interface Guidelines with real Cupertino widgets (same
-/// pattern as the Staff/Cook app shell — see staff_shell.dart).
+/// Main shell of the Driver app — same floating rounded pill nav pattern
+/// as staff_shell.dart for a consistent look across all mobile apps.
 class DriverShell extends StatelessWidget {
   const DriverShell({super.key});
 
-  /// Muted, clearly "not selected" tint for inactive tabs — kept far
-  /// enough from [AppColors.accent] that the active tab is obvious at
-  /// a glance instead of both states reading as "brown".
-  static const _inactiveTint = Color(0xFFB8A99A);
+  static final CupertinoTabController tabController = CupertinoTabController();
 
-  /// Solid white/light status bar + gesture-nav bar treatment for the
-  /// whole Driver section — mirrors staff_shell.dart so both apps
-  /// behave identically instead of being left to Android's defaults
-  /// (which could auto-recolor the bars while scrolling).
   static const _systemBarStyle = SystemUiOverlayStyle(
-    // The Driver header (DriverNavBar) is a solid dark-brown gradient
-    // and sits directly under the status bar, so status bar icons
-    // need to be light/white here to stay readable against it.
     statusBarColor: Color(0x00000000),
     statusBarIconBrightness: Brightness.light,
     statusBarBrightness: Brightness.dark,
-    systemNavigationBarColor: CupertinoColors.white,
+    systemNavigationBarColor: AppColors.background,
     systemNavigationBarIconBrightness: Brightness.dark,
     systemNavigationBarDividerColor: Color(0x00000000),
     systemNavigationBarContrastEnforced: false,
     systemStatusBarContrastEnforced: false,
   );
 
-  /// Tab icon + label as one unit with a soft pill background when
-  /// active — the at-a-glance "you are here" indicator. Mirrors
-  /// staff_shell.dart's _tabItem so both apps' tab bars behave and
-  /// look identically instead of relying on CupertinoTabBar's
-  /// automatic (and easy-to-miss) label coloring alone.
-  static Widget _tabItem(IconData icon, String label, {required bool active}) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-      decoration: BoxDecoration(
-        color: active ? AppColors.textPrimary : null,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            icon,
-            size: 18,
-            color: active ? CupertinoColors.white : _inactiveTint,
-          ),
-          const SizedBox(height: 2),
-          Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: 9,
-              height: 1.1,
-              fontWeight: active ? FontWeight.w700 : FontWeight.w500,
-              color: active ? CupertinoColors.white : _inactiveTint,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     const cupertinoThemeData = CupertinoThemeData(
-      // Forcing this explicitly matters: without it, Cupertino
-      // estimates light/dark from the primary color, and our fairly
-      // dark accent brown was being misread as a "dark theme" —
-      // silently flipping default text (nav titles, placeholders,
-      // etc) to pale colors with almost no contrast on our light
-      // background. See widgets/driver_nav_bar.dart for more detail.
       brightness: Brightness.light,
       primaryColor: AppColors.accent,
       scaffoldBackgroundColor: AppColors.background,
       barBackgroundColor: CupertinoColors.white,
     );
+
+    final double bottomPadding = MediaQuery.viewPaddingOf(context).bottom;
 
     return DeactivationGuard(
       child: AnnotatedRegion<SystemUiOverlayStyle>(
@@ -99,63 +45,185 @@ class DriverShell extends StatelessWidget {
           child: Builder(
             builder: (context) => DefaultTextStyle(
               style: CupertinoTheme.of(context).textTheme.textStyle,
-              child: CupertinoTabScaffold(
-                tabBar: CupertinoTabBar(
-                  backgroundColor: CupertinoColors.white,
-                  height: 62,
-                  border: const Border(
-                    top: BorderSide(color: AppColors.border, width: 1),
+              child: Stack(
+                children: [
+                  // ── Tab Scaffold with individual Navigators ─────────
+                  MediaQuery(
+                    data: MediaQuery.of(context).copyWith(
+                      viewPadding: MediaQuery.of(context).viewPadding.copyWith(bottom: 0),
+                      padding: MediaQuery.of(context).padding.copyWith(bottom: 0),
+                    ),
+                    child: CupertinoTabScaffold(
+                      controller: tabController,
+                      tabBar: CupertinoTabBar(
+                        backgroundColor: const Color(0x00000000),
+                        border: null,
+                        height: 0,
+                        items: const [
+                          BottomNavigationBarItem(icon: SizedBox.shrink()),
+                          BottomNavigationBarItem(icon: SizedBox.shrink()),
+                          BottomNavigationBarItem(icon: SizedBox.shrink()),
+                          BottomNavigationBarItem(icon: SizedBox.shrink()),
+                          BottomNavigationBarItem(icon: SizedBox.shrink()),
+                        ],
+                      ),
+                      tabBuilder: (context, index) {
+                        Widget page;
+                        switch (index) {
+                          case 0:
+                            page = const DriverHomepageScreen();
+                            break;
+                          case 1:
+                            page = const RouteScreen();
+                            break;
+                          case 2:
+                            page = const StockTransferScreen();
+                            break;
+                          case 3:
+                            page = const BilaoDeliveriesScreen();
+                            break;
+                          default:
+                            page = const DriverProfileScreen();
+                            break;
+                        }
+
+                        return CupertinoTabView(
+                          builder: (ctx) => page,
+                        );
+                      },
+                    ),
                   ),
-                  items: [
-                    BottomNavigationBarItem(
-                      icon: _tabItem(CupertinoIcons.house_fill, 'Home', active: false),
-                      activeIcon: _tabItem(CupertinoIcons.house_fill, 'Home', active: true),
+
+                  // ── Floating Rounded Bottom Navigation Bar (iPhone Style) ──
+                  Positioned(
+                    left: 16,
+                    right: 16,
+                    bottom: bottomPadding > 0 ? bottomPadding : 12,
+                    child: AnimatedBuilder(
+                      animation: tabController,
+                      builder: (context, _) {
+                        final currentIndex = tabController.index;
+                        return Container(
+                          height: 56,
+                          decoration: BoxDecoration(
+                            color: CupertinoColors.white,
+                            borderRadius: BorderRadius.circular(24),
+                            border: Border.all(
+                              color: AppColors.border.withValues(alpha: 0.8),
+                              width: 1,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: CupertinoColors.black.withValues(alpha: 0.08),
+                                blurRadius: 18,
+                                offset: const Offset(0, 5),
+                              ),
+                              BoxShadow(
+                                color: AppColors.accentDark.withValues(alpha: 0.03),
+                                blurRadius: 6,
+                                offset: const Offset(0, 1),
+                              ),
+                            ],
+                          ),
+                          child: Row(
+                            children: [
+                              _buildNavItem(
+                                index: 0,
+                                currentIndex: currentIndex,
+                                activeIcon: CupertinoIcons.house_fill,
+                                inactiveIcon: CupertinoIcons.house,
+                                label: 'Home',
+                              ),
+                              _buildNavItem(
+                                index: 1,
+                                currentIndex: currentIndex,
+                                activeIcon: CupertinoIcons.map_fill,
+                                inactiveIcon: CupertinoIcons.map,
+                                label: 'Route',
+                              ),
+                              _buildNavItem(
+                                index: 2,
+                                currentIndex: currentIndex,
+                                activeIcon: CupertinoIcons.arrow_2_squarepath,
+                                inactiveIcon: CupertinoIcons.arrow_2_squarepath,
+                                label: 'Transfer',
+                              ),
+                              _buildNavItem(
+                                index: 3,
+                                currentIndex: currentIndex,
+                                activeIcon: CupertinoIcons.bag_fill,
+                                inactiveIcon: CupertinoIcons.bag,
+                                label: 'Deliveries',
+                              ),
+                              _buildNavItem(
+                                index: 4,
+                                currentIndex: currentIndex,
+                                activeIcon: CupertinoIcons.person_fill,
+                                inactiveIcon: CupertinoIcons.person,
+                                label: 'Profile',
+                              ),
+                            ],
+                          ),
+                        );
+                      },
                     ),
-                    BottomNavigationBarItem(
-                      icon: _tabItem(CupertinoIcons.map_fill, 'Route', active: false),
-                      activeIcon: _tabItem(CupertinoIcons.map_fill, 'Route', active: true),
-                    ),
-                    BottomNavigationBarItem(
-                      icon: _tabItem(CupertinoIcons.arrow_2_squarepath, 'Transfer', active: false),
-                      activeIcon: _tabItem(CupertinoIcons.arrow_2_squarepath, 'Transfer', active: true),
-                    ),
-                    BottomNavigationBarItem(
-                      icon: _tabItem(CupertinoIcons.bag_fill, 'Deliveries', active: false),
-                      activeIcon: _tabItem(CupertinoIcons.bag_fill, 'Deliveries', active: true),
-                    ),
-                    BottomNavigationBarItem(
-                      icon: _tabItem(CupertinoIcons.person_fill, 'Profile', active: false),
-                      activeIcon: _tabItem(CupertinoIcons.person_fill, 'Profile', active: true),
-                    ),
-                  ],
-                ),
-                tabBuilder: (context, index) {
-                  switch (index) {
-                    case 0:
-                      return CupertinoTabView(
-                        builder: (context) => const DriverHomepageScreen(),
-                      );
-                    case 1:
-                      return CupertinoTabView(
-                        builder: (context) => const RouteScreen(),
-                      );
-                    case 2:
-                      return CupertinoTabView(
-                        builder: (context) => const StockTransferScreen(),
-                      );
-                    case 3:
-                      return CupertinoTabView(
-                        builder: (context) => const BilaoDeliveriesScreen(),
-                      );
-                    default:
-                      return CupertinoTabView(
-                        builder: (context) => const DriverProfileScreen(),
-                      );
-                  }
-                },
+                  ),
+                ],
               ),
             ),
           ),
+        ),
+      ),
+    );
+  }
+
+  static Widget _buildNavItem({
+    required int index,
+    required int currentIndex,
+    required IconData activeIcon,
+    required IconData inactiveIcon,
+    required String label,
+  }) {
+    final bool active = index == currentIndex;
+
+    return Expanded(
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () {
+          tabController.index = index;
+        },
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: active
+                    ? AppColors.textPrimary.withValues(alpha: 0.08)
+                    : const Color(0x00000000),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(
+                active ? activeIcon : inactiveIcon,
+                size: 19,
+                color: active ? AppColors.textPrimary : const Color(0xFF8E8E93),
+              ),
+            ),
+            const SizedBox(height: 1),
+            Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 9.5,
+                fontWeight: active ? FontWeight.w800 : FontWeight.w500,
+                color: active ? AppColors.textPrimary : const Color(0xFF8E8E93),
+                letterSpacing: -0.2,
+              ),
+            ),
+          ],
         ),
       ),
     );

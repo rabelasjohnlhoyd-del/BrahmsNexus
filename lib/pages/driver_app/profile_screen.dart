@@ -151,6 +151,7 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
                   textColor: AppColors.error,
                   onPressed: () => _confirmLogout(context),
                 ),
+                const SizedBox(height: 80),
               ],
             ),
           ),

@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 class AppColors {
   AppColors._();
 
-  static const Color background = Color(0xFFFAF0E6); // 60% Dominant
+  static const Color background = Color(0xFFF4F3F0); // Option 1: Modern Clean Warm-Grey / Soft Ivory
   static const Color surface = Colors.white; // 30% Secondary
   static const Color pastelBrown = Color(0xFFD2B48C); // 30% - Pastel brown (nav/drawer elements)
   static const Color accent = Color(0xFFA0522D); // 10% Accent (Sienna / Terracotta)
@@ -25,7 +25,7 @@ class AppColors {
   static const Color chocolate = Color(0xFF2B1B12);      // = headerStart
   static const Color chocolateLight = Color(0xFF7A4A2A); // = headerEnd
   static const Color chocolateTint = Color(0xFFD9C3AE);  // pale tan, text on dark bg
-  static const Color cardCream = Color(0xFFFAF3EA);      // light cream, pills/buttons
+  static const Color cardCream = Color(0xFFF8F7F4);      // clean neutral light pill/button bg
 }
 
 class AppTheme {

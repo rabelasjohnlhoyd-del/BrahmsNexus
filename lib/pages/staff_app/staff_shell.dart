@@ -20,151 +20,160 @@ class StaffShell extends StatelessWidget {
 
   static final CupertinoTabController tabController = CupertinoTabController();
 
-  /// Muted, clearly "not selected" tint for inactive tabs — kept far
-  /// enough from [AppColors.accent] that the active tab is obvious at
-  /// a glance instead of both states reading as "brown".
-  static const _inactiveTint = Color(0xFFB8A99A);
-
-  /// Solid white/light status bar + gesture-nav bar treatment for the
-  /// whole Staff section. Set explicitly (rather than left to Android's
-  /// defaults) so the bars can't be auto-recolored by the OS while
-  /// scrolling — see main.dart for the app-wide baseline this overrides.
   static const _systemBarStyle = SystemUiOverlayStyle(
-    // The Staff header (StaffNavBar) is solid accent brown and sits
-    // directly under the status bar, so status bar icons need to be
-    // light/white here to stay readable against it.
     statusBarColor: Color(0x00000000),
     statusBarIconBrightness: Brightness.light,
     statusBarBrightness: Brightness.dark,
-    systemNavigationBarColor: CupertinoColors.white,
+    systemNavigationBarColor: AppColors.background,
     systemNavigationBarIconBrightness: Brightness.dark,
     systemNavigationBarDividerColor: Color(0x00000000),
     systemNavigationBarContrastEnforced: false,
     systemStatusBarContrastEnforced: false,
   );
 
-  /// Tab icon + label as one unit with a soft pill background when
-  /// active — the at-a-glance "you are here" indicator. Built as a
-  /// single custom widget (rather than relying on CupertinoTabBar's
-  /// automatic label coloring alone) so active vs inactive is obvious
-  /// from icon color, label weight, and background all at once instead
-  /// of a single subtle color shift that's easy to miss mid-scroll.
-  static Widget _tabItem(IconData icon, String label, {required bool active}) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-      decoration: BoxDecoration(
-        color: active ? AppColors.textPrimary : null,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            icon,
-            size: 18,
-            color: active ? CupertinoColors.white : _inactiveTint,
-          ),
-          const SizedBox(height: 2),
-          Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: 9,
-              height: 1.1,
-              fontWeight: active ? FontWeight.w700 : FontWeight.w500,
-              color: active ? CupertinoColors.white : _inactiveTint,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     const cupertinoThemeData = CupertinoThemeData(
-      // Forcing this explicitly matters: without it, Cupertino
-      // estimates light/dark from the primary color, and our fairly
-      // dark accent brown was being misread as a "dark theme" —
-      // silently flipping default text (nav titles, placeholders,
-      // etc) to pale colors with almost no contrast on our light
-      // background. See widgets/staff_nav_bar.dart for more detail.
       brightness: Brightness.light,
       primaryColor: AppColors.accent,
       scaffoldBackgroundColor: AppColors.background,
       barBackgroundColor: CupertinoColors.white,
     );
 
+    final double bottomPadding = MediaQuery.viewPaddingOf(context).bottom;
+
     return DeactivationGuard(
       child: AnnotatedRegion<SystemUiOverlayStyle>(
         value: _systemBarStyle,
         child: CupertinoTheme(
           data: cupertinoThemeData,
-          // Builder + DefaultTextStyle: needed so ALL plain Text
-          // widgets inside inherit the correct font size (without
-          // this, font sizes come out wrong/too large since we're
-          // nested inside a MaterialApp, not a CupertinoApp).
           child: Builder(
             builder: (context) => DefaultTextStyle(
               style: CupertinoTheme.of(context).textTheme.textStyle,
-              child: CupertinoTabScaffold(
-                controller: tabController,
-                tabBar: CupertinoTabBar(
-                  backgroundColor: CupertinoColors.white,
-                  // Stabilized at 56px for visual balance (matches DriverNavBar)
-                  height: 56,
-                  border: const Border(
-                    top: BorderSide(color: AppColors.border, width: 1),
+              child: Stack(
+                children: [
+                  // ── Tab Scaffold with individual Navigators ─────────
+                  MediaQuery(
+                    data: MediaQuery.of(context).copyWith(
+                      viewPadding: MediaQuery.of(context).viewPadding.copyWith(bottom: 0),
+                      padding: MediaQuery.of(context).padding.copyWith(bottom: 0),
+                    ),
+                    child: CupertinoTabScaffold(
+                      controller: tabController,
+                      tabBar: CupertinoTabBar(
+                        backgroundColor: const Color(0x00000000),
+                        border: null,
+                        height: 0,
+                        items: const [
+                          BottomNavigationBarItem(icon: SizedBox.shrink()),
+                          BottomNavigationBarItem(icon: SizedBox.shrink()),
+                          BottomNavigationBarItem(icon: SizedBox.shrink()),
+                          BottomNavigationBarItem(icon: SizedBox.shrink()),
+                          BottomNavigationBarItem(icon: SizedBox.shrink()),
+                        ],
+                      ),
+                      tabBuilder: (context, index) {
+                        Widget page;
+                        switch (index) {
+                          case 0:
+                            page = const HomepageScreen();
+                            break;
+                          case 1:
+                            page = const SalesScreen();
+                            break;
+                          case 2:
+                            page = const StaffBilaoOrdersScreen();
+                            break;
+                          case 3:
+                            page = const DailyReportScreen();
+                            break;
+                          default:
+                            page = const ProfileScreen(isRootTab: true);
+                            break;
+                        }
+
+                        return CupertinoTabView(
+                          builder: (ctx) => page,
+                        );
+                      },
+                    ),
                   ),
-                  items: [
-                    BottomNavigationBarItem(
-                      icon: _tabItem(CupertinoIcons.house_fill, 'Home', active: false),
-                      activeIcon: _tabItem(CupertinoIcons.house_fill, 'Home', active: true),
+
+                  // ── Floating Rounded Bottom Navigation Bar (iPhone Style) ──
+                  Positioned(
+                    left: 16,
+                    right: 16,
+                    bottom: bottomPadding > 0 ? bottomPadding : 12,
+                    child: AnimatedBuilder(
+                      animation: tabController,
+                      builder: (context, _) {
+                        final currentIndex = tabController.index;
+                        return Container(
+                          height: 56,
+                          decoration: BoxDecoration(
+                            color: CupertinoColors.white,
+                            borderRadius: BorderRadius.circular(24),
+                            border: Border.all(
+                              color: AppColors.border.withValues(alpha: 0.8),
+                              width: 1,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: CupertinoColors.black.withValues(alpha: 0.08),
+                                blurRadius: 18,
+                                offset: const Offset(0, 5),
+                              ),
+                              BoxShadow(
+                                color: AppColors.accentDark.withValues(alpha: 0.03),
+                                blurRadius: 6,
+                                offset: const Offset(0, 1),
+                              ),
+                            ],
+                          ),
+                          child: Row(
+                            children: [
+                              _buildNavItem(
+                                index: 0,
+                                currentIndex: currentIndex,
+                                activeIcon: CupertinoIcons.house_fill,
+                                inactiveIcon: CupertinoIcons.house,
+                                label: 'Home',
+                              ),
+                              _buildNavItem(
+                                index: 1,
+                                currentIndex: currentIndex,
+                                activeIcon: CupertinoIcons.chart_bar_alt_fill,
+                                inactiveIcon: CupertinoIcons.chart_bar_square,
+                                label: 'Sales',
+                              ),
+                              _buildNavItem(
+                                index: 2,
+                                currentIndex: currentIndex,
+                                activeIcon: CupertinoIcons.bag_fill,
+                                inactiveIcon: CupertinoIcons.bag,
+                                label: 'Bilao',
+                              ),
+                              _buildNavItem(
+                                index: 3,
+                                currentIndex: currentIndex,
+                                activeIcon: CupertinoIcons.doc_text_fill,
+                                inactiveIcon: CupertinoIcons.doc_text,
+                                label: 'Report',
+                              ),
+                              _buildNavItem(
+                                index: 4,
+                                currentIndex: currentIndex,
+                                activeIcon: CupertinoIcons.person_fill,
+                                inactiveIcon: CupertinoIcons.person,
+                                label: 'Profile',
+                              ),
+                            ],
+                          ),
+                        );
+                      },
                     ),
-                    BottomNavigationBarItem(
-                      icon: _tabItem(CupertinoIcons.chart_bar_alt_fill, 'Sales', active: false),
-                      activeIcon: _tabItem(CupertinoIcons.chart_bar_alt_fill, 'Sales', active: true),
-                    ),
-                    BottomNavigationBarItem(
-                      icon: _tabItem(CupertinoIcons.bag_fill, 'Bilao Orders', active: false),
-                      activeIcon: _tabItem(CupertinoIcons.bag_fill, 'Bilao Orders', active: true),
-                    ),
-                    BottomNavigationBarItem(
-                      icon: _tabItem(CupertinoIcons.doc_text_fill, 'Report', active: false),
-                      activeIcon: _tabItem(CupertinoIcons.doc_text_fill, 'Report', active: true),
-                    ),
-                    BottomNavigationBarItem(
-                      icon: _tabItem(CupertinoIcons.person_fill, 'Profile', active: false),
-                      activeIcon: _tabItem(CupertinoIcons.person_fill, 'Profile', active: true),
-                    ),
-                  ],
-                ),
-                tabBuilder: (context, index) {
-                  switch (index) {
-                    case 0:
-                      return CupertinoTabView(
-                        builder: (context) => const HomepageScreen(),
-                      );
-                    case 1:
-                      return CupertinoTabView(
-                        builder: (context) => const SalesScreen(),
-                      );
-                    case 2:
-                      return CupertinoTabView(
-                        builder: (context) => const StaffBilaoOrdersScreen(),
-                      );
-                    case 3:
-                      return CupertinoTabView(
-                        builder: (context) => const DailyReportScreen(),
-                      );
-                    default:
-                      return CupertinoTabView(
-                        builder: (context) => const ProfileScreen(isRootTab: true),
-                      );
-                  }
-                },
+                  ),
+                ],
               ),
             ),
           ),
@@ -172,4 +181,57 @@ class StaffShell extends StatelessWidget {
       ),
     );
   }
+
+  static Widget _buildNavItem({
+    required int index,
+    required int currentIndex,
+    required IconData activeIcon,
+    required IconData inactiveIcon,
+    required String label,
+  }) {
+    final bool active = index == currentIndex;
+
+    return Expanded(
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () {
+          tabController.index = index;
+        },
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: active
+                    ? AppColors.textPrimary.withValues(alpha: 0.08)
+                    : const Color(0x00000000),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(
+                active ? activeIcon : inactiveIcon,
+                size: 19,
+                color: active ? AppColors.textPrimary : const Color(0xFF8E8E93),
+              ),
+            ),
+            const SizedBox(height: 1),
+            Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 9.5,
+                fontWeight: active ? FontWeight.w800 : FontWeight.w500,
+                color: active ? AppColors.textPrimary : const Color(0xFF8E8E93),
+                letterSpacing: -0.2,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
+

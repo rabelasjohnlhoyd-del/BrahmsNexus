@@ -815,6 +815,7 @@ class _HomepageScreenState extends State<HomepageScreen> with WidgetsBindingObse
         trailing: StaffTopActions(),
       ),
       child: SafeArea(
+        bottom: false,
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
@@ -1260,6 +1261,7 @@ class _HomepageScreenState extends State<HomepageScreen> with WidgetsBindingObse
                 );
               },
             ),
+            const SizedBox(height: 80),
           ],
         ),
       ),

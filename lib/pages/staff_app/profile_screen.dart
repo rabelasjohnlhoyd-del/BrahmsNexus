@@ -73,6 +73,7 @@ class ProfileScreen extends StatelessWidget {
             trailing: const StaffTopActions(),
           ),
           child: SafeArea(
+            bottom: false,
             child: ListView(
               padding: const EdgeInsets.all(20),
               children: [
@@ -141,6 +142,7 @@ class ProfileScreen extends StatelessWidget {
                   textColor: AppColors.error,
                   onPressed: () => _confirmLogout(context),
                 ),
+                const SizedBox(height: 80),
               ],
             ),
           ),

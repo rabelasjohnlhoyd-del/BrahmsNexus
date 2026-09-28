@@ -8,6 +8,8 @@ import 'cook_inventory_screen.dart';
 import 'cutter_portioning_screen.dart';
 import 'cutter_inventory_screen.dart';
 
+/// Main shell of the Production app — same floating rounded pill nav pattern
+/// as staff_shell.dart for a consistent look across all mobile apps.
 class ProductionShell extends StatelessWidget {
   const ProductionShell({
     super.key,
@@ -16,51 +18,23 @@ class ProductionShell extends StatelessWidget {
 
   final String position;
 
+  static final CupertinoTabController tabController = CupertinoTabController();
+
   static const _systemBarStyle = SystemUiOverlayStyle(
     statusBarColor: Color(0x00000000),
     statusBarIconBrightness: Brightness.light,
     statusBarBrightness: Brightness.dark,
-    systemNavigationBarColor: CupertinoColors.white,
+    systemNavigationBarColor: AppColors.background,
     systemNavigationBarIconBrightness: Brightness.dark,
     systemNavigationBarDividerColor: Color(0x00000000),
+    systemNavigationBarContrastEnforced: false,
+    systemStatusBarContrastEnforced: false,
   );
-
-  static const _inactiveTint = Color(0xFFB8A99A);
-
-  static Widget _tabItem(IconData icon, String label, {required bool active}) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-      decoration: BoxDecoration(
-        color: active ? AppColors.textPrimary : null,
-        borderRadius: BorderRadius.circular(18),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            icon,
-            size: 20,
-            color: active ? CupertinoColors.white : _inactiveTint,
-          ),
-          const SizedBox(height: 2),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 10,
-              height: 1.0,
-              fontWeight: active ? FontWeight.w700 : FontWeight.w500,
-              color: active ? CupertinoColors.white : _inactiveTint,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
     final isCook = position == 'Production Cook';
+    final double bottomPadding = MediaQuery.viewPaddingOf(context).bottom;
 
     return DeactivationGuard(
       child: AnnotatedRegion<SystemUiOverlayStyle>(
@@ -75,48 +49,112 @@ class ProductionShell extends StatelessWidget {
           child: Builder(
             builder: (context) => DefaultTextStyle(
               style: CupertinoTheme.of(context).textTheme.textStyle,
-              child: CupertinoTabScaffold(
-                tabBar: CupertinoTabBar(
-                  backgroundColor: CupertinoColors.white,
-                  height: 62,
-                  border: const Border(
-                    top: BorderSide(color: AppColors.border, width: 1),
+              child: Stack(
+                children: [
+                  // ── Tab Scaffold with individual Navigators ─────────
+                  MediaQuery(
+                    data: MediaQuery.of(context).copyWith(
+                      viewPadding: MediaQuery.of(context).viewPadding.copyWith(bottom: 0),
+                      padding: MediaQuery.of(context).padding.copyWith(bottom: 0),
+                    ),
+                    child: CupertinoTabScaffold(
+                      controller: tabController,
+                      tabBar: CupertinoTabBar(
+                        backgroundColor: const Color(0x00000000),
+                        border: null,
+                        height: 0,
+                        items: const [
+                          BottomNavigationBarItem(icon: SizedBox.shrink()),
+                          BottomNavigationBarItem(icon: SizedBox.shrink()),
+                          BottomNavigationBarItem(icon: SizedBox.shrink()),
+                        ],
+                      ),
+                      tabBuilder: (context, index) {
+                        Widget page;
+                        switch (index) {
+                          case 0:
+                            page = isCook
+                                ? const CookTaskScreen()
+                                : const CutterPortioningScreen();
+                            break;
+                          case 1:
+                            page = isCook
+                                ? const CookInventoryScreen()
+                                : const CutterInventoryScreen();
+                            break;
+                          default:
+                            page = const ProfileScreen(isRootTab: true);
+                            break;
+                        }
+
+                        return CupertinoTabView(
+                          builder: (ctx) => page,
+                        );
+                      },
+                    ),
                   ),
-                  items: [
-                    BottomNavigationBarItem(
-                      icon: _tabItem(CupertinoIcons.house_fill, 'Home', active: false),
-                      activeIcon: _tabItem(CupertinoIcons.house_fill, 'Home', active: true),
+
+                  // ── Floating Rounded Bottom Navigation Bar (iPhone Style) ──
+                  Positioned(
+                    left: 16,
+                    right: 16,
+                    bottom: bottomPadding > 0 ? bottomPadding : 12,
+                    child: AnimatedBuilder(
+                      animation: tabController,
+                      builder: (context, _) {
+                        final currentIndex = tabController.index;
+                        return Container(
+                          height: 56,
+                          decoration: BoxDecoration(
+                            color: CupertinoColors.white,
+                            borderRadius: BorderRadius.circular(24),
+                            border: Border.all(
+                              color: AppColors.border.withValues(alpha: 0.8),
+                              width: 1,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: CupertinoColors.black.withValues(alpha: 0.08),
+                                blurRadius: 18,
+                                offset: const Offset(0, 5),
+                              ),
+                              BoxShadow(
+                                color: AppColors.accentDark.withValues(alpha: 0.03),
+                                blurRadius: 6,
+                                offset: const Offset(0, 1),
+                              ),
+                            ],
+                          ),
+                          child: Row(
+                            children: [
+                              _buildNavItem(
+                                index: 0,
+                                currentIndex: currentIndex,
+                                activeIcon: CupertinoIcons.house_fill,
+                                inactiveIcon: CupertinoIcons.house,
+                                label: 'Home',
+                              ),
+                              _buildNavItem(
+                                index: 1,
+                                currentIndex: currentIndex,
+                                activeIcon: CupertinoIcons.archivebox_fill,
+                                inactiveIcon: CupertinoIcons.archivebox,
+                                label: 'Inventory',
+                              ),
+                              _buildNavItem(
+                                index: 2,
+                                currentIndex: currentIndex,
+                                activeIcon: CupertinoIcons.person_fill,
+                                inactiveIcon: CupertinoIcons.person,
+                                label: 'Profile',
+                              ),
+                            ],
+                          ),
+                        );
+                      },
                     ),
-                    BottomNavigationBarItem(
-                      icon: _tabItem(CupertinoIcons.archivebox_fill, 'Inventory', active: false),
-                      activeIcon: _tabItem(CupertinoIcons.archivebox_fill, 'Inventory', active: true),
-                    ),
-                    BottomNavigationBarItem(
-                      icon: _tabItem(CupertinoIcons.person_fill, 'Profile', active: false),
-                      activeIcon: _tabItem(CupertinoIcons.person_fill, 'Profile', active: true),
-                    ),
-                  ],
-                ),
-                tabBuilder: (context, index) {
-                  switch (index) {
-                    case 0:
-                      return CupertinoTabView(
-                        builder: (context) => isCook ? const CookTaskScreen() : const CutterPortioningScreen(),
-                      );
-                    case 1:
-                      return CupertinoTabView(
-                        builder: (context) => isCook ? const CookInventoryScreen() : const CutterInventoryScreen(),
-                      );
-                    case 2:
-                      return CupertinoTabView(
-                        builder: (context) => const ProfileScreen(isRootTab: true),
-                      );
-                    default:
-                      return CupertinoTabView(
-                        builder: (context) => isCook ? const CookTaskScreen() : const CutterPortioningScreen(),
-                      );
-                  }
-                },
+                  ),
+                ],
               ),
             ),
           ),
@@ -124,5 +162,56 @@ class ProductionShell extends StatelessWidget {
       ),
     );
   }
-}
 
+  static Widget _buildNavItem({
+    required int index,
+    required int currentIndex,
+    required IconData activeIcon,
+    required IconData inactiveIcon,
+    required String label,
+  }) {
+    final bool active = index == currentIndex;
+
+    return Expanded(
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () {
+          tabController.index = index;
+        },
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: active
+                    ? AppColors.textPrimary.withValues(alpha: 0.08)
+                    : const Color(0x00000000),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(
+                active ? activeIcon : inactiveIcon,
+                size: 19,
+                color: active ? AppColors.textPrimary : const Color(0xFF8E8E93),
+              ),
+            ),
+            const SizedBox(height: 1),
+            Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 9.5,
+                fontWeight: active ? FontWeight.w800 : FontWeight.w500,
+                color: active ? AppColors.textPrimary : const Color(0xFF8E8E93),
+                letterSpacing: -0.2,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
