@@ -32,11 +32,12 @@ class SimpleBarChart extends StatelessWidget {
         if (v > max) max = v.toDouble();
       }
     }
-    // Round up to the next nice multiple of 50 (matches the 0/50/100/
-    // 150/200 axis in the reference design) so bars never touch the
-    // very top gridline.
-    if (max <= 0) return 50;
-    return ((max / 50).ceil() * 50).toDouble();
+    if (max <= 20) return 20;
+    if (max <= 40) return 40;
+    if (max <= 60) return 60;
+    if (max <= 80) return 80;
+    if (max <= 100) return 100;
+    return ((max / 40).ceil() * 40).toDouble();
   }
 
   @override
@@ -167,11 +168,11 @@ class _BarGroup extends StatelessWidget {
               heightFactor: (values[i] / maxValue).clamp(0.01, 1.0),
               alignment: Alignment.bottomCenter,
               child: Container(
-                constraints: const BoxConstraints(maxWidth: 18),
+                constraints: const BoxConstraints(maxWidth: 32),
                 decoration: BoxDecoration(
                   color: colors[i],
                   borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(4),
+                    top: Radius.circular(6),
                   ),
                 ),
               ),
