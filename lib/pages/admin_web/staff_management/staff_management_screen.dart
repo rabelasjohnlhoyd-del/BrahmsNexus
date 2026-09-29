@@ -250,76 +250,147 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
             padding: const EdgeInsets.fromLTRB(24, 20, 24, 16),
             child: Column(
               children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: _searchController,
-                        onChanged: (value) {
-                          setState(() {
-                            _query = value;
-                            _currentPage = 1;
-                          });
-                          _loadStaff();
-                        },
-                        decoration: InputDecoration(
-                          hintText:
-                              'SEARCH BY NAME, USERNAME, BRANCH, OR POSITION',
-                          prefixIcon: const Icon(Icons.search_rounded, size: 20),
-                          isDense: true,
-                          hintStyle: const TextStyle(
-                            fontSize: 12,
-                            letterSpacing: 0.5,
-                          ),
-                          suffixIcon: _query.isEmpty
-                              ? null
-                              : IconButton(
-                                  icon: const Icon(Icons.close_rounded, size: 18),
-                                  onPressed: () {
-                                    _searchController.clear();
-                                    setState(() {
-                                      _query = '';
-                                      _currentPage = 1;
-                                    });
-                                    _loadStaff();
-                                  },
-                                ),
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final isWide = constraints.maxWidth >= 600;
+                    final buttons = [
+                      OutlinedButton.icon(
+                        onPressed: _toggleView,
+                        icon: Icon(
+                          _showArchived
+                              ? Icons.arrow_back_rounded
+                              : Icons.archive_outlined,
+                          size: 18,
+                        ),
+                        label: Text(
+                          _showArchived ? 'BACK TO ACTIVE' : 'VIEW ARCHIVED',
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 20, vertical: 20),
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 16),
-                    OutlinedButton.icon(
-                      onPressed: _toggleView,
-                      icon: Icon(
-                        _showArchived
-                            ? Icons.arrow_back_rounded
-                            : Icons.archive_outlined,
-                        size: 18,
+                      ElevatedButton.icon(
+                        onPressed: _openAddStaff,
+                        icon: const Icon(Icons.person_add_alt_1, size: 18),
+                        label: const Text('ADD NEW STAFF'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AdminWebColors.accent,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 20, vertical: 20),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12)),
+                          elevation: 0,
+                        ),
                       ),
-                      label: Text(
-                        _showArchived ? 'BACK TO ACTIVE' : 'VIEW ARCHIVED',
+                    ];
+
+                    final searchField = TextField(
+                      controller: _searchController,
+                      onChanged: (value) {
+                        setState(() {
+                          _query = value;
+                          _currentPage = 1;
+                        });
+                        _loadStaff();
+                      },
+                      decoration: InputDecoration(
+                        hintText:
+                            'SEARCH BY NAME, USERNAME, BRANCH, OR POSITION',
+                        prefixIcon: const Icon(Icons.search_rounded, size: 20),
+                        isDense: true,
+                        hintStyle: const TextStyle(
+                          fontSize: 12,
+                          letterSpacing: 0.5,
+                        ),
+                        suffixIcon: _query.isEmpty
+                            ? null
+                            : IconButton(
+                                icon: const Icon(Icons.close_rounded, size: 18),
+                                onPressed: () {
+                                  _searchController.clear();
+                                  setState(() {
+                                    _query = '';
+                                    _currentPage = 1;
+                                  });
+                                  _loadStaff();
+                                },
+                              ),
                       ),
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 20, vertical: 20),
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    ElevatedButton.icon(
-                      onPressed: _openAddStaff,
-                      icon: const Icon(Icons.person_add_alt_1, size: 18),
-                      label: const Text('ADD NEW STAFF'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AdminWebColors.accent,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 20, vertical: 20),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12)),
-                        elevation: 0,
-                      ),
-                    ),
-                  ],
+                    );
+
+                    if (isWide) {
+                      return Row(
+                        children: [
+                          Expanded(child: searchField),
+                          const SizedBox(width: 16),
+                          buttons[0],
+                          const SizedBox(width: 16),
+                          buttons[1],
+                        ],
+                      );
+                    }
+
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        searchField,
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton.icon(
+                                onPressed: _toggleView,
+                                icon: Icon(
+                                  _showArchived
+                                      ? Icons.arrow_back_rounded
+                                      : Icons.archive_outlined,
+                                  size: 16,
+                                ),
+                                label: Text(
+                                  _showArchived ? 'ACTIVE' : 'ARCHIVED',
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                style: OutlinedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(
+                                      vertical: 14),
+                                  shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(10)),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: ElevatedButton.icon(
+                                onPressed: _openAddStaff,
+                                icon: const Icon(Icons.person_add_alt_1, size: 16),
+                                label: const Text(
+                                  'ADD STAFF',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AdminWebColors.accent,
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(
+                                      vertical: 14),
+                                  shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(10)),
+                                  elevation: 0,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    );
+                  },
                 ),
                 if (_showArchived) ...[
                   const SizedBox(height: 12),
@@ -693,13 +764,17 @@ class _InfoPill extends StatelessWidget {
         children: [
           Icon(icon, size: 13, color: AdminWebColors.textSecondary),
           const SizedBox(width: 6),
-          Text(
-            label.toUpperCase(),
-            style: const TextStyle(
-              fontSize: 10,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 0.3,
-              color: AdminWebColors.textSecondary,
+          Flexible(
+            child: Text(
+              label.toUpperCase(),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.3,
+                color: AdminWebColors.textSecondary,
+              ),
             ),
           ),
         ],

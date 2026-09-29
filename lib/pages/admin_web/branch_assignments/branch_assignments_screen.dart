@@ -400,19 +400,29 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
           children: [
             // Header Controls
             Padding(
-              padding: const EdgeInsets.only(bottom: 24, top: 24),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              padding: const EdgeInsets.only(top: 16, bottom: 16),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final isWide = constraints.maxWidth >= 650;
+
+                  final dateBadge = Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 12),
                     decoration: BoxDecoration(
                       color: AdminWebColors.accent.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: AdminWebColors.accent.withValues(alpha: 0.2)),
+                      border: Border.all(
+                          color: AdminWebColors.accent.withValues(alpha: 0.2)),
                     ),
                     child: Row(
+                      mainAxisAlignment: isWide
+                          ? MainAxisAlignment.start
+                          : MainAxisAlignment.center,
+                      mainAxisSize:
+                          isWide ? MainAxisSize.min : MainAxisSize.max,
                       children: [
-                        const Icon(Icons.event_available_rounded, size: 18, color: AdminWebColors.accent),
+                        const Icon(Icons.event_available_rounded,
+                            size: 18, color: AdminWebColors.accent),
                         const SizedBox(width: 10),
                         Text(
                           'ASSIGNMENT DATE: ${_formatToday().toUpperCase()}',
@@ -425,21 +435,49 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
                         ),
                       ],
                     ),
-                  ),
-                  const Spacer(),
-                  ElevatedButton.icon(
+                  );
+
+                  final saveBtn = ElevatedButton.icon(
                     onPressed: _saveAll,
-                    icon: const Icon(Icons.save_rounded, size: 16, color: Colors.white),
-                    label: const Text('SAVE ASSIGNMENTS'),
+                    icon: const Icon(Icons.save_rounded,
+                        size: 16, color: Colors.white),
+                    label: const Text(
+                      'SAVE ASSIGNMENTS',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                      ),
+                    ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AdminWebColors.accent,
                       foregroundColor: Colors.white,
                       elevation: 0,
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 20, vertical: 14),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10)),
                     ),
-                  ),
-                ],
+                  );
+
+                  if (isWide) {
+                    return Row(
+                      children: [
+                        dateBadge,
+                        const Spacer(),
+                        saveBtn,
+                      ],
+                    );
+                  }
+
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      dateBadge,
+                      const SizedBox(height: 10),
+                      saveBtn,
+                    ],
+                  );
+                },
               ),
             ),
 
@@ -820,7 +858,7 @@ class _AssignmentCard extends StatelessWidget {
           const DropdownMenuItem<String>(
             value: 'unassigned',
             child: Text(
-              '⚠️ N/A — PILIIN ANG BRANCH NA ILALAGAY',
+              'N/A — PILIIN ANG BRANCH NA ILALAGAY',
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 fontSize: 12,
@@ -861,7 +899,7 @@ class _AssignmentCard extends StatelessWidget {
             );
           } else if (isOnDuty && isOccupied && isCurrent) {
             itemChild = Text(
-              '${b.fullName.toUpperCase()} ⚠️ (Conflict: ${occupiedCook.employeeName.split(" ").first})',
+              '${b.fullName.toUpperCase()} (Conflict: ${occupiedCook.employeeName.split(" ").first})',
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(
                 fontSize: 13,

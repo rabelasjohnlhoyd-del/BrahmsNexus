@@ -12,12 +12,12 @@ import 'package:flutter/material.dart';
 class AdminWebColors {
   AdminWebColors._();
 
-  // 60% — main background (Linen)
-  static const Color background = Color(0xFFFAF0E6);
+  // 60% — main background (Modern Clean Warm-Grey / Soft Ivory)
+  static const Color background = Color(0xFFF4F3F0);
 
   // 30% — sidebar / secondary surfaces / borders (Pastel Brown)
   static const Color sidebarBackground = Color(0xFFD2B48C);
-  static const Color surfaceTint = Color(0xFFFAF3EA);
+  static const Color surfaceTint = Color(0xFFF8F7F4);
   static const Color border = Color(0xFFE0D2C3);
 
   // 10% — warm medium brown accent (Sienna / Terracotta)

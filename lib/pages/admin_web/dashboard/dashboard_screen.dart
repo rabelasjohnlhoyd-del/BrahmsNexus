@@ -423,9 +423,11 @@ class _KpiGrid extends StatelessWidget {
       crossAxisCount: crossAxisCount,
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      mainAxisSpacing: 20,
-      crossAxisSpacing: 20,
-      childAspectRatio: crossAxisCount == 4 ? 1.35 : (crossAxisCount == 1 ? 2.6 : 1.5),
+      mainAxisSpacing: 16,
+      crossAxisSpacing: 16,
+      childAspectRatio: crossAxisCount == 4
+          ? 1.35
+          : (crossAxisCount == 1 ? 1.75 : 1.45),
       children: cards,
     );
   }
@@ -486,12 +488,12 @@ class _OrderDetailsCard extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
           ),
           const SizedBox(height: 20),
-          Row(
+          Wrap(
+            spacing: 20,
+            runSpacing: 12,
             children: [
               _StatBlock(value: avgValue, label: 'Avg. per order'),
-              const SizedBox(width: 32),
               _StatBlock(value: totalOrders7d, label: 'Orders (7d)'),
-              const SizedBox(width: 32),
               _StatBlock(value: activeBranches, label: 'Staff Deployed'),
             ],
           ),
@@ -578,23 +580,24 @@ class _SalesReportCard extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
           ),
           const SizedBox(height: 20),
-          Row(
+          Wrap(
+            spacing: 20,
+            runSpacing: 12,
             children: [
               _StatBlock(value: totalStoreOrders7d, label: 'Store Orders (7d)'),
-              const SizedBox(width: 32),
               _StatBlock(value: totalBilaoOrders7d, label: 'Bilao Orders (7d)'),
-              const SizedBox(width: 32),
               _StatBlock(value: channelRatio, label: 'Channel Share'),
             ],
           ),
           const SizedBox(height: 16),
-          const Row(
+          const Wrap(
+            spacing: 16,
+            runSpacing: 8,
             children: [
               _LegendDot(
                 color: AdminWebColors.chartBarPrimary,
                 label: 'Store Sisig Orders',
               ),
-              SizedBox(width: 20),
               _LegendDot(
                 color: AdminWebColors.chartBarSecondary,
                 label: 'Advance Bilao Orders',

@@ -191,21 +191,45 @@ class _MonthlyFinancialsScreenState extends State<MonthlyFinancialsScreen> {
   }
 
   Widget _buildFinancialOverview() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text('FINANCIAL DASHBOARD', style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1, color: AdminWebColors.textSecondary)),
-        const SizedBox(height: 16),
-        Row(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isWide = constraints.maxWidth >= 650;
+
+        final tiles = [
+          _kpiTile('Gross Revenue', '₱${_period.grossRevenue.toStringAsFixed(0)}', 'FROM ${_period.productionPcs} PCS', Icons.payments_rounded, color: AdminWebColors.success),
+          _kpiTile('Total Expenses', '₱${_period.totalExpenses.toStringAsFixed(0)}', 'INCL. LABOR & OVERHEAD', Icons.shopping_cart_rounded, color: AdminWebColors.error),
+          _kpiTile('NET MAV', '₱${_period.netMav.toStringAsFixed(0)}', 'NET PROFIT FOR THE PERIOD', Icons.account_balance_wallet_rounded, color: AdminWebColors.accent, isMain: true),
+        ];
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(child: _kpiTile('Gross Revenue', '₱${_period.grossRevenue.toStringAsFixed(0)}', 'FROM ${_period.productionPcs} PCS', Icons.payments_rounded, color: AdminWebColors.success)),
-            const SizedBox(width: 16),
-            Expanded(child: _kpiTile('Total Expenses', '₱${_period.totalExpenses.toStringAsFixed(0)}', 'INCL. LABOR & OVERHEAD', Icons.shopping_cart_rounded, color: AdminWebColors.error)),
-            const SizedBox(width: 16),
-            Expanded(child: _kpiTile('NET MAV', '₱${_period.netMav.toStringAsFixed(0)}', 'NET PROFIT FOR THE PERIOD', Icons.account_balance_wallet_rounded, color: AdminWebColors.accent, isMain: true)),
+            const Text('FINANCIAL DASHBOARD', style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1, color: AdminWebColors.textSecondary)),
+            const SizedBox(height: 16),
+            if (isWide)
+              Row(
+                children: [
+                  Expanded(child: tiles[0]),
+                  const SizedBox(width: 16),
+                  Expanded(child: tiles[1]),
+                  const SizedBox(width: 16),
+                  Expanded(child: tiles[2]),
+                ],
+              )
+            else
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  tiles[0],
+                  const SizedBox(height: 12),
+                  tiles[1],
+                  const SizedBox(height: 12),
+                  tiles[2],
+                ],
+              ),
           ],
-        ),
-      ],
+        );
+      },
     );
   }
 

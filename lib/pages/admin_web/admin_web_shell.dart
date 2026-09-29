@@ -51,6 +51,7 @@ class AdminWebShellState extends State<AdminWebShell> {
   int _selectedIndex = 0;
   String? _customTitle;
   List<Widget> _currentActions = [];
+  bool _isSidebarCollapsed = false;
 
   void setActions(List<Widget> actions) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -283,6 +284,9 @@ class AdminWebShellState extends State<AdminWebShell> {
                   AdminSidebar(
                     items: _items,
                     selectedIndex: _selectedIndex,
+                    isCollapsed: _isSidebarCollapsed,
+                    onToggleCollapse: () =>
+                        setState(() => _isSidebarCollapsed = !_isSidebarCollapsed),
                     onSelect: (index) =>
                         setState(() {
                           _selectedIndex = index;
@@ -298,8 +302,12 @@ class AdminWebShellState extends State<AdminWebShell> {
                           title: _customTitle ?? _items[_selectedIndex].label,
                           subtitle: 'Brahms Nexus Management System',
                           onLogout: _handleLogout,
+                          onProfile: _showAdminProfile,
                           actions: _currentActions,
                           onNavigateRoute: _handleNavigateRoute,
+                          showSidebarToggle: _isSidebarCollapsed,
+                          onToggleSidebar: () =>
+                              setState(() => _isSidebarCollapsed = !_isSidebarCollapsed),
                         ),
                         Expanded(
                           child: SafeArea(
@@ -326,24 +334,23 @@ class AdminWebShellState extends State<AdminWebShell> {
           return Scaffold(
             backgroundColor: AdminWebColors.background,
             appBar: AppBar(
-              flexibleSpace: Container(
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [AdminWebColors.headerStart, AdminWebColors.headerEnd],
-                  ),
+              backgroundColor: AdminWebColors.background,
+              elevation: 0,
+              iconTheme: const IconThemeData(color: AdminWebColors.textPrimary),
+              title: Text(
+                pageTitle,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                  color: AdminWebColors.textPrimary,
+                  letterSpacing: -0.3,
                 ),
               ),
-              elevation: 2,
-              iconTheme: const IconThemeData(color: Colors.white),
-              title: Text(
-                pageTitle.toUpperCase(),
-                style: const TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w900,
-                  color: Colors.white,
-                  letterSpacing: 0.8,
+              bottom: PreferredSize(
+                preferredSize: const Size.fromHeight(1),
+                child: Container(
+                  color: AdminWebColors.border.withValues(alpha: 0.7),
+                  height: 1,
                 ),
               ),
               actions: [
@@ -365,16 +372,17 @@ class AdminWebShellState extends State<AdminWebShell> {
                               label: Text('$unread'),
                               backgroundColor: AdminWebColors.warning,
                               child: const Icon(Icons.notifications_rounded,
-                                  color: Colors.white, size: 22),
+                                  color: AdminWebColors.textPrimary, size: 22),
                             )
                           : const Icon(Icons.notifications_outlined,
-                              color: Colors.white, size: 22),
+                              color: AdminWebColors.textPrimary, size: 22),
                     );
                   },
                 ),
                 PopupMenuButton<String>(
                   offset: const Offset(0, 45),
-                  icon: const Icon(Icons.account_circle_rounded, color: Colors.white, size: 26),
+                  icon: const Icon(Icons.account_circle_rounded,
+                      color: AdminWebColors.textPrimary, size: 26),
                   onSelected: (value) {
                     if (value == 'logout') _handleLogout();
                     if (value == 'profile') _showAdminProfile();
@@ -384,7 +392,8 @@ class AdminWebShellState extends State<AdminWebShell> {
                       value: 'profile',
                       child: Row(
                         children: [
-                          Icon(Icons.person_outline, size: 18, color: AdminWebColors.accent),
+                          Icon(Icons.person_outline_rounded,
+                              size: 18, color: AdminWebColors.accent),
                           SizedBox(width: 10),
                           Text('Admin Profile'),
                         ],
@@ -395,9 +404,11 @@ class AdminWebShellState extends State<AdminWebShell> {
                       value: 'logout',
                       child: Row(
                         children: [
-                          Icon(Icons.logout_rounded, size: 18, color: AdminWebColors.error),
+                          Icon(Icons.logout_rounded,
+                              size: 18, color: AdminWebColors.error),
                           SizedBox(width: 10),
-                          Text('Log Out', style: TextStyle(color: AdminWebColors.error)),
+                          Text('Log Out',
+                              style: TextStyle(color: AdminWebColors.error)),
                         ],
                       ),
                     ),
@@ -407,9 +418,12 @@ class AdminWebShellState extends State<AdminWebShell> {
               ],
             ),
             drawer: Drawer(
+              width: 260,
+              backgroundColor: Colors.white,
               child: AdminSidebar(
                 items: _items,
                 selectedIndex: _selectedIndex,
+                onToggleCollapse: () => Navigator.of(context).pop(),
                 onSelect: (index) {
                   setState(() {
                     _selectedIndex = index;

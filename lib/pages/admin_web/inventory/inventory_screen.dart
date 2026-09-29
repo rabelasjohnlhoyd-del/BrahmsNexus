@@ -467,36 +467,75 @@ class _InventoryScreenState extends State<InventoryScreen>
     return Column(
       children: [
 
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            if (_karneBatches.isNotEmpty)
-              OutlinedButton.icon(
-                onPressed: _clearAllOldBatches,
-                icon: const Icon(Icons.delete_sweep_rounded, size: 18, color: AdminWebColors.error),
-                label: const Text(
-                  'LINISIN ANG MGA LUMANG BATCH',
-                  style: TextStyle(color: AdminWebColors.error, fontSize: 12, fontWeight: FontWeight.bold),
-                ),
-                style: OutlinedButton.styleFrom(
-                  side: const BorderSide(color: AdminWebColors.error),
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-                ),
-              )
-            else
-              const SizedBox.shrink(),
-            ElevatedButton.icon(
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final isWide = constraints.maxWidth >= 650;
+
+            final clearBtn = _karneBatches.isNotEmpty
+                ? OutlinedButton.icon(
+                    onPressed: _clearAllOldBatches,
+                    icon: const Icon(Icons.delete_sweep_rounded,
+                        size: 18, color: AdminWebColors.error),
+                    label: const Text(
+                      'LINISIN ANG MGA LUMANG BATCH',
+                      style: TextStyle(
+                        color: AdminWebColors.error,
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(color: AdminWebColors.error),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 20, vertical: 14),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10)),
+                    ),
+                  )
+                : null;
+
+            final addBtn = ElevatedButton.icon(
               onPressed: _addNewBatch,
-              icon: const Icon(Icons.add_rounded),
-              label: const Text('START NEW MONTHLY BATCH'),
+              icon: const Icon(Icons.add_rounded, size: 18, color: Colors.white),
+              label: const Text(
+                'START NEW MONTHLY BATCH',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                ),
+              ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AdminWebColors.accent,
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                elevation: 0,
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 20, vertical: 14),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10)),
               ),
-            ),
-          ],
+            );
+
+            if (isWide) {
+              return Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  if (clearBtn != null) clearBtn else const SizedBox.shrink(),
+                  addBtn,
+                ],
+              );
+            }
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (clearBtn != null) ...[
+                  clearBtn,
+                  const SizedBox(height: 10),
+                ],
+                addBtn,
+              ],
+            );
+          },
         ),
         const SizedBox(height: 16),
         Expanded(
@@ -515,106 +554,206 @@ class _InventoryScreenState extends State<InventoryScreen>
 
                     return GlassCard(
                       padding: EdgeInsets.zero,
-                      child: ListTile(
-                        onTap: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => KarneBatchDetailScreen(
-                              batch: batch,
-                              onBatchChanged: (updated) {
-                                if (mounted) {
-                                  setState(() => _karneBatches[batchIndex] = updated);
-                                }
-                              },
+                      child: LayoutBuilder(
+                        builder: (context, cardConstraints) {
+                          final isWideCard = cardConstraints.maxWidth >= 600;
+
+                          if (!isWideCard) {
+                            return InkWell(
+                              onTap: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => KarneBatchDetailScreen(
+                                    batch: batch,
+                                    onBatchChanged: (updated) {
+                                      if (mounted) {
+                                        setState(() => _karneBatches[batchIndex] = updated);
+                                      }
+                                    },
+                                  ),
+                                ),
+                              ),
+                              borderRadius: BorderRadius.circular(16),
+                              child: Padding(
+                                padding: const EdgeInsets.all(14),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        CircleAvatar(
+                                          radius: 18,
+                                          backgroundColor: remainingHilaw <= 0 && sessionCount > 0
+                                              ? AdminWebColors.success
+                                              : (sessionCount > 0 ? AdminWebColors.accent : AdminWebColors.warning),
+                                          child: Icon(
+                                            remainingHilaw <= 0 && sessionCount > 0
+                                                ? Icons.check_circle_rounded
+                                                : (sessionCount > 0 ? Icons.soup_kitchen_rounded : Icons.calendar_month_rounded),
+                                            color: Colors.white,
+                                            size: 18,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 10),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                batch.name,
+                                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14.5),
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                              const SizedBox(height: 2),
+                                              Text(
+                                                DateFormat('MMMM yyyy').format(batch.date).toUpperCase(),
+                                                style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, color: AdminWebColors.accent),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        Column(
+                                          crossAxisAlignment: CrossAxisAlignment.end,
+                                          children: [
+                                            Text(
+                                              '${batch.totalKilos.toStringAsFixed(1)} KG',
+                                              style: const TextStyle(fontWeight: FontWeight.w900, color: AdminWebColors.accent, fontSize: 14),
+                                            ),
+                                            const Text('Good for 1 Month', style: TextStyle(fontSize: 10, color: AdminWebColors.textSecondary)),
+                                          ],
+                                        ),
+                                        IconButton(
+                                          icon: const Icon(Icons.delete_outline_rounded, color: AdminWebColors.error, size: 18),
+                                          tooltip: 'Burahin ang Batch',
+                                          onPressed: () => _confirmDeleteBatch(batch),
+                                          padding: const EdgeInsets.only(left: 6),
+                                          constraints: const BoxConstraints(),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 10),
+                                    Wrap(
+                                      spacing: 8,
+                                      runSpacing: 6,
+                                      crossAxisAlignment: WrapCrossAlignment.center,
+                                      children: [
+                                        if (sessionCount == 0) ...[
+                                          _statusChip('OPEN BATCH (1 MONTH)', AdminWebColors.warning, icon: Icons.schedule_rounded),
+                                          Text('Kabuuang Stock: ${batch.totalKilos.toStringAsFixed(1)} KG', style: const TextStyle(fontSize: 11, color: AdminWebColors.textSecondary)),
+                                        ] else if (remainingHilaw <= 0) ...[
+                                          _statusChip('COMPLETED', AdminWebColors.success, icon: Icons.check_circle_rounded),
+                                          Text('Naluto: ${totalCookedHilaw.toStringAsFixed(1)} KG', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                                        ] else ...[
+                                          _statusChip('$sessionCount SESSIONS ACTIVE', AdminWebColors.accent, icon: Icons.soup_kitchen_rounded),
+                                          Text('Naluto: ${totalCookedHilaw.toStringAsFixed(1)} KG · Natitira: ${remainingHilaw.toStringAsFixed(1)} KG', style: const TextStyle(fontSize: 11, color: AdminWebColors.textSecondary)),
+                                        ],
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          }
+
+                          return ListTile(
+                            onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => KarneBatchDetailScreen(
+                                  batch: batch,
+                                  onBatchChanged: (updated) {
+                                    if (mounted) {
+                                      setState(() => _karneBatches[batchIndex] = updated);
+                                    }
+                                  },
+                                ),
+                              ),
                             ),
-                          ),
-                        ),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                        leading: CircleAvatar(
-                          backgroundColor: remainingHilaw <= 0 && sessionCount > 0
-                              ? AdminWebColors.success
-                              : (sessionCount > 0 ? AdminWebColors.accent : AdminWebColors.warning),
-                          child: Icon(
-                            remainingHilaw <= 0 && sessionCount > 0
-                                ? Icons.check_circle_rounded
-                                : (sessionCount > 0 ? Icons.soup_kitchen_rounded : Icons.calendar_month_rounded),
-                            color: Colors.white,
-                            size: 20,
-                          ),
-                        ),
-                        title: Row(
-                          children: [
-                            Text(batch.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-                            const SizedBox(width: 8),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: AdminWebColors.accent.withValues(alpha: 0.08),
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              child: Text(
-                                DateFormat('MMMM yyyy').format(batch.date),
-                                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AdminWebColors.accent),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                            leading: CircleAvatar(
+                              backgroundColor: remainingHilaw <= 0 && sessionCount > 0
+                                  ? AdminWebColors.success
+                                  : (sessionCount > 0 ? AdminWebColors.accent : AdminWebColors.warning),
+                              child: Icon(
+                                remainingHilaw <= 0 && sessionCount > 0
+                                    ? Icons.check_circle_rounded
+                                    : (sessionCount > 0 ? Icons.soup_kitchen_rounded : Icons.calendar_month_rounded),
+                                color: Colors.white,
+                                size: 20,
                               ),
                             ),
-                            const SizedBox(width: 6),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: Colors.blueGrey.withValues(alpha: 0.1),
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              child: const Text(
-                                'GOOD FOR 1 MONTH',
-                                style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Colors.blueGrey),
-                              ),
+                            title: Wrap(
+                              spacing: 6,
+                              runSpacing: 4,
+                              crossAxisAlignment: WrapCrossAlignment.center,
+                              children: [
+                                Text(batch.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: AdminWebColors.accent.withValues(alpha: 0.08),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Text(
+                                    DateFormat('MMMM yyyy').format(batch.date),
+                                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AdminWebColors.accent),
+                                  ),
+                                ),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: Colors.blueGrey.withValues(alpha: 0.1),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: const Text(
+                                    'GOOD FOR 1 MONTH',
+                                    style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Colors.blueGrey),
+                                  ),
+                                ),
+                              ],
                             ),
-                          ],
-                        ),
-                        subtitle: Padding(
-                          padding: const EdgeInsets.only(top: 6),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
+                            subtitle: Padding(
+                              padding: const EdgeInsets.only(top: 6),
+                              child: Wrap(
+                                spacing: 8,
+                                runSpacing: 4,
+                                crossAxisAlignment: WrapCrossAlignment.center,
                                 children: [
                                   if (sessionCount == 0) ...[
                                     _statusChip('OPEN BATCH (1 MONTH)', AdminWebColors.warning, icon: Icons.schedule_rounded),
-                                    const SizedBox(width: 8),
                                     Text('Kabuuang Stock: ${batch.totalKilos.toStringAsFixed(1)} KG | Wala pang cooking session', style: const TextStyle(fontSize: 12)),
                                   ] else if (remainingHilaw <= 0) ...[
                                     _statusChip('COMPLETED', AdminWebColors.success, icon: Icons.check_circle_rounded),
-                                    const SizedBox(width: 8),
                                     Text('Naluto: ${totalCookedHilaw.toStringAsFixed(1)} KG ($sessionCount Sessions) | Naubos na ang buwanang stock', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                                   ] else ...[
                                     _statusChip('$sessionCount SESSIONS ACTIVE', AdminWebColors.accent, icon: Icons.soup_kitchen_rounded),
-                                    const SizedBox(width: 8),
                                     Text('Naluto: ${totalCookedHilaw.toStringAsFixed(1)} KG | Natitira: ${remainingHilaw.toStringAsFixed(1)} KG', style: const TextStyle(fontSize: 12)),
                                   ],
                                 ],
                               ),
-                            ],
-                          ),
-                        ),
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            IconButton(
-                              icon: const Icon(Icons.delete_outline_rounded, color: AdminWebColors.error, size: 20),
-                              tooltip: 'Burahin ang Batch',
-                              onPressed: () => _confirmDeleteBatch(batch),
                             ),
-                            const SizedBox(width: 8),
-                            Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              crossAxisAlignment: CrossAxisAlignment.end,
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
                               children: [
-                                Text('${batch.totalKilos.toStringAsFixed(1)} KG', style: const TextStyle(fontWeight: FontWeight.w900, color: AdminWebColors.accent)),
-                                const Text('Good for 1 Month', style: TextStyle(fontSize: 11, color: AdminWebColors.textSecondary)),
+                                IconButton(
+                                  icon: const Icon(Icons.delete_outline_rounded, color: AdminWebColors.error, size: 20),
+                                  tooltip: 'Burahin ang Batch',
+                                  onPressed: () => _confirmDeleteBatch(batch),
+                                ),
+                                const SizedBox(width: 8),
+                                Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  crossAxisAlignment: CrossAxisAlignment.end,
+                                  children: [
+                                    Text('${batch.totalKilos.toStringAsFixed(1)} KG', style: const TextStyle(fontWeight: FontWeight.w900, color: AdminWebColors.accent)),
+                                    const Text('Good for 1 Month', style: TextStyle(fontSize: 11, color: AdminWebColors.textSecondary)),
+                                  ],
+                                ),
                               ],
                             ),
-                          ],
-                        ),
+                          );
+                        },
                       ),
                     );
                   },
@@ -709,7 +848,10 @@ class _InventoryScreenState extends State<InventoryScreen>
                                       style: const TextStyle(fontWeight: FontWeight.bold),
                                     ),
                                     const SizedBox(height: 4),
-                                    Row(
+                                    Wrap(
+                                      spacing: 6,
+                                      runSpacing: 2,
+                                      crossAxisAlignment: WrapCrossAlignment.center,
                                       children: [
                                         Text(
                                           '${s.totalRemainingPcs} / ${s.totalAllocatedPcs} MEAT PCS',
@@ -719,13 +861,11 @@ class _InventoryScreenState extends State<InventoryScreen>
                                             color: AdminWebColors.accent,
                                           ),
                                         ),
-                                        const SizedBox(width: 6),
                                         const Text(
                                           '(Natitira / Total)',
                                           style: TextStyle(fontSize: 11, color: AdminWebColors.textSecondary),
                                         ),
-                                        if (s.isRunningLow) ...[
-                                          const SizedBox(width: 8),
+                                        if (s.isRunningLow)
                                           Container(
                                             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
                                             decoration: BoxDecoration(
@@ -741,7 +881,6 @@ class _InventoryScreenState extends State<InventoryScreen>
                                               ),
                                             ),
                                           ),
-                                        ],
                                       ],
                                     ),
                                   ],
@@ -1029,22 +1168,17 @@ class _InventoryScreenState extends State<InventoryScreen>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Packaging & Supply Requests',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AdminWebColors.textPrimary),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  'Mga hiling na supply mula sa Meat Cutter / Central Kitchen ($pendingCount pending)',
-                  style: const TextStyle(fontSize: 12, color: AdminWebColors.textSecondary),
-                ),
-              ],
+            const Text(
+              'Packaging & Supply Requests',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AdminWebColors.textPrimary),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              'Mga hiling na supply mula sa Meat Cutter / Central Kitchen ($pendingCount pending)',
+              style: const TextStyle(fontSize: 12, color: AdminWebColors.textSecondary),
             ),
           ],
         ),
@@ -1066,56 +1200,85 @@ class _InventoryScreenState extends State<InventoryScreen>
 
                     return GlassCard(
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                      child: Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(10),
-                            decoration: BoxDecoration(
-                              color: (isPending ? AdminWebColors.warning : AdminWebColors.success).withValues(alpha: 0.12),
-                              shape: BoxShape.circle,
+                      child: LayoutBuilder(
+                        builder: (context, cardConstraints) {
+                          final isWideCard = cardConstraints.maxWidth >= 550;
+
+                          final replyBtn = ElevatedButton.icon(
+                            onPressed: () => _replyToSupplyRequest(req),
+                            icon: const Icon(Icons.reply_rounded, size: 16),
+                            label: Text(isPending ? 'REPLY / TUGON' : 'UPDATE REPLY'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: isPending ? AdminWebColors.accent : AdminWebColors.surfaceTint,
+                              foregroundColor: isPending ? Colors.white : AdminWebColors.textPrimary,
+                              elevation: 0,
+                              side: isPending ? null : const BorderSide(color: AdminWebColors.border),
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                             ),
-                            child: Icon(
-                              isPending ? Icons.pending_actions_rounded : Icons.check_circle_rounded,
-                              color: isPending ? AdminWebColors.warning : AdminWebColors.success,
-                              size: 20,
-                            ),
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: Column(
+                          );
+
+                          if (!isWideCard) {
+                            return Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text(
-                                      req.itemName,
-                                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: AdminWebColors.textPrimary),
-                                    ),
-                                    const SizedBox(width: 8),
                                     Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                      padding: const EdgeInsets.all(10),
                                       decoration: BoxDecoration(
                                         color: (isPending ? AdminWebColors.warning : AdminWebColors.success).withValues(alpha: 0.12),
-                                        borderRadius: BorderRadius.circular(6),
+                                        shape: BoxShape.circle,
                                       ),
-                                      child: Text(
-                                        req.status.label.toUpperCase(),
-                                        style: TextStyle(
-                                          fontSize: 9,
-                                          fontWeight: FontWeight.w900,
-                                          color: isPending ? AdminWebColors.warning : AdminWebColors.success,
-                                        ),
+                                      child: Icon(
+                                        isPending ? Icons.pending_actions_rounded : Icons.check_circle_rounded,
+                                        color: isPending ? AdminWebColors.warning : AdminWebColors.success,
+                                        size: 20,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Wrap(
+                                            spacing: 8,
+                                            runSpacing: 4,
+                                            crossAxisAlignment: WrapCrossAlignment.center,
+                                            children: [
+                                              Text(
+                                                req.itemName,
+                                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: AdminWebColors.textPrimary),
+                                              ),
+                                              Container(
+                                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                                decoration: BoxDecoration(
+                                                  color: (isPending ? AdminWebColors.warning : AdminWebColors.success).withValues(alpha: 0.12),
+                                                  borderRadius: BorderRadius.circular(6),
+                                                ),
+                                                child: Text(
+                                                  req.status.label.toUpperCase(),
+                                                  style: TextStyle(
+                                                    fontSize: 9,
+                                                    fontWeight: FontWeight.w900,
+                                                    color: isPending ? AdminWebColors.warning : AdminWebColors.success,
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            'Hiningi ni: ${req.requestedBy} · ${_formatDate(req.createdAt)}',
+                                            style: const TextStyle(fontSize: 12, color: AdminWebColors.textSecondary),
+                                          ),
+                                        ],
                                       ),
                                     ),
                                   ],
                                 ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  'Hiningi ni: ${req.requestedBy} · ${_formatDate(req.createdAt)}',
-                                  style: const TextStyle(fontSize: 12, color: AdminWebColors.textSecondary),
-                                ),
                                 if (req.ownerReply != null && req.ownerReply!.isNotEmpty) ...[
-                                  const SizedBox(height: 6),
+                                  const SizedBox(height: 8),
                                   Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                                     decoration: BoxDecoration(
@@ -1128,23 +1291,87 @@ class _InventoryScreenState extends State<InventoryScreen>
                                     ),
                                   ),
                                 ],
+                                const SizedBox(height: 12),
+                                Align(
+                                  alignment: Alignment.centerRight,
+                                  child: replyBtn,
+                                ),
                               ],
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          ElevatedButton.icon(
-                            onPressed: () => _replyToSupplyRequest(req),
-                            icon: const Icon(Icons.reply_rounded, size: 16),
-                            label: Text(isPending ? 'REPLY / TUGON' : 'UPDATE REPLY'),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: isPending ? AdminWebColors.accent : AdminWebColors.surfaceTint,
-                              foregroundColor: isPending ? Colors.white : AdminWebColors.textPrimary,
-                              elevation: 0,
-                              side: isPending ? null : const BorderSide(color: AdminWebColors.border),
-                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                            ),
-                          ),
-                        ],
+                            );
+                          }
+
+                          return Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(
+                                  color: (isPending ? AdminWebColors.warning : AdminWebColors.success).withValues(alpha: 0.12),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Icon(
+                                  isPending ? Icons.pending_actions_rounded : Icons.check_circle_rounded,
+                                  color: isPending ? AdminWebColors.warning : AdminWebColors.success,
+                                  size: 20,
+                                ),
+                              ),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Wrap(
+                                      spacing: 8,
+                                      runSpacing: 4,
+                                      crossAxisAlignment: WrapCrossAlignment.center,
+                                      children: [
+                                        Text(
+                                          req.itemName,
+                                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: AdminWebColors.textPrimary),
+                                        ),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                          decoration: BoxDecoration(
+                                            color: (isPending ? AdminWebColors.warning : AdminWebColors.success).withValues(alpha: 0.12),
+                                            borderRadius: BorderRadius.circular(6),
+                                          ),
+                                          child: Text(
+                                            req.status.label.toUpperCase(),
+                                            style: TextStyle(
+                                              fontSize: 9,
+                                              fontWeight: FontWeight.w900,
+                                              color: isPending ? AdminWebColors.warning : AdminWebColors.success,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      'Hiningi ni: ${req.requestedBy} · ${_formatDate(req.createdAt)}',
+                                      style: const TextStyle(fontSize: 12, color: AdminWebColors.textSecondary),
+                                    ),
+                                    if (req.ownerReply != null && req.ownerReply!.isNotEmpty) ...[
+                                      const SizedBox(height: 6),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                        decoration: BoxDecoration(
+                                          color: AdminWebColors.accent.withValues(alpha: 0.08),
+                                          borderRadius: BorderRadius.circular(6),
+                                        ),
+                                        child: Text(
+                                          'Tugon mo: "${req.ownerReply}"',
+                                          style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: AdminWebColors.accent),
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              replyBtn,
+                            ],
+                          );
+                        },
                       ),
                     );
                   },

@@ -184,39 +184,39 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: DropdownButtonFormField<String>(
-                          initialValue: _selectedTargetPosition,
-                          decoration: const InputDecoration(
-                            labelText: 'TARGET POSITION / AUDIENCE',
-                            prefixIcon: Icon(Icons.people_alt_outlined, size: 20),
-                            labelStyle: TextStyle(
-                              fontWeight: FontWeight.w700,
-                              fontSize: 11,
-                              letterSpacing: 0.8,
-                            ),
-                            contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final isWide = constraints.maxWidth >= 500;
+
+                      final dropdown = DropdownButtonFormField<String>(
+                        initialValue: _selectedTargetPosition,
+                        decoration: const InputDecoration(
+                          labelText: 'TARGET POSITION / AUDIENCE',
+                          prefixIcon: Icon(Icons.people_alt_outlined, size: 20),
+                          labelStyle: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 11,
+                            letterSpacing: 0.8,
                           ),
-                          items: _positionChoices.map((pos) {
-                            return DropdownMenuItem<String>(
-                              value: pos,
-                              child: Text(
-                                pos,
-                                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-                              ),
-                            );
-                          }).toList(),
-                          onChanged: (val) {
-                            if (val != null) {
-                              setState(() => _selectedTargetPosition = val);
-                            }
-                          },
+                          contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                         ),
-                      ),
-                      const SizedBox(width: 16),
-                      ElevatedButton.icon(
+                        items: _positionChoices.map((pos) {
+                          return DropdownMenuItem<String>(
+                            value: pos,
+                            child: Text(
+                              pos,
+                              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                            ),
+                          );
+                        }).toList(),
+                        onChanged: (val) {
+                          if (val != null) {
+                            setState(() => _selectedTargetPosition = val);
+                          }
+                        },
+                      );
+
+                      final postButton = ElevatedButton.icon(
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AdminWebColors.accent,
                           foregroundColor: Colors.white,
@@ -238,8 +238,27 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
                               )
                             : const Icon(Icons.send_rounded, size: 16),
                         onPressed: _isPosting ? null : _postAnnouncement,
-                      ),
-                    ],
+                      );
+
+                      if (isWide) {
+                        return Row(
+                          children: [
+                            Expanded(child: dropdown),
+                            const SizedBox(width: 16),
+                            postButton,
+                          ],
+                        );
+                      }
+
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          dropdown,
+                          const SizedBox(height: 12),
+                          postButton,
+                        ],
+                      );
+                    },
                   ),
                 ],
               ),

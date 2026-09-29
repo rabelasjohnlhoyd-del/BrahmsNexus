@@ -814,8 +814,10 @@ class _BilaoOrderScreenState extends State<BilaoOrderScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
+                    Wrap(
+                      alignment: WrapAlignment.end,
+                      spacing: 10,
+                      runSpacing: 8,
                       children: [
                         OutlinedButton.icon(
                           onPressed: _showPricingDialog,
@@ -838,7 +840,6 @@ class _BilaoOrderScreenState extends State<BilaoOrderScreen> {
                                 borderRadius: BorderRadius.circular(10)),
                           ),
                         ),
-                        const SizedBox(width: 10),
                         ElevatedButton.icon(
                           onPressed: _openAddOrder,
                           icon: const Icon(Icons.add_rounded,
@@ -1080,126 +1081,139 @@ class _OrderCard extends StatelessWidget {
         onTap: onViewDetails,
         borderRadius: BorderRadius.circular(16),
         child: GlassCard(
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               // ── LEFT: Plain Customer Information ─────────────────
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Name
-                    Row(
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        Text(
-                          order.customerName,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w700,
-                            fontSize: 15.5,
-                            color: AdminWebColors.textPrimary,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: AdminWebColors.accent.withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Text(
-                            '#${order.id.toUpperCase()}',
-                            style: const TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
-                              color: AdminWebColors.accent,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 3),
-                    // Contact
-                    Row(
-                      children: [
-                        const Icon(Icons.phone_outlined, size: 13, color: AdminWebColors.textSecondary),
-                        const SizedBox(width: 5),
-                        Text(
-                          order.contactNumber,
-                          style: const TextStyle(
-                            fontSize: 12.5,
-                            fontWeight: FontWeight.w500,
-                            color: AdminWebColors.textSecondary,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
-                    // Location / fulfillment badge
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: order.isBranchPickup
-                            ? AdminWebColors.accent.withValues(alpha: 0.08)
-                            : const Color(0xFF0F9D58).withValues(alpha: 0.08),
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(
-                          color: order.isBranchPickup
-                              ? AdminWebColors.accent.withValues(alpha: 0.3)
-                              : const Color(0xFF0F9D58).withValues(alpha: 0.3),
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            order.isBranchPickup ? Icons.storefront_rounded : Icons.local_shipping_outlined,
-                            size: 13,
-                            color: order.isBranchPickup ? AdminWebColors.accent : const Color(0xFF0F9D58),
-                          ),
-                          const SizedBox(width: 5),
-                          Flexible(
-                            child: Text(
-                              order.isBranchPickup
-                                  ? 'BRANCH: ${order.pickupBranchName ?? order.deliveryAddress}'
-                                  : 'DELIVERY: ${order.deliveryAddress}',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: 11,
+                        // Name + ID chip
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 4,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: [
+                            Text(
+                              order.customerName,
+                              style: const TextStyle(
                                 fontWeight: FontWeight.w700,
-                                color: order.isBranchPickup ? AdminWebColors.accent : const Color(0xFF0F9D58),
+                                fontSize: 15.5,
+                                color: AdminWebColors.textPrimary,
                               ),
                             ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 5),
-                    // Package + amount + scheduled time
-                    Row(
-                      children: [
-                        const Icon(Icons.shopping_basket_outlined, size: 12, color: AdminWebColors.textSecondary),
-                        const SizedBox(width: 4),
-                        Text(
-                          '${order.size.label} (${order.size.pax}pax) × ${order.quantity}  ·  ₱${order.totalAmount.toStringAsFixed(0)}',
-                          style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: AdminWebColors.textPrimary),
+                            Container(
+                              constraints: const BoxConstraints(maxWidth: 130),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: AdminWebColors.accent
+                                    .withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                '#${order.id.toUpperCase()}',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                  color: AdminWebColors.accent,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-                        const SizedBox(width: 8),
-                        Icon(Icons.event_available_rounded, size: 12, color: AdminWebColors.textSecondary.withValues(alpha: 0.7)),
-                        const SizedBox(width: 3),
-                        Text(
-                          '${order.scheduledDateTime.month}/${order.scheduledDateTime.day} '
-                          '${order.scheduledDateTime.hour.toString().padLeft(2, '0')}:${order.scheduledDateTime.minute.toString().padLeft(2, '0')}',
-                          style: const TextStyle(fontSize: 11, color: AdminWebColors.textSecondary),
+                        const SizedBox(height: 3),
+                        // Contact
+                        Row(
+                          children: [
+                            const Icon(Icons.phone_outlined, size: 13, color: AdminWebColors.textSecondary),
+                            const SizedBox(width: 5),
+                            Text(
+                              order.contactNumber,
+                              style: const TextStyle(
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w500,
+                                color: AdminWebColors.textSecondary,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        // Location / fulfillment badge
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: order.isBranchPickup
+                                ? AdminWebColors.accent.withValues(alpha: 0.08)
+                                : const Color(0xFF0F9D58).withValues(alpha: 0.08),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(
+                              color: order.isBranchPickup
+                                  ? AdminWebColors.accent.withValues(alpha: 0.3)
+                                  : const Color(0xFF0F9D58).withValues(alpha: 0.3),
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                order.isBranchPickup ? Icons.storefront_rounded : Icons.local_shipping_outlined,
+                                size: 13,
+                                color: order.isBranchPickup ? AdminWebColors.accent : const Color(0xFF0F9D58),
+                              ),
+                              const SizedBox(width: 5),
+                              Flexible(
+                                child: Text(
+                                  order.isBranchPickup
+                                      ? 'BRANCH: ${order.pickupBranchName ?? order.deliveryAddress}'
+                                      : 'DELIVERY: ${order.deliveryAddress}',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                    color: order.isBranchPickup ? AdminWebColors.accent : const Color(0xFF0F9D58),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 5),
+                        // Package + amount + scheduled time
+                        Wrap(
+                          spacing: 4,
+                          runSpacing: 2,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: [
+                            const Icon(Icons.shopping_basket_outlined, size: 12, color: AdminWebColors.textSecondary),
+                            Text(
+                              '${order.size.label} (${order.size.pax}pax) x${order.quantity}  ·  \u20b1${order.totalAmount.toStringAsFixed(0)}',
+                              style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: AdminWebColors.textPrimary),
+                            ),
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.event_available_rounded, size: 12, color: AdminWebColors.textSecondary.withValues(alpha: 0.7)),
+                                const SizedBox(width: 3),
+                                Text(
+                                  '${order.scheduledDateTime.month}/${order.scheduledDateTime.day} '
+                                  '${order.scheduledDateTime.hour.toString().padLeft(2, '0')}:${order.scheduledDateTime.minute.toString().padLeft(2, '0')}',
+                                  style: const TextStyle(fontSize: 11, color: AdminWebColors.textSecondary),
+                                ),
+                              ],
+                            ),
+                          ],
                         ),
                       ],
                     ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 16),
+                  ),
+              const SizedBox(width: 10),
 
               // ── Status Badges ─────────────────────────────────────
               Column(
@@ -1247,7 +1261,7 @@ class _OrderCard extends StatelessWidget {
                   ),
                 ],
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 6),
 
               // ── Delete Button sa gilid ───────────────────────────
               IconButton(

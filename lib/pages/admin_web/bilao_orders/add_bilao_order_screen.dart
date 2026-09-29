@@ -249,26 +249,40 @@ class _AddBilaoOrderScreenState extends State<AddBilaoOrderScreen> {
                           ),
                         ),
                         const SizedBox(height: 12),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: _buildFulfillmentOption(
-                                type: BilaoFulfillmentType.branchPickup,
-                                title: 'Branch Pickup / Waiting at Branch',
-                                subtitle: 'Customer is at or picking up from a branch',
-                                icon: Icons.storefront_rounded,
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: _buildFulfillmentOption(
-                                type: BilaoFulfillmentType.directDelivery,
-                                title: 'Direct Delivery Address',
-                                subtitle: 'Driver delivers directly to an address',
-                                icon: Icons.delivery_dining_rounded,
-                              ),
-                            ),
-                          ],
+                        LayoutBuilder(
+                          builder: (context, constraints) {
+                            final isWide = constraints.maxWidth >= 550;
+                            final opt1 = _buildFulfillmentOption(
+                              type: BilaoFulfillmentType.branchPickup,
+                              title: 'Branch Pickup / Waiting at Branch',
+                              subtitle: 'Customer is at or picking up from a branch',
+                              icon: Icons.storefront_rounded,
+                            );
+                            final opt2 = _buildFulfillmentOption(
+                              type: BilaoFulfillmentType.directDelivery,
+                              title: 'Direct Delivery Address',
+                              subtitle: 'Driver delivers directly to an address',
+                              icon: Icons.delivery_dining_rounded,
+                            );
+
+                            if (isWide) {
+                              return Row(
+                                children: [
+                                  Expanded(child: opt1),
+                                  const SizedBox(width: 12),
+                                  Expanded(child: opt2),
+                                ],
+                              );
+                            }
+
+                            return Column(
+                              children: [
+                                opt1,
+                                const SizedBox(height: 10),
+                                opt2,
+                              ],
+                            );
+                          },
                         ),
                         const SizedBox(height: 18),
 
@@ -295,6 +309,7 @@ class _AddBilaoOrderScreenState extends State<AddBilaoOrderScreen> {
                                 const SizedBox(height: 10),
                                 DropdownButtonFormField<String>(
                                   initialValue: _selectedBranchId,
+                                  isExpanded: true,
                                   decoration: const InputDecoration(
                                     labelText: 'BRANCH OUTLET',
                                     isDense: true,
@@ -401,53 +416,70 @@ class _AddBilaoOrderScreenState extends State<AddBilaoOrderScreen> {
                           ],
                         ),
                         const SizedBox(height: 20),
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(
-                              flex: 2,
-                              child: DropdownButtonFormField<BilaoSize>(
-                                initialValue: _selectedSize,
-                                decoration: const InputDecoration(
-                                  labelText: 'BILAO SIZE',
-                                  isDense: true,
-                                  prefixIcon: Icon(Icons.shopping_basket_outlined, size: 20),
-                                ),
-                                items: BilaoSize.values
-                                    .map((s) => DropdownMenuItem(
-                                          value: s,
-                                          child: Text(
-                                            '${s.label.toUpperCase()} (${s.pax} Pax · ₱${s.price.toStringAsFixed(0)})',
-                                          ),
-                                        ))
-                                    .toList(),
-                                onChanged: (value) {
-                                  if (value != null) {
-                                    setState(() => _selectedSize = value);
-                                  }
-                                },
+                        LayoutBuilder(
+                          builder: (context, constraints) {
+                            final isWide = constraints.maxWidth >= 550;
+
+                            final sizeDropdown = DropdownButtonFormField<BilaoSize>(
+                              initialValue: _selectedSize,
+                              isExpanded: true,
+                              decoration: const InputDecoration(
+                                labelText: 'BILAO SIZE',
+                                isDense: true,
+                                prefixIcon: Icon(Icons.shopping_basket_outlined, size: 20),
                               ),
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: TextFormField(
-                                controller: _quantityController,
-                                keyboardType: TextInputType.number,
-                                decoration: const InputDecoration(
-                                  labelText: 'QUANTITY',
-                                  isDense: true,
-                                  prefixIcon: Icon(Icons.tag, size: 20),
-                                ),
-                                onChanged: (_) => setState(() {}),
-                                validator: (v) {
-                                  if (v == null || v.trim().isEmpty) return 'Required';
-                                  final n = int.tryParse(v);
-                                  if (n == null || n <= 0) return 'Must be >= 1';
-                                  return null;
-                                },
+                              items: BilaoSize.values
+                                  .map((s) => DropdownMenuItem(
+                                        value: s,
+                                        child: Text(
+                                          '${s.label.toUpperCase()} (${s.pax} Pax · ₱${s.price.toStringAsFixed(0)})',
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ))
+                                  .toList(),
+                              onChanged: (value) {
+                                if (value != null) {
+                                  setState(() => _selectedSize = value);
+                                }
+                              },
+                            );
+
+                            final qtyField = TextFormField(
+                              controller: _quantityController,
+                              keyboardType: TextInputType.number,
+                              decoration: const InputDecoration(
+                                labelText: 'QUANTITY',
+                                isDense: true,
+                                prefixIcon: Icon(Icons.tag, size: 20),
                               ),
-                            ),
-                          ],
+                              onChanged: (_) => setState(() {}),
+                              validator: (v) {
+                                if (v == null || v.trim().isEmpty) return 'Required';
+                                final n = int.tryParse(v);
+                                if (n == null || n <= 0) return 'Must be >= 1';
+                                return null;
+                              },
+                            );
+
+                            if (isWide) {
+                              return Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Expanded(flex: 2, child: sizeDropdown),
+                                  const SizedBox(width: 16),
+                                  Expanded(child: qtyField),
+                                ],
+                              );
+                            }
+
+                            return Column(
+                              children: [
+                                sizeDropdown,
+                                const SizedBox(height: 14),
+                                qtyField,
+                              ],
+                            );
+                          },
                         ),
                         const SizedBox(height: 16),
 
