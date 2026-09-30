@@ -58,6 +58,9 @@ dependencies:
   # Date & time formatting
   intl: ^0.19.0
 
+  # Local persistence for Remember Me and offline caching
+  shared_preferences: ^2.2.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

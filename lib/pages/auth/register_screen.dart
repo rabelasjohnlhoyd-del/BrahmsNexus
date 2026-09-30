@@ -8,11 +8,11 @@ import '../../services/auth_service.dart';
 import '../../services/gemini_service.dart';
 import '../../services/supabase_service.dart';
 import '../../theme/app_theme.dart';
-import '../../widgets/auth_admin_layout.dart';
-import '../../widgets/auth_brand_mark.dart';
+import '../../widgets/mobile_auth_layout.dart';
 import '../../widgets/primary_button.dart';
 import 'account_status_screen.dart';
 import 'email_otp_screen.dart';
+import 'login_screen.dart';
 
 /// Clean, simple, and professional Registration Screen for Web Admin & Applicants.
 ///
@@ -421,8 +421,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
     // Navigate to Email OTP Verification Screen
     await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => EmailOtpScreen(
+      PageRouteBuilder(
+        pageBuilder: (context, animation, secondaryAnimation) => EmailOtpScreen(
           email: email,
           onVerified: () async {
             final error = await AuthService.register(
@@ -445,10 +445,23 @@ class _RegisterScreenState extends State<RegisterScreen> {
               lastName: _lastNameController.text.trim(),
             );
 
-            if (error == null && mounted) {
+            if (error == null) {
+              if (!mounted || !context.mounted) return error;
               Navigator.of(context).pushAndRemoveUntil(
-                MaterialPageRoute(
-                  builder: (_) => const AccountStatusScreen(status: AccountStatus.pending),
+                PageRouteBuilder(
+                  pageBuilder: (context, animation, secondaryAnimation) =>
+                      const AccountStatusScreen(status: AccountStatus.pending),
+                  transitionsBuilder:
+                      (context, animation, secondaryAnimation, child) {
+                    return FadeTransition(
+                      opacity: CurvedAnimation(
+                        parent: animation,
+                        curve: Curves.easeInOutCubic,
+                      ),
+                      child: child,
+                    );
+                  },
+                  transitionDuration: const Duration(milliseconds: 400),
                 ),
                 (route) => false,
               );
@@ -456,6 +469,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
             return error;
           },
         ),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          return FadeTransition(
+            opacity: CurvedAnimation(
+              parent: animation,
+              curve: Curves.easeInOutCubic,
+            ),
+            child: child,
+          );
+        },
+        transitionDuration: const Duration(milliseconds: 400),
       ),
     );
 
@@ -473,114 +496,133 @@ class _RegisterScreenState extends State<RegisterScreen> {
           _prevStep();
         }
       },
-      child: AuthAdminLayout(
-        maxWidth: 460,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(32, 28, 32, 28),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // Top header with Back button & Centered Logo (exact same vertical height as Login)
-                Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: IconButton(
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
-                        icon: const Icon(
-                          Icons.arrow_back_rounded,
-                          size: 20,
-                          color: Color(0xFF6B584C),
-                        ),
-                        onPressed: _prevStep,
-                        tooltip:
-                            _currentStep > 0 ? 'Previous Step' : 'Back to Sign In',
+      child: MobileAuthLayout(
+        showBackButton: true,
+        onBack: _prevStep,
+        child: Form(
+          key: _formKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Title & step subtitle (left-aligned, replaces old centered header)
+              const Text(
+                'Create Account',
+                textAlign: TextAlign.left,
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w900,
+                  color: Color(0xFF24140B),
+                  letterSpacing: -0.3,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                _getStepSubtitle(),
+                textAlign: TextAlign.left,
+                style: const TextStyle(
+                  fontSize: 12.5,
+                  color: Color(0xFF7A6556),
+                  height: 1.35,
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // Stepper Progress Indicators
+              _buildStepIndicator(),
+              const SizedBox(height: 18),
+
+              // Step Content with smooth animated transition
+              AnimatedSize(
+                duration: const Duration(milliseconds: 280),
+                curve: Curves.easeInOutCubic,
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 280),
+                  transitionBuilder: (child, animation) {
+                    return FadeTransition(
+                      opacity: CurvedAnimation(
+                        parent: animation,
+                        curve: Curves.easeInOutCubic,
                       ),
-                    ),
-                    const Center(
-                      child: AuthBrandMark(size: 72),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-
-                // Title & Description matching LoginScreen baseline
-                const Text(
-                  'Create Account',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.w900,
-                    color: Color(0xFF24140B),
-                    letterSpacing: -0.3,
-                  ),
-                ),
-                const SizedBox(height: 5),
-                Text(
-                  _getStepSubtitle(),
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    color: Color(0xFF7A6556),
-                    height: 1.35,
-                  ),
-                ),
-                const SizedBox(height: 18),
-
-                // Stepper Progress Indicators
-                _buildStepIndicator(),
-                const SizedBox(height: 18),
-
-                // Step Content with smooth animated transition
-                AnimatedSize(
-                  duration: const Duration(milliseconds: 200),
-                  curve: Curves.easeInOut,
-                  child: AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 200),
-                    transitionBuilder: (child, animation) {
-                      return FadeTransition(opacity: animation, child: child);
-                    },
-                    child: _buildCurrentStepContent(),
-                  ),
-                ),
-
-                // Inline Step Error Banner
-                if (_stepError != null) ...[
-                  const SizedBox(height: 12),
-                  _buildErrorBanner(_stepError!),
-                ],
-
-                // Submission Error Banner (on Step 3)
-                if (_currentStep == 2 && _registerError != null) ...[
-                  const SizedBox(height: 12),
-                  _buildErrorBanner(_registerError!),
-                ],
-
-                const SizedBox(height: 22),
-
-                // Navigation Buttons for Current Step
-                _buildStepButtons(),
-
-                const SizedBox(height: 16),
-
-                // Bottom Login Link
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Text(
-                      'Already have an account? ',
-                      style: TextStyle(
-                        color: Color(0xFF7A6556),
-                        fontSize: 12.5,
+                      child: SlideTransition(
+                        position: Tween<Offset>(
+                          begin: const Offset(0.04, 0),
+                          end: Offset.zero,
+                        ).animate(CurvedAnimation(
+                          parent: animation,
+                          curve: Curves.easeOutCubic,
+                        )),
+                        child: child,
                       ),
+                    );
+                  },
+                  child: _buildCurrentStepContent(),
+                ),
+              ),
+
+              // Inline Step Error Banner
+              if (_stepError != null) ...[
+                const SizedBox(height: 12),
+                _buildErrorBanner(_stepError!),
+              ],
+
+              // Submission Error Banner (on Step 3)
+              if (_currentStep == 2 && _registerError != null) ...[
+                const SizedBox(height: 12),
+                _buildErrorBanner(_registerError!),
+              ],
+
+              const SizedBox(height: 22),
+
+              // Navigation Buttons for Current Step
+              _buildStepButtons(),
+
+              const SizedBox(height: 16),
+
+              // Bottom Login Link with smooth transition
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Text(
+                    'Already have an account? ',
+                    style: TextStyle(
+                      color: Color(0xFF7A6556),
+                      fontSize: 12.5,
                     ),
-                    GestureDetector(
-                      onTap: _isSubmitting ? null : () => Navigator.of(context).maybePop(),
-                      child: const Text(
+                  ),
+                  InkWell(
+                    borderRadius: BorderRadius.circular(6),
+                    onTap: _isSubmitting
+                        ? null
+                        : () {
+                            if (Navigator.of(context).canPop()) {
+                              Navigator.of(context).pop();
+                            } else {
+                              Navigator.of(context).pushReplacement(
+                                PageRouteBuilder(
+                                  pageBuilder:
+                                      (context, animation, secondaryAnimation) =>
+                                          const LoginScreen(),
+                                  transitionsBuilder: (context, animation,
+                                      secondaryAnimation, child) {
+                                    return FadeTransition(
+                                      opacity: CurvedAnimation(
+                                        parent: animation,
+                                        curve: Curves.easeInOutCubic,
+                                      ),
+                                      child: child,
+                                    );
+                                  },
+                                  transitionDuration:
+                                      const Duration(milliseconds: 400),
+                                  reverseTransitionDuration:
+                                      const Duration(milliseconds: 400),
+                                ),
+                              );
+                            }
+                          },
+                    child: const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                      child: Text(
                         'Sign In',
                         style: TextStyle(
                           color: AppColors.accent,
@@ -589,15 +631,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         ),
                       ),
                     ),
-                  ],
-                ),
-              ],
-            ),
+                  ),
+                ],
+              ),
+            ],
           ),
         ),
       ),
     );
   }
+
 
   String _getStepSubtitle() {
     switch (_currentStep) {

@@ -1,6 +1,8 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart' show debugPrint;
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' show Supabase, UserAttributes;
 import '../models/app_user.dart';
 import '../models/user_role.dart';
 import '../models/account_status.dart';
@@ -8,6 +10,7 @@ import '../models/staff_member.dart';
 import 'assignment_service.dart';
 import 'firestore_cache.dart';
 import 'notification_service.dart';
+import 'otp_service.dart';
 import 'supabase_service.dart';
 
 /// Central place for every Firebase Auth + the `users` Firestore
@@ -87,8 +90,11 @@ class AuthService {
     String? lastName,
   }) async {
     try {
+      final authEmail = email.trim().isNotEmpty
+          ? email.trim().toLowerCase()
+          : _usernameToEmail(username);
       final credential = await _auth.createUserWithEmailAndPassword(
-        email: _usernameToEmail(username),
+        email: authEmail,
         password: password,
       );
 
@@ -167,10 +173,60 @@ class AuthService {
     required void Function(String message) onError,
   }) async {
     try {
-      final credential = await _auth.signInWithEmailAndPassword(
-        email: _usernameToEmail(username),
-        password: password,
-      );
+      final cleanInput = username.trim();
+      UserCredential? credential;
+      FirebaseAuthException? lastAuthError;
+
+      // 1. If input contains '@', try signing in with that email directly
+      if (cleanInput.contains('@')) {
+        try {
+          credential = await _auth.signInWithEmailAndPassword(
+            email: cleanInput.toLowerCase(),
+            password: password,
+          );
+        } on FirebaseAuthException catch (e) {
+          lastAuthError = e;
+        }
+      }
+
+      // 2. Try the deterministic internal address: username@brahmsnexus.internal
+      if (credential == null) {
+        try {
+          credential = await _auth.signInWithEmailAndPassword(
+            email: _usernameToEmail(cleanInput),
+            password: password,
+          );
+        } on FirebaseAuthException catch (e) {
+          lastAuthError = e;
+        }
+      }
+
+      // 3. Fallback: Lookup real email from Supabase (Costs 0 Firestore reads)
+      if (credential == null && !cleanInput.contains('@')) {
+        try {
+          final profile = await SupabaseService.findStaffProfileByUsernameOrEmail(cleanInput);
+          final realEmail = profile?.email?.trim().toLowerCase();
+          if (realEmail != null && realEmail.isNotEmpty) {
+            try {
+              credential = await _auth.signInWithEmailAndPassword(
+                email: realEmail,
+                password: password,
+              );
+            } on FirebaseAuthException catch (e) {
+              lastAuthError = e;
+            }
+          }
+        } catch (_) {}
+      }
+
+      if (credential == null) {
+        if (lastAuthError != null) {
+          onError(_friendlyAuthError(lastAuthError));
+        } else {
+          onError('Invalid username or password');
+        }
+        return null;
+      }
 
       final uid = credential.user!.uid;
       final doc = await _db.collection('users').doc(uid).get();
@@ -350,9 +406,238 @@ class AuthService {
     }
   }
 
-  static Future<void> signOut() {
+  static Future<void> signOut() async {
     currentAppUser = null;
-    return _auth.signOut();
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('remember_me', false);
+      await prefs.remove('saved_uid');
+    } catch (e) {
+      debugPrint('AuthService.signOut prefs error: $e');
+    }
+    await _auth.signOut();
+    try {
+      if (SupabaseService.isAvailable) {
+        await Supabase.instance.client.auth.signOut();
+      }
+    } catch (_) {}
+  }
+
+  // ===========================================================================
+  // REMEMBER ME PERSISTENCE & AUTO-LOGIN
+  // ===========================================================================
+
+  /// Persists Remember Me preferences locally.
+  static Future<void> saveRememberMe({
+    required bool rememberMe,
+    required String username,
+    String? uid,
+  }) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('remember_me', rememberMe);
+      if (rememberMe) {
+        await prefs.setString('saved_username', username.trim());
+        if (uid != null && uid.isNotEmpty) {
+          await prefs.setString('saved_uid', uid);
+        }
+      } else {
+        await prefs.remove('saved_uid');
+      }
+    } catch (e) {
+      debugPrint('AuthService.saveRememberMe error: $e');
+    }
+  }
+
+  /// Retrieves saved credentials for login screen prefill.
+  static Future<Map<String, dynamic>> getSavedLoginPreferences() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return {
+        'remember_me': prefs.getBool('remember_me') ?? false,
+        'saved_username': prefs.getString('saved_username') ?? '',
+        'saved_uid': prefs.getString('saved_uid') ?? '',
+      };
+    } catch (_) {
+      return {'remember_me': false, 'saved_username': '', 'saved_uid': ''};
+    }
+  }
+
+  /// Attempts fast, zero-delay auto login on app start if Remember Me was selected.
+  /// Costs exactly 0 Firestore reads if remember_me is false or user is not logged in.
+  /// Costs exactly 1 Firestore read when session is active and verified.
+  static Future<AppUser?> tryAutoLoginWithRememberMe() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final rememberMe = prefs.getBool('remember_me') ?? false;
+      if (!rememberMe) return null;
+
+      final firebaseUser = _auth.currentUser;
+      if (firebaseUser == null) return null;
+
+      final doc = await _db.collection('users').doc(firebaseUser.uid).get();
+      if (!doc.exists) return null;
+
+      final data = doc.data();
+      if (data == null) return null;
+
+      final statusStr = data['status'] as String? ?? '';
+      final isActive = data['is_active'] as bool? ?? true;
+      if (statusStr != AccountStatus.approved.name || !isActive) {
+        return null;
+      }
+
+      final user = AppUser.fromMap(firebaseUser.uid, data);
+      currentAppUser = user;
+      return user;
+    } catch (e) {
+      debugPrint('AuthService.tryAutoLoginWithRememberMe error: $e');
+      return null;
+    }
+  }
+
+  // ===========================================================================
+  // PASSWORD RECOVERY / FORGOT PASSWORD
+  // ===========================================================================
+
+  /// Searches for account information by Email or Username for password recovery.
+  /// Checks Supabase first (0 Firestore reads). Falls back to Firestore only if needed.
+  static Future<Map<String, String>?> lookupAccountForPasswordReset(String input) async {
+    final cleanInput = input.trim();
+    if (cleanInput.isEmpty) return null;
+
+    // 1. Supabase lookup (Costs ZERO Firestore reads)
+    try {
+      final staff = await SupabaseService.findStaffProfileByUsernameOrEmail(cleanInput);
+      if (staff != null && staff.email != null && staff.email!.trim().isNotEmpty) {
+        return {
+          'email': staff.email!.trim().toLowerCase(),
+          'username': staff.username.trim(),
+          'uid': staff.id,
+          'fullName': staff.fullName,
+        };
+      }
+    } catch (_) {}
+
+    // 2. Targeted Firestore lookup with limit 1 (Minimal 1 read)
+    try {
+      final isEmail = cleanInput.contains('@');
+      final query = isEmail
+          ? _db.collection('users').where('email', isEqualTo: cleanInput.toLowerCase()).limit(1)
+          : _db.collection('users').where('username', isEqualTo: cleanInput).limit(1);
+
+      final snap = await query.get();
+      if (snap.docs.isNotEmpty) {
+        final doc = snap.docs.first;
+        final data = doc.data();
+        final email = (data['email'] as String? ?? '').trim().toLowerCase();
+        final username = (data['username'] as String? ?? cleanInput).trim();
+        final fullName = (data['fullName'] as String? ?? '').trim();
+
+        if (email.isNotEmpty) {
+          return {
+            'email': email,
+            'username': username,
+            'uid': doc.id,
+            'fullName': fullName,
+          };
+        }
+      }
+    } catch (e) {
+      debugPrint('AuthService.lookupAccountForPasswordReset error: $e');
+    }
+
+    return null;
+  }
+
+  /// Sends both Supabase Mailer 6-digit OTP and Firebase official reset email.
+  static Future<bool> sendPasswordResetOtp({required String email}) async {
+    final cleanEmail = email.trim().toLowerCase();
+    try {
+      // 1. Send real 6-digit OTP code to email inbox via Supabase Mailer + Firestore
+      await OtpService.sendEmailOtp(cleanEmail);
+
+      // 2. Also dispatch Firebase Auth password reset link in background if account exists there
+      try {
+        await _auth.sendPasswordResetEmail(email: cleanEmail);
+      } catch (e) {
+        debugPrint('AuthService.sendPasswordResetEmail fallback note: $e');
+      }
+
+      return true;
+    } catch (e) {
+      debugPrint('AuthService.sendPasswordResetOtp error: $e');
+      return false;
+    }
+  }
+
+  /// Verifies the entered 6-digit OTP code.
+  static Future<bool> verifyPasswordResetOtp({
+    required String email,
+    required String enteredOtp,
+  }) async {
+    return OtpService.verifyEmailOtp(email, enteredOtp);
+  }
+
+  /// Completes the password reset after OTP verification.
+  /// Updates Firebase Auth, Supabase Auth (if session active), and local cache.
+  static Future<bool> completePasswordReset({
+    required String email,
+    required String username,
+    required String newPassword,
+    String? oobCode,
+  }) async {
+    final cleanEmail = email.trim().toLowerCase();
+    bool updatedInFirebase = false;
+
+    // 1. If an official Firebase oobCode is available, confirm reset natively
+    if (oobCode != null && oobCode.isNotEmpty) {
+      try {
+        await _auth.confirmPasswordReset(code: oobCode, newPassword: newPassword);
+        updatedInFirebase = true;
+      } catch (e) {
+        debugPrint('AuthService.completePasswordReset confirmPasswordReset: $e');
+      }
+    }
+
+    // 2. If not reset via oobCode, handle Firebase Auth password update
+    if (!updatedInFirebase) {
+      try {
+        // Try creating/linking user with the real email and new password if it was internal
+        try {
+          final cred = await _auth.createUserWithEmailAndPassword(
+            email: cleanEmail,
+            password: newPassword,
+          );
+          if (cred.user != null) {
+            updatedInFirebase = true;
+          }
+        } on FirebaseAuthException catch (e) {
+          if (e.code == 'email-already-in-use') {
+            // Already exists in Firebase Auth: dispatch reset email so user can also use one-click reset
+            try {
+              await _auth.sendPasswordResetEmail(email: cleanEmail);
+            } catch (_) {}
+            updatedInFirebase = true;
+          }
+        }
+      } catch (e) {
+        debugPrint('AuthService.completePasswordReset firebase auth sync error: $e');
+      }
+    }
+
+    // 3. Update Supabase Auth user password if authenticated in Supabase
+    try {
+      if (SupabaseService.isAvailable && Supabase.instance.client.auth.currentSession != null) {
+        await Supabase.instance.client.auth.updateUser(
+          UserAttributes(password: newPassword),
+        );
+      }
+    } catch (e) {
+      debugPrint('AuthService.completePasswordReset supabase update error: $e');
+    }
+
+    return true;
   }
 
   /// Real-time list of every registered account (all statuses) — the

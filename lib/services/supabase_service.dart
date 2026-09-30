@@ -419,6 +419,36 @@ class SupabaseService {
     }
   }
 
+  /// Finds a staff member profile by username or email.
+  /// Zero Firebase reads cost.
+  static Future<StaffMember?> findStaffProfileByUsernameOrEmail(String input) async {
+    final clean = input.trim().toLowerCase();
+    if (clean.isEmpty) return null;
+
+    // Check memory first (0 network cost)
+    final memoryMatch = _inMemoryStaff.cast<StaffMember?>().firstWhere(
+      (s) => s != null && (s.username.trim().toLowerCase() == clean || (s.email != null && s.email!.trim().toLowerCase() == clean)),
+      orElse: () => null,
+    );
+    if (memoryMatch != null) return memoryMatch;
+
+    final client = _client;
+    if (client == null) return null;
+
+    try {
+      final res = await client
+          .from('staff_profiles')
+          .select()
+          .or('username.ilike.$clean,email.ilike.$clean')
+          .limit(1);
+      final list = (res as List).map((m) => StaffMember.fromMap(m as Map<String, dynamic>)).toList();
+      return list.isNotEmpty ? list.first : null;
+    } catch (e) {
+      debugPrint('SupabaseService.findStaffProfileByUsernameOrEmail error: $e');
+      return null;
+    }
+  }
+
   /// Updates specific fields of a staff profile in Supabase and local cache.
   /// Handles partial updates and column fallback safely.
   static Future<bool> updateStaffFields({
