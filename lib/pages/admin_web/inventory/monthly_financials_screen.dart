@@ -395,6 +395,91 @@ class _MonthlyFinancialsScreenState extends State<MonthlyFinancialsScreen> {
     );
   }
 
+  void _addNewCategoryDialog() {
+    final titleCtrl = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Magdagdag ng Bagong Procurement Category / Section'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Halimbawa: TUBIG & WATER EXPENSES, CLEANING SUPPLIES, O IBA PANG GASTOS.',
+              style: TextStyle(fontSize: 12, color: AdminWebColors.textSecondary),
+            ),
+            const SizedBox(height: 14),
+            TextField(
+              controller: titleCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Pangalan ng Kategorya',
+                hintText: 'Hal. TUBIG & WATER EXPENSES',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('CANCEL'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final title = titleCtrl.text.trim();
+              if (title.isEmpty) return;
+              final newGroup = ProcurementGroup(
+                id: 'pg_${DateTime.now().millisecondsSinceEpoch}',
+                title: title.toUpperCase(),
+                items: [],
+              );
+              setState(() {
+                _period.procurementGroups.add(newGroup);
+              });
+              Navigator.pop(ctx);
+              _persistPeriod();
+            },
+            child: const Text('ADD CATEGORY'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _deleteCategory(ProcurementGroup group) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Delete ${group.title}?'),
+        content: Text(
+          'Sigurado ka bang nais mong burahin ang kategoryang "${group.title}" kasama ang lahat ng items nito?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('CANCEL'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              setState(() {
+                _period.procurementGroups.removeWhere((g) => g.id == group.id);
+              });
+              Navigator.pop(ctx);
+              _persistPeriod();
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AdminWebColors.error,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('DELETE'),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _editProductionLaborSettings() {
     final sessionsCtrl =
         TextEditingController(text: _period.productionCookingSessions.toString());
@@ -738,6 +823,7 @@ class _MonthlyFinancialsScreenState extends State<MonthlyFinancialsScreen> {
       builder: (context, constraints) {
         final isWide = constraints.maxWidth >= 700;
 
+        final isAchieved = _period.isRoiAchieved;
         final tiles = [
           _kpiTile(
             'Gross Revenue (Karne)',
@@ -756,9 +842,11 @@ class _MonthlyFinancialsScreenState extends State<MonthlyFinancialsScreen> {
           _kpiTile(
             'NET MAV (KITA NI SIR MAV)',
             '₱${_period.netMav.toStringAsFixed(0)}',
-            'GROSS REVENUE - TOTAL EXPENSES',
+            isAchieved
+                ? 'NABAWING PUHUNAN: +₱${_period.netMav.toStringAsFixed(0)} TUBONG KITA'
+                : 'BAWI PUHUNAN: KULANG PA NG ₱${_period.capitalRemainingToRecover.toStringAsFixed(0)}',
             Icons.account_balance_wallet_rounded,
-            color: AdminWebColors.accent,
+            color: isAchieved ? AdminWebColors.accent : AdminWebColors.warning,
             isMain: true,
           ),
         ];
@@ -993,13 +1081,31 @@ class _MonthlyFinancialsScreenState extends State<MonthlyFinancialsScreen> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text(
-              'PROCUREMENT & INGREDIENTS',
-              style: TextStyle(
-                fontWeight: FontWeight.w900,
-                letterSpacing: 1,
-                color: AdminWebColors.textSecondary,
-              ),
+            Row(
+              children: [
+                const Text(
+                  'PROCUREMENT & INGREDIENTS',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 1,
+                    color: AdminWebColors.textSecondary,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                ElevatedButton.icon(
+                  onPressed: _addNewCategoryDialog,
+                  icon: const Icon(Icons.add_rounded, size: 16),
+                  label: const Text('ADD CATEGORY'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor:
+                        AdminWebColors.accent.withValues(alpha: 0.12),
+                    foregroundColor: AdminWebColors.accent,
+                    elevation: 0,
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  ),
+                ),
+              ],
             ),
             Text(
               'TOTAL INGREDIENTS: ₱${_period.totalProcurementCost.toStringAsFixed(1)}',
@@ -1058,6 +1164,12 @@ class _MonthlyFinancialsScreenState extends State<MonthlyFinancialsScreen> {
                       icon: const Icon(Icons.add_circle_outline_rounded,
                           size: 20, color: AdminWebColors.accent),
                       tooltip: 'Add item sa ${group.title}',
+                    ),
+                    IconButton(
+                      onPressed: () => _deleteCategory(group),
+                      icon: const Icon(Icons.delete_outline_rounded,
+                          size: 19, color: AdminWebColors.error),
+                      tooltip: 'Delete ${group.title}',
                     ),
                   ],
                 ),

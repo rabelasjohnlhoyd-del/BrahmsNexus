@@ -1185,6 +1185,49 @@ class _OrderCard extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(height: 5),
+                        // Commission badge
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+                          decoration: BoxDecoration(
+                            color: order.hasCookCommission
+                                ? AdminWebColors.success.withValues(alpha: 0.1)
+                                : AdminWebColors.textSecondary.withValues(alpha: 0.08),
+                            borderRadius: BorderRadius.circular(4),
+                            border: Border.all(
+                              color: order.hasCookCommission
+                                  ? AdminWebColors.success.withValues(alpha: 0.35)
+                                  : AdminWebColors.textSecondary.withValues(alpha: 0.2),
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                order.hasCookCommission
+                                    ? Icons.check_circle_outline_rounded
+                                    : Icons.info_outline_rounded,
+                                size: 11,
+                                color: order.hasCookCommission
+                                    ? AdminWebColors.success
+                                    : AdminWebColors.textSecondary,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                order.hasCookCommission
+                                    ? 'BRANCH ORDER (+₱${order.commissionAmount.toStringAsFixed(0)} COOK COMM.)'
+                                    : 'DIRECT TO OWNER (NO COMMISSION)',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                  color: order.hasCookCommission
+                                      ? AdminWebColors.success
+                                      : AdminWebColors.textSecondary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 5),
                         // Package + amount + scheduled time
                         Wrap(
                           spacing: 4,

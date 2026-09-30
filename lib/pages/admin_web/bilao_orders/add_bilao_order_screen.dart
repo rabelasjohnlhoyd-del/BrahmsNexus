@@ -22,6 +22,7 @@ class _AddBilaoOrderScreenState extends State<AddBilaoOrderScreen> {
   final _quantityController = TextEditingController(text: '1');
 
   BilaoFulfillmentType _fulfillmentType = BilaoFulfillmentType.branchPickup;
+  BilaoOrderChannel _orderChannel = BilaoOrderChannel.branchOrder;
   String _selectedBranchId = kSampleBranches.isNotEmpty ? kSampleBranches.first.id : 'br1';
   BilaoSize _selectedSize = BilaoSize.medium;
   DateTime _scheduledDateTime = DateTime.now().add(const Duration(hours: 2));
@@ -77,8 +78,9 @@ class _AddBilaoOrderScreenState extends State<AddBilaoOrderScreen> {
       quantity: int.parse(_quantityController.text),
       scheduledDateTime: _scheduledDateTime,
       fulfillmentType: _fulfillmentType,
-      pickupBranchId: isPickup ? _selectedBranch.id : null,
-      pickupBranchName: isPickup ? _selectedBranch.fullName : null,
+      orderChannel: _orderChannel,
+      pickupBranchId: _selectedBranch.id,
+      pickupBranchName: _selectedBranch.fullName,
       deliveryAddress: deliveryAddr,
       notes: _notesController.text.trim().isNotEmpty ? _notesController.text.trim() : null,
       createdAt: DateTime.now(),
@@ -90,6 +92,84 @@ class _AddBilaoOrderScreenState extends State<AddBilaoOrderScreen> {
 
     final savedOrder = orderId != null ? newOrder.copyWith(id: orderId) : newOrder;
     Navigator.of(context).pop(savedOrder);
+  }
+
+  Widget _buildChannelOption({
+    required BilaoOrderChannel channel,
+    required String title,
+    required String subtitle,
+    required IconData icon,
+  }) {
+    final isSelected = _orderChannel == channel;
+    return InkWell(
+      onTap: () => setState(() => _orderChannel = channel),
+      borderRadius: BorderRadius.circular(12),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? AdminWebColors.accent.withValues(alpha: 0.08)
+              : Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected ? AdminWebColors.accent : AdminWebColors.border,
+            width: isSelected ? 2 : 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? AdminWebColors.accent
+                    : AdminWebColors.background,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                icon,
+                size: 20,
+                color: isSelected ? Colors.white : AdminWebColors.textSecondary,
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w700,
+                      color: isSelected
+                          ? AdminWebColors.accent
+                          : AdminWebColors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(
+                      fontSize: 11.5,
+                      color: AdminWebColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (isSelected)
+              const Icon(
+                Icons.check_circle_rounded,
+                color: AdminWebColors.accent,
+                size: 20,
+              ),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _buildFulfillmentOption({
@@ -235,6 +315,77 @@ class _AddBilaoOrderScreenState extends State<AddBilaoOrderScreen> {
                           ),
                           validator: (v) =>
                               (v == null || v.trim().isEmpty) ? 'Required' : null,
+                        ),
+                        const SizedBox(height: 24),
+
+                        // ── ORDER CHANNEL / COMMISSION SOURCE ──────────────
+                        const Text(
+                          'SINO ANG NAKA-ORDER? (PARA SA COOK COMMISSION)',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.8,
+                            color: AdminWebColors.textSecondary,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 14, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: AdminWebColors.warning.withValues(alpha: 0.07),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                                color: AdminWebColors.warning.withValues(alpha: 0.25)),
+                          ),
+                          child: const Row(
+                            children: [
+                              Icon(Icons.info_outline_rounded,
+                                  size: 16, color: AdminWebColors.warning),
+                              SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'Kung Branch ang nag-receive ng order, may commission ang Branch Cook. Kung Owner/Admin ang naka-receive, walang commission.',
+                                  style: TextStyle(
+                                    fontSize: 11.5,
+                                    color: AdminWebColors.textSecondary,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        LayoutBuilder(
+                          builder: (context, constraints) {
+                            final isWide = constraints.maxWidth >= 550;
+                            final ch1 = _buildChannelOption(
+                              channel: BilaoOrderChannel.branchOrder,
+                              title: 'Branch Order',
+                              subtitle:
+                                  'Customer called/walked in at the branch',
+                              icon: Icons.storefront_rounded,
+                            );
+                            final ch2 = _buildChannelOption(
+                              channel: BilaoOrderChannel.directToOwner,
+                              title: 'Direct to Owner',
+                              subtitle:
+                                  'Customer called/messaged the Owner directly',
+                              icon: Icons.person_rounded,
+                            );
+                            if (isWide) {
+                              return Row(children: [
+                                Expanded(child: ch1),
+                                const SizedBox(width: 12),
+                                Expanded(child: ch2),
+                              ]);
+                            }
+                            return Column(children: [
+                              ch1,
+                              const SizedBox(height: 10),
+                              ch2
+                            ]);
+                          },
                         ),
                         const SizedBox(height: 24),
 

@@ -41,6 +41,10 @@ class _SalesPayrollScreenState extends State<SalesPayrollScreen> {
   double _productionCutterRate = 1100.0;
   double _driverDailyRate = 650.0;
   int _driverDaysWorked = 25;
+  final Set<String> _expandedDates = {};
+
+  String get _currentPeriodId =>
+      '${DateTime.now().year}_${DateTime.now().month.toString().padLeft(2, '0')}';
 
   List<SalesRecord> get _visibleRecords {
     if (_branchFilter == null || _branchFilter == 'All') return _records;
@@ -120,17 +124,16 @@ class _SalesPayrollScreenState extends State<SalesPayrollScreen> {
 
   void _editDriverDaysDialog() {
     final ctrl = TextEditingController(text: _driverDaysWorked.toString());
-    final rateCtrl = TextEditingController(text: _driverDailyRate.toStringAsFixed(0));
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Edit Driver Working Days & Rate'),
+        title: const Text('Edit Driver Working Days & Absences'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'Araw-araw ay ₱650 ang sahod ni Driver. Kung may araw na absent siya at si Owner ang nag-drive, ibawas dito ang araw.',
+              'Araw-araw ay ₱650 ang sahod ni Driver. Kung may araw na absent siya at si Owner ang nag-drive, ibawas dito ang bilang ng araw.',
               style: TextStyle(fontSize: 12.5, color: AdminWebColors.textSecondary),
             ),
             const SizedBox(height: 16),
@@ -142,16 +145,6 @@ class _SalesPayrollScreenState extends State<SalesPayrollScreen> {
                 border: OutlineInputBorder(),
               ),
             ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: rateCtrl,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: 'Daily Rate (₱)',
-                prefixText: '₱ ',
-                border: OutlineInputBorder(),
-              ),
-            ),
           ],
         ),
         actions: [
@@ -160,16 +153,13 @@ class _SalesPayrollScreenState extends State<SalesPayrollScreen> {
             child: const Text('CANCEL'),
           ),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
               final val = int.tryParse(ctrl.text.trim()) ?? _driverDaysWorked;
-              final rVal = double.tryParse(rateCtrl.text.trim()) ?? _driverDailyRate;
-              setState(() {
-                _driverDaysWorked = val;
-                _driverDailyRate = rVal;
-              });
+              setState(() => _driverDaysWorked = val);
               Navigator.pop(ctx);
+              await _syncPayrollToMonthlyFinancials();
             },
-            child: const Text('SAVE'),
+            child: const Text('SAVE DAYS'),
           ),
         ],
       ),
@@ -181,11 +171,13 @@ class _SalesPayrollScreenState extends State<SalesPayrollScreen> {
         TextEditingController(text: _productionCookRate.toStringAsFixed(0));
     final cutterCtrl =
         TextEditingController(text: _productionCutterRate.toStringAsFixed(0));
+    final driverCtrl =
+        TextEditingController(text: _driverDailyRate.toStringAsFixed(0));
 
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Edit Production Staff Daily Rates'),
+        title: const Text('Edit Staff Daily Rates'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -208,6 +200,16 @@ class _SalesPayrollScreenState extends State<SalesPayrollScreen> {
                 border: OutlineInputBorder(),
               ),
             ),
+            const SizedBox(height: 14),
+            TextField(
+              controller: driverCtrl,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: 'Delivery Driver Daily Rate (₱)',
+                prefixText: '₱ ',
+                border: OutlineInputBorder(),
+              ),
+            ),
           ],
         ),
         actions: [
@@ -216,21 +218,46 @@ class _SalesPayrollScreenState extends State<SalesPayrollScreen> {
             child: const Text('CANCEL'),
           ),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
+              final cRate =
+                  double.tryParse(cookCtrl.text.trim()) ?? _productionCookRate;
+              final cutRate =
+                  double.tryParse(cutterCtrl.text.trim()) ?? _productionCutterRate;
+              final dRate =
+                  double.tryParse(driverCtrl.text.trim()) ?? _driverDailyRate;
               setState(() {
-                _productionCookRate =
-                    double.tryParse(cookCtrl.text.trim()) ?? _productionCookRate;
-                _productionCutterRate =
-                    double.tryParse(cutterCtrl.text.trim()) ??
-                        _productionCutterRate;
+                _productionCookRate = cRate;
+                _productionCutterRate = cutRate;
+                _driverDailyRate = dRate;
               });
               Navigator.pop(ctx);
+              await _syncPayrollToMonthlyFinancials();
             },
             child: const Text('SAVE RATES'),
           ),
         ],
       ),
     );
+  }
+
+  Future<void> _syncPayrollToMonthlyFinancials() async {
+    try {
+      final existing =
+          await FirestoreService.watchMonthlyFinancialPeriod(_currentPeriodId)
+              .first;
+      if (existing != null) {
+        final updated = existing.copyWith(
+          productionCookDailyRate: _productionCookRate,
+          productionCutterDailyRate: _productionCutterRate,
+          driverDailyWage: _driverDailyRate,
+          driverWorkingDays: _driverDaysWorked,
+          productionCookingSessions: _totalCookingSessions,
+        );
+        await FirestoreService.saveMonthlyFinancialPeriod(updated);
+      }
+    } catch (e) {
+      debugPrint('Error syncing payroll to monthly financials: $e');
+    }
   }
 
   @override
@@ -535,6 +562,7 @@ class _SalesPayrollScreenState extends State<SalesPayrollScreen> {
     return Column(
       children: dates.map((dateKey) {
         final recordsForDate = grouped[dateKey]!;
+        final isExpanded = _expandedDates.contains(dateKey);
         final dateTotalWage =
             recordsForDate.fold(0.0, (sum, r) => sum + r.computedWage);
         final dateTotalSales =
@@ -543,159 +571,195 @@ class _SalesPayrollScreenState extends State<SalesPayrollScreen> {
             recordsForDate.fold(0, (sum, r) => sum + r.displayPortions);
 
         return Padding(
-          padding: const EdgeInsets.only(bottom: 20),
+          padding: const EdgeInsets.only(bottom: 16),
           child: GlassCard(
             padding: EdgeInsets.zero,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Date Header
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-                  decoration: BoxDecoration(
-                    color: AdminWebColors.accent.withValues(alpha: 0.06),
-                    borderRadius:
-                        const BorderRadius.vertical(top: Radius.circular(16)),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Row(
-                        children: [
-                          const Icon(Icons.event_note_rounded,
-                              size: 20, color: AdminWebColors.accent),
-                          const SizedBox(width: 10),
-                          Text(
-                            dateKey,
-                            style: const TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w900,
-                              color: AdminWebColors.textPrimary,
+                // Date Header (Clickable Accordion)
+                InkWell(
+                  onTap: () {
+                    setState(() {
+                      if (isExpanded) {
+                        _expandedDates.remove(dateKey);
+                      } else {
+                        _expandedDates.add(dateKey);
+                      }
+                    });
+                  },
+                  borderRadius: BorderRadius.circular(16),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 20, vertical: 16),
+                    decoration: BoxDecoration(
+                      color: isExpanded
+                          ? AdminWebColors.accent.withValues(alpha: 0.08)
+                          : Colors.transparent,
+                      borderRadius: isExpanded
+                          ? const BorderRadius.vertical(top: Radius.circular(16))
+                          : BorderRadius.circular(16),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.calendar_month_rounded,
+                              size: 22,
+                              color: isExpanded
+                                  ? AdminWebColors.accent
+                                  : AdminWebColors.textSecondary,
                             ),
-                          ),
-                          const SizedBox(width: 12),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 8, vertical: 2),
-                            decoration: BoxDecoration(
-                              color:
-                                  AdminWebColors.accent.withValues(alpha: 0.12),
-                              borderRadius: BorderRadius.circular(6),
+                            const SizedBox(width: 12),
+                            Text(
+                              dateKey,
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w900,
+                                color: isExpanded
+                                    ? AdminWebColors.accent
+                                    : AdminWebColors.textPrimary,
+                              ),
                             ),
-                            child: Text(
-                              '${recordsForDate.length} STORES',
+                            const SizedBox(width: 12),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: AdminWebColors.accent
+                                    .withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                '${recordsForDate.length} STORES',
+                                style: const TextStyle(
+                                  fontSize: 10.5,
+                                  fontWeight: FontWeight.w800,
+                                  color: AdminWebColors.accent,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        Row(
+                          children: [
+                            if (isWide) ...[
+                              Text(
+                                'Portions: $dateTotalPortions  |  Sales: ₱${dateTotalSales.toStringAsFixed(0)}  |  ',
+                                style: const TextStyle(
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w600,
+                                  color: AdminWebColors.textSecondary,
+                                ),
+                              ),
+                            ],
+                            Text(
+                              'Sahod ng 6 Cook: ₱${dateTotalWage.toStringAsFixed(0)}',
                               style: const TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w800,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w900,
                                 color: AdminWebColors.accent,
                               ),
                             ),
-                          ),
-                        ],
-                      ),
-                      Row(
-                        children: [
-                          Text(
-                            'Portions: $dateTotalPortions  |  Sales: ₱${dateTotalSales.toStringAsFixed(0)}  |  ',
-                            style: const TextStyle(
-                              fontSize: 12.5,
-                              fontWeight: FontWeight.w600,
-                              color: AdminWebColors.textSecondary,
-                            ),
-                          ),
-                          Text(
-                            'Total Sahod: ₱${dateTotalWage.toStringAsFixed(0)}',
-                            style: const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w900,
+                            const SizedBox(width: 12),
+                            Icon(
+                              isExpanded
+                                  ? Icons.keyboard_arrow_up_rounded
+                                  : Icons.keyboard_arrow_down_rounded,
                               color: AdminWebColors.accent,
+                              size: 22,
                             ),
-                          ),
-                        ],
-                      ),
-                    ],
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
                 ),
 
-                // Table of 6 branch cooks for this date
-                ListView.separated(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  padding: const EdgeInsets.all(12),
-                  itemCount: recordsForDate.length,
-                  separatorBuilder: (context, index) => const Divider(height: 1),
-                  itemBuilder: (context, idx) {
-                    final r = recordsForDate[idx];
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 10),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            flex: 3,
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  r.branchName,
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w800,
-                                    fontSize: 13.5,
+                // Table of 6 branch cooks for this date (Only shown when expanded!)
+                if (isExpanded) ...[
+                  const Divider(height: 1),
+                  ListView.separated(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    padding: const EdgeInsets.all(12),
+                    itemCount: recordsForDate.length,
+                    separatorBuilder: (context, index) =>
+                        const Divider(height: 1),
+                    itemBuilder: (context, idx) {
+                      final r = recordsForDate[idx];
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 10),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              flex: 3,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    r.branchName,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 13.5,
+                                    ),
                                   ),
-                                ),
-                                Text(
-                                  'Cook: ${r.employeeName}',
-                                  style: const TextStyle(
-                                    fontSize: 11.5,
-                                    color: AdminWebColors.textSecondary,
+                                  Text(
+                                    'Cook: ${r.employeeName}',
+                                    style: const TextStyle(
+                                      fontSize: 11.5,
+                                      color: AdminWebColors.textSecondary,
+                                    ),
                                   ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          Expanded(
-                            flex: 2,
-                            child: Text(
-                              '${r.displayPortions} portions (${r.displayTotalOrders} orders)',
-                              style: const TextStyle(fontSize: 12),
-                            ),
-                          ),
-                          Expanded(
-                            flex: 2,
-                            child: Text(
-                              '₱${r.totalSalesAmount.toStringAsFixed(0)} sales',
-                              style: const TextStyle(
-                                  fontSize: 12.5, fontWeight: FontWeight.w600),
-                            ),
-                          ),
-                          Expanded(
-                            flex: 2,
-                            child: Text(
-                              '₱${r.computedWage.toStringAsFixed(0)} sahod',
-                              style: const TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w800,
-                                color: AdminWebColors.accent,
+                                ],
                               ),
                             ),
-                          ),
-                          Expanded(
-                            flex: 2,
-                            child: Text(
-                              'Remittance: ₱${r.expectedCashRemittance.toStringAsFixed(0)}',
-                              style: const TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                                color: AdminWebColors.success,
+                            Expanded(
+                              flex: 2,
+                              child: Text(
+                                '${r.displayPortions} portions (${r.displayTotalOrders} orders)',
+                                style: const TextStyle(fontSize: 12),
                               ),
                             ),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                ),
+                            Expanded(
+                              flex: 2,
+                              child: Text(
+                                '₱${r.totalSalesAmount.toStringAsFixed(0)} sales',
+                                style: const TextStyle(
+                                    fontSize: 12.5, fontWeight: FontWeight.w600),
+                              ),
+                            ),
+                            Expanded(
+                              flex: 2,
+                              child: Text(
+                                '₱${r.computedWage.toStringAsFixed(0)} sahod',
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w800,
+                                  color: AdminWebColors.accent,
+                                ),
+                              ),
+                            ),
+                            Expanded(
+                              flex: 2,
+                              child: Text(
+                                'Remittance: ₱${r.expectedCashRemittance.toStringAsFixed(0)}',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: AdminWebColors.success,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ],
               ],
             ),
           ),

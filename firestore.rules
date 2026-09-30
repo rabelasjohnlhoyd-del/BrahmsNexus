@@ -120,7 +120,7 @@ service cloud.firestore {
     // =========================================================================
     match /bilao_orders/{orderId} {
       allow read: if isApprovedStaff();
-      allow create: if isSystemOwner();
+      allow create: if isSystemOwner() || isApprovedStaff();
       allow update: if isSystemOwner() ||
                        (isApprovedStaff() && 
                         !request.resource.data.diff(resource.data).affectedKeys()
@@ -247,6 +247,26 @@ service cloud.firestore {
     // =========================================================================
     match /production_payroll/{payrollId} {
       allow read, write: if isSystemOwner();
+    }
+
+    // =========================================================================
+    // 21. ACTIVITY LOGS & AUDIT TRAIL
+    // System audit logs for tracking actions across web and mobile apps.
+    // =========================================================================
+    match /activity_logs/{logId} {
+      allow read: if isSystemOwner() || isApprovedStaff();
+      allow create: if isSystemOwner() || isApprovedStaff();
+      allow update, delete: if isSystemOwner();
+    }
+
+    // =========================================================================
+    // 22. REAL-TIME BRANCH STATUS OVERVIEW
+    // Real-time store status (isOpen, driverOnWay, cookName, lastUpdated).
+    // Updated via ESP32 RFID taps or driver delivery route actions.
+    // =========================================================================
+    match /branch_status/{branchId} {
+      allow read: if isAuthenticated();
+      allow write: if isSystemOwner() || isApprovedStaff();
     }
 
     // =========================================================================

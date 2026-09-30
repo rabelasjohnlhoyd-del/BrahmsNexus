@@ -19,6 +19,7 @@ class SalesRecord {
     this.totalOrders,
     this.remainingStock,
     this.wage,
+    this.bilaoCommission,
     this.regularSold,
     this.mediumSold,
     this.b1t1OrdersSold,
@@ -35,11 +36,16 @@ class SalesRecord {
   final double commissionRatePerPortion;
   final double totalSalesAmount;
   final int? totalOrders;
+
   /// End-of-day remaining stock submitted by Staff — mirrors what they
   /// entered in the Remaining Stock section of the Sales tab.
   final ActualReceivedCounts? remainingStock;
 
   final double? wage;
+
+  /// Total commission earned from completed Branch Bilao Orders for this day
+  final double? bilaoCommission;
+
   final int? regularSold;
   final int? mediumSold;
   final int? b1t1OrdersSold;
@@ -63,13 +69,15 @@ class SalesRecord {
     return portionsSold;
   }
 
-  /// Auto-computed daily wage — uses stored tiered wage if provided,
-  /// else falls back to WageCalculator or commission rate.
-  double get computedWage =>
+  /// Base wage from karne portions sold
+  double get baseWage =>
       wage ??
       (displayPortions > 0
           ? WageCalculator.computeWage(displayPortions).toDouble()
           : (displayPortions * commissionRatePerPortion));
+
+  /// Auto-computed daily wage — base wage plus any bilao order commissions earned
+  double get computedWage => baseWage + (bilaoCommission ?? 0.0);
 
   /// Cash the Driver should collect from this branch/employee.
   double get expectedCashRemittance => totalSalesAmount - computedWage;

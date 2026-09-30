@@ -189,6 +189,7 @@ class _OwnerBilaoOrdersScreenState extends State<OwnerBilaoOrdersScreen> {
     var selectedSize = BilaoSize.medium;
     var scheduledDateTime = DateTime.now().add(const Duration(hours: 2));
     var fulfillmentType = BilaoFulfillmentType.directDelivery;
+    var orderChannel = BilaoOrderChannel.directToOwner;
     Branch? selectedBranch;
 
     await showCupertinoDialog<void>(
@@ -222,6 +223,82 @@ class _OwnerBilaoOrdersScreenState extends State<OwnerBilaoOrdersScreen> {
                     color: AppColors.background,
                     borderRadius: BorderRadius.circular(8),
                   ),
+                ),
+                const SizedBox(height: 10),
+
+                // Channel toggle (Direct to Owner vs Branch Order)
+                Container(
+                  decoration: BoxDecoration(
+                    color: AppColors.background,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: AppColors.border),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () => setDialogState(() =>
+                              orderChannel = BilaoOrderChannel.directToOwner),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              color: orderChannel == BilaoOrderChannel.directToOwner
+                                  ? AppColors.accent
+                                  : CupertinoColors.transparent,
+                              borderRadius: const BorderRadius.horizontal(
+                                  left: Radius.circular(7)),
+                            ),
+                            child: Text(
+                              'Direct to Owner',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                color: orderChannel == BilaoOrderChannel.directToOwner
+                                    ? CupertinoColors.white
+                                    : AppColors.textSecondary,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () => setDialogState(() =>
+                              orderChannel = BilaoOrderChannel.branchOrder),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              color: orderChannel == BilaoOrderChannel.branchOrder
+                                  ? AppColors.accent
+                                  : CupertinoColors.transparent,
+                              borderRadius: const BorderRadius.horizontal(
+                                  right: Radius.circular(7)),
+                            ),
+                            child: Text(
+                              'Branch Order',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                color: orderChannel == BilaoOrderChannel.branchOrder
+                                    ? CupertinoColors.white
+                                    : AppColors.textSecondary,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  orderChannel == BilaoOrderChannel.branchOrder
+                      ? 'Branch order: May cook commission'
+                      : 'Direct kay Owner: Walang cook commission',
+                  style: const TextStyle(fontSize: 10, color: AppColors.textSecondary),
+                  textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 10),
 
@@ -492,6 +569,7 @@ class _OwnerBilaoOrdersScreenState extends State<OwnerBilaoOrdersScreen> {
                     contactNumber: contact,
                     size: selectedSize,
                     quantity: quantity,
+                    orderChannel: orderChannel,
                     scheduledDateTime: scheduledDateTime,
                     fulfillmentType: fulfillmentType,
                     deliveryAddress:
@@ -809,7 +887,51 @@ class _OwnerBilaoOrdersScreenState extends State<OwnerBilaoOrdersScreen> {
                 fontWeight: FontWeight.w600,
                 color: AppColors.textPrimary),
           ),
-          const SizedBox(height: 2),
+          const SizedBox(height: 4),
+          // Commission badge
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+            decoration: BoxDecoration(
+              color: order.hasCookCommission
+                  ? AppColors.success.withValues(alpha: 0.12)
+                  : AppColors.textSecondary.withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(
+                color: order.hasCookCommission
+                    ? AppColors.success.withValues(alpha: 0.40)
+                    : AppColors.textSecondary.withValues(alpha: 0.25),
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  order.hasCookCommission
+                      ? CupertinoIcons.check_mark_circled_solid
+                      : CupertinoIcons.info_circle,
+                  size: 10,
+                  color: order.hasCookCommission
+                      ? AppColors.success
+                      : AppColors.textSecondary,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  order.hasCookCommission
+                      ? 'BRANCH ORDER (+₱${order.commissionAmount.toStringAsFixed(0)} COOK COMM.)'
+                      : 'DIRECT TO OWNER (NO COMMISSION)',
+                  style: TextStyle(
+                    fontSize: 9.5,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.4,
+                    color: order.hasCookCommission
+                        ? AppColors.success
+                        : AppColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 4),
           // Destination
           Row(
             children: [

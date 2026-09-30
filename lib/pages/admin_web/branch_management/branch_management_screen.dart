@@ -6,6 +6,7 @@ import '../admin_web_shell.dart';
 import '../admin_web_widgets/glass_card.dart';
 import '../admin_web_widgets/admin_pagination_bar.dart';
 import 'branch_form_screen.dart';
+import 'branch_status_screen.dart';
 
 class BranchManagementScreen extends StatefulWidget {
   const BranchManagementScreen({super.key});
@@ -15,6 +16,7 @@ class BranchManagementScreen extends StatefulWidget {
 }
 
 class _BranchManagementScreenState extends State<BranchManagementScreen> {
+  int _selectedTab = 0; // 0: Live Branch Status, 1: Branch Directory
   List<Branch> _branches = List<Branch>.from(kSampleBranches);
   final _searchController = TextEditingController();
   String _query = '';
@@ -78,8 +80,59 @@ class _BranchManagementScreenState extends State<BranchManagementScreen> {
 
   void _updateShellActions() {
     final shell = context.findAncestorStateOfType<AdminWebShellState>();
-    shell?.setTitle(null);
+    shell?.setTitle(_selectedTab == 0 ? 'BRANCH STATUS OVERVIEW' : 'BRANCH MANAGEMENT');
     shell?.setActions([]);
+  }
+
+  Widget _buildTabButton({
+    required int index,
+    required String label,
+    required IconData icon,
+  }) {
+    final isSelected = _selectedTab == index;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () {
+          setState(() => _selectedTab = index);
+          _updateShellActions();
+        },
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+          decoration: BoxDecoration(
+            color: isSelected
+                ? AdminWebColors.accent
+                : Colors.white,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: isSelected
+                  ? AdminWebColors.accent
+                  : AdminWebColors.border,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                icon,
+                size: 16,
+                color: isSelected ? Colors.white : AdminWebColors.textSecondary,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  color: isSelected ? Colors.white : AdminWebColors.textPrimary,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -91,11 +144,31 @@ class _BranchManagementScreenState extends State<BranchManagementScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          const SizedBox(height: 12),
+          // Top Tab Bar
+          Row(
+            children: [
+              _buildTabButton(
+                index: 0,
+                label: 'LIVE STORE STATUS',
+                icon: Icons.store_rounded,
+              ),
+              const SizedBox(width: 10),
+              _buildTabButton(
+                index: 1,
+                label: 'BRANCH DIRECTORY',
+                icon: Icons.format_list_bulleted_rounded,
+              ),
+            ],
+          ),
           const SizedBox(height: 20),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              return Column(
-                children: [
+          if (_selectedTab == 0)
+            const Expanded(child: BranchStatusScreen(isEmbedded: true))
+          else ...[
+            LayoutBuilder(
+              builder: (context, constraints) {
+                return Column(
+                  children: [
                   Align(
                     alignment: Alignment.centerRight,
                     child: ElevatedButton.icon(
@@ -234,6 +307,7 @@ class _BranchManagementScreenState extends State<BranchManagementScreen> {
                         ],
                       ),
           ),
+          ],
         ],
       ),
     );

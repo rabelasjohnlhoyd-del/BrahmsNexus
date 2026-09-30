@@ -682,6 +682,29 @@ class _OrderCard extends StatelessWidget {
                           color: AppColors.textPrimary,
                         ),
                       ),
+                      const SizedBox(height: 3),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: order.hasCookCommission
+                              ? AppColors.success.withValues(alpha: 0.12)
+                              : AppColors.textSecondary.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          order.hasCookCommission
+                              ? 'BRANCH ORDER (+₱${order.commissionAmount.toStringAsFixed(0)} COMMISSION)'
+                              : 'DIRECT TO OWNER (NO COMMISSION)',
+                          style: TextStyle(
+                            fontSize: 9.5,
+                            fontWeight: FontWeight.w800,
+                            color: order.hasCookCommission
+                                ? AppColors.success
+                                : AppColors.textSecondary,
+                          ),
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -963,12 +986,13 @@ class _AddBilaoOrderSheetState extends State<_AddBilaoOrderSheet> {
         fulfillmentType: _isDirectDelivery
             ? BilaoFulfillmentType.directDelivery
             : BilaoFulfillmentType.branchPickup,
-        pickupBranchId:   _isDirectDelivery ? null : widget.branchId,
-        pickupBranchName: _isDirectDelivery ? null : widget.branchName,
-        deliveryAddress:  _isDirectDelivery ? _deliveryAddress : '',
+        orderChannel: BilaoOrderChannel.branchOrder,
+        pickupBranchId: widget.branchId,
+        pickupBranchName: widget.branchName,
+        deliveryAddress: _isDirectDelivery ? _deliveryAddress : '',
         notes: _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
         preparationStatus: PreparationStatus.pending,
-        deliveryStatus:    DeliveryStatus.forDelivery,
+        deliveryStatus: DeliveryStatus.forDelivery,
       );
       await FirestoreService.createBilaoOrder(order);
       if (mounted) Navigator.pop(context);

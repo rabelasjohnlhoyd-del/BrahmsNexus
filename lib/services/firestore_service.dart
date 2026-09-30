@@ -149,6 +149,8 @@ class FirestoreService {
         'scheduledDateTime': Timestamp.fromDate(order.scheduledDateTime),
         'deliveryAddress': order.deliveryAddress,
         'fulfillmentType': order.fulfillmentType.name,
+        'orderChannel': order.orderChannel.name,
+        'commissionAmount': order.commissionAmount,
         'pickupBranchId': order.pickupBranchId,
         'pickupBranchName': order.pickupBranchName,
         'notes': order.notes,
@@ -455,6 +457,12 @@ class FirestoreService {
 
     final createdTs = data['createdAt'] as Timestamp?;
 
+    final channelStr = data['orderChannel']?.toString() ?? 'branchOrder';
+    final orderChannel = BilaoOrderChannel.values.firstWhere(
+      (e) => e.name == channelStr,
+      orElse: () => BilaoOrderChannel.branchOrder,
+    );
+
     return BilaoOrder(
       id: doc.id,
       customerName: data['customerName']?.toString() ?? '',
@@ -464,6 +472,7 @@ class FirestoreService {
       scheduledDateTime: scheduledDate,
       deliveryAddress: data['deliveryAddress']?.toString() ?? '',
       fulfillmentType: fulfillType,
+      orderChannel: orderChannel,
       pickupBranchId: data['pickupBranchId']?.toString(),
       pickupBranchName: data['pickupBranchName']?.toString(),
       notes: data['notes']?.toString(),
@@ -890,6 +899,7 @@ class FirestoreService {
         'computedWage': sales.computedWage,
         'expectedCashRemittance': sales.expectedCashRemittance,
         'wage': sales.wage ?? sales.computedWage,
+        'bilaoCommission': sales.bilaoCommission ?? 0.0,
         'regularSold': sales.regularSold,
         'mediumSold': sales.mediumSold,
         'b1t1OrdersSold': sales.b1t1OrdersSold,
@@ -1077,6 +1087,7 @@ class FirestoreService {
           commissionRatePerPortion: (data['commissionRatePerPortion'] as num?)?.toDouble() ?? 5.0,
           totalSalesAmount: (data['totalSalesAmount'] as num?)?.toDouble() ?? 0.0,
           wage: (data['wage'] as num?)?.toDouble() ?? (data['computedWage'] as num?)?.toDouble(),
+          bilaoCommission: (data['bilaoCommission'] as num?)?.toDouble() ?? 0.0,
           regularSold: (data['regularSold'] as num?)?.toInt(),
           mediumSold: (data['mediumSold'] as num?)?.toInt(),
           b1t1OrdersSold: (data['b1t1OrdersSold'] as num?)?.toInt(),

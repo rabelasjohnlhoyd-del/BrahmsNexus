@@ -109,11 +109,27 @@ class FinancialPeriod {
       totalDailyFixedOverheads;
 
   // --- BOTTOM LINE ---
-  double get netMav => grossRevenue - totalExpenses;
+  /// Operating Profit (Gross Revenue - Total Expenses)
+  double get operatingProfit => grossRevenue - totalExpenses;
 
-  // Difference between Net Profit and Invested Capital
-  double get roiDifference => netMav - roiInvestment;
-  bool get isRoiAchieved => netMav >= roiInvestment;
+  /// Net Mav (Tunay na Kita ni Sir Mav pagkatapos mabawi ang ininvest na kapital).
+  /// Naka-0 ito hangga't hindi pa nababawi ang buong puhunan para sa buwang ito.
+  double get netMav {
+    final profit = operatingProfit;
+    if (profit <= roiInvestment) return 0.0;
+    return profit - roiInvestment;
+  }
+
+  /// Halaga na kailangan pang kitain bago mabawi ang buong puhunan
+  double get capitalRemainingToRecover {
+    final profit = operatingProfit;
+    if (profit >= roiInvestment) return 0.0;
+    return roiInvestment - profit;
+  }
+
+  // Difference between Operating Profit and Invested Capital
+  double get roiDifference => operatingProfit - roiInvestment;
+  bool get isRoiAchieved => operatingProfit >= roiInvestment;
 
   int get workingDaysCount =>
       driverWorkingDays > 0 ? driverWorkingDays : dailyOverheads.length;

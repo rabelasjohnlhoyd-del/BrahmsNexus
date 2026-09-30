@@ -114,6 +114,34 @@ enum BilaoFulfillmentType {
   }
 }
 
+/// Order channel/source confirmed by client:
+/// - branchOrder: Customer placed order directly via branch walk-in / branch phone.
+///   Branch Cook gets the commission (+₱62, +₱87, +₱125) once completed.
+/// - directToOwner: Customer placed order directly with Owner / Main Office.
+///   Branch Cook gets ₱0 commission.
+enum BilaoOrderChannel {
+  branchOrder,
+  directToOwner;
+
+  String get label {
+    switch (this) {
+      case BilaoOrderChannel.branchOrder:
+        return 'Branch Order';
+      case BilaoOrderChannel.directToOwner:
+        return 'Direct to Owner';
+    }
+  }
+
+  String get commissionBadge {
+    switch (this) {
+      case BilaoOrderChannel.branchOrder:
+        return 'With Cook Commission';
+      case BilaoOrderChannel.directToOwner:
+        return 'No Commission';
+    }
+  }
+}
+
 /// A confirmed advance/special bilao order recorded by the Owner or Staff after
 /// receiving it via Messenger/phone or in-store walk-in.
 class BilaoOrder {
@@ -126,6 +154,7 @@ class BilaoOrder {
     required this.scheduledDateTime,
     this.deliveryAddress = '',
     this.fulfillmentType = BilaoFulfillmentType.directDelivery,
+    this.orderChannel = BilaoOrderChannel.branchOrder,
     this.pickupBranchId,
     this.pickupBranchName,
     this.notes,
@@ -143,6 +172,7 @@ class BilaoOrder {
   final DateTime scheduledDateTime;
   final String deliveryAddress;
   final BilaoFulfillmentType fulfillmentType;
+  final BilaoOrderChannel orderChannel;
   final String? pickupBranchId;
   final String? pickupBranchName;
   final String? notes;
@@ -153,6 +183,13 @@ class BilaoOrder {
 
   double get effectiveUnitPrice => unitPrice ?? size.price;
   double get totalAmount => effectiveUnitPrice * quantity;
+
+  /// Cook commission is ONLY awarded if the order originated from the Branch.
+  /// Direct orders to Owner yield ₱0 commission to the branch cook.
+  double get commissionAmount =>
+      orderChannel == BilaoOrderChannel.branchOrder ? (size.commission * quantity) : 0.0;
+
+  bool get hasCookCommission => orderChannel == BilaoOrderChannel.branchOrder;
 
   bool get isBranchPickup => fulfillmentType == BilaoFulfillmentType.branchPickup;
 
@@ -174,6 +211,7 @@ class BilaoOrder {
     DateTime? scheduledDateTime,
     String? deliveryAddress,
     BilaoFulfillmentType? fulfillmentType,
+    BilaoOrderChannel? orderChannel,
     String? pickupBranchId,
     String? pickupBranchName,
     String? notes,
@@ -191,6 +229,7 @@ class BilaoOrder {
       scheduledDateTime: scheduledDateTime ?? this.scheduledDateTime,
       deliveryAddress: deliveryAddress ?? this.deliveryAddress,
       fulfillmentType: fulfillmentType ?? this.fulfillmentType,
+      orderChannel: orderChannel ?? this.orderChannel,
       pickupBranchId: pickupBranchId ?? this.pickupBranchId,
       pickupBranchName: pickupBranchName ?? this.pickupBranchName,
       notes: notes ?? this.notes,
