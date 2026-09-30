@@ -147,6 +147,7 @@ class _StockTransferScreenState extends State<StockTransferScreen> {
                           onPageChanged: (page) => setState(() => _deliveredPage = page),
                         ),
                       ],
+                      const SizedBox(height: 100),
                     ],
                   );
                 },

@@ -460,7 +460,7 @@ class _BilaoDeliveriesScreenState extends State<BilaoDeliveriesScreen> {
                           ),
                         )
                       : ListView.separated(
-                          padding: const EdgeInsets.all(16),
+                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
                           itemCount: _filteredOrders.length,
                           separatorBuilder: (_, _) => const SizedBox(height: 12),
                           itemBuilder: (context, index) {

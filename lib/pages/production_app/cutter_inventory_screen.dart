@@ -151,7 +151,7 @@ class _CutterInventoryScreenState extends State<CutterInventoryScreen> {
               pageSize: _pageSize,
               onPageChanged: (page) => setState(() => _currentPage = page),
             ),
-            const SizedBox(height: 40),
+            const SizedBox(height: 100),
           ],
         ),
       ),

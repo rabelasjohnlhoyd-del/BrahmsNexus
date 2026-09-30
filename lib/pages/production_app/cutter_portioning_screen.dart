@@ -582,7 +582,7 @@ class _CutterPortioningScreenState extends State<CutterPortioningScreen> {
                   onPressed: _submitPortions,
                 ),
               ),
-            const SizedBox(height: 40),
+            const SizedBox(height: 100),
           ],
         ),
       ),

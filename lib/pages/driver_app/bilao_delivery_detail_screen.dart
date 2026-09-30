@@ -176,6 +176,7 @@ class _BilaoDeliveryDetailScreenState
                     ),
                   ],
                 ),
+              const SizedBox(height: 40),
             ],
           ),
         ),

@@ -251,6 +251,7 @@ class _StaffBilaoOrdersScreenState extends State<StaffBilaoOrdersScreen> {
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
+      useRootNavigator: true,
       backgroundColor: Colors.transparent,
       builder: (_) => _AddBilaoOrderSheet(
         branchId: _currentBranchId,
@@ -541,7 +542,7 @@ class _StaffBilaoOrdersScreenState extends State<StaffBilaoOrdersScreen> {
                           ),
                         )
                       : ListView.separated(
-                          padding: const EdgeInsets.all(16),
+                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
                           itemCount: _filteredOrders.length,
                           separatorBuilder: (_, _) =>
                               const SizedBox(height: 10),

@@ -1261,7 +1261,7 @@ class _HomepageScreenState extends State<HomepageScreen> with WidgetsBindingObse
                 );
               },
             ),
-            const SizedBox(height: 80),
+            const SizedBox(height: 100),
           ],
         ),
       ),

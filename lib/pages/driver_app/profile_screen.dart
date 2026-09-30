@@ -151,7 +151,7 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
                   textColor: AppColors.error,
                   onPressed: () => _confirmLogout(context),
                 ),
-                const SizedBox(height: 80),
+                const SizedBox(height: 100),
               ],
             ),
           ),
@@ -179,8 +179,7 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
                 fontSize: 28,
                 showEditBadge: true,
                 onTap: () {
-                  Navigator.push(
-                    context,
+                  Navigator.of(context, rootNavigator: true).push(
                     CupertinoPageRoute(
                       builder: (_) => const EditProfileScreen(),
                     ),

@@ -266,6 +266,7 @@ class _DriverNotificationsScreenState extends State<DriverNotificationsScreen> {
                             pageSize: _pageSize,
                             onPageChanged: (page) => setState(() => _currentPage = page),
                           ),
+                          const SizedBox(height: 100),
                         ],
                       );
                     },

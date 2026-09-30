@@ -930,6 +930,7 @@ class _SalesScreenState extends State<SalesScreen> {
                   ),
                 ),
               ),
+            const SizedBox(height: 100),
           ],
         ),
       ),

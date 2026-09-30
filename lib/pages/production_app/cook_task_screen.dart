@@ -398,7 +398,7 @@ class _CookTaskScreenState extends State<CookTaskScreen> {
                 );
               },
             ),
-            const SizedBox(height: 40),
+            const SizedBox(height: 100),
           ],
         ),
       ),

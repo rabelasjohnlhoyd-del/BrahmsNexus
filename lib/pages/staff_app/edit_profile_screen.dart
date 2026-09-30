@@ -395,14 +395,23 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   Widget build(BuildContext context) {
     final bool isAnyEditing = _editingField != null;
 
-    return CupertinoPageScaffold(
-      backgroundColor: AppColors.background,
-      navigationBar: const StaffNavBar(
-        title: 'Edit Profile',
-        showBackButton: true,
+    return CupertinoTheme(
+      data: const CupertinoThemeData(
+        brightness: Brightness.light,
+        primaryColor: AppColors.accent,
+        scaffoldBackgroundColor: AppColors.background,
+        barBackgroundColor: CupertinoColors.white,
       ),
-      child: SafeArea(
-        child: Column(
+      child: Material(
+        color: AppColors.background,
+        child: CupertinoPageScaffold(
+          backgroundColor: AppColors.background,
+          navigationBar: const StaffNavBar(
+            title: 'Edit Profile',
+            showBackButton: true,
+          ),
+          child: SafeArea(
+            child: Column(
           children: [
             Expanded(
               child: ListView(
@@ -566,7 +575,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           ],
         ),
       ),
-    );
+    ),
+  ),
+);
   }
 
   Widget _infoRow({required String label, required String value}) {

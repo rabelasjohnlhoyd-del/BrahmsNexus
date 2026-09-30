@@ -293,6 +293,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                             pageSize: _pageSize,
                             onPageChanged: (page) => setState(() => _currentPage = page),
                           ),
+                          const SizedBox(height: 100),
                         ],
                       );
                     },

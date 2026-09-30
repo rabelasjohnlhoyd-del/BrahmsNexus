@@ -17,6 +17,7 @@ class AddressEditDialog extends StatefulWidget {
     return showModalBottomSheet<String>(
       context: context,
       isScrollControlled: true,
+      useRootNavigator: true,
       backgroundColor: Colors.transparent,
       builder: (_) => AddressEditDialog(initialAddress: initialAddress),
     );

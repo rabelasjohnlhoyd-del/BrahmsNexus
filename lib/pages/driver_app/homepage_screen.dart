@@ -540,7 +540,7 @@ class _DriverHomepageScreenState extends State<DriverHomepageScreen> {
                 );
               },
             ),
-            const SizedBox(height: 80),
+            const SizedBox(height: 100),
           ],
         ),
       ),
