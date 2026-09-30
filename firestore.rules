@@ -40,11 +40,6 @@ service cloud.firestore {
              (isSystemOwner() || (userDocExists() && getUserData().status == 'approved'));
     }
 
-    // Validates string length for data sanity
-    function isValidString(val, minLen, maxLen) {
-      return val is string && val.size() >= minLen && val.size() <= maxLen;
-    }
-
     // =========================================================================
     // 1. USERS COLLECTION
     // Holds authentication mapping, roles, statuses, and staff details.
@@ -234,6 +229,24 @@ service cloud.firestore {
     // =========================================================================
     match /email_otps/{email} {
       allow read, write: if true;
+    }
+
+    // =========================================================================
+    // 19. MONTHLY FINANCIALS & ROI PERIODS
+    // Confidential business financials, ROI tracking, expenses & net profit.
+    // Strictly restricted to System Owner / Admin only.
+    // =========================================================================
+    match /monthly_financials/{periodId} {
+      allow read, write: if isSystemOwner();
+    }
+
+    // =========================================================================
+    // 20. PRODUCTION & DRIVER PAYROLL RECORDS
+    // Dedicated payroll adjustments and logs for Production Staff and Driver.
+    // Strictly restricted to System Owner / Admin only.
+    // =========================================================================
+    match /production_payroll/{payrollId} {
+      allow read, write: if isSystemOwner();
     }
 
     // =========================================================================

@@ -167,15 +167,32 @@ class _OwnerInventoryScreenState extends State<OwnerInventoryScreen> {
       _batches.fold(0, (sum, b) => sum + b.totalPcsNagawa);
 
   void _refreshFinancialsFromBatches() {
+    int c250 = 0;
+    int c300 = 0;
+    int c400 = 0;
+    int sessions = 0;
+    for (var b in _batches) {
+      if (b.sessions.isNotEmpty) {
+        for (var s in b.sessions) {
+          sessions++;
+          c250 += s.actual250g ?? 0;
+          c300 += s.actual300g ?? 0;
+          c400 += s.actual400g ?? 0;
+        }
+      } else {
+        c250 += b.actual250g ?? 0;
+        c300 += b.actual300g ?? 0;
+        c400 += b.actual400g ?? 0;
+      }
+    }
+
     setState(() {
-      _period = FinancialPeriod(
-        id: _period.id,
-        monthName: _period.monthName,
-        year: _period.year,
-        productionPcs: _totalPcsFromBatches(),
-        productionLaborDays: _period.productionLaborDays,
-        dailyOverheads: _period.dailyOverheads,
-        procurementGroups: _period.procurementGroups,
+      _period = _period.copyWith(
+        regular250gCount: c250 > 0 ? c250 : _period.regular250gCount,
+        medium300gCount: c300 > 0 ? c300 : _period.medium300gCount,
+        b1t1400gCount: c400 > 0 ? c400 : _period.b1t1400gCount,
+        productionCookingSessions:
+            sessions > 0 ? sessions : _period.productionCookingSessions,
       );
     });
   }

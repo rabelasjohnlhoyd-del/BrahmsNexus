@@ -9,9 +9,11 @@ import '../models/branch_assignment.dart';
 import '../models/branch_daily_inventory.dart';
 import '../models/branch_meat_inventory.dart';
 import '../models/daily_report.dart';
+import '../models/financial_period.dart';
 import '../models/inventory_batch.dart';
 import '../models/meat_dispatch.dart';
 import '../models/app_notification.dart';
+import '../models/procurement_list.dart';
 import '../models/sales_record.dart';
 import '../models/staff_member.dart';
 import '../models/supply_request.dart';
@@ -2734,6 +2736,77 @@ class FirestoreService {
       return false;
     }
   }
+
+  // ===========================================================================
+  // 17. MONTHLY FINANCIALS & ROI PERIODS
+  // ===========================================================================
+
+  /// Default procurement categories if a new period is initialized.
+  static List<ProcurementGroup> get defaultProcurementGroups => [
+        ProcurementGroup(id: 'pg1', title: 'LPG 6 STORE', items: [
+          ProcurementItem(id: 'i1', name: 'Labuin', price: 1065, isPaid: true),
+          ProcurementItem(id: 'i2', name: 'Nanhaya', price: 1065, isPaid: true),
+          ProcurementItem(id: 'i3', name: 'San Francisco', price: 1065, isPaid: true),
+          ProcurementItem(id: 'i4', name: 'Dayap', price: 1065, isPaid: true),
+          ProcurementItem(id: 'i5', name: 'Gatid', price: 1065, isPaid: true),
+          ProcurementItem(id: 'i6', name: 'Pila', price: 1065, isPaid: true),
+        ]),
+        ProcurementGroup(id: 'pg2', title: 'INHOUSE INGREDIENTS', items: [
+          ProcurementItem(id: 'i7', name: 'Styro 30 bundle', price: 3900, isPaid: true),
+          ProcurementItem(id: 'i8', name: 'Sili budget', price: 1220, isPaid: true),
+          ProcurementItem(id: 'i9', name: 'Sibuyas budget', price: 5040, isPaid: true),
+          ProcurementItem(id: 'i10', name: '9 box mayo', price: 10822.5, isPaid: true),
+          ProcurementItem(id: 'i11', name: 'Suka 2pcs', price: 38, isPaid: true),
+          ProcurementItem(id: 'i12', name: 'Ellies Toyo 2pcs', price: 204, isPaid: true),
+          ProcurementItem(id: 'i13', name: 'Knorr shopee 3pcs', price: 1494, isPaid: true),
+          ProcurementItem(id: 'i14', name: 'Sando bag 6000pcs', price: 600, isPaid: true),
+          ProcurementItem(id: 'i15', name: 'Patok 3000pcs', price: 264, isPaid: true),
+          ProcurementItem(id: 'i16', name: 'Sampgta 3000pcs', price: 255, isPaid: true),
+          ProcurementItem(id: 'i17', name: 'Finest 200pcs', price: 164, isPaid: true),
+        ]),
+        ProcurementGroup(id: 'pg3', title: 'PRODUCTION INGREDIENTS & LPG BIG', items: [
+          ProcurementItem(id: 'p1', name: 'Asin 380', price: 380, isPaid: true),
+          ProcurementItem(id: 'p2', name: 'Laurel 200', price: 200, isPaid: true),
+          ProcurementItem(id: 'p3', name: 'Datu puti 210', price: 210, isPaid: true),
+          ProcurementItem(id: 'p4', name: 'Paminta online 541', price: 541, isPaid: true),
+          ProcurementItem(id: 'p5', name: 'Vetsin shopee online 245', price: 245, isPaid: true),
+          ProcurementItem(id: 'p6', name: 'Gasul 4650 2 set na gamitan', price: 4650, isPaid: true),
+        ]),
+        ProcurementGroup(id: 'pg4', title: 'SECRET INGREDIENTS FOR MAYO SAUCE', items: [
+          ProcurementItem(id: 's1', name: 'Knorr oyster sauce 646', price: 646, isPaid: true),
+          ProcurementItem(id: 's2', name: 'Paminta pino 411', price: 411, isPaid: true),
+          ProcurementItem(id: 's3', name: 'Garlic powder 315', price: 315, isPaid: true),
+          ProcurementItem(id: 's4', name: 'Original vetsin shopee 193.5', price: 193.5, isPaid: true),
+          ProcurementItem(id: 's5', name: 'Liver spread 19pcs', price: 408.5, isPaid: true),
+        ]),
+      ];
+
+  /// Streams real-time monthly financial period by periodId (e.g. '2026_09').
+  static Stream<FinancialPeriod?> watchMonthlyFinancialPeriod(String periodId) {
+    return _db.collection('monthly_financials').doc(periodId).snapshots().map((snap) {
+      if (!snap.exists || snap.data() == null) {
+        return null;
+      }
+      return FinancialPeriod.fromMap(snap.data()!, snap.id);
+    });
+  }
+
+  /// Saves or updates monthly financial period in Firestore.
+  static Future<bool> saveMonthlyFinancialPeriod(FinancialPeriod period) async {
+    try {
+      final data = period.toMap();
+      data['updatedAt'] = FieldValue.serverTimestamp();
+      await _db
+          .collection('monthly_financials')
+          .doc(period.id)
+          .set(data, SetOptions(merge: true));
+      return true;
+    } catch (e) {
+      debugPrint('FirestoreService.saveMonthlyFinancialPeriod error: $e');
+      return false;
+    }
+  }
 }
+
 
 
