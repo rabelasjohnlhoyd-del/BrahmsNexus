@@ -45,7 +45,7 @@ class _MonthlyFinancialsScreenState extends State<MonthlyFinancialsScreen> {
       monthName: _getMonthName(now.month),
       year: now.year,
       notes:
-          'KUNG MAKUKUHA NG 20 DAYS 150 SALES PER DAY MAY SAVE PA AKONG LABOR.',
+          'IF 150 SALES PER DAY CAN BE ACHIEVED FOR 20 DAYS, LABOR COSTS WILL BE REDUCED.',
       roiInvestment: 165000.0,
       regular250gCount: counts.count250g,
       medium300gCount: counts.count300g,
@@ -200,12 +200,12 @@ class _MonthlyFinancialsScreenState extends State<MonthlyFinancialsScreen> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Edit Notes ni Sir Mav'),
+        title: const Text('Edit Owner Monthly Notes'),
         content: TextField(
           controller: ctrl,
           maxLines: 4,
           decoration: const InputDecoration(
-            hintText: 'Ilagay ang target, reminders o notes para sa buwan...',
+            hintText: 'Enter targets, reminders, or notes for the month...',
             border: OutlineInputBorder(),
           ),
         ),
@@ -235,13 +235,13 @@ class _MonthlyFinancialsScreenState extends State<MonthlyFinancialsScreen> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Set Capital / Ininvest Ngayong Buwan (R.O.I)'),
+        title: const Text('Set Monthly Capital / Investment (R.O.I)'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'Magkano ang kabuuang kapital o investment na inilaan para sa buwang ito? Gagamitin ito upang malaman kung nabawi na ang puhunan.',
+              'How much total capital or investment was allocated for this month? This is used to determine return on investment (R.O.I).',
               style: TextStyle(fontSize: 12.5, color: AdminWebColors.textSecondary),
             ),
             const SizedBox(height: 16),
@@ -346,7 +346,7 @@ class _MonthlyFinancialsScreenState extends State<MonthlyFinancialsScreen> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text('Add Item sa ${group.title}'),
+        title: Text('Add Item to ${group.title}'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -354,7 +354,7 @@ class _MonthlyFinancialsScreenState extends State<MonthlyFinancialsScreen> {
               controller: nameCtrl,
               decoration: const InputDecoration(
                 labelText: 'Item Name',
-                hintText: 'Hal. Labuin Extra LPG',
+                hintText: 'e.g. Labuin Extra LPG',
               ),
             ),
             const SizedBox(height: 12),
@@ -401,21 +401,21 @@ class _MonthlyFinancialsScreenState extends State<MonthlyFinancialsScreen> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Magdagdag ng Bagong Procurement Category / Section'),
+        title: const Text('Add New Procurement Category / Section'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'Halimbawa: TUBIG & WATER EXPENSES, CLEANING SUPPLIES, O IBA PANG GASTOS.',
+              'Example: WATER & UTILITIES, CLEANING SUPPLIES, OR OTHER EXPENSES.',
               style: TextStyle(fontSize: 12, color: AdminWebColors.textSecondary),
             ),
             const SizedBox(height: 14),
             TextField(
               controller: titleCtrl,
               decoration: const InputDecoration(
-                labelText: 'Pangalan ng Kategorya',
-                hintText: 'Hal. TUBIG & WATER EXPENSES',
+                labelText: 'Category Name',
+                hintText: 'e.g. WATER & UTILITIES',
                 border: OutlineInputBorder(),
               ),
             ),
@@ -454,7 +454,7 @@ class _MonthlyFinancialsScreenState extends State<MonthlyFinancialsScreen> {
       builder: (ctx) => AlertDialog(
         title: Text('Delete ${group.title}?'),
         content: Text(
-          'Sigurado ka bang nais mong burahin ang kategoryang "${group.title}" kasama ang lahat ng items nito?',
+          'Are you sure you want to delete the category "${group.title}" and all its items?',
         ),
         actions: [
           TextButton(
@@ -499,7 +499,7 @@ class _MonthlyFinancialsScreenState extends State<MonthlyFinancialsScreen> {
               controller: sessionsCtrl,
               decoration: const InputDecoration(
                 labelText: 'Total Cooking Sessions',
-                helperText: 'Kukunin din sa Warehouse cooking sessions',
+                helperText: 'Also pulled from Warehouse cooking sessions',
               ),
               keyboardType: TextInputType.number,
             ),
@@ -565,7 +565,7 @@ class _MonthlyFinancialsScreenState extends State<MonthlyFinancialsScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'Araw-araw ay ₱650 ang sahod ni Driver. Kung may araw na umabsent siya at si Owner ang nag-drive, ibawas dito ang bilang ng araw.',
+              'The driver daily rate is ₱650. If the driver was absent and the owner drove instead, deduct those days here.',
               style: TextStyle(fontSize: 12, color: AdminWebColors.textSecondary),
             ),
             const SizedBox(height: 16),
@@ -677,7 +677,7 @@ class _MonthlyFinancialsScreenState extends State<MonthlyFinancialsScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  'NOTES NI SIR MAV',
+                  'OWNER NOTES',
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w900,
@@ -689,7 +689,7 @@ class _MonthlyFinancialsScreenState extends State<MonthlyFinancialsScreen> {
                 Text(
                   _period.notes.isNotEmpty
                       ? _period.notes
-                      : 'Walang nakalagay na notes. I-click ang edit para maglagay ng paalala para sa buwang ito.',
+                      : 'No notes added yet. Click edit to add reminders for this month.',
                   style: const TextStyle(
                     fontSize: 13.5,
                     fontWeight: FontWeight.w600,
@@ -761,7 +761,7 @@ class _MonthlyFinancialsScreenState extends State<MonthlyFinancialsScreen> {
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Text(
-                        isAchieved ? 'NABAWING PUHUNAN' : 'IN PROGRESS',
+                        isAchieved ? 'ROI ACHIEVED' : 'IN PROGRESS',
                         style: TextStyle(
                           fontSize: 10,
                           fontWeight: FontWeight.w900,
@@ -777,7 +777,7 @@ class _MonthlyFinancialsScreenState extends State<MonthlyFinancialsScreen> {
                 Row(
                   children: [
                     Text(
-                      'Ininvest: ₱${_period.roiInvestment.toStringAsFixed(0)}',
+                      'Invested: ₱${_period.roiInvestment.toStringAsFixed(0)}',
                       style: const TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w800,
@@ -787,8 +787,8 @@ class _MonthlyFinancialsScreenState extends State<MonthlyFinancialsScreen> {
                     const SizedBox(width: 16),
                     Text(
                       isAchieved
-                          ? 'Sobra sa Puhunan: +₱${roiDiff.toStringAsFixed(0)}'
-                          : 'Kulang pa bago makabawi: ₱${(-roiDiff).toStringAsFixed(0)}',
+                          ? 'Net Return above Investment: +₱${roiDiff.toStringAsFixed(0)}'
+                          : 'Remaining to Break Even: ₱${(-roiDiff).toStringAsFixed(0)}',
                       style: TextStyle(
                         fontSize: 13.5,
                         fontWeight: FontWeight.w700,
@@ -958,7 +958,7 @@ class _MonthlyFinancialsScreenState extends State<MonthlyFinancialsScreen> {
                     ),
                   ),
                   Text(
-                    'Kusang kinalkula mula sa mga cooking session sa Main Warehouse',
+                    'Automatically calculated from cooking sessions in Main Warehouse',
                     style: TextStyle(
                       fontSize: 11,
                       color: AdminWebColors.textSecondary,
@@ -1163,7 +1163,7 @@ class _MonthlyFinancialsScreenState extends State<MonthlyFinancialsScreen> {
                       onPressed: () => _addNewProcurementItem(group),
                       icon: const Icon(Icons.add_circle_outline_rounded,
                           size: 20, color: AdminWebColors.accent),
-                      tooltip: 'Add item sa ${group.title}',
+                      tooltip: 'Add item to ${group.title}',
                     ),
                     IconButton(
                       onPressed: () => _deleteCategory(group),
@@ -1210,7 +1210,7 @@ class _MonthlyFinancialsScreenState extends State<MonthlyFinancialsScreen> {
                     ),
                   ),
                   const Text(
-                    'I-tap para baguhin ang pangalan o presyo',
+                    'Tap to edit name or price',
                     style: TextStyle(
                       fontSize: 10,
                       color: AdminWebColors.textSecondary,
@@ -1270,7 +1270,7 @@ class _MonthlyFinancialsScreenState extends State<MonthlyFinancialsScreen> {
                 ),
               ),
               Text(
-                'KABUUANG LABOR: ₱${(_period.totalProductionLaborCost + _period.totalDriverLaborCost + _period.effectiveBranchCookLabor + _period.totalDailyFixedOverheads).toStringAsFixed(0)}',
+                'TOTAL LABOR: ₱${(_period.totalProductionLaborCost + _period.totalDriverLaborCost + _period.effectiveBranchCookLabor + _period.totalDailyFixedOverheads).toStringAsFixed(0)}',
                 style: const TextStyle(
                   fontWeight: FontWeight.w900,
                   fontSize: 13,
@@ -1295,23 +1295,23 @@ class _MonthlyFinancialsScreenState extends State<MonthlyFinancialsScreen> {
           _overheadRow(
             'Branch Cooks Labor (6 Stores)',
             '₱${_period.effectiveBranchCookLabor.toStringAsFixed(0)}',
-            sub: 'Kusang kinukuha sa Sales & Payroll ng mga Branch Cook',
+            sub: 'Automatically synced from Branch Cook Sales & Payroll',
           ),
           const Divider(height: 28),
 
           // 3. Driver Labor
           _overheadRowWithAction(
-            label: 'Driver Labor (Sahod ng Driver)',
+            label: 'Driver Labor (Driver Wages)',
             val: '₱${_period.totalDriverLaborCost.toStringAsFixed(0)}',
             sub:
-                '${_period.driverWorkingDays} Araw × ₱${_period.driverDailyWage.toStringAsFixed(0)} araw-araw (I-edit kung may absent)',
+                '${_period.driverWorkingDays} Days × ₱${_period.driverDailyWage.toStringAsFixed(0)} daily rate (Edit if absent)',
             onEdit: _editDriverLaborSettings,
           ),
           const Divider(height: 28),
 
           // 4. Fixed Store Overheads
           const Text(
-            'Fixed Store Overheads (Araw-araw kada may pasok ang mga Branch Cook):',
+            'Fixed Store Overheads (Daily whenever branch cooks are on duty):',
             style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w700,
@@ -1320,7 +1320,7 @@ class _MonthlyFinancialsScreenState extends State<MonthlyFinancialsScreen> {
           ),
           const SizedBox(height: 8),
           _overheadRow(
-            'Total Rent & Butaw',
+            'Total Rent & Stall Fees',
             '₱${(_period.driverWorkingDays * _period.dailyButawRate).toStringAsFixed(0)}',
             sub: '${_period.driverWorkingDays} days × ₱${_period.dailyButawRate.toStringAsFixed(0)}',
           ),
@@ -1337,7 +1337,7 @@ class _MonthlyFinancialsScreenState extends State<MonthlyFinancialsScreen> {
 
           const Divider(height: 36, thickness: 1.5),
           _overheadRow(
-            'KABUUANG GASTOS SA LABOR & OVERHEADS',
+            'TOTAL LABOR & OVERHEAD EXPENSES',
             '₱${(_period.totalProductionLaborCost + _period.totalDriverLaborCost + _period.effectiveBranchCookLabor + _period.totalDailyFixedOverheads).toStringAsFixed(0)}',
             isTotal: true,
           ),

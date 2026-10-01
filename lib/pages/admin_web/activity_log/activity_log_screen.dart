@@ -183,8 +183,8 @@ class _ActivityLogScreenState extends State<ActivityLogScreen> {
                       const SizedBox(height: 12),
                       Text(
                         _selectedType == null
-                            ? 'Walang naitalang activity logs sa database.'
-                            : 'Walang activity logs para sa kategoryang $_selectedType.',
+                            ? 'No activity logs recorded in the database.'
+                            : 'No activity logs found for category $_selectedType.',
                         style: const TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
@@ -193,7 +193,7 @@ class _ActivityLogScreenState extends State<ActivityLogScreen> {
                       ),
                       const SizedBox(height: 6),
                       const Text(
-                        'Kusang lilitaw dito kapag may na-approve na account, na-deliver na bilao, o naipasang EOD report.',
+                        'Logs will automatically appear here when accounts are approved, bilao orders are delivered, or EOD reports are submitted.',
                         style: TextStyle(
                           fontSize: 12,
                           color: AdminWebColors.textSecondary,

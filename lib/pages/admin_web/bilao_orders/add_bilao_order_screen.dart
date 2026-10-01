@@ -320,7 +320,7 @@ class _AddBilaoOrderScreenState extends State<AddBilaoOrderScreen> {
 
                         // ── ORDER CHANNEL / COMMISSION SOURCE ──────────────
                         const Text(
-                          'SINO ANG NAKA-ORDER? (PARA SA COOK COMMISSION)',
+                          'ORDER SOURCE (FOR COOK COMMISSION)',
                           style: TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.w800,
@@ -345,7 +345,7 @@ class _AddBilaoOrderScreenState extends State<AddBilaoOrderScreen> {
                               SizedBox(width: 8),
                               Expanded(
                                 child: Text(
-                                  'Kung Branch ang nag-receive ng order, may commission ang Branch Cook. Kung Owner/Admin ang naka-receive, walang commission.',
+                                  'If a branch received the order, the branch cook earns a commission. If Owner/Admin received the order directly, no cook commission applies.',
                                   style: TextStyle(
                                     fontSize: 11.5,
                                     color: AdminWebColors.textSecondary,
@@ -450,7 +450,7 @@ class _AddBilaoOrderScreenState extends State<AddBilaoOrderScreen> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 const Text(
-                                  'PILIIN ANG BRANCH KUNG SAAN NAKA-PWERSTO O NAG-AANTAY',
+                                  'SELECT BRANCH FOR PICKUP / WAITING SPOT',
                                   style: TextStyle(
                                     fontSize: 10.5,
                                     fontWeight: FontWeight.w700,
@@ -483,7 +483,7 @@ class _AddBilaoOrderScreenState extends State<AddBilaoOrderScreen> {
                                   controller: _notesController,
                                   decoration: const InputDecoration(
                                     labelText: 'WAITING SPOT / NOTES (OPTIONAL)',
-                                    hintText: 'e.g. Naka-pwesto sa table / nag-aantay sa store counter',
+                                    hintText: 'e.g. Seated at Table 2 / waiting at store counter',
                                     isDense: true,
                                     prefixIcon: Icon(Icons.edit_note_rounded, size: 20),
                                   ),
@@ -504,7 +504,7 @@ class _AddBilaoOrderScreenState extends State<AddBilaoOrderScreen> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 const Text(
-                                  'ILAGAY ANG COMPLETE DELIVERY ADDRESS',
+                                  'ENTER COMPLETE DELIVERY ADDRESS',
                                   style: TextStyle(
                                     fontSize: 10.5,
                                     fontWeight: FontWeight.w700,

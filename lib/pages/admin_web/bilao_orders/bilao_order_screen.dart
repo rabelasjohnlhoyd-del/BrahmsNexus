@@ -38,7 +38,7 @@ class _BilaoOrderScreenState extends State<BilaoOrderScreen> {
       fulfillmentType: BilaoFulfillmentType.branchPickup,
       pickupBranchId: 'br1',
       pickupBranchName: 'Brgy. Gatid, Sta. Cruz',
-      notes: 'Customer nag-aantay sa Table 2',
+      notes: 'Customer waiting at Table 2',
       preparationStatus: PreparationStatus.preparing,
       deliveryStatus: DeliveryStatus.forDelivery,
     ),
@@ -131,7 +131,7 @@ class _BilaoOrderScreenState extends State<BilaoOrderScreen> {
           ],
         ),
         content: Text(
-          'Sigurado ka bang nais mong tanggalin ang order para kay "${order.customerName}"? Hindi na ito maibabalik.',
+          'Are you sure you want to delete the order for "${order.customerName}"? This action cannot be undone.',
           style: const TextStyle(fontSize: 13.5),
         ),
         actions: [
@@ -161,7 +161,7 @@ class _BilaoOrderScreenState extends State<BilaoOrderScreen> {
 
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Order para kay ${order.customerName} ay natanggal na.')),
+        SnackBar(content: Text('Order for ${order.customerName} has been deleted.')),
       );
     }
   }
@@ -216,7 +216,7 @@ class _BilaoOrderScreenState extends State<BilaoOrderScreen> {
                     const SizedBox(height: 12),
                     _detailTile(
                       icon: currentOrder.isBranchPickup ? Icons.storefront_rounded : Icons.local_shipping_outlined,
-                      label: currentOrder.isBranchPickup ? 'BRANCH PICKUP (NAG-AANTAY SA BRANCH)' : 'DELIVERY ADDRESS',
+                      label: currentOrder.isBranchPickup ? 'BRANCH PICKUP (WAITING AT BRANCH)' : 'DELIVERY ADDRESS',
                       value: currentOrder.destinationDisplay,
                       valueColor: currentOrder.isBranchPickup ? AdminWebColors.accent : AdminWebColors.textPrimary,
                     ),
@@ -238,7 +238,7 @@ class _BilaoOrderScreenState extends State<BilaoOrderScreen> {
                     _detailTile(
                       icon: Icons.payments_outlined,
                       label: 'TOTAL AMOUNT',
-                      value: '₱${currentOrder.totalAmount.toStringAsFixed(0)} (₱${currentOrder.effectiveUnitPrice.toStringAsFixed(0)} bawat isa)',
+                      value: '₱${currentOrder.totalAmount.toStringAsFixed(0)} (₱${currentOrder.effectiveUnitPrice.toStringAsFixed(0)} each)',
                       valueColor: AdminWebColors.accent,
                     ),
                     const Divider(height: 24),
@@ -281,7 +281,7 @@ class _BilaoOrderScreenState extends State<BilaoOrderScreen> {
                           _buildDetailStepItem(
                             stepNumber: 1,
                             title: 'Pending',
-                            subtitle: 'Nakapila ang order para lutuin',
+                            subtitle: 'Order queued for cooking',
                             isDone: currentOrder.preparationStatus == PreparationStatus.preparing || currentOrder.preparationStatus == PreparationStatus.ready,
                             isCurrent: currentOrder.preparationStatus == PreparationStatus.pending,
                           ),
@@ -291,7 +291,7 @@ class _BilaoOrderScreenState extends State<BilaoOrderScreen> {
                           _buildDetailStepItem(
                             stepNumber: 2,
                             title: 'Preparing',
-                            subtitle: 'Kasalukuyang inihahanda at niluluto sa kusina',
+                            subtitle: 'Currently being prepared and cooked',
                             isDone: currentOrder.preparationStatus == PreparationStatus.ready,
                             isCurrent: currentOrder.preparationStatus == PreparationStatus.preparing,
                           ),
@@ -301,7 +301,7 @@ class _BilaoOrderScreenState extends State<BilaoOrderScreen> {
                           _buildDetailStepItem(
                             stepNumber: 3,
                             title: 'Ready',
-                            subtitle: 'Luto na sa bahay ni Owner, handa nang kunin ni Driver',
+                            subtitle: 'Cooked and ready for driver pickup',
                             isDone: currentOrder.preparationStatus == PreparationStatus.ready,
                             isCurrent: currentOrder.preparationStatus == PreparationStatus.ready,
                           ),
@@ -375,7 +375,7 @@ class _BilaoOrderScreenState extends State<BilaoOrderScreen> {
                                   Icon(Icons.check_circle_rounded, size: 16, color: AdminWebColors.success),
                                   SizedBox(width: 8),
                                   Text(
-                                    'HANDA NA SA BAHAY NI OWNER (READY FOR DRIVER PICKUP)',
+                                    'READY AT COMMISSARY (READY FOR DRIVER PICKUP)',
                                     style: TextStyle(
                                       fontSize: 11,
                                       fontWeight: FontWeight.w800,
@@ -387,7 +387,7 @@ class _BilaoOrderScreenState extends State<BilaoOrderScreen> {
                             ),
                           const SizedBox(height: 6),
                           const Text(
-                            'Paalala: Bawal umatras sa nakaraang hakbang kapag nakapag-proceed na.',
+                            'Note: Cannot revert to previous steps once advanced.',
                             style: TextStyle(
                               fontSize: 10.5,
                               fontStyle: FontStyle.italic,
@@ -534,7 +534,7 @@ class _BilaoOrderScreenState extends State<BilaoOrderScreen> {
     });
 
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Order para kay ${result.customerName} ay matagumpay na naitala.')),
+      SnackBar(content: Text('Order for ${result.customerName} recorded successfully.')),
     );
   }
 
@@ -982,7 +982,7 @@ class _BilaoOrderScreenState extends State<BilaoOrderScreen> {
                 child: _visibleOrders.isEmpty
                     ? const Center(
                         child: Text(
-                          'Walang bilao order na tumutugma sa filter.',
+                          'No bilao orders match the selected filter.',
                           style: TextStyle(color: AdminWebColors.textSecondary),
                         ),
                       )

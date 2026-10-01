@@ -46,7 +46,7 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
       branchId: 'br1',
       branchName: 'Brgy. Gatid, Sta. Cruz',
       date: DateTime.now(),
-      content: 'Kumpleto ang benta ngayong araw, walang isyu sa stock.',
+      content: 'Sales completed for today, no stock issues.',
       status: ReportSubmissionStatus.submitted,
     ),
     DailyReport(
@@ -56,7 +56,7 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
       branchId: 'br3',
       branchName: 'Brgy. Sta. Clara Sur, Pila',
       date: DateTime.now(),
-      content: 'Kulang ang mayo, humingi na ng dagdag kay Driver.',
+      content: 'Mayonnaise running low, requested restock from driver.',
       status: ReportSubmissionStatus.incomplete,
     ),
     DailyReport(
@@ -76,7 +76,7 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
       branchId: 'br1',
       branchName: 'Brgy. Gatid, Sta. Cruz',
       date: DateTime.now().subtract(const Duration(days: 1)),
-      content: 'Normal na araw, walang partikular na isyu.',
+      content: 'Normal day, no specific issues.',
       status: ReportSubmissionStatus.submitted,
     ),
   ];
@@ -311,7 +311,7 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
                               ),
                               const SizedBox(height: 2),
                               const Text(
-                                'Tugon na naipadala sa branch cook',
+                                'Response sent to branch cook',
                                 style: TextStyle(fontSize: 11, color: AdminWebColors.textSecondary),
                               ),
                             ],
@@ -324,7 +324,7 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
                   controller: replyController,
                   maxLines: 3,
                   decoration: InputDecoration(
-                    hintText: 'I-type ang tugon kay ${report.employeeName} (hal. Papunta na ang driver para i-deliver)...',
+                    hintText: 'Type a response for ${report.employeeName} (e.g. Driver is on the way for delivery)...',
                     hintStyle: const TextStyle(fontSize: 12, color: AdminWebColors.textSecondary),
                     filled: true,
                     fillColor: Colors.white,
@@ -373,7 +373,7 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
                               if (mounted) {
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   SnackBar(
-                                    content: Text('Naipadala ang tugon kay ${report.employeeName}.'),
+                                    content: Text('Response sent to ${report.employeeName}.'),
                                     backgroundColor: AdminWebColors.success,
                                   ),
                                 );
@@ -510,7 +510,7 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
                               Icon(Icons.schedule_rounded, size: 18, color: AdminWebColors.textSecondary.withValues(alpha: 0.6)),
                               const SizedBox(width: 10),
                               const Text(
-                                'Walang branch na nag-verify pa ngayong araw.',
+                                'No branches have verified yet today.',
                                 style: TextStyle(color: AdminWebColors.textSecondary),
                               ),
                             ],
@@ -639,7 +639,7 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
                         child: _visibleReports.isEmpty
                             ? const Center(
                                 child: Text(
-                                  'Walang report na tumutugma.',
+                                  'No matching reports found.',
                                   style: TextStyle(color: AdminWebColors.textSecondary),
                                 ),
                               )
@@ -794,7 +794,7 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
                               const SizedBox(width: 10),
                               const Flexible(
                                 child: Text(
-                                  'Walang branch na nag-verify pa ngayong araw.',
+                                  'No branches have verified yet today.',
                                   style: TextStyle(color: AdminWebColors.textSecondary),
                                 ),
                               ),
@@ -922,7 +922,7 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
                           child: Padding(
                             padding: EdgeInsets.symmetric(vertical: 32),
                             child: Text(
-                              'Walang report na tumutugma.',
+                              'No matching reports found.',
                               style: TextStyle(color: AdminWebColors.textSecondary),
                             ),
                           ),
@@ -1231,7 +1231,7 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
                         )
                       else
                         const Text(
-                          'Hindi pa nag-verify',
+                          'Not yet verified',
                           style: TextStyle(fontSize: 11.5, color: AdminWebColors.textSecondary,
                               fontStyle: FontStyle.italic),
                         ),

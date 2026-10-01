@@ -138,7 +138,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            'Real-time business intelligence para sa inventory allocation, benta, at operational planning.',
+                            'Real-time business intelligence for inventory allocation, sales, and operational planning.',
                             style: TextStyle(
                               fontSize: 13,
                               color: AdminWebColors.textSecondary.withValues(alpha: 0.9),
@@ -182,7 +182,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                 // =============================================================
                 const _SectionHeader(
                   title: '1. Descriptive Analytics',
-                  subtitle: 'Kasalukuyang benta, dami ng order, at takbo ng bawat produkto',
+                  subtitle: 'Current sales, order volume, and performance by product',
                   icon: Icons.analytics_outlined,
                 ),
                 const SizedBox(height: 10),
@@ -213,7 +213,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                 // =============================================================
                 const _SectionHeader(
                   title: '2. Predictive Analytics',
-                  subtitle: 'Pagtantiya sa bilis ng pagkaubos ng karne at darating na benta',
+                  subtitle: 'Estimated meat depletion rate and upcoming sales demand',
                   icon: Icons.trending_up_rounded,
                 ),
                 const SizedBox(height: 10),
@@ -244,7 +244,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                 // =============================================================
                 const _SectionHeader(
                   title: '3. Prescriptive Analytics (Actionable Guidance)',
-                  subtitle: 'Awtomatikong payo ng system kung ano ang dapat gawin ngayon',
+                  subtitle: 'Automated system recommendations and action items',
                   icon: Icons.lightbulb_rounded,
                 ),
                 const SizedBox(height: 10),
@@ -328,7 +328,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
           ),
           const SizedBox(height: 4),
           const Text(
-            'Pinagsamang dami ng naibentang portions sa lahat ng branch at bilao packages.',
+            'Combined volume of sold portions across all branches and bilao packages.',
             style: TextStyle(
               fontSize: 12,
               color: AdminWebColors.textSecondary,
@@ -412,24 +412,24 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
           ),
           const SizedBox(height: 4),
           const Text(
-            'Distribusyon ng sukat at paraan ng pagkuha ng mga customer.',
+            'Distribution of sizes and customer fulfillment methods.',
             style: TextStyle(fontSize: 12, color: AdminWebColors.textSecondary),
           ),
           const SizedBox(height: 16),
           _StatItem(
-            label: 'Medium Bilao (₱900) — Pinakasikat',
+            label: 'Medium Bilao (₱900) — Most Popular',
             percentage: mediumPct,
             count: mediumCount,
             color: AdminWebColors.accent,
           ),
           _StatItem(
-            label: 'Large Bilao (₱1,300) — Pang-handaan',
+            label: 'Large Bilao (₱1,300) — Party Size',
             percentage: largePct,
             count: largeCount,
             color: const Color(0xFFE65100),
           ),
           _StatItem(
-            label: 'Small Bilao (₱650) — Family meal',
+            label: 'Small Bilao (₱650) — Family Size',
             percentage: smallPct,
             count: smallCount,
             color: const Color(0xFF8D6E63),
@@ -554,8 +554,8 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
           const SizedBox(height: 6),
           Text(
             isWeekendApproaching
-                ? 'Malapit na ang weekend! Ayon sa moving average projection, inaasahang tataas ng 15% - 25% ang demand sa tanghalian (11:00 AM – 1:30 PM).'
-                : 'Katamtaman ang projected daily demand para sa mga regular weekdays. Maghanda ng karaniwang dami ng karne kada branch.',
+                ? 'The weekend is approaching! Moving average projections indicate a 15%–25% surge during lunch peak hours (11:00 AM – 1:30 PM).'
+                : 'Projected daily demand remains steady for regular weekdays. Prepare standard inventory quantities per branch.',
             style: const TextStyle(
               fontSize: 12.5,
               color: AdminWebColors.textSecondary,
@@ -579,7 +579,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'PROYEKTONG BENTA / ARAW',
+                        'PROJECTED DAILY SALES',
                         style: TextStyle(
                           fontSize: 9.5,
                           fontWeight: FontWeight.w800,
@@ -656,7 +656,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text(
-                        'Nakatakdang Bilao sa Susunod na 72 Oras',
+                        'Scheduled Bilao Orders (Next 72 Hours)',
                         style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w700,
@@ -665,8 +665,8 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                       ),
                       Text(
                         upcomingBilao > 0
-                            ? '$upcomingBilao Nakatakdang Bilao Packages'
-                            : 'Walang nakapilang bulk bilao sa ngayon',
+                            ? '$upcomingBilao Scheduled Bilao Orders'
+                            : 'No scheduled bilao orders at this time',
                         style: const TextStyle(
                           fontSize: 13.5,
                           fontWeight: FontWeight.w800,
@@ -704,7 +704,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                 ),
               ),
               Text(
-                'Tantiya Bago Maubos',
+                'Estimated Depletion',
                 style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w600,
@@ -715,7 +715,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
           ),
           const SizedBox(height: 4),
           const Text(
-            'Tinantiyang araw bago tuluyang maubos ang karne batay sa kasalukuyang stock.',
+            'Estimated days remaining before meat runs out based on current stock.',
             style: TextStyle(fontSize: 12, color: AdminWebColors.textSecondary),
           ),
           const SizedBox(height: 12),
@@ -751,13 +751,13 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     String statusLabel;
     if (daysLeft < 1.6 || stock.isRunningLow) {
       badgeColor = AdminWebColors.error;
-      statusLabel = '${daysLeft.toStringAsFixed(1)} Araw (Critical)';
+      statusLabel = '${daysLeft.toStringAsFixed(1)} Days (Critical)';
     } else if (daysLeft < 2.5) {
       badgeColor = AdminWebColors.warning;
-      statusLabel = '${daysLeft.toStringAsFixed(1)} Araw (Moderate)';
+      statusLabel = '${daysLeft.toStringAsFixed(1)} Days (Moderate)';
     } else {
       badgeColor = AdminWebColors.success;
-      statusLabel = '${daysLeft.toStringAsFixed(1)} Araw (Safe)';
+      statusLabel = '${daysLeft.toStringAsFixed(1)} Days (Safe)';
     }
 
     final approxKg = ((stock.regular250gRemaining * 0.25) +
@@ -783,7 +783,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                   ),
                 ),
                 Text(
-                  '$remaining portions natitira (~$approxKg kg)',
+                  '$remaining portions remaining (~$approxKg kg)',
                   style: const TextStyle(
                     fontSize: 11.5,
                     color: AdminWebColors.textSecondary,
@@ -833,12 +833,12 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     if (lowStockBranch != null) {
       recommendations.add(
         _RecommendationCard(
-          title: 'Karagdagang Meat Dispatch Kailangan: ${lowStockBranch.branchName}',
+          title: 'Meat Dispatch Needed: ${lowStockBranch.branchName}',
           description:
-              'Mababa na ang stock ng karne sa ${lowStockBranch.branchName} (${lowStockBranch.totalRemainingPcs} portions natitira). Mag-dispatch ng karagdagang 10-15 kg mula sa commissary bago maubusan.',
+              'Meat stock is low at ${lowStockBranch.branchName} (${lowStockBranch.totalRemainingPcs} portions remaining). Dispatch an additional 10-15 kg from the commissary before stock runs out.',
           priority: 'High',
           icon: Icons.inventory_2_rounded,
-          actionLabel: 'Pumunta sa Inventory',
+          actionLabel: 'Go to Inventory',
           onAction: () => _navigateShellTab(4),
         ),
       );
@@ -858,12 +858,12 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     if (tomorrowBilaoCount >= 1) {
       recommendations.add(
         _RecommendationCard(
-          title: 'Ihanda ang Bilao Packages ($tomorrowBilaoCount Orders Bukas)',
+          title: 'Prepare Bilao Orders ($tomorrowBilaoCount Orders Tomorrow)',
           description:
-              'May $tomorrowBilaoCount bilao orders na naka-iskedyul sa susunod na 24–36 oras. Paalalahanan ang Branch Cook na ihanda ang bilao trays at tiyaking naka-duty ang Driver.',
+              '$tomorrowBilaoCount bilao orders are scheduled in the next 24–36 hours. Remind the branch cook to prepare bilao trays and ensure the driver is on duty.',
           priority: tomorrowBilaoCount >= 3 ? 'High' : 'Medium',
           icon: Icons.shopping_bag_rounded,
-          actionLabel: 'Tingnan ang Bilao Orders',
+          actionLabel: 'View Bilao Orders',
           onAction: () => _navigateShellTab(6),
         ),
       );
@@ -878,14 +878,14 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     recommendations.add(
       _RecommendationCard(
         title: isWeekend
-            ? 'Weekend Staffing: Siguraduhing may Cook bawat Branch'
+            ? 'Weekend Staffing: Ensure All Branches Have a Cook'
             : 'Rotational Rest Day & Branch Cook Assignment',
         description: isWeekend
-            ? 'Inaasahan ang 20-30% mas mataas na benta ngayong weekend lalo na sa tanghalian. Tiyaking walang aktibong branch na bakante ang kusinero.'
-            : 'Suriin ang mga naka-Rest Day ngayong linggo upang mapanatiling balanse ang pasok ng mga cook sa bawat branch.',
+            ? 'Expecting 20-30% higher sales this weekend, especially during lunch hours. Ensure no active branch is missing a cook.'
+            : 'Review rest days this week to maintain balanced cook schedules across branches.',
         priority: 'Medium',
         icon: Icons.people_alt_rounded,
-        actionLabel: 'Suriin ang Assignments',
+        actionLabel: 'Review Assignments',
         onAction: () => _navigateShellTab(3),
       ),
     );
@@ -897,9 +897,9 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
         const Padding(
           padding: EdgeInsets.only(bottom: 12),
           child: _RecommendationCard(
-            title: 'Sapat ang Supply sa Lahat ng Branches',
+            title: 'Sufficient Supply Across All Branches',
             description:
-                'Normal ang antas ng karne sa lahat ng aktibong branch. Walang kritikal na kakulangan na nangangailangan ng emergency dispatch sa ngayon.',
+                'Meat stock levels are normal across all active branches. No critical shortages requiring emergency dispatch at this time.',
             priority: 'Normal',
             icon: Icons.check_circle_outline_rounded,
           ),

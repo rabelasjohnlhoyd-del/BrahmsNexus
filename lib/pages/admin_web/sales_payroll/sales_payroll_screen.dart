@@ -133,7 +133,7 @@ class _SalesPayrollScreenState extends State<SalesPayrollScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'Araw-araw ay ₱650 ang sahod ni Driver. Kung may araw na absent siya at si Owner ang nag-drive, ibawas dito ang bilang ng araw.',
+              'The driver daily rate is ₱650. If the driver was absent and the owner drove instead, deduct those days here.',
               style: TextStyle(fontSize: 12.5, color: AdminWebColors.textSecondary),
             ),
             const SizedBox(height: 16),
@@ -656,7 +656,7 @@ class _SalesPayrollScreenState extends State<SalesPayrollScreen> {
                               ),
                             ],
                             Text(
-                              'Sahod ng 6 Cook: ₱${dateTotalWage.toStringAsFixed(0)}',
+                              '6 Cooks Total Wages: ₱${dateTotalWage.toStringAsFixed(0)}',
                               style: const TextStyle(
                                 fontSize: 14,
                                 fontWeight: FontWeight.w900,
@@ -735,7 +735,7 @@ class _SalesPayrollScreenState extends State<SalesPayrollScreen> {
                             Expanded(
                               flex: 2,
                               child: Text(
-                                '₱${r.computedWage.toStringAsFixed(0)} sahod',
+                                '₱${r.computedWage.toStringAsFixed(0)} wage',
                                 style: const TextStyle(
                                   fontSize: 13,
                                   fontWeight: FontWeight.w800,
@@ -929,7 +929,7 @@ class _SalesPayrollScreenState extends State<SalesPayrollScreen> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      '$_driverDaysWorked Days Worked this Month  ·  ₱${_driverDailyRate.toStringAsFixed(0)} per day (Kada ihahatid ang branch cooks)',
+                      '$_driverDaysWorked Days Worked this Month  ·  ₱${_driverDailyRate.toStringAsFixed(0)} per day (Every day branch cooks are transported)',
                       style: const TextStyle(
                         fontSize: 12.5,
                         color: AdminWebColors.textSecondary,
@@ -942,7 +942,7 @@ class _SalesPayrollScreenState extends State<SalesPayrollScreen> {
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   const Text(
-                    'TOTAL SAHOD NI DRIVER',
+                    'TOTAL DRIVER WAGES',
                     style: TextStyle(
                       fontSize: 10,
                       fontWeight: FontWeight.w900,

@@ -120,8 +120,8 @@ class _KarneBatchDetailScreenState extends State<KarneBatchDetailScreen> {
                   TextField(
                     controller: minutesCtrl,
                     decoration: const InputDecoration(
-                      labelText: 'MINUTES LAGA',
-                      hintText: 'e.g. 25 o 35 mins',
+                      labelText: 'BOILING TIME (MINUTES)',
+                      hintText: 'e.g. 25 or 35 mins',
                       border: OutlineInputBorder(),
                       suffixText: 'MINS',
                     ),
@@ -131,7 +131,7 @@ class _KarneBatchDetailScreenState extends State<KarneBatchDetailScreen> {
                   TextField(
                     controller: kilosCtrl,
                     decoration: const InputDecoration(
-                      labelText: 'KILOS TO COOK (HILAW)',
+                      labelText: 'KILOS TO COOK (RAW)',
                       hintText: 'e.g. 151.00',
                       border: OutlineInputBorder(),
                       suffixText: 'KG',
@@ -190,8 +190,8 @@ class _KarneBatchDetailScreenState extends State<KarneBatchDetailScreen> {
 
                 // Notify production cook
                 NotificationService.sendNotification(
-                  title: 'Bagong Iluluto: ${_batch.name}',
-                  message: 'Brand: $brandName ($m mins boiling) - ${k.toStringAsFixed(2)} KG ang target na lutuin.',
+                  title: 'New Cooking Task: ${_batch.name}',
+                  message: 'Brand: $brandName ($m mins boiling) - ${k.toStringAsFixed(2)} KG target to cook.',
                   type: NotificationType.inventoryAlert,
                   targetRole: 'production',
                 );
@@ -224,7 +224,7 @@ class _KarneBatchDetailScreenState extends State<KarneBatchDetailScreen> {
               children: [
                 Icon(Icons.content_cut_rounded, color: AdminWebColors.accent),
                 SizedBox(width: 10),
-                Text('Set Targets para kay Meat Cutter', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                Text('Set Targets for Meat Cutter', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
               ],
             ),
             content: SizedBox(
@@ -244,10 +244,10 @@ class _KarneBatchDetailScreenState extends State<KarneBatchDetailScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('Hilaw na Karne: ${session.kilosCooked.toStringAsFixed(2)} KG • Ideal Yield: ${session.idealYield.toInt()} pcs • Kota: ${session.kota} pcs',
+                          Text('Raw Meat: ${session.kilosCooked.toStringAsFixed(2)} KG • Ideal Yield: ${session.idealYield.toInt()} pcs • Quota: ${session.kota} pcs',
                               style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: AdminWebColors.textPrimary)),
                           const SizedBox(height: 4),
-                          const Text('I-assign ang target sa 400G at 300G. Ang natitira sa Kota ay magiging ideal target para sa 250G.',
+                          const Text('Assign targets for 400G and 300G. The remainder of the quota will be the ideal target for 250G.',
                               style: TextStyle(fontSize: 11, color: AdminWebColors.textSecondary)),
                         ],
                       ),
@@ -288,7 +288,7 @@ class _KarneBatchDetailScreenState extends State<KarneBatchDetailScreen> {
                           const SizedBox(width: 10),
                           Expanded(
                             child: Text(
-                              'Target: $t400 pcs (400G) + $t300 pcs (300G) = ${t400 + t300} pcs\nIdeal 250G Target: ${session.kota} kota − ${t400 + t300} = $ideal250 pcs\n(250G: okay kahit sobra o kulang)',
+                              'Target: $t400 pcs (400G) + $t300 pcs (300G) = ${t400 + t300} pcs\nIdeal 250G Target: ${session.kota} quota − ${t400 + t300} = $ideal250 pcs\n(250G: flexible, absorbs remainder)',
                               style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AdminWebColors.textPrimary),
                             ),
                           ),
@@ -432,7 +432,7 @@ class _KarneBatchDetailScreenState extends State<KarneBatchDetailScreen> {
                           );
                           return Tooltip(
                             message: hasActiveSession
-                                ? 'Hindi maaaring mag-add ng bagong session habang may kasalukuyang session na hindi pa tapos.'
+                                ? 'Cannot add a new session while an active session is still in progress.'
                                 : '',
                             child: ElevatedButton.icon(
                               onPressed: hasActiveSession ? null : _addSession,
@@ -480,7 +480,7 @@ class _KarneBatchDetailScreenState extends State<KarneBatchDetailScreen> {
         const SizedBox(width: 16),
         Expanded(child: _kpiTile('Remaining', _batch.remainingKilos.toStringAsFixed(1), 'KG LEFT', Icons.hourglass_bottom_rounded, highlight: true)),
         const SizedBox(width: 16),
-        Expanded(child: _kpiTile('Sessions', '${_batch.sessions.length}', 'TOTAL LUTO', Icons.restaurant_rounded)),
+        Expanded(child: _kpiTile('Sessions', '${_batch.sessions.length}', 'TOTAL SESSIONS', Icons.restaurant_rounded)),
       ],
     );
   }
@@ -533,7 +533,7 @@ class _KarneBatchDetailScreenState extends State<KarneBatchDetailScreen> {
 
     Color statusColor = AdminWebColors.warning;
     IconData statusIcon = Icons.hourglass_top_rounded;
-    String statusLabel = 'ILULUTO PA NI COOK';
+    String statusLabel = 'FOR COOKING';
 
     if (s.status == 'completed' || s.hasActualOutput) {
       statusColor = AdminWebColors.success;
@@ -542,11 +542,11 @@ class _KarneBatchDetailScreenState extends State<KarneBatchDetailScreen> {
     } else if (s.status == 'cutting') {
       statusColor = Colors.purple;
       statusIcon = Icons.content_cut_rounded;
-      statusLabel = 'PINUPUTOL NI CUTTER';
+      statusLabel = 'PORTIONING IN PROGRESS';
     } else if (s.status == 'cooked' || s.cookedKilos != null) {
       statusColor = Colors.blue;
       statusIcon = Icons.soup_kitchen_rounded;
-      statusLabel = 'NALUTO NA — I-SET ANG TARGETS';
+      statusLabel = 'COOKED — SET TARGETS';
     }
 
     return Padding(
@@ -633,7 +633,7 @@ class _KarneBatchDetailScreenState extends State<KarneBatchDetailScreen> {
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        'Ulat ni Cutter (${s.cutterName ?? "Cutter"})${s.cutterRemainingGrams != null && s.cutterRemainingGrams! > 0 ? " sa Natirang Karne (${s.cutterRemainingGrams}g)" : ""}: "${s.cutterNotes}"',
+                        'Cutter Report (${s.cutterName ?? "Cutter"})${s.cutterRemainingGrams != null && s.cutterRemainingGrams! > 0 ? " on Remaining Meat (${s.cutterRemainingGrams}g)" : ""}: "${s.cutterNotes}"',
                         style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AdminWebColors.textPrimary),
                       ),
                     ),
@@ -660,7 +660,7 @@ class _KarneBatchDetailScreenState extends State<KarneBatchDetailScreen> {
                         style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AdminWebColors.textPrimary)),
                     Text('250G = ${s.actual250g ?? 0} pcs (${((s.actual250g ?? 0) * 250 / 1000).toStringAsFixed(2)} KG)',
                         style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AdminWebColors.textPrimary)),
-                    Text('Kabuuang Naluto: ${s.nalutoKg?.toStringAsFixed(2) ?? "0.00"} KG',
+                    Text('Total Cooked: ${s.nalutoKg?.toStringAsFixed(2) ?? "0.00"} KG',
                         style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: AdminWebColors.accent)),
                   ],
                 ),
@@ -670,18 +670,18 @@ class _KarneBatchDetailScreenState extends State<KarneBatchDetailScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                _sessionDetail('HILAW (KG)', s.kilosCooked.toStringAsFixed(1), isMain: true),
+                _sessionDetail('RAW (KG)', s.kilosCooked.toStringAsFixed(1), isMain: true),
                 _sessionDetail(
-                  'NALUTO (KG)',
+                  'COOKED (KG)',
                   s.nalutoKg != null
                       ? s.nalutoKg!.toStringAsFixed(2)
-                      : (s.status == 'cooked' || s.status == 'cutting' ? 'Hintayin si Cutter' : '--'),
+                      : (s.status == 'cooked' || s.status == 'cutting' ? 'Awaiting Cutter' : '--'),
                   isMain: true,
                 ),
                 _sessionDetail('IDEAL YIELD', '${s.idealYield.toInt()}', isMain: true),
-                _sessionDetail('KOTA (${s.resekoApplied.toStringAsFixed(0)}%)', '${s.kota}', color: AdminWebColors.accent, isMain: true),
+                _sessionDetail('QUOTA (${s.resekoApplied.toStringAsFixed(0)}%)', '${s.kota}', color: AdminWebColors.accent, isMain: true),
                 _sessionDetail(
-                  'NAGAWA',
+                  'PRODUCED',
                   hasActual ? '${s.nagawa} pcs' : '--',
                   subtext: hasBreakdown
                       ? '400G = ${s.actual400g ?? 0} pcs\n300G = ${s.actual300g ?? 0} pcs\n250G = ${s.actual250g ?? 0} pcs'
@@ -693,9 +693,9 @@ class _KarneBatchDetailScreenState extends State<KarneBatchDetailScreen> {
                   'RESULT',
                   hasActual
                       ? (s.resultDifference > 0
-                          ? '+${s.resultDifference} (SOBRA)'
+                          ? '+${s.resultDifference} (SURPLUS)'
                           : (s.resultDifference < 0
-                              ? '${s.resultDifference} (KULANG)'
+                              ? '${s.resultDifference} (SHORT)'
                               : '0 (EXACT)'))
                       : '--',
                   color: hasActual

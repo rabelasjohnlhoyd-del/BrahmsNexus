@@ -335,21 +335,21 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
               Icon(Icons.error_outline_rounded, color: Color(0xFFDC2626), size: 24),
               SizedBox(width: 8),
               Expanded(
-                child: Text('May Conflict sa Assignments', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+                child: Text('Assignment Conflict Detected', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
               ),
             ],
           ),
           content: Text(
-            'Hindi mai-save dahil may mahigit sa isang cook na naka-On Duty sa parehong branch:\n\n'
+            'Cannot save because more than one cook is set to On Duty at the same branch:\n\n'
             '$conflictDetails\n\n'
-            'Pakiusap i-Rest Day ang isa sa kanila o ilipat sa ibang bakanteng branch bago i-save.',
+            'Please set one of them to Rest Day or reassign to a vacant branch before saving.',
             style: const TextStyle(fontSize: 13, height: 1.4),
           ),
           actions: [
             ElevatedButton(
               onPressed: () => Navigator.pop(ctx),
               style: ElevatedButton.styleFrom(backgroundColor: AdminWebColors.accent, foregroundColor: Colors.white),
-              child: const Text('OK, AAYUSIN KO'),
+              child: const Text('OK, I WILL FIX THIS'),
             ),
           ],
         ),
@@ -750,8 +750,8 @@ class _AssignmentCard extends StatelessWidget {
                     const SizedBox(width: 5),
                     Text(
                       isOnDuty
-                          ? 'May duty ngayon (Puwede mag-login)'
-                          : 'Naka-Rest Day (Bawal mag-login)',
+                          ? 'On Duty Today (Can log in)'
+                          : 'On Rest Day (Cannot log in)',
                       style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w600,
@@ -778,7 +778,7 @@ class _AssignmentCard extends StatelessWidget {
                       Icon(Icons.warning_amber_rounded, size: 13, color: Color(0xFFDC2626)),
                       SizedBox(width: 4),
                       Text(
-                        'N/A: Piliin ang Branch sa ibaba',
+                        'N/A: Select a branch below',
                         style: TextStyle(
                           fontSize: 10.5,
                           fontWeight: FontWeight.w700,
@@ -804,7 +804,7 @@ class _AssignmentCard extends StatelessWidget {
                       const Icon(Icons.warning_amber_rounded, size: 13, color: Color(0xFFDC2626)),
                       const SizedBox(width: 4),
                       Text(
-                        'Conflict: Naka-Duty rin si ${conflictingOnDutyCook.employeeName.split(" ").first}!',
+                        'Conflict: ${conflictingOnDutyCook.employeeName.split(" ").first} is also On Duty!',
                         style: const TextStyle(
                           fontSize: 10.5,
                           fontWeight: FontWeight.w700,
@@ -858,7 +858,7 @@ class _AssignmentCard extends StatelessWidget {
           const DropdownMenuItem<String>(
             value: 'unassigned',
             child: Text(
-              'N/A — PILIIN ANG BRANCH NA ILALAGAY',
+              'N/A — SELECT A BRANCH TO ASSIGN',
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 fontSize: 12,
@@ -889,7 +889,7 @@ class _AssignmentCard extends StatelessWidget {
           Widget itemChild;
           if (isOnDuty && isOccupied && !isCurrent) {
             itemChild = Text(
-              '${b.fullName.toUpperCase()} — (May Duty: ${occupiedCook.employeeName.split(" ").first})',
+              '${b.fullName.toUpperCase()} — (Occupied: ${occupiedCook.employeeName.split(" ").first})',
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(
                 fontSize: 12,

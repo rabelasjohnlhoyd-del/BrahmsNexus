@@ -126,7 +126,7 @@ class _InventoryScreenState extends State<InventoryScreen>
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text(
-                    'Magtalaga ng buwanang stock ng karne (good for 1 month). Ang pagluluto ay hahatiin sa mga cooking session sa buong buwan:',
+                    'Assign a monthly meat stock (good for 1 month). Cooking will be divided across sessions throughout the month:',
                     style: TextStyle(fontSize: 13, color: AdminWebColors.textSecondary),
                   ),
                   const SizedBox(height: 16),
@@ -141,11 +141,11 @@ class _InventoryScreenState extends State<InventoryScreen>
                       children: [
                         const Icon(Icons.date_range_rounded, size: 18, color: AdminWebColors.accent),
                         const SizedBox(width: 8),
-                        const Text('BUWAN / MONTH:', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
+                        const Text('MONTH:', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
                         const Spacer(),
                         IconButton(
                           icon: const Icon(Icons.chevron_left_rounded, size: 20),
-                          tooltip: 'Nakaraang Buwan',
+                          tooltip: 'Previous Month',
                           onPressed: () {
                             setDlgState(() {
                               selectedMonth = DateTime(selectedMonth.year, selectedMonth.month - 1, 1);
@@ -166,7 +166,7 @@ class _InventoryScreenState extends State<InventoryScreen>
                         ),
                         IconButton(
                           icon: const Icon(Icons.chevron_right_rounded, size: 20),
-                          tooltip: 'Susunod na Buwan',
+                          tooltip: 'Next Month',
                           onPressed: () {
                             setDlgState(() {
                               selectedMonth = DateTime(selectedMonth.year, selectedMonth.month + 1, 1);
@@ -196,12 +196,12 @@ class _InventoryScreenState extends State<InventoryScreen>
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  'Mayroon nang batch para sa ${DateFormat('MMMM yyyy').format(selectedMonth)}!',
+                                  'A batch already exists for ${DateFormat('MMMM yyyy').format(selectedMonth)}!',
                                   style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12, color: AdminWebColors.error),
                                 ),
                                 const SizedBox(height: 2),
                                 Text(
-                                  'Umiiral na batch: "${existingBatchForMonth.name}". Isang batch lamang kada buwan ang pinapayagan dahil ang batch ay good for 1 month.',
+                                  'Existing batch: "${existingBatchForMonth.name}". Only one batch is allowed per month as each batch covers 1 month.',
                                   style: const TextStyle(fontSize: 11, color: AdminWebColors.textPrimary),
                                 ),
                               ],
@@ -216,7 +216,7 @@ class _InventoryScreenState extends State<InventoryScreen>
                     controller: nameCtrl,
                     textCapitalization: TextCapitalization.characters,
                     decoration: const InputDecoration(
-                      labelText: 'BATCH NAME (BUWANANG BATCH)',
+                      labelText: 'BATCH NAME (MONTHLY BATCH)',
                       hintText: 'e.g. KARNE BATCH - OCTOBER 2026',
                       border: OutlineInputBorder(),
                     ),
@@ -230,7 +230,7 @@ class _InventoryScreenState extends State<InventoryScreen>
                       suffixText: 'KG',
                       border: const OutlineInputBorder(),
                       prefixIcon: const Icon(Icons.scale_rounded, size: 18),
-                      helperText: 'Kabuuang kilong karne na delivery para sa buong buwan ng ${DateFormat('MMMM yyyy').format(selectedMonth)}.',
+                      helperText: 'Total delivered meat kilos for the month of ${DateFormat('MMMM yyyy').format(selectedMonth)}.',
                     ),
                     keyboardType: const TextInputType.numberWithOptions(decimal: true),
                   ),
@@ -271,7 +271,7 @@ class _InventoryScreenState extends State<InventoryScreen>
                             SnackBar(
                               content: Text(
                                 success
-                                    ? 'Nai-save ang buwanang batch "${newBatch.name}" ($kilos KG, good for 1 month)!'
+                                    ? 'Monthly batch "${newBatch.name}" ($kilos KG, good for 1 month) has been saved!'
                                     : 'Notice: Batch "${newBatch.name}" was saved locally.',
                               ),
                               backgroundColor: success ? AdminWebColors.success : null,
@@ -297,12 +297,12 @@ class _InventoryScreenState extends State<InventoryScreen>
           children: [
             Icon(Icons.delete_outline_rounded, color: AdminWebColors.error),
             SizedBox(width: 8),
-            Text('Burahin ang Batch?', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            Text('Delete Batch?', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
           ],
         ),
         content: Text(
-          'Sigurado ka bang nais mong tanggalin ang batch na "${batch.name}"?\n\n'
-          'Mabubura ang batch na ito kasama ang lahat ng cooking sessions nito sa database.',
+          'Are you sure you want to delete the batch "${batch.name}"?\n\n'
+          'This batch and all associated cooking sessions will be permanently deleted from the database.',
           style: const TextStyle(fontSize: 14),
         ),
         actions: [
@@ -323,14 +323,14 @@ class _InventoryScreenState extends State<InventoryScreen>
                 messenger.showSnackBar(
                   SnackBar(
                     content: Text(success
-                        ? 'Matagumpay na nabura ang batch "${batch.name}".'
-                        : 'May error sa pagbura ng batch.'),
+                        ? 'Batch "${batch.name}" successfully deleted.'
+                        : 'Error deleting batch.'),
                     backgroundColor: success ? AdminWebColors.success : AdminWebColors.error,
                   ),
                 );
               }
             },
-            child: const Text('BURAHIN'),
+            child: const Text('DELETE'),
           ),
         ],
       ),
@@ -346,12 +346,12 @@ class _InventoryScreenState extends State<InventoryScreen>
           children: [
             Icon(Icons.delete_sweep_rounded, color: AdminWebColors.error),
             SizedBox(width: 8),
-            Text('Linisin ang mga Lumang Batch?', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            Text('Clear All Old Batches?', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
           ],
         ),
         content: Text(
-          'Sigurado ka bang nais mong burahin ang LAHAT ng lumang batch (${_karneBatches.length} batch) sa database?\n\n'
-          'Gagamitin ito upang malinis ang mga dating test batch at magsimula ng bagong monthly batch system.',
+          'Are you sure you want to delete ALL old batches (${_karneBatches.length} batches) from the database?\n\n'
+          'This will remove previous test batches and reset to the monthly batch system.',
           style: const TextStyle(fontSize: 14),
         ),
         actions: [
@@ -372,13 +372,13 @@ class _InventoryScreenState extends State<InventoryScreen>
                 });
                 messenger.showSnackBar(
                   SnackBar(
-                    content: Text('Matagumpay na nabura ang $count lumang batch sa database.'),
+                    content: Text('Successfully deleted $count old batches from the database.'),
                     backgroundColor: AdminWebColors.success,
                   ),
                 );
               }
             },
-            child: const Text('BURAHIN LAHAT NG LUMA'),
+            child: const Text('DELETE ALL OLD'),
           ),
         ],
       ),
@@ -477,7 +477,7 @@ class _InventoryScreenState extends State<InventoryScreen>
                     icon: const Icon(Icons.delete_sweep_rounded,
                         size: 18, color: AdminWebColors.error),
                     label: const Text(
-                      'LINISIN ANG MGA LUMANG BATCH',
+                      'CLEAR ALL OLD BATCHES',
                       style: TextStyle(
                         color: AdminWebColors.error,
                         fontSize: 13,
@@ -625,7 +625,7 @@ class _InventoryScreenState extends State<InventoryScreen>
                                         ),
                                         IconButton(
                                           icon: const Icon(Icons.delete_outline_rounded, color: AdminWebColors.error, size: 18),
-                                          tooltip: 'Burahin ang Batch',
+                                          tooltip: 'Delete Batch',
                                           onPressed: () => _confirmDeleteBatch(batch),
                                           padding: const EdgeInsets.only(left: 6),
                                           constraints: const BoxConstraints(),
@@ -640,13 +640,13 @@ class _InventoryScreenState extends State<InventoryScreen>
                                       children: [
                                         if (sessionCount == 0) ...[
                                           _statusChip('OPEN BATCH (1 MONTH)', AdminWebColors.warning, icon: Icons.schedule_rounded),
-                                          Text('Kabuuang Stock: ${batch.totalKilos.toStringAsFixed(1)} KG', style: const TextStyle(fontSize: 11, color: AdminWebColors.textSecondary)),
+                                          Text('Total Stock: ${batch.totalKilos.toStringAsFixed(1)} KG', style: const TextStyle(fontSize: 11, color: AdminWebColors.textSecondary)),
                                         ] else if (remainingHilaw <= 0) ...[
                                           _statusChip('COMPLETED', AdminWebColors.success, icon: Icons.check_circle_rounded),
-                                          Text('Naluto: ${totalCookedHilaw.toStringAsFixed(1)} KG', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                                          Text('Cooked: ${totalCookedHilaw.toStringAsFixed(1)} KG', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
                                         ] else ...[
                                           _statusChip('$sessionCount SESSIONS ACTIVE', AdminWebColors.accent, icon: Icons.soup_kitchen_rounded),
-                                          Text('Naluto: ${totalCookedHilaw.toStringAsFixed(1)} KG · Natitira: ${remainingHilaw.toStringAsFixed(1)} KG', style: const TextStyle(fontSize: 11, color: AdminWebColors.textSecondary)),
+                                          Text('Cooked: ${totalCookedHilaw.toStringAsFixed(1)} KG · Remaining: ${remainingHilaw.toStringAsFixed(1)} KG', style: const TextStyle(fontSize: 11, color: AdminWebColors.textSecondary)),
                                         ],
                                       ],
                                     ),
@@ -722,13 +722,13 @@ class _InventoryScreenState extends State<InventoryScreen>
                                 children: [
                                   if (sessionCount == 0) ...[
                                     _statusChip('OPEN BATCH (1 MONTH)', AdminWebColors.warning, icon: Icons.schedule_rounded),
-                                    Text('Kabuuang Stock: ${batch.totalKilos.toStringAsFixed(1)} KG | Wala pang cooking session', style: const TextStyle(fontSize: 12)),
+                                    Text('Total Stock: ${batch.totalKilos.toStringAsFixed(1)} KG | No cooking sessions yet', style: const TextStyle(fontSize: 12)),
                                   ] else if (remainingHilaw <= 0) ...[
                                     _statusChip('COMPLETED', AdminWebColors.success, icon: Icons.check_circle_rounded),
-                                    Text('Naluto: ${totalCookedHilaw.toStringAsFixed(1)} KG ($sessionCount Sessions) | Naubos na ang buwanang stock', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                                    Text('Cooked: ${totalCookedHilaw.toStringAsFixed(1)} KG ($sessionCount Sessions) | Monthly stock fully consumed', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                                   ] else ...[
                                     _statusChip('$sessionCount SESSIONS ACTIVE', AdminWebColors.accent, icon: Icons.soup_kitchen_rounded),
-                                    Text('Naluto: ${totalCookedHilaw.toStringAsFixed(1)} KG | Natitira: ${remainingHilaw.toStringAsFixed(1)} KG', style: const TextStyle(fontSize: 12)),
+                                    Text('Cooked: ${totalCookedHilaw.toStringAsFixed(1)} KG | Remaining: ${remainingHilaw.toStringAsFixed(1)} KG', style: const TextStyle(fontSize: 12)),
                                   ],
                                 ],
                               ),
@@ -738,7 +738,7 @@ class _InventoryScreenState extends State<InventoryScreen>
                               children: [
                                 IconButton(
                                   icon: const Icon(Icons.delete_outline_rounded, color: AdminWebColors.error, size: 20),
-                                  tooltip: 'Burahin ang Batch',
+                                  tooltip: 'Delete Batch',
                                   onPressed: () => _confirmDeleteBatch(batch),
                                 ),
                                 const SizedBox(width: 8),
@@ -1128,7 +1128,7 @@ class _InventoryScreenState extends State<InventoryScreen>
           ],
         ),
         content: Text(
-          'Sigurado ka bang nais mong burahin ang dispatch na ito sa ${dispatch.destinationBranchName} (${dispatch.itemsSummary})?',
+          'Are you sure you want to delete this dispatch record to ${dispatch.destinationBranchName} (${dispatch.itemsSummary})?',
           style: const TextStyle(fontSize: 13.5),
         ),
         actions: [
@@ -1153,7 +1153,7 @@ class _InventoryScreenState extends State<InventoryScreen>
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Nai-delete na ang dispatch record.'),
+            content: Text('Dispatch record deleted.'),
             backgroundColor: AdminWebColors.error,
           ),
         );
@@ -1177,7 +1177,7 @@ class _InventoryScreenState extends State<InventoryScreen>
             ),
             const SizedBox(height: 2),
             Text(
-              'Mga hiling na supply mula sa Meat Cutter / Central Kitchen ($pendingCount pending)',
+              'Supply requests from Meat Cutter / Central Kitchen ($pendingCount pending)',
               style: const TextStyle(fontSize: 12, color: AdminWebColors.textSecondary),
             ),
           ],
@@ -1187,7 +1187,7 @@ class _InventoryScreenState extends State<InventoryScreen>
           child: _supplyRequests.isEmpty
               ? const Center(
                   child: Text(
-                    'Walang supply requests sa ngayon.',
+                    'No supply requests at this time.',
                     style: TextStyle(color: AdminWebColors.textSecondary),
                   ),
                 )
@@ -1393,7 +1393,7 @@ class _InventoryScreenState extends State<InventoryScreen>
             const Icon(Icons.reply_rounded, color: AdminWebColors.accent),
             const SizedBox(width: 10),
             Expanded(
-              child: Text('Tugon para sa: ${request.itemName}', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              child: Text('Reply to: ${request.itemName}', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
             ),
           ],
         ),
@@ -1403,7 +1403,7 @@ class _InventoryScreenState extends State<InventoryScreen>
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Hiningi ni ${request.requestedBy} ang supply na ito.', style: const TextStyle(fontSize: 13, color: AdminWebColors.textSecondary)),
+              Text('Requested by ${request.requestedBy}.', style: const TextStyle(fontSize: 13, color: AdminWebColors.textSecondary)),
               const SizedBox(height: 14),
               const Text('Quick Responses:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
               const SizedBox(height: 8),
@@ -1411,9 +1411,9 @@ class _InventoryScreenState extends State<InventoryScreen>
                 spacing: 8,
                 runSpacing: 6,
                 children: [
-                  _quickReplyChip('Dadalhan na ngayon din', replyCtrl),
-                  _quickReplyChip('Papunta na ang delivery via driver', replyCtrl),
-                  _quickReplyChip('Noted, ihahanda na ang stock', replyCtrl),
+                  _quickReplyChip('Delivering right now', replyCtrl),
+                  _quickReplyChip('Driver is on the way with delivery', replyCtrl),
+                  _quickReplyChip('Noted, preparing stock now', replyCtrl),
                 ],
               ),
               const SizedBox(height: 14),
@@ -1421,8 +1421,8 @@ class _InventoryScreenState extends State<InventoryScreen>
                 controller: replyCtrl,
                 maxLines: 2,
                 decoration: const InputDecoration(
-                  labelText: 'I-type ang mensahe / tugon',
-                  hintText: 'hal. Dadalhan na ni driver mamayang 3 PM...',
+                  labelText: 'Type your message / response',
+                  hintText: 'e.g. Driver will deliver at 3 PM...',
                   border: OutlineInputBorder(),
                 ),
               ),
@@ -1451,13 +1451,13 @@ class _InventoryScreenState extends State<InventoryScreen>
               if (mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: Text(ok ? 'Naipadala ang tugon kay ${request.requestedBy}!' : 'May error sa pagpapadala.'),
+                    content: Text(ok ? 'Response sent to ${request.requestedBy}!' : 'Error sending response.'),
                     backgroundColor: ok ? AdminWebColors.success : AdminWebColors.error,
                   ),
                 );
               }
             },
-            child: const Text('IPADALA ANG TUGON'),
+            child: const Text('SEND RESPONSE'),
           ),
         ],
       ),
