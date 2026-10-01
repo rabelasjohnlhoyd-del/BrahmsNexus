@@ -93,14 +93,12 @@ class _MobileAuthHeader extends StatelessWidget {
         height: containerHeight,
         decoration: const BoxDecoration(
           gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
             colors: [
-              AppColors.headerStart, // #2B1B12
-              Color(0xFF352216),
-              AppColors.headerStart,
+              AppColors.headerStart, // 0xFF2B1B12
+              AppColors.headerEnd,   // 0xFF7A4A2A
             ],
-            stops: [0.0, 0.60, 1.0],
           ),
         ),
         child: SafeArea(
@@ -117,7 +115,7 @@ class _MobileAuthHeader extends StatelessWidget {
                     child: IconButton(
                       icon: const Icon(
                         Icons.arrow_back_rounded,
-                        color: Color(0xFFE5B06B),
+                        color: AppColors.chocolateTint,
                         size: 22,
                       ),
                       onPressed: onBack,
@@ -141,18 +139,18 @@ class _MobileAuthHeader extends StatelessWidget {
                         fontSize: 22,
                         fontWeight: FontWeight.w900,
                         letterSpacing: 3.8,
-                        color: Color(0xFFD4A25A),
+                        color: Color(0xFFF7E2C8),
                         height: 1.0,
                       ),
                     ),
                     const SizedBox(height: 5),
                     Text(
                       subtitle,
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w600,
                         letterSpacing: 1.8,
-                        color: const Color(0xFFD4A25A).withValues(alpha: 0.80),
+                        color: AppColors.chocolateTint,
                       ),
                     ),
                     const SizedBox(height: 8),
@@ -180,7 +178,7 @@ class _OrnamentalDivider extends StatelessWidget {
         Container(
           width: 38,
           height: 1,
-          color: const Color(0xFFD4A25A).withValues(alpha: 0.45),
+          color: AppColors.chocolateTint.withValues(alpha: 0.50),
         ),
         const SizedBox(width: 8),
         Container(
@@ -188,14 +186,14 @@ class _OrnamentalDivider extends StatelessWidget {
           height: 5,
           decoration: const BoxDecoration(
             shape: BoxShape.circle,
-            color: Color(0xFFD4A25A),
+            color: Color(0xFFF7E2C8),
           ),
         ),
         const SizedBox(width: 8),
         Container(
           width: 38,
           height: 1,
-          color: const Color(0xFFD4A25A).withValues(alpha: 0.45),
+          color: AppColors.chocolateTint.withValues(alpha: 0.50),
         ),
       ],
     );

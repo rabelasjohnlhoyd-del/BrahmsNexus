@@ -205,10 +205,10 @@ class _CutterPortioningScreenState extends State<CutterPortioningScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Sigurado ka bang tama ang lahat ng portion counts at remaining weight para sa ${batch?.name ?? "batch"}? Aabisuhan si Owner.'),
+            Text('Are you sure all portion counts and remaining weight for ${batch?.name ?? "this batch"} are correct? The owner will be notified.'),
             if (notes.isNotEmpty) ...[
               const SizedBox(height: 8),
-              Text('Ulat mo: "$notes"', style: const TextStyle(fontStyle: FontStyle.italic, fontSize: 12)),
+              Text('Notes: "$notes"', style: const TextStyle(fontStyle: FontStyle.italic, fontSize: 12)),
             ],
           ],
         ),
@@ -261,7 +261,7 @@ class _CutterPortioningScreenState extends State<CutterPortioningScreen> {
               if (mounted) {
                 messenger.showSnackBar(
                   SnackBar(
-                    content: Text(ok ? 'Naisumite na ang portioning report kay Owner!' : 'May error sa pag-submit. Subukan ulit.'),
+                    content: Text(ok ? 'Portioning report submitted to the owner!' : 'Error submitting report. Please try again.'),
                     backgroundColor: ok ? AppColors.success : AppColors.error,
                   ),
                 );
@@ -324,7 +324,7 @@ class _CutterPortioningScreenState extends State<CutterPortioningScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               const Text(
-                                'ACTIVE BATCH PARA SA PORTIONING',
+                                'ACTIVE BATCH FOR PORTIONING',
                                 style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: AppColors.accent, letterSpacing: 0.8),
                               ),
                               Text(
@@ -341,7 +341,7 @@ class _CutterPortioningScreenState extends State<CutterPortioningScreen> {
                             borderRadius: BorderRadius.circular(6),
                           ),
                           child: Text(
-                            _activeBatch!.cookingStatus == 'completed' ? 'TAPOS NA' : 'TARGETS READY',
+                            _activeBatch!.cookingStatus == 'completed' ? 'COMPLETED' : 'TARGETS READY',
                             style: TextStyle(
                               fontSize: 10,
                               fontWeight: FontWeight.w800,
@@ -367,7 +367,7 @@ class _CutterPortioningScreenState extends State<CutterPortioningScreen> {
                               Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  const Text('PETSA', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: AppColors.textSecondary)),
+                                  const Text('DATE', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: AppColors.textSecondary)),
                                   const SizedBox(height: 2),
                                   Text(DateFormat('MMM dd, yyyy').format(() {
                                     if (_activeBatch!.sessions.isNotEmpty) {
@@ -383,7 +383,7 @@ class _CutterPortioningScreenState extends State<CutterPortioningScreen> {
                               Column(
                                 crossAxisAlignment: CrossAxisAlignment.end,
                                 children: [
-                                  const Text('NILUTO NI COOK', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: AppColors.textSecondary)),
+                                  const Text('COOKED MEAT', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: AppColors.textSecondary)),
                                   const SizedBox(height: 2),
                                   Text(
                                     '${_activeBatch!.cookedKilos?.toStringAsFixed(2) ?? _activeBatch!.totalKilos.toStringAsFixed(2)} KG',
@@ -399,7 +399,7 @@ class _CutterPortioningScreenState extends State<CutterPortioningScreen> {
                             children: [
                               _targetChip('400G (B1T1)', '${_targets['400g']} pcs'),
                               _targetChip('300G (Med)', '${_targets['300g']} pcs'),
-                              _targetChip('250G (Reg)', (_targets['250g'] != null && _targets['250g']! > 0) ? '${_targets['250g']} pcs' : 'Lahat ng Tira'),
+                              _targetChip('250G (Reg)', (_targets['250g'] != null && _targets['250g']! > 0) ? '${_targets['250g']} pcs' : 'All Remaining'),
                             ],
                           ),
                         ],
@@ -415,7 +415,7 @@ class _CutterPortioningScreenState extends State<CutterPortioningScreen> {
               label: 'Meat Portioning',
               icon: CupertinoIcons.scissors_alt,
               large: true,
-              subtitle: 'Unahing buuin ang 400G at 300G; lahat ng tira ay para sa 250G',
+              subtitle: 'Complete 400G and 300G first; all remaining goes to 250G',
             ),
             const SizedBox(height: 14),
             _buildPortionInputCard('400g'),
@@ -489,7 +489,7 @@ class _CutterPortioningScreenState extends State<CutterPortioningScreen> {
                         const SizedBox(width: 6),
                         const Expanded(
                           child: Text(
-                            'ULAT PARA SA NATIRANG KARNE (REQUIRED)',
+                            'REMAINING MEAT REPORT (REQUIRED)',
                             style: TextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.w800,
@@ -502,13 +502,13 @@ class _CutterPortioningScreenState extends State<CutterPortioningScreen> {
                     ),
                     const SizedBox(height: 6),
                     const Text(
-                      'Ipaliwanag kung bakit may natitira pang karne at kung ano ang dahilan.',
+                      'Explain the reason for any remaining meat.',
                       style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
                     ),
                     const SizedBox(height: 12),
                     CupertinoTextField(
                       controller: _remainingNotesController,
-                      placeholder: 'Halimbawa: Sobra sa hilaw na niluto, sira ang makina, etc.',
+                      placeholder: 'e.g. Extra raw meat cooked, machine issue, etc.',
                       keyboardType: TextInputType.multiline,
                       maxLines: 4,
                       minLines: 3,
@@ -549,23 +549,23 @@ class _CutterPortioningScreenState extends State<CutterPortioningScreen> {
                   if (_controllers['400g']!.text.trim().isEmpty ||
                       _controllers['300g']!.text.trim().isEmpty ||
                       _controllers['250g']!.text.trim().isEmpty) {
-                    issues.add('Punan ang lahat ng portioning fields.');
+                    issues.add('Fill in all portioning fields.');
                   }
                   if (c400 != null && c400 != t400) {
-                    issues.add('400G: dapat exactly $t400 pcs.');
+                    issues.add('400G: must be exactly $t400 pcs.');
                   }
                   if (c300 != null && c300 != t300) {
-                    issues.add('300G: dapat exactly $t300 pcs.');
+                    issues.add('300G: must be exactly $t300 pcs.');
                   }
                   if (_meatLeftController.text.trim().isEmpty) {
-                    issues.add('Punan ang remaining weight.');
+                    issues.add('Enter the remaining weight.');
                   }
                   if (remainingG > 0 && !hasNotes) {
-                    issues.add('Mag-ulat kung bakit may natirang karne.');
+                    issues.add('Provide a reason for the remaining meat.');
                   }
 
                   return Text(
-                    issues.isNotEmpty ? issues.join(' ') : 'Kumpletuhin ang lahat ng fields.',
+                    issues.isNotEmpty ? issues.join(' ') : 'Complete all fields.',
                     style: const TextStyle(
                       fontSize: 11,
                       color: AppColors.textSecondary,
@@ -742,13 +742,13 @@ class _CutterPortioningScreenState extends State<CutterPortioningScreen> {
     final String subtitle;
     if (isStrict) {
       subtitle = isError
-          ? 'Dapat exactly $target pcs — hindi pwedeng kulang o sobra'
-          : 'Target: $target pcs (dapat exact)';
+          ? 'Must be exactly $target pcs — no more, no less'
+          : 'Target: $target pcs (exact)';
     } else {
       // 250G — show ideal reference
       subtitle = target > 0
-          ? 'Ideal: $ideal250 pcs (maaaring iba ang aktwal)'
-          : 'Ideal: $ideal250 pcs — lahat ng tira';
+          ? 'Ideal: $ideal250 pcs (actual may vary)'
+          : 'Ideal: $ideal250 pcs — all remaining meat';
     }
 
     return StaffCard(

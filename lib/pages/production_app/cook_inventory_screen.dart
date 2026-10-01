@@ -33,7 +33,7 @@ class _CookInventoryScreenState extends State<CookInventoryScreen> {
       context: context,
       builder: (context) => CupertinoAlertDialog(
         title: const Text('Request Supply'),
-        content: Text('Sigurado ka bang kailangan na ng bagong stock ng $name?'),
+        content: Text('Are you sure you need new stock for $name?'),
         actions: [
           CupertinoDialogAction(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
           CupertinoDialogAction(

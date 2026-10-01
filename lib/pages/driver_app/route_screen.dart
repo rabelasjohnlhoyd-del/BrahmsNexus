@@ -156,8 +156,8 @@ class _RouteScreenState extends State<RouteScreen> {
     showCupertinoDialog(
       context: context,
       builder: (dialogCtx) => CupertinoAlertDialog(
-        title: const Text('Tawagan ang Staff'),
-        content: Text('Gusto mo bang tawagan si ${staff.fullName} ($phone)?'),
+        title: const Text('Call Staff'),
+        content: Text('Do you want to call ${staff.fullName} ($phone)?'),
         actions: [
           CupertinoDialogAction(
             onPressed: () => Navigator.pop(dialogCtx),
@@ -173,16 +173,16 @@ class _RouteScreenState extends State<RouteScreen> {
                   await launchUrl(uri);
                 } else {
                   messenger.showSnackBar(
-                    SnackBar(content: Text('Hindi mabuksan ang phone dialer para sa $cleanNumber')),
+                    SnackBar(content: Text('Unable to open phone dialer for $cleanNumber')),
                   );
                 }
               } catch (e) {
                 messenger.showSnackBar(
-                  SnackBar(content: Text('Error sa pagtawag: $e')),
+                  SnackBar(content: Text('Error placing call: $e')),
                 );
               }
             },
-            child: const Text('Tawagan'),
+            child: const Text('Call'),
           ),
         ],
       ),
@@ -196,7 +196,7 @@ class _RouteScreenState extends State<RouteScreen> {
     if (staff == null) {
       messenger.showSnackBar(
         SnackBar(
-          content: Text('Walang assigned staff sa ${branch.name}.'),
+          content: Text('No assigned staff at ${branch.name}.'),
           backgroundColor: AppColors.warning,
         ),
       );
@@ -205,14 +205,14 @@ class _RouteScreenState extends State<RouteScreen> {
 
     final staffName = staff.fullName;
     final modeLabel = _activeMode == RouteMode.deployment
-        ? 'Deployment (Hatid)'
-        : 'Retrieval (Sundo)';
+        ? 'Deployment (Drop-off)'
+        : 'Retrieval (Pick-up)';
 
     showCupertinoDialog(
       context: context,
       builder: (dialogCtx) => CupertinoAlertDialog(
-        title: const Text('Magpadala ng Notification'),
-        content: Text('I-notify si $staffName na "On the way" ka na para sa $modeLabel sa ${branch.name}?'),
+        title: const Text('Send Notification'),
+        content: Text('Notify $staffName that you are "On the way" for $modeLabel at ${branch.name}?'),
         actions: [
           CupertinoDialogAction(
             onPressed: () => Navigator.pop(dialogCtx),
@@ -236,7 +236,7 @@ class _RouteScreenState extends State<RouteScreen> {
               );
               if (mounted) {
                 messenger.showSnackBar(
-                  SnackBar(content: Text('Na-notify si $staffName: "Driver is on the way"')),
+                  SnackBar(content: Text('Notified $staffName: "Driver is on the way"')),
                 );
               }
             },
@@ -257,7 +257,7 @@ class _RouteScreenState extends State<RouteScreen> {
       context: context,
       builder: (dialogCtx) => CupertinoAlertDialog(
         title: const Text('Status Update'),
-        content: Text('I-confirm na $action na si $staffName sa ${branch.name}?'),
+        content: Text('Confirm that $staffName at ${branch.name} is $action?'),
         actions: [
           CupertinoDialogAction(
             onPressed: () => Navigator.pop(dialogCtx),
@@ -288,7 +288,7 @@ class _RouteScreenState extends State<RouteScreen> {
 
               if (mounted) {
                 messenger.showSnackBar(
-                  SnackBar(content: Text('$action: $staffName sa ${branch.name} — Na-notify si Owner!')),
+                  SnackBar(content: Text('$action: $staffName at ${branch.name} — Owner notified!')),
                 );
               }
             },
@@ -757,7 +757,7 @@ class _RouteScreenState extends State<RouteScreen> {
                                                 if (hasStaff) ...[
                                                   if (_isRestDay(staff))
                                                     const Text(
-                                                      'Naka Rest Day ngayon',
+                                                      'On Rest Day today',
                                                       style: TextStyle(
                                                         fontSize: 11,
                                                         color: AppColors.warning,
@@ -774,7 +774,7 @@ class _RouteScreenState extends State<RouteScreen> {
                                                     )
                                                   else
                                                     const Text(
-                                                      'Walang registered number',
+                                                      'No registered number',
                                                       style: TextStyle(
                                                         fontSize: 10.5,
                                                         fontStyle: FontStyle.italic,

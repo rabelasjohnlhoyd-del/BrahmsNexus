@@ -157,18 +157,18 @@ class _StaffBilaoOrdersScreenState extends State<StaffBilaoOrdersScreen> {
       return 'Completed';
     }
     if (o.deliveryStatus == DeliveryStatus.outForDelivery) {
-      return 'Paparating sa Branch';
+      return 'In Transit to Branch';
     }
     if (o.preparationStatus == PreparationStatus.ready) {
-      return 'Handa na para sa Pickup';
+      return 'Ready for Pickup';
     }
     switch (o.preparationStatus) {
       case PreparationStatus.pending:
         return 'Pending Order';
       case PreparationStatus.preparing:
-        return 'Inihahanda sa Kusina';
+        return 'Preparing in Kitchen';
       case PreparationStatus.ready:
-        return 'Handa na para sa Pickup';
+        return 'Ready for Pickup';
     }
   }
 
@@ -198,10 +198,10 @@ class _StaffBilaoOrdersScreenState extends State<StaffBilaoOrdersScreen> {
     final confirmed = await showCupertinoDialog<bool>(
       context: context,
       builder: (dialogCtx) => CupertinoAlertDialog(
-        title: const Text('I-release sa Customer?'),
+        title: const Text('Release to Customer?'),
         content: Text(
-          'Kinuha na ba ni ${order.customerName} ang kanyang ${order.size.label} Bilao Order at natanggap na ang bayad (\u20b1${order.totalAmount.toStringAsFixed(0)})?\n\n'
-          'Ito ay mamarkahan bilang Completed at aabisuhan si Owner sa system.',
+          'Has ${order.customerName} picked up their ${order.size.label} Bilao Order and was payment received (\u20b1${order.totalAmount.toStringAsFixed(0)})?\n\n'
+          'This will mark the order as Completed and notify the Owner.',
         ),
         actions: [
           CupertinoDialogAction(
@@ -211,7 +211,7 @@ class _StaffBilaoOrdersScreenState extends State<StaffBilaoOrdersScreen> {
           CupertinoDialogAction(
             isDefaultAction: true,
             onPressed: () => Navigator.pop(dialogCtx, true),
-            child: const Text('Oo, Nakuha Na'),
+            child: const Text('Yes, Released'),
           ),
         ],
       ),
@@ -232,7 +232,7 @@ class _StaffBilaoOrdersScreenState extends State<StaffBilaoOrdersScreen> {
         builder: (ctx) => CupertinoAlertDialog(
           title: const Text('Order Completed!'),
           content: Text(
-            'Matagumpay na nai-release ang bilao order kay ${order.customerName}. Naka-record na ito sa system at notified na si Owner.',
+            'The bilao order for ${order.customerName} was successfully released. It has been recorded and the Owner has been notified.',
           ),
           actions: [
             CupertinoDialogAction(
@@ -356,7 +356,7 @@ class _StaffBilaoOrdersScreenState extends State<StaffBilaoOrdersScreen> {
                 Navigator.pop(ctx);
                 _completeBranchPickup(order);
               },
-              child: const Text('I-release sa Customer'),
+              child: const Text('Release to Customer'),
             ),
           CupertinoDialogAction(
             onPressed: () => Navigator.pop(ctx),
@@ -572,26 +572,26 @@ class _StaffBilaoOrdersScreenState extends State<StaffBilaoOrdersScreen> {
   String _staffEmptyTitle(int tab) {
     switch (tab) {
       case 0:
-        return 'Walang Bilao para sa Pickup';
+        return 'No Bilao for Pickup';
       case 1:
-        return 'Walang Inihahanda sa Kusina';
+        return 'No Orders in Preparation';
       case 2:
-        return 'Walang Completed Orders';
+        return 'No Completed Orders';
       default:
-        return 'Walang Bilao Orders';
+        return 'No Bilao Orders';
     }
   }
 
   String _staffEmptySubtitle(int tab) {
     switch (tab) {
       case 0:
-        return 'Lalabas dito ang mga bilao na handa nang kunin ng customer o paparating mula sa driver.';
+        return 'Orders ready for customer pickup or incoming from driver will appear here.';
       case 1:
-        return 'Lalabas dito ang mga darating na order na inihahanda pa sa kusina ni Owner.';
+        return 'Incoming orders currently being prepared in the kitchen will appear here.';
       case 2:
-        return 'Makikita rito ang mga nai-release at nabayaran nang bilao orders.';
+        return 'Released and paid bilao orders will appear here.';
       default:
-        return 'I-tap ang + button sa itaas para magdagdag ng bagong walk-in o tawag na bilao order.';
+        return 'Tap the + button above to add a walk-in or phone bilao order.';
     }
   }
 }
@@ -745,7 +745,7 @@ class _OrderCard extends StatelessWidget {
               SizedBox(
                 width: double.infinity,
                 child: StaffButton(
-                  label: 'I-release sa Customer',
+                  label: 'Release to Customer',
                   icon: CupertinoIcons.checkmark_seal_fill,
                   color: AppColors.success,
                   padding: const EdgeInsets.symmetric(vertical: 8),
@@ -966,11 +966,11 @@ class _AddBilaoOrderSheetState extends State<_AddBilaoOrderSheet> {
     final contact = _contactCtrl.text.trim();
 
     if (name.isEmpty || contact.isEmpty) {
-      _showError('Punan ang pangalan at contact number ng customer.');
+      _showError('Please enter the customer name and contact number.');
       return;
     }
     if (_isDirectDelivery && (_city == null || _barangay == null)) {
-      _showError('Pumili ng City at Barangay para sa delivery address.');
+      _showError('Please select a City and Barangay for the delivery address.');
       return;
     }
 
@@ -999,7 +999,7 @@ class _AddBilaoOrderSheetState extends State<_AddBilaoOrderSheet> {
       if (mounted) Navigator.pop(context);
     } catch (e) {
       setState(() => _isSaving = false);
-      if (mounted) _showError('Hindi nai-save ang order: $e');
+      if (mounted) _showError('Failed to save order: $e');
     }
   }
 
@@ -1007,7 +1007,7 @@ class _AddBilaoOrderSheetState extends State<_AddBilaoOrderSheet> {
     showCupertinoDialog<void>(
       context: context,
       builder: (ctx) => CupertinoAlertDialog(
-        title: const Text('Kulang ang info'),
+        title: const Text('Missing Information'),
         content: Text(msg),
         actions: [
           CupertinoDialogAction(
@@ -1114,8 +1114,8 @@ class _AddBilaoOrderSheetState extends State<_AddBilaoOrderSheet> {
                     textCapitalization: TextCapitalization.words,
                     style: _fieldTextStyle,
                     decoration: _dec(
-                      label: 'Pangalan ng Customer',
-                      hint: 'Hal. Juan Dela Cruz',
+                      label: 'Customer Name',
+                      hint: 'e.g. Juan Dela Cruz',
                       icon: Icons.person_outline_rounded,
                     ),
                   ),
@@ -1337,7 +1337,7 @@ class _AddBilaoOrderSheetState extends State<_AddBilaoOrderSheet> {
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
                                       const Text(
-                                        'Petsa',
+                                        'Date',
                                         style: TextStyle(
                                           fontSize: 9.5,
                                           fontWeight: FontWeight.w600,
@@ -1388,7 +1388,7 @@ class _AddBilaoOrderSheetState extends State<_AddBilaoOrderSheet> {
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
                                       const Text(
-                                        'Oras',
+                                        'Time',
                                         style: TextStyle(
                                           fontSize: 9.5,
                                           fontWeight: FontWeight.w600,
@@ -1419,9 +1419,9 @@ class _AddBilaoOrderSheetState extends State<_AddBilaoOrderSheet> {
                   ),
                   const SizedBox(height: 12),
 
-                  // ── Uri ng Order ──────────────────────────────────────────
+                  // ── Order Type ──────────────────────────────────────────
                   const Text(
-                    'Uri ng Order',
+                    'Order Type',
                     style: TextStyle(
                       fontSize: 11.5,
                       fontWeight: FontWeight.w700,
@@ -1504,7 +1504,7 @@ class _AddBilaoOrderSheetState extends State<_AddBilaoOrderSheet> {
                         label: 'City / Municipality',
                         icon: Icons.location_city_outlined,
                       ),
-                      hint: const Text('Pumili ng lungsod',
+                      hint: const Text('Select city / municipality',
                           style: _hintStyle),
                       items: cities
                           .map((c) => DropdownMenuItem(
@@ -1530,7 +1530,7 @@ class _AddBilaoOrderSheetState extends State<_AddBilaoOrderSheet> {
                         label: 'Barangay',
                         icon: Icons.holiday_village_outlined,
                       ),
-                      hint: const Text('Pumili ng barangay',
+                      hint: const Text('Select barangay',
                           style: _hintStyle),
                       items: barangays
                           .map((b) => DropdownMenuItem(
@@ -1549,7 +1549,7 @@ class _AddBilaoOrderSheetState extends State<_AddBilaoOrderSheet> {
                       style: _fieldTextStyle,
                       decoration: _dec(
                         label: 'House No. / Street (optional)',
-                        hint: 'Hal. Blk 5 Lot 2, Rizal St.',
+                        hint: 'e.g. Blk 5 Lot 2, Rizal St.',
                         icon: Icons.home_outlined,
                       ),
                     ),
@@ -1563,7 +1563,7 @@ class _AddBilaoOrderSheetState extends State<_AddBilaoOrderSheet> {
                     style: _fieldTextStyle,
                     decoration: _dec(
                       label: 'Notes (optional)',
-                      hint: 'Hal. Table 2, katabi ng kapilya...',
+                      hint: 'e.g. Table 2, near the chapel...',
                       icon: Icons.notes_rounded,
                     ),
                   ),
@@ -1582,7 +1582,7 @@ class _AddBilaoOrderSheetState extends State<_AddBilaoOrderSheet> {
                     )
                   else
                     StaffButton(
-                      label: 'I-save ang Order',
+                      label: 'Save Order',
                       padding: const EdgeInsets.symmetric(vertical: 11),
                       onPressed: _save,
                     ),

@@ -9,7 +9,6 @@ import '../../services/gemini_service.dart';
 import '../../services/supabase_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/mobile_auth_layout.dart';
-import '../../widgets/primary_button.dart';
 import 'account_status_screen.dart';
 import 'email_otp_screen.dart';
 import 'login_screen.dart';
@@ -288,18 +287,18 @@ class _RegisterScreenState extends State<RegisterScreen> {
       final normalizedPhone = _normalizePhPhone(_contactController.text);
       final phoneRegistered = await SupabaseService.isPhoneRegistered(normalizedPhone);
       if (phoneRegistered) {
-        setState(() => _stepError = 'Ang contact number na ito ay mayroon nang rehistradong account.');
+        setState(() => _stepError = 'This mobile number is already registered.');
         return;
       }
 
       setState(() => _currentStep = 1);
     } else if (_currentStep == 1) {
       if (_selectedCity == null || _selectedCity!.isEmpty) {
-        setState(() => _stepError = 'Please select your City / Municipality.');
+        setState(() => _stepError = 'Please select your city or municipality.');
         return;
       }
       if (_selectedBarangay == null || _selectedBarangay!.isEmpty) {
-        setState(() => _stepError = 'Please select your Barangay.');
+        setState(() => _stepError = 'Please select your barangay.');
         return;
       }
       if (_streetController.text.trim().isEmpty) {
@@ -314,7 +313,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       if (_selectedRoleString == 'Driver') {
         if (_photoLicenseResult == null || !_photoLicenseResult!.isValid) {
           setState(() => _stepError =
-              'Driver applicants must upload a valid verified LTO Driver\'s License photo.');
+              'Driver applicants must upload a clear photo of their Driver\'s License.');
           return;
         }
       }
@@ -368,7 +367,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
     final isUsernameTaken = await SupabaseService.isUsernameRegistered(username);
     if (isUsernameTaken) {
-      setState(() => _registerError = 'Ang username na ito ay nagamit na. Pumili ng iba.');
+      setState(() => _registerError = 'This username is already taken. Please choose another.');
       return;
     }
 
@@ -385,7 +384,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
     final isEmailTaken = await SupabaseService.isEmailRegistered(email);
     if (isEmailTaken) {
-      setState(() => _registerError = 'Ang email address na ito ay mayroon nang rehistradong account.');
+      setState(() => _registerError = 'This email address is already registered.');
       return;
     }
 
@@ -645,11 +644,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
   String _getStepSubtitle() {
     switch (_currentStep) {
       case 0:
-        return 'Step 1 of 3: Personal details & application role';
+        return 'Step 1 of 3: Personal Details';
       case 1:
-        return 'Step 2 of 3: Residential address & verification';
+        return 'Step 2 of 3: Address & Verification';
       case 2:
-        return 'Step 3 of 3: Account security & credentials';
+        return 'Step 3 of 3: Account Credentials';
       default:
         return '';
     }
@@ -815,7 +814,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       key: const ValueKey('step_1_personal'),
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const Text('APPLYING AS', style: _sectionLabelStyle),
+        const Text('ROLE & POSITION', style: _sectionLabelStyle),
         const SizedBox(height: 8),
         SegmentedButton<String>(
           segments: const [
@@ -856,7 +855,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
             initialValue: _selectedPosition,
             style: _fieldTextStyle,
             decoration: _fieldDecoration(
-              label: 'Target Position',
+              label: 'Position',
               prefixIcon: const Icon(Icons.work_outline_rounded, size: 19),
             ),
             isExpanded: true,
@@ -873,7 +872,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         ],
         const SizedBox(height: 16),
 
-        const Text('FULL LEGAL NAME', style: _sectionLabelStyle),
+        const Text('FULL NAME', style: _sectionLabelStyle),
         const SizedBox(height: 8),
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -943,7 +942,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         ),
         const SizedBox(height: 16),
 
-        const Text('DEMOGRAPHICS & CONTACT', style: _sectionLabelStyle),
+        const Text('BIRTHDATE & CONTACT', style: _sectionLabelStyle),
         const SizedBox(height: 8),
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -975,7 +974,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 readOnly: true,
                 style: _fieldTextStyle.copyWith(fontWeight: FontWeight.bold),
                 decoration: _fieldDecoration(
-                  label: 'Age (Auto)',
+                  label: 'Age',
                   hint: 'Auto',
                   prefixIcon: const Icon(Icons.numbers_rounded, size: 18),
                 ),
@@ -990,7 +989,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
           textInputAction: TextInputAction.next,
           style: _fieldTextStyle,
           decoration: _fieldDecoration(
-            label: 'Philippine Mobile Number',
+            label: 'Mobile Number',
             hint: '0917 123 4567',
             prefixIcon: const Icon(Icons.phone_iphone_outlined, size: 19),
           ),
@@ -1007,7 +1006,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       key: const ValueKey('step_2_address'),
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const Text('RESIDENTIAL LOCATION', style: _sectionLabelStyle),
+        const Text('HOME ADDRESS', style: _sectionLabelStyle),
         const SizedBox(height: 8),
 
         DropdownButtonFormField<String>(
@@ -1038,7 +1037,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
           isExpanded: true,
           style: _fieldTextStyle,
           decoration: _fieldDecoration(
-            label: 'City / Municipality',
+            label: 'City or Municipality',
             prefixIcon: const Icon(Icons.location_city_outlined, size: 19),
           ),
           hint: const Text('Select city or municipality', style: _fieldTextStyle),
@@ -1084,7 +1083,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
           style: _fieldTextStyle,
           onChanged: (_) => _updateFullAddress(),
           decoration: _fieldDecoration(
-            label: 'Street / House No.',
+            label: 'Street or House No.',
             hint: 'e.g. 12 Sampaguita St., Purok 3',
             prefixIcon: const Icon(Icons.home_outlined, size: 19),
           ),
@@ -1121,10 +1120,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
         // Driver LTO AI Verification Section
         if (_selectedRoleString == 'Driver') ...[
           const SizedBox(height: 16),
-          const Text('DRIVER\'S LICENSE VERIFICATION', style: _sectionLabelStyle),
+          const Text('DRIVER\'S LICENSE', style: _sectionLabelStyle),
           const SizedBox(height: 4),
           const Text(
-            'Upload a clear photo of your official LTO card for instant verification.',
+            'Take or upload a clear photo of your Driver\'s License.',
             style: TextStyle(fontSize: 13, color: Color(0xFF7A6556), height: 1.35),
           ),
           const SizedBox(height: 8),
@@ -1227,7 +1226,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          'Verifying license card...',
+                          'Verifying license...',
                           style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF8B4513)),
                         ),
                       ),
@@ -1382,7 +1381,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  'All applicant registrations undergo approval by Brahms Management before activation.',
+                  'All applications must be approved by management before account activation.',
                   style: TextStyle(fontSize: 11, color: Color(0xFF6B584C), height: 1.3),
                 ),
               ),
@@ -1399,11 +1398,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
   Widget _buildStepButtons() {
     if (_currentStep == 0) {
       return SizedBox(
-        height: 46,
+        height: 48,
         child: ElevatedButton(
           onPressed: _nextStep,
           style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFF8B4513),
+            backgroundColor: AppColors.accent,
             foregroundColor: Colors.white,
             elevation: 0,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -1425,19 +1424,21 @@ class _RegisterScreenState extends State<RegisterScreen> {
         children: [
           Expanded(
             flex: 1,
-            child: OutlinedButton(
-              onPressed: _prevStep,
-              style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                foregroundColor: const Color(0xFF24140B),
-                side: const BorderSide(color: Color(0xFFDCCFC3)),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              ),
-              child: const Text(
-                'Back',
-                style: TextStyle(
-                  fontWeight: FontWeight.w700,
-                  fontSize: 12.5,
+            child: SizedBox(
+              height: 48,
+              child: OutlinedButton(
+                onPressed: _prevStep,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: const Color(0xFF24140B),
+                  side: const BorderSide(color: Color(0xFFDCCFC3)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+                child: const Text(
+                  'Back',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 12.5,
+                  ),
                 ),
               ),
             ),
@@ -1446,11 +1447,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
           Expanded(
             flex: 2,
             child: SizedBox(
-              height: 46,
+              height: 48,
               child: ElevatedButton(
                 onPressed: _nextStep,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF8B4513),
+                  backgroundColor: AppColors.accent,
                   foregroundColor: Colors.white,
                   elevation: 0,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -1475,10 +1476,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
       children: [
         SizedBox(
           width: 80,
+          height: 48,
           child: OutlinedButton(
             onPressed: _isSubmitting ? null : _prevStep,
             style: OutlinedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 12),
               foregroundColor: const Color(0xFF24140B),
               side: const BorderSide(color: Color(0xFFDCCFC3)),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -1494,10 +1495,34 @@ class _RegisterScreenState extends State<RegisterScreen> {
         ),
         const SizedBox(width: 10),
         Expanded(
-          child: PrimaryButton(
-            label: 'Submit Application',
-            isLoading: _isSubmitting,
-            onPressed: _handleRegister,
+          child: SizedBox(
+            height: 48,
+            child: ElevatedButton(
+              onPressed: _isSubmitting ? null : _handleRegister,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.accent,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+              child: _isSubmitting
+                  ? const SizedBox(
+                      height: 20,
+                      width: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      ),
+                    )
+                  : const Text(
+                      'Submit Application',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 14.5,
+                        letterSpacing: 0.3,
+                      ),
+                    ),
+            ),
           ),
         ),
       ],

@@ -104,8 +104,8 @@ class _CookTaskScreenState extends State<CookTaskScreen> {
     showCupertinoDialog(
       context: context,
       builder: (dialogCtx) => CupertinoAlertDialog(
-        title: const Text('Kumpirmahin ang Pagluto'),
-        content: Text('Sigurado ka bang tapos na ang pagluluto ng ${targetCookKilos.toStringAsFixed(1)} kg ng karne para sa ${batch?.name ?? "batch"}? Aabisuhan si Owner upang makapag-set ng targets para kay Meat Cutter.'),
+        title: const Text('Confirm Cooking Complete'),
+        content: Text('Are you sure you have finished cooking ${targetCookKilos.toStringAsFixed(1)} kg of meat for ${batch?.name ?? "this batch"}? The owner will be notified to set targets for the meat cutter.'),
         actions: [
           CupertinoDialogAction(onPressed: () => Navigator.pop(dialogCtx), child: const Text('Cancel')),
           CupertinoDialogAction(
@@ -131,8 +131,8 @@ class _CookTaskScreenState extends State<CookTaskScreen> {
                 messenger.showSnackBar(
                   SnackBar(
                     content: Text(ok
-                        ? 'Nakumpirma na ang pagluto! Aabisuhan si Owner para mag-set ng portion targets.'
-                        : 'May error sa pag-submit. Subukan ulit.'),
+                        ? 'Cooking confirmed! The owner will be notified to set portion targets.'
+                        : 'Error submitting report. Please try again.'),
                     backgroundColor: ok ? AppColors.success : AppColors.error,
                   ),
                 );
@@ -143,7 +143,7 @@ class _CookTaskScreenState extends State<CookTaskScreen> {
                 }
               }
             },
-            child: const Text('Kumpirmahin'),
+            child: const Text('Confirm'),
           ),
         ],
       ),
@@ -204,8 +204,8 @@ class _CookTaskScreenState extends State<CookTaskScreen> {
                             children: [
                               Text(
                                 activeSession != null
-                                    ? 'SESSION #${activeSession.sessionNumber}: ILULUTO NI COOK'
-                                    : 'ASSIGNED BATCH MULA KAY OWNER',
+                                    ? 'SESSION #${activeSession.sessionNumber}: COOKING TASK'
+                                    : 'ASSIGNED BATCH FROM OWNER',
                                 style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: AppColors.accent, letterSpacing: 0.8),
                               ),
                               Text(
@@ -222,7 +222,7 @@ class _CookTaskScreenState extends State<CookTaskScreen> {
                             borderRadius: BorderRadius.circular(6),
                           ),
                           child: Text(
-                            _activeBatch!.cookingStatus == 'cooked' ? 'NALUTO NA' : 'ILULUTO',
+                            _activeBatch!.cookingStatus == 'cooked' ? 'COOKED' : 'FOR COOKING',
                             style: TextStyle(
                               fontSize: 10,
                               fontWeight: FontWeight.w800,
@@ -248,7 +248,7 @@ class _CookTaskScreenState extends State<CookTaskScreen> {
                               Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  const Text('BRAND NG KARNE', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: AppColors.textSecondary)),
+                                  const Text('MEAT BRAND', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: AppColors.textSecondary)),
                                   const SizedBox(height: 2),
                                   Text(
                                     displayBrand,
@@ -259,7 +259,7 @@ class _CookTaskScreenState extends State<CookTaskScreen> {
                               Column(
                                 crossAxisAlignment: CrossAxisAlignment.end,
                                 children: [
-                                  const Text('ORAS NG LAGA', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: AppColors.textSecondary)),
+                                  const Text('BOILING TIME', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: AppColors.textSecondary)),
                                   const SizedBox(height: 2),
                                   Text(
                                     '$displayBoilingMins Mins Boiling',
@@ -276,7 +276,7 @@ class _CookTaskScreenState extends State<CookTaskScreen> {
                               Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  const Text('PETSA', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: AppColors.textSecondary)),
+                                  const Text('DATE', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: AppColors.textSecondary)),
                                   const SizedBox(height: 2),
                                   Text(DateFormat('MMM dd, yyyy').format(activeSession?.date ?? _activeBatch!.date), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
                                 ],
@@ -284,7 +284,7 @@ class _CookTaskScreenState extends State<CookTaskScreen> {
                               Column(
                                 crossAxisAlignment: CrossAxisAlignment.end,
                                 children: [
-                                  const Text('TARGET NA KILOS (HILAW)', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: AppColors.textSecondary)),
+                                  const Text('TARGET RAW WEIGHT', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: AppColors.textSecondary)),
                                   const SizedBox(height: 2),
                                   Text(
                                     '${targetCookKilos.toStringAsFixed(2)} KG',
@@ -333,7 +333,7 @@ class _CookTaskScreenState extends State<CookTaskScreen> {
               label: 'Cooking Confirmation',
               icon: CupertinoIcons.checkmark_seal_fill,
               large: true,
-              subtitle: 'Kumpirmahin kapag naluto na ang karne',
+              subtitle: 'Confirm once the meat is cooked',
             ),
             const SizedBox(height: 14),
             Builder(
@@ -362,12 +362,12 @@ class _CookTaskScreenState extends State<CookTaskScreen> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   const Text(
-                                    'NAKUMPIRMA NA: NALUTO NA ANG KARNE',
+                                    'CONFIRMED: MEAT IS COOKED',
                                     style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: AppColors.success),
                                   ),
                                   const SizedBox(height: 3),
                                   Text(
-                                    'Naluto na ang ${targetCookKilos.toStringAsFixed(1)} KG ($displayBrand). Hinihintay na ang portioning targets mula kay Owner.',
+                                    '${targetCookKilos.toStringAsFixed(1)} KG ($displayBrand) has been cooked. Waiting for portioning targets from the owner.',
                                     style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
                                   ),
                                 ],
@@ -377,19 +377,19 @@ class _CookTaskScreenState extends State<CookTaskScreen> {
                         ),
                       ] else ...[
                         const Text(
-                          'KUMPIRMASYON SA PAGLUTO',
+                          'COOKING CONFIRMATION',
                           textAlign: TextAlign.center,
                           style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: AppColors.textSecondary, letterSpacing: 0.8),
                         ),
                         const SizedBox(height: 10),
                         Text(
-                          'Kapag tapos na ang pagpapakulo ng ${targetCookKilos.toStringAsFixed(1)} KG sa loob ng $displayBoilingMins minuto, pindutin ang button sa ibaba upang makumpirma.',
+                          'Once boiling ${targetCookKilos.toStringAsFixed(1)} KG for $displayBoilingMins minutes is complete, tap the button below to confirm.',
                           textAlign: TextAlign.center,
                           style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
                         ),
                         const SizedBox(height: 18),
                         StaffButton(
-                          label: 'KUMPIRMAHIN NA NALUTO NA',
+                          label: 'CONFIRM COOKING COMPLETE',
                           onPressed: () => _confirmCookingFinished(targetCookKilos),
                         ),
                       ],

@@ -99,7 +99,7 @@ class _LoginScreenState extends State<LoginScreen> {
         setState(() {
           _isLoading = false;
           _authError =
-              'Ang account na ito ay kasalukuyang NAKA-DEACTIVATE (Frozen). Makipag-ugnayan sa Owner para ma-reactivate.';
+              'This account is currently deactivated. Please contact the administrator for assistance.';
         });
         return;
       }
@@ -110,7 +110,7 @@ class _LoginScreenState extends State<LoginScreen> {
         setState(() {
           _isLoading = false;
           _authError =
-              'Naka-REST DAY po kayo ngayon ayon sa iskedyul ng Owner kaya hindi maaaring mag-login. Magpahinga po muna kayo!';
+              'You are on scheduled rest day today and cannot sign in. Please enjoy your day off!';
         });
         return;
       }
@@ -141,7 +141,7 @@ class _LoginScreenState extends State<LoginScreen> {
           if (!mounted) return;
           setState(() {
             _isLoading = false;
-            _authError = 'Ang Administrator / Owner Portal ay maa-access lamang sa Web browser gamit ang computer o laptop.';
+            _authError = 'Administrator and Owner accounts can only be accessed on the Web Portal.';
           });
           return;
         }
@@ -150,7 +150,7 @@ class _LoginScreenState extends State<LoginScreen> {
           if (!mounted) return;
           setState(() {
             _isLoading = false;
-            _authError = 'Ang Web Portal ay para lamang sa Administrator / Owner. Paki-login ang iyong account sa Brahms Mobile App gamit ang cellphone.';
+            _authError = 'Staff and Driver accounts can only be accessed using the mobile app.';
           });
           return;
         }
@@ -190,7 +190,7 @@ class _LoginScreenState extends State<LoginScreen> {
       await AuthService.signOut();
       if (!mounted) return;
       setState(() {
-        _authError = 'Ang Administrator / Owner Portal ay maa-access lamang sa Web browser gamit ang computer o laptop.';
+        _authError = 'Administrator and Owner accounts can only be accessed on the Web Portal.';
       });
       return;
     }
@@ -200,7 +200,7 @@ class _LoginScreenState extends State<LoginScreen> {
       await AuthService.signOut();
       if (!mounted) return;
       setState(() {
-        _authError = 'Ang Web Portal ay para lamang sa Administrator / Owner. Paki-login ang iyong account sa Brahms Mobile App gamit ang cellphone.';
+        _authError = 'Staff and Driver accounts can only be accessed using the mobile app.';
       });
       return;
     }
@@ -520,7 +520,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(width: 8),
                   const Text(
-                    'Remember this device',
+                    'Remember me',
                     style: TextStyle(
                       fontSize: 12,
                       color: Color(0xFF6B584C),

@@ -133,7 +133,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               ),
               const SizedBox(height: 14),
               const Text(
-                'Gusto mo bang gamitin ang litratong ito bilang iyong bagong profile picture?',
+                'Do you want to use this photo as your new profile picture?',
                 style: TextStyle(fontSize: 14),
               ),
             ],
@@ -175,7 +175,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Matagumpay na na-save ang iyong profile picture!'),
+              content: Text('Profile photo updated successfully!'),
               backgroundColor: AppColors.success,
             ),
           );

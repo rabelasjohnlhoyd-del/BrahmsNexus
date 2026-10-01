@@ -146,16 +146,16 @@ class _BilaoDeliveriesScreenState extends State<BilaoDeliveriesScreen> {
 
   Future<void> _startDelivery(BilaoOrder order) async {
     final destinationText = order.isBranchPickup
-        ? 'sa branch (${order.pickupBranchName ?? "Branch"})'
-        : 'sa customer address (${order.deliveryAddress})';
+        ? 'to the branch (${order.pickupBranchName ?? "Branch"})'
+        : 'to the customer address (${order.deliveryAddress})';
 
     final confirmed = await showCupertinoDialog<bool>(
       context: context,
       builder: (dialogCtx) => CupertinoAlertDialog(
-        title: const Text('Out For Delivery?'),
+        title: const Text('Start Delivery?'),
         content: Text(
-          'Kukunin mo na ba ang bilao order para kay ${order.customerName} sa bahay ni Owner at ilalagay sa Out For Delivery $destinationText?\n\n'
-          'Magpapadala ito ng abiso kay Owner${order.isBranchPickup ? " at sa staff ng nasabing branch" : ""}.',
+          'Pick up the bilao order for ${order.customerName} and mark as Out For Delivery $destinationText?\n\n'
+          'This will notify the Owner${order.isBranchPickup ? " and the branch staff" : ""}.',
         ),
         actions: [
           CupertinoDialogAction(
@@ -188,8 +188,8 @@ class _BilaoDeliveriesScreenState extends State<BilaoDeliveriesScreen> {
           title: const Text('Out For Delivery'),
           content: Text(
             order.isBranchPickup
-                ? 'Naka-set na sa Out For Delivery! Naka-notif na si Owner at ang staff ng ${order.pickupBranchName ?? "branch"} na paparating ka na.'
-                : 'Naka-set na sa Out For Delivery! Naka-notif na si Owner sa system.',
+                ? 'Status updated to Out For Delivery! The Owner and staff of ${order.pickupBranchName ?? "the branch"} have been notified that you are on the way.'
+                : 'Status updated to Out For Delivery! The Owner has been notified.',
           ),
           actions: [
             CupertinoDialogAction(
@@ -222,7 +222,7 @@ class _BilaoDeliveriesScreenState extends State<BilaoDeliveriesScreen> {
         builder: (ctx) => CupertinoAlertDialog(
           title: const Text('Delivery Completed'),
           content: Text(
-            'Matagumpay na nai-record ang delivery para kay ${order.customerName}. Nai-post na ito sa Employee Reports at automated completed na sa Owner at Staff apps.',
+            'Delivery for ${order.customerName} has been recorded successfully. The report has been saved and marked completed across Owner and Staff apps.',
           ),
           actions: [
             CupertinoDialogAction(
@@ -485,26 +485,26 @@ class _BilaoDeliveriesScreenState extends State<BilaoDeliveriesScreen> {
   String _emptyStateTitle(int tab) {
     switch (tab) {
       case 0:
-        return 'Walang Active Deliveries';
+        return 'No Active Deliveries';
       case 1:
-        return 'Walang Inihahandang Order';
+        return 'No Orders in Preparation';
       case 2:
-        return 'Walang Completed Deliveries';
+        return 'No Completed Deliveries';
       default:
-        return 'Walang Bilao Orders';
+        return 'No Bilao Orders';
     }
   }
 
   String _emptyStateSubtitle(int tab) {
     switch (tab) {
       case 0:
-        return 'Lalabas dito kapag Ready for Delivery na ang nilulutong bilao sa bahay ni Owner.';
+        return 'Orders will appear here once marked Ready for Delivery from the kitchen.';
       case 1:
-        return 'Lalabas dito ang mga darating na order na inihahanda pa sa kusina.';
+        return 'Upcoming orders currently being prepared in the kitchen will appear here.';
       case 2:
-        return 'Makikita rito ang mga matagumpay nang naihatid na bilao.';
+        return 'Successfully delivered bilao orders will appear here.';
       default:
-        return 'Walang nahanap na bilao order sa talaan.';
+        return 'No bilao orders found in records.';
     }
   }
 }
@@ -710,7 +710,7 @@ class _DriverOrderBox extends StatelessWidget {
             ] else if (isPendingOrPreparing) ...[
               const SizedBox(height: 8),
               const Text(
-                'Inihahanda pa sa kusina. Aabisuhan ka kapag Ready na sa bahay ni Owner.',
+                'Currently being prepared in the kitchen. You will be notified once ready for pickup.',
                 style: TextStyle(
                   fontSize: 11,
                   fontStyle: FontStyle.italic,

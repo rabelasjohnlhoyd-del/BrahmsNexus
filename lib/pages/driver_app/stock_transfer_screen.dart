@@ -52,19 +52,19 @@ class _StockTransferScreenState extends State<StockTransferScreen> {
     final confirmed = await showCupertinoDialog<bool>(
       context: context,
       builder: (ctx) => CupertinoAlertDialog(
-        title: const Text('I-confirm ang Delivery?'),
+        title: const Text('Confirm Delivery?'),
         content: Text(
-          'Naihatid na ba ang karne sa ${dispatch.destinationBranchName}?\n\n${dispatch.itemsSummary}',
+          'Has the meat been delivered to ${dispatch.destinationBranchName}?\n\n${dispatch.itemsSummary}',
         ),
         actions: [
           CupertinoDialogAction(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Hindi pa'),
+            child: const Text('Not Yet'),
           ),
           CupertinoDialogAction(
             isDefaultAction: true,
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Oo, Naihatid na!'),
+            child: const Text('Yes, Delivered!'),
           ),
         ],
       ),
@@ -80,8 +80,8 @@ class _StockTransferScreenState extends State<StockTransferScreen> {
         SnackBar(
           content: Text(
             success
-                ? 'Na-deliver na! Nag-update na ang inventory ng ${dispatch.destinationBranchName}.'
-                : 'May error. Subukan ulit.',
+                ? 'Delivered successfully! Inventory for ${dispatch.destinationBranchName} has been updated.'
+                : 'Failed to update. Please try again.',
           ),
           backgroundColor: success ? AppColors.success : AppColors.error,
         ),
@@ -135,7 +135,7 @@ class _StockTransferScreenState extends State<StockTransferScreen> {
                       if (delivered.isNotEmpty) ...[
                         const SizedBox(height: 20),
                         const DriverSectionHeader(
-                          label: 'Naihatid Na',
+                          label: 'Completed Deliveries',
                           icon: CupertinoIcons.checkmark_shield_fill,
                         ),
                         const SizedBox(height: 12),
@@ -173,10 +173,10 @@ class _StockTransferScreenState extends State<StockTransferScreen> {
               child: const Icon(CupertinoIcons.checkmark_shield_fill, size: 32, color: AppColors.accent),
             ),
             const SizedBox(height: 20),
-            const Text('Walang Dispatch', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
+            const Text('No Dispatches', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
             const SizedBox(height: 8),
             const Text(
-              'Wala pang pending na meat dispatch mula sa Owner.',
+              'No pending meat dispatches from the Owner at this time.',
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 14, color: AppColors.textSecondary, height: 1.4),
             ),
@@ -308,7 +308,7 @@ class _StockTransferScreenState extends State<StockTransferScreen> {
                   child: isProcessing
                       ? const CupertinoActivityIndicator(color: CupertinoColors.white)
                       : const Text(
-                          'Naihatid na ✓',
+                          'Mark as Delivered ✓',
                           style: TextStyle(color: CupertinoColors.white, fontWeight: FontWeight.w700, fontSize: 14),
                         ),
                 ),

@@ -569,7 +569,7 @@ class _HomepageScreenState extends State<HomepageScreen> with WidgetsBindingObse
       context: context,
       builder: (context) => CupertinoAlertDialog(
         title: const Text('Confirm Inventory'),
-        content: const Text('Sigurado ka bang tugma ang lahat ng counts na natanggap mo para sa araw na ito?'),
+        content: const Text('Are you sure all the received item counts for today are correct?'),
         actions: [
           CupertinoDialogAction(
             onPressed: () => Navigator.pop(context),
@@ -621,7 +621,7 @@ class _HomepageScreenState extends State<HomepageScreen> with WidgetsBindingObse
           children: [
             const SizedBox(height: 8),
             const Text(
-              "Pakilagay kung ano ang kulang o sobra sa natanggap mong stock.",
+              "Please describe any missing or extra items in the received stock.",
               style: TextStyle(fontSize: 13),
             ),
             const SizedBox(height: 14),
@@ -919,7 +919,7 @@ class _HomepageScreenState extends State<HomepageScreen> with WidgetsBindingObse
                   ? CupertinoIcons.lock_shield_fill
                   : CupertinoIcons.checkmark_seal_fill,
               subtitle: isVerified
-                  ? 'Nai-record na ang mga bilang para sa araw na ito (Locked)'
+                  ? 'Counts for today have been recorded (Locked)'
                   : 'Enter the actual count of items you received',
               large: true,
               trailing: isVerified
@@ -1062,7 +1062,7 @@ class _HomepageScreenState extends State<HomepageScreen> with WidgetsBindingObse
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 8),
                 child: Text(
-                  'Note: Pakilagay ang lahat ng counts para lumabas ang verification button.',
+                  'Note: Please enter all counts to enable the verification button.',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     color: AppColors.textSecondary,
@@ -1125,7 +1125,7 @@ class _HomepageScreenState extends State<HomepageScreen> with WidgetsBindingObse
                           padding: const EdgeInsets.all(16),
                           child: Center(
                             child: Text(
-                              'Walang ibang cook na naka-duty ngayon.',
+                              'No other cooks on duty today.',
                               style: TextStyle(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w500,
@@ -1197,7 +1197,7 @@ class _HomepageScreenState extends State<HomepageScreen> with WidgetsBindingObse
                                               borderRadius: BorderRadius.circular(6),
                                             ),
                                             child: const Text(
-                                              'IKAW',
+                                              'YOU',
                                               style: TextStyle(
                                                 fontSize: 9.5,
                                                 fontWeight: FontWeight.w800,

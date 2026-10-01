@@ -67,8 +67,8 @@ class _CutterInventoryScreenState extends State<CutterInventoryScreen> {
       showCupertinoDialog(
         context: context,
         builder: (context) => CupertinoAlertDialog(
-          title: const Text('Kasalukuyang May Pending Request'),
-          content: Text('Mayroon nang nakabinbing request para sa $name na naghihintay ng tugon ni Owner. Iwasang mag-spam upang hindi magkadoble ang tala.'),
+          title: const Text('Pending Request Exists'),
+          content: Text('There is already a pending request for $name awaiting owner response. Please avoid submitting duplicate requests.'),
           actions: [
             CupertinoDialogAction(
               onPressed: () => Navigator.pop(context),
@@ -85,7 +85,7 @@ class _CutterInventoryScreenState extends State<CutterInventoryScreen> {
       context: context,
       builder: (dialogCtx) => CupertinoAlertDialog(
         title: const Text('Request Supply'),
-        content: Text('Sigurado ka bang kailangan na ng bagong stock ng $name? Magpapadala ito ng alert kay Owner.'),
+        content: Text('Are you sure you need new stock for $name? This will send an alert to the owner.'),
         actions: [
           CupertinoDialogAction(onPressed: () => Navigator.pop(dialogCtx), child: const Text('Cancel')),
           CupertinoDialogAction(
@@ -107,7 +107,7 @@ class _CutterInventoryScreenState extends State<CutterInventoryScreen> {
                 setState(() => _pendingSubmissions.remove(name));
                 messenger.showSnackBar(
                   SnackBar(
-                    content: Text(ok ? 'Naipadala na ang request para sa $name kay Owner!' : 'May error. Subukan ulit.'),
+                    content: Text(ok ? 'Request for $name has been sent to the owner!' : 'An error occurred. Please try again.'),
                     backgroundColor: ok ? AppColors.success : AppColors.error,
                   ),
                 );
@@ -203,7 +203,7 @@ class _CutterInventoryScreenState extends State<CutterInventoryScreen> {
                             CupertinoActivityIndicator(radius: 5),
                             SizedBox(width: 6),
                             Text(
-                              'Naghihintay ng tugon mula kay Owner...',
+                              'Awaiting response from owner...',
                               style: TextStyle(
                                 fontSize: 11,
                                 color: AppColors.warning,
@@ -242,7 +242,7 @@ class _CutterInventoryScreenState extends State<CutterInventoryScreen> {
                         Icon(CupertinoIcons.reply, size: 12, color: AppColors.accent),
                         SizedBox(width: 6),
                         Text(
-                          'TUGON NI OWNER',
+                          'OWNER RESPONSE',
                           style: TextStyle(
                             fontSize: 10,
                             fontWeight: FontWeight.w800,

@@ -153,7 +153,7 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
     final parts = <String>[];
     if (_mayoTorn) parts.add('The mayo we brought got punctured');
     if (_gasEmpty) parts.add("We're out of gas (LPG)");
-    if (_needMoreMeat) parts.add('Need additional Karne (meat)');
+    if (_needMoreMeat) parts.add('Need additional meat stock');
     final msg = _messageController.text.trim();
     if (msg.isNotEmpty) {
       parts.add(msg);
@@ -212,19 +212,19 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
     final confirmed = await showCupertinoDialog<bool>(
       context: context,
       builder: (ctx) => CupertinoAlertDialog(
-        title: const Text('Kumpirmahin ang Pagdating'),
+        title: const Text('Confirm Delivery Arrival'),
         content: const Text(
-          'Natanggap na po ba ang kailangang gamit o karne mula sa driver? Pag kinumpirma, mako-complete na ang report at aabisuhan si Owner.',
+          'Have you received the requested items or meat from the driver? Confirming will mark this report as completed and notify the owner.',
         ),
         actions: [
           CupertinoDialogAction(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Hindi pa'),
+            child: const Text('Not Yet'),
           ),
           CupertinoDialogAction(
             isDefaultAction: true,
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Oo, Natanggap na'),
+            child: const Text('Yes, Received'),
           ),
         ],
       ),
@@ -240,8 +240,8 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
         showCupertinoDialog<void>(
           context: context,
           builder: (ctx) => CupertinoAlertDialog(
-            title: const Text('Na-confirm na!'),
-            content: const Text('Naipabatid na kay Owner na natanggap na ang delivery. Mawawala na ito sa pending list.'),
+            title: const Text('Delivery Confirmed'),
+            content: const Text('The owner has been notified that the delivery was received. This item has been removed from the pending list.'),
             actions: [
               CupertinoDialogAction(
                 onPressed: () => Navigator.pop(ctx),
@@ -287,19 +287,19 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
             ),
             _checklistTile(
               icon: CupertinoIcons.cube_box_fill,
-              label: 'Need additional Karne (meat)',
+              label: 'Need additional meat stock',
               value: _needMoreMeat,
               enabled: _isInventoryVerified,
               subtitle: _isInventoryVerified
                   ? null
-                  : 'Naka-lock: Mag-verify muna ng natanggap na inventory sa Home',
+                  : 'Locked: Please verify received inventory on the Home tab first',
               onDisabledTap: () {
                 showCupertinoDialog<void>(
                   context: context,
                   builder: (context) => CupertinoAlertDialog(
                     title: const Text('Inventory Verification Required'),
                     content: const Text(
-                      'Kailangan po munang sagutan ang "Verify: Count What You Actually Received" sa Home tab bago humingi ng additional karne.',
+                      'Please complete "Verify: Count What You Actually Received" on the Home tab before requesting additional meat.',
                     ),
                     actions: [
                       CupertinoDialogAction(
@@ -349,7 +349,7 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 8),
                 child: Text(
-                  'Note: Pakipili ang issue sa itaas o mag-type ng message para lumabas ang send button.',
+                  'Note: Please select an issue above or type a message to enable the send button.',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     color: AppColors.textSecondary,
@@ -461,7 +461,7 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
                                         Icon(CupertinoIcons.checkmark_alt_circle_fill, color: CupertinoColors.white, size: 15),
                                         SizedBox(width: 6),
                                         Text(
-                                          'Dumating na ba? (I-confirm)',
+                                          'Received? (Confirm)',
                                           style: TextStyle(
                                             fontSize: 12,
                                             fontWeight: FontWeight.bold,
