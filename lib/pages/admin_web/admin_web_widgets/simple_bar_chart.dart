@@ -100,6 +100,7 @@ class SimpleBarChart extends StatelessWidget {
                               child: Padding(
                                 padding: const EdgeInsets.symmetric(horizontal: 4),
                                 child: _BarGroup(
+                                  label: labels[dayIndex],
                                   values: [
                                     for (final s in series) s.values[dayIndex]
                                   ],
@@ -146,11 +147,13 @@ class SimpleBarChart extends StatelessWidget {
 /// One day's group of bars (one bar per series).
 class _BarGroup extends StatelessWidget {
   const _BarGroup({
+    this.label,
     required this.values,
     required this.colors,
     required this.maxValue,
   });
 
+  final String? label;
   final List<num> values;
   final List<Color> colors;
   final double maxValue;
@@ -167,12 +170,29 @@ class _BarGroup extends StatelessWidget {
             child: FractionallySizedBox(
               heightFactor: (values[i] / maxValue).clamp(0.01, 1.0),
               alignment: Alignment.bottomCenter,
-              child: Container(
-                constraints: const BoxConstraints(maxWidth: 32),
+              child: Tooltip(
+                message: label != null ? '$label: ${values[i]}' : '${values[i]}',
+                textStyle: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 12,
+                ),
                 decoration: BoxDecoration(
-                  color: colors[i],
-                  borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(6),
+                  color: AdminWebColors.accent,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                child: MouseRegion(
+                  cursor: SystemMouseCursors.click,
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    constraints: const BoxConstraints(maxWidth: 32),
+                    decoration: BoxDecoration(
+                      color: colors[i],
+                      borderRadius: const BorderRadius.vertical(
+                        top: Radius.circular(6),
+                      ),
+                    ),
                   ),
                 ),
               ),

@@ -143,9 +143,9 @@ VALUES
     ('emp7', 'Menes', '', 'Bantug', 'menes_cook', NULL, 'N/A', 'Production Cook', 'Pending Info', 'Production Area', true, false),
     ('emp8', 'Abby', '', 'Torres', 'abby_cutter', NULL, 'N/A', 'Production Meat Cutter', 'Pending Info', 'Production Area', true, false),
     ('emp9', 'Danilo', '', 'Ramos', 'danilo_driver', NULL, 'N/A', 'Driver', 'Pending Info', 'Logistics / Delivery', true, false),
-    ('emp10', 'Extra Cook 1', '', '(Floating)', 'floating_cook_1', NULL, 'Floating / Any Branch', 'Floating Cook', 'Pending Info', 'Laguna', true, false),
-    ('emp11', 'Extra Cook 2', '', '(Floating)', 'floating_cook_2', NULL, 'Floating / Any Branch', 'Floating Cook', 'Pending Info', 'Laguna', true, false),
-    ('emp12', 'Extra Cook 3', '', '(Floating)', 'floating_cook_3', NULL, 'Floating / Any Branch', 'Floating Cook', 'Pending Info', 'Laguna', true, false)
+    ('emp10', 'Extra Cook 1', '', '(Floating)', 'floating_cook_1', NULL, 'Any Branch', 'Floating Cook', 'Pending Info', 'Laguna', true, false),
+    ('emp11', 'Extra Cook 2', '', '(Floating)', 'floating_cook_2', NULL, 'Any Branch', 'Floating Cook', 'Pending Info', 'Laguna', true, false),
+    ('emp12', 'Extra Cook 3', '', '(Floating)', 'floating_cook_3', NULL, 'Any Branch', 'Floating Cook', 'Pending Info', 'Laguna', true, false)
 ON CONFLICT (username) DO NOTHING;
 
 -- ==============================================================================

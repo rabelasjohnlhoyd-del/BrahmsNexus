@@ -82,19 +82,6 @@ class AdminTopBar extends StatelessWidget implements PreferredSizeWidget {
           padding: EdgeInsets.symmetric(horizontal: isNarrow ? 12 : 24),
           child: Row(
             children: [
-              // Sidebar Toggle Button (if collapsed or triggered)
-              if (showSidebarToggle && onToggleSidebar != null) ...[
-                IconButton(
-                  icon: const Icon(Icons.menu_rounded,
-                      color: AdminWebColors.textPrimary, size: 22),
-                  onPressed: onToggleSidebar,
-                  tooltip: 'Toggle Sidebar',
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                ),
-                const SizedBox(width: 12),
-              ],
-
               // Section Icon Badge
               Container(
                 width: 36,

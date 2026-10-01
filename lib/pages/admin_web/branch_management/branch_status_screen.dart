@@ -29,7 +29,7 @@ class _BranchStatusScreenState extends State<BranchStatusScreen> {
     _BranchDef(id: 'san_francisco', name: 'San Francisco', municipality: 'Pila'),
     _BranchDef(id: 'dayap', name: 'Dayap', municipality: 'Calauan'),
     _BranchDef(id: 'gatid', name: 'Gatid', municipality: 'Sta. Cruz'),
-    _BranchDef(id: 'pila', name: 'Pila Proper', municipality: 'Pila'),
+    _BranchDef(id: 'pila', name: 'Pila', municipality: 'Pila'),
   ];
 
   @override

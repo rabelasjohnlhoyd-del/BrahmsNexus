@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../models/staff_member.dart';
+import '../../../widgets/address_edit_dialog.dart';
 import '../admin_web_widgets/glass_card.dart';
 import '../admin_web_colors.dart';
 import '../admin_web_shell.dart';
@@ -24,10 +25,12 @@ class _EditStaffScreenState extends State<EditStaffScreen> {
   late final TextEditingController _usernameController;
   late final TextEditingController _emailController;
   late final TextEditingController _phoneController;
+  late final TextEditingController _birthdateController;
   late final TextEditingController _ageController;
   late final TextEditingController _addressController;
   late final TextEditingController _otherBranchController;
 
+  DateTime? _selectedBirthdate;
   String? _selectedBranch;
   String? _selectedPosition;
   late bool _isActive;
@@ -44,6 +47,7 @@ class _EditStaffScreenState extends State<EditStaffScreen> {
     _emailController = TextEditingController(text: m.email ?? '');
     _phoneController = TextEditingController(text: m.phone ?? '');
     _ageController = TextEditingController(text: m.age);
+    _birthdateController = TextEditingController();
     _addressController = TextEditingController(text: m.address);
     _selectedPosition = m.position;
     _isActive = m.isActive;
@@ -72,6 +76,7 @@ class _EditStaffScreenState extends State<EditStaffScreen> {
     _usernameController.dispose();
     _emailController.dispose();
     _phoneController.dispose();
+    _birthdateController.dispose();
     _ageController.dispose();
     _addressController.dispose();
     _otherBranchController.dispose();
@@ -97,7 +102,7 @@ class _EditStaffScreenState extends State<EditStaffScreen> {
 
   String? _validateEmail(String? value) {
     final trimmed = value?.trim() ?? '';
-    if (trimmed.isEmpty) return null;
+    if (trimmed.isEmpty) return 'Email address is required';
     final emailPattern = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
     if (!emailPattern.hasMatch(trimmed)) return 'Enter a valid email address';
     return null;
@@ -105,7 +110,7 @@ class _EditStaffScreenState extends State<EditStaffScreen> {
 
   String? _validatePhone(String? value) {
     final trimmed = value?.trim() ?? '';
-    if (trimmed.isEmpty) return null;
+    if (trimmed.isEmpty) return 'Phone number is required';
     if (!RegExp(r'^[0-9+\-\s]{7,14}$').hasMatch(trimmed)) {
       return 'Enter a valid phone number';
     }
@@ -127,6 +132,38 @@ class _EditStaffScreenState extends State<EditStaffScreen> {
     final trimmed = value?.trim() ?? '';
     if (trimmed.isEmpty) return 'Please specify the branch name';
     return null;
+  }
+
+  Future<void> _pickBirthdate() async {
+    final now = DateTime.now();
+    final initialDate = _selectedBirthdate ?? DateTime(now.year - 20, now.month, now.day);
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: initialDate,
+      firstDate: DateTime(1940),
+      lastDate: DateTime(now.year - 15, now.month, now.day),
+    );
+
+    if (picked != null) {
+      setState(() {
+        _selectedBirthdate = picked;
+        _birthdateController.text = '${picked.month}/${picked.day}/${picked.year}';
+        int calculatedAge = now.year - picked.year;
+        if (now.month < picked.month || (now.month == picked.month && now.day < picked.day)) {
+          calculatedAge--;
+        }
+        _ageController.text = calculatedAge.toString();
+      });
+    }
+  }
+
+  Future<void> _pickAddress() async {
+    final selected = await AddressEditDialog.show(context, initialAddress: _addressController.text);
+    if (selected != null && selected.isNotEmpty) {
+      setState(() {
+        _addressController.text = selected;
+      });
+    }
   }
 
   Future<void> _handleSave() async {
@@ -160,12 +197,8 @@ class _EditStaffScreenState extends State<EditStaffScreen> {
       username: _usernameController.text.trim(),
       branch: branch,
       position: _selectedPosition!,
-      email: _emailController.text.trim().isEmpty
-          ? null
-          : _emailController.text.trim(),
-      phone: _phoneController.text.trim().isEmpty
-          ? null
-          : _phoneController.text.trim(),
+      email: _emailController.text.trim(),
+      phone: _phoneController.text.trim(),
       age: _ageController.text.trim(),
       address: _addressController.text.trim(),
       isActive: _isActive,
@@ -194,7 +227,27 @@ class _EditStaffScreenState extends State<EditStaffScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const SizedBox(height: 20),
+                  // Top Back Button Header
+                  Row(
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.arrow_back_rounded, color: AdminWebColors.textPrimary),
+                        onPressed: () => Navigator.of(context).pop(),
+                        tooltip: 'Back to Staff List',
+                      ),
+                      const SizedBox(width: 8),
+                      const Text(
+                        'BACK TO STAFF LIST',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.5,
+                          color: AdminWebColors.textPrimary,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
                   
                   GlassCard(
                     padding: const EdgeInsets.all(24),
@@ -221,7 +274,7 @@ class _EditStaffScreenState extends State<EditStaffScreen> {
                                 textCapitalization: TextCapitalization.words,
                                 textInputAction: TextInputAction.next,
                                 decoration: const InputDecoration(
-                                  labelText: 'FIRST NAME',
+                                  labelText: 'FIRST NAME *',
                                   isDense: true,
                                   prefixIcon: Icon(Icons.badge_outlined, size: 20),
                                 ),
@@ -249,7 +302,7 @@ class _EditStaffScreenState extends State<EditStaffScreen> {
                                 textCapitalization: TextCapitalization.words,
                                 textInputAction: TextInputAction.next,
                                 decoration: const InputDecoration(
-                                  labelText: 'LAST NAME',
+                                  labelText: 'LAST NAME *',
                                   isDense: true,
                                 ),
                                 validator: (v) => _validateRequired(v, 'Last name'),
@@ -267,7 +320,7 @@ class _EditStaffScreenState extends State<EditStaffScreen> {
                                 textInputAction: TextInputAction.next,
                                 autocorrect: false,
                                 decoration: const InputDecoration(
-                                  labelText: 'USERNAME',
+                                  labelText: 'USERNAME *',
                                   isDense: true,
                                   helperText: 'Used for logging in. No spaces.',
                                   prefixIcon: Icon(Icons.person_outline, size: 20),
@@ -275,8 +328,6 @@ class _EditStaffScreenState extends State<EditStaffScreen> {
                                 validator: _validateUsername,
                               ),
                             ),
-                            const SizedBox(width: 16),
-                            const Spacer(),
                           ],
                         ),
                         const SizedBox(height: 20),
@@ -289,7 +340,7 @@ class _EditStaffScreenState extends State<EditStaffScreen> {
                                 keyboardType: TextInputType.emailAddress,
                                 textInputAction: TextInputAction.next,
                                 decoration: const InputDecoration(
-                                  labelText: 'EMAIL (OPTIONAL)',
+                                  labelText: 'EMAIL *',
                                   isDense: true,
                                   prefixIcon: Icon(Icons.email_outlined, size: 20),
                                 ),
@@ -303,7 +354,7 @@ class _EditStaffScreenState extends State<EditStaffScreen> {
                                 keyboardType: TextInputType.phone,
                                 textInputAction: TextInputAction.next,
                                 decoration: const InputDecoration(
-                                  labelText: 'PHONE NUMBER (OPTIONAL)',
+                                  labelText: 'PHONE NUMBER *',
                                   isDense: true,
                                   prefixIcon: Icon(Icons.phone_outlined, size: 20),
                                 ),
@@ -317,33 +368,56 @@ class _EditStaffScreenState extends State<EditStaffScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Expanded(
+                              flex: 2,
+                              child: TextFormField(
+                                controller: _birthdateController,
+                                readOnly: true,
+                                onTap: _pickBirthdate,
+                                decoration: InputDecoration(
+                                  labelText: 'BIRTHDATE',
+                                  hintText: 'Select birthdate',
+                                  isDense: true,
+                                  prefixIcon: const Icon(Icons.calendar_month_outlined, size: 20),
+                                  suffixIcon: IconButton(
+                                    icon: const Icon(Icons.calendar_today_rounded, size: 18),
+                                    onPressed: _pickBirthdate,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            Expanded(
                               flex: 1,
                               child: TextFormField(
                                 controller: _ageController,
                                 keyboardType: TextInputType.number,
                                 textInputAction: TextInputAction.next,
                                 decoration: const InputDecoration(
-                                  labelText: 'AGE',
+                                  labelText: 'AGE *',
                                   isDense: true,
                                   prefixIcon: Icon(Icons.cake_outlined, size: 20),
                                 ),
-                              ),
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              flex: 3,
-                              child: TextFormField(
-                                controller: _addressController,
-                                textCapitalization: TextCapitalization.words,
-                                textInputAction: TextInputAction.next,
-                                decoration: const InputDecoration(
-                                  labelText: 'HOME ADDRESS',
-                                  isDense: true,
-                                  prefixIcon: Icon(Icons.home_outlined, size: 20),
-                                ),
+                                validator: (v) => _validateRequired(v, 'Age'),
                               ),
                             ),
                           ],
+                        ),
+                        const SizedBox(height: 20),
+                        TextFormField(
+                          controller: _addressController,
+                          readOnly: true,
+                          onTap: _pickAddress,
+                          decoration: InputDecoration(
+                            labelText: 'HOME ADDRESS *',
+                            hintText: 'Click to choose Philippine Address API',
+                            isDense: true,
+                            prefixIcon: const Icon(Icons.home_outlined, size: 20),
+                            suffixIcon: IconButton(
+                              icon: const Icon(Icons.edit_location_alt_outlined, size: 20),
+                              onPressed: _pickAddress,
+                            ),
+                          ),
+                          validator: (v) => _validateRequired(v, 'Home address'),
                         ),
                       ],
                     ),
@@ -461,18 +535,6 @@ class _EditStaffScreenState extends State<EditStaffScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.end,
                     children: [
-                      TextButton(
-                        onPressed:
-                            _isSaving ? null : () => Navigator.of(context).pop(),
-                        child: const Text(
-                          'CANCEL',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: AdminWebColors.textSecondary,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 16),
                       ElevatedButton.icon(
                         onPressed: _isSaving ? null : _handleSave,
                         icon: _isSaving
@@ -509,4 +571,3 @@ class _EditStaffScreenState extends State<EditStaffScreen> {
     );
   }
 }
-

@@ -263,7 +263,22 @@ class _BranchFormScreenState extends State<BranchFormScreen> {
                           ),
                           validator: (v) {
                             if (v == null || v.trim().isEmpty) return 'Required';
-                            if (int.tryParse(v) == null) return 'Must be a number';
+                            final parsed = int.tryParse(v.trim());
+                            if (parsed == null) return 'Must be a valid number';
+                            if (parsed <= 0) {
+                              return 'Sequence cannot be 0 or negative. Minimum is 1.';
+                            }
+
+                            int highestSeq = 0;
+                            for (final b in kSampleBranches) {
+                              if (b.dailyRouteSequence > highestSeq) {
+                                highestSeq = b.dailyRouteSequence;
+                              }
+                            }
+                            final maxAllowed = highestSeq + 1;
+                            if (parsed > maxAllowed) {
+                              return 'Maximum sequence allowed is $maxAllowed (next available)';
+                            }
                             return null;
                           },
                         ),

@@ -11,8 +11,7 @@ import '../admin_web_widgets/admin_pagination_bar.dart';
 
 /// Admin monitors all submitted daily reports here — filterable by
 /// branch, searchable by employee, sortable by date, with submission
-/// status (Submitted/Missing/Incomplete) at a glance. Replaces the
-/// client's old group-chat-based reporting.
+/// status (Submitted/Missing/Incomplete) at a glance.
 ///
 /// Also shows today's Inventory Verification status per branch —
 /// actual counts submitted by staff vs what was allocated.
@@ -28,6 +27,7 @@ class EmployeeReportsScreen extends StatefulWidget {
 class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
   static const double _wideBreakpoint = 700;
 
+  int _selectedTab = 0; // 0: Daily Reports, 1: Inventory Verification
   int _currentPage = 0;
   static const int _pageSize = 5;
   DateTime? _dateFilter;
@@ -81,6 +81,7 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
     ),
   ];
 
+  final _searchController = TextEditingController();
   String _searchQuery = '';
   String? _branchFilter;
   bool _newestFirst = true;
@@ -121,16 +122,17 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
 
   void _updateShellActions() {
     final shell = context.findAncestorStateOfType<AdminWebShellState>();
+    shell?.setTitle(_selectedTab == 0 ? 'EMPLOYEE REPORTS' : 'INVENTORY VERIFICATION');
     shell?.setActions([]);
   }
 
   @override
   void dispose() {
+    _searchController.dispose();
     _reportsSub?.cancel();
     _verifSub?.cancel();
     super.dispose();
   }
-
 
   Color _statusColor(ReportSubmissionStatus status) {
     switch (status) {
@@ -199,6 +201,9 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
 
   int _countByStatus(ReportSubmissionStatus status) =>
       _reports.where((r) => r.status == status).length;
+
+  int _countVerifByStatus(InventoryVerificationStatus status) =>
+      _verifications.where((v) => v.status == status).length;
 
   void _showReportDetail(DailyReport report) {
     String? currentReply = report.ownerReply;
@@ -415,6 +420,56 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
   String _formatDate(DateTime date) =>
       '${date.month}/${date.day}/${date.year}';
 
+  Widget _buildTabButton({
+    required int index,
+    required String label,
+    required IconData icon,
+  }) {
+    final isSelected = _selectedTab == index;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () {
+          setState(() {
+            _selectedTab = index;
+            _currentPage = 0;
+          });
+          _updateShellActions();
+        },
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+          decoration: BoxDecoration(
+            color: isSelected ? AdminWebColors.accent : Colors.white,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: isSelected ? AdminWebColors.accent : AdminWebColors.border,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                icon,
+                size: 16,
+                color: isSelected ? Colors.white : AdminWebColors.textSecondary,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  color: isSelected ? Colors.white : AdminWebColors.textPrimary,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final filterOptions = <String>{
@@ -450,202 +505,269 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
           ),
         ];
 
+        final verifStatusCards = [
+          _statusCard(
+            'Confirmed',
+            _countVerifByStatus(InventoryVerificationStatus.confirmed),
+            AdminWebColors.success,
+            Icons.verified_rounded,
+          ),
+          _statusCard(
+            'Pending Input',
+            _countVerifByStatus(InventoryVerificationStatus.pending),
+            AdminWebColors.warning,
+            Icons.schedule_rounded,
+          ),
+          _statusCard(
+            'Discrepancy',
+            _countVerifByStatus(InventoryVerificationStatus.discrepancyReported),
+            AdminWebColors.error,
+            Icons.warning_amber_rounded,
+          ),
+        ];
+
         return Container(
           color: AdminWebColors.background,
-          child: isWide
-              // ── DESKTOP: Column with Expanded list (no scroll needed) ──
-              ? Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          Expanded(child: statusCards[0]),
-                          const SizedBox(width: 12),
-                          Expanded(child: statusCards[1]),
-                          const SizedBox(width: 12),
-                          Expanded(child: statusCards[2]),
-                        ],
-                      ),
-                      const SizedBox(height: 20),
-                      Row(
-                        children: [
-                          const Icon(Icons.verified_rounded, size: 18, color: AdminWebColors.accent),
-                          const SizedBox(width: 8),
-                          const Text(
-                            'INVENTORY VERIFICATION — TODAY',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: 0.5,
-                              color: AdminWebColors.textSecondary,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: AdminWebColors.accent.withValues(alpha: 0.12),
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: 8),
+              // Top Sub-Tab Switcher
+              Row(
+                children: [
+                  _buildTabButton(
+                    index: 0,
+                    label: 'STAFF DAILY REPORTS',
+                    icon: Icons.fact_check_rounded,
+                  ),
+                  const SizedBox(width: 10),
+                  _buildTabButton(
+                    index: 1,
+                    label: 'INVENTORY VERIFICATION',
+                    icon: Icons.verified_rounded,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+
+              // ── TAB 0: STAFF DAILY REPORTS ─────────────────────────────────
+              if (_selectedTab == 0) ...[
+                Row(
+                  children: [
+                    Expanded(child: statusCards[0]),
+                    const SizedBox(width: 12),
+                    Expanded(child: statusCards[1]),
+                    const SizedBox(width: 12),
+                    Expanded(child: statusCards[2]),
+                  ],
+                ),
+                const SizedBox(height: 20),
+
+                // Sleek Unified Search & Filter Toolbar
+                GlassCard(
+                  padding: const EdgeInsets.all(12),
+                  child: LayoutBuilder(
+                    builder: (context, barConstraints) {
+                      final isBarWide = barConstraints.maxWidth >= 800;
+
+                      final searchField = SizedBox(
+                        width: isBarWide ? 280 : double.infinity,
+                        child: TextField(
+                          controller: _searchController,
+                          onChanged: (v) => setState(() {
+                            _searchQuery = v;
+                            _currentPage = 0;
+                          }),
+                          decoration: InputDecoration(
+                            hintText: 'Search employee name...',
+                            hintStyle: const TextStyle(fontSize: 12.5, color: AdminWebColors.textSecondary),
+                            prefixIcon: const Icon(Icons.search_rounded, size: 18, color: AdminWebColors.accent),
+                            suffixIcon: _searchQuery.isNotEmpty
+                                ? IconButton(
+                                    icon: const Icon(Icons.clear_rounded, size: 18),
+                                    onPressed: () {
+                                      _searchController.clear();
+                                      setState(() {
+                                        _searchQuery = '';
+                                        _currentPage = 0;
+                                      });
+                                    },
+                                  )
+                                : null,
+                            isDense: true,
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                            filled: true,
+                            fillColor: Colors.white,
+                            border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Text(
-                              '${_verifications.length} branch${_verifications.length == 1 ? '' : 'es'}',
-                              style: const TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w700,
-                                color: AdminWebColors.accent,
-                              ),
+                              borderSide: const BorderSide(color: AdminWebColors.border),
                             ),
                           ),
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-                      if (_verifications.isEmpty)
-                        GlassCard(
-                          padding: const EdgeInsets.all(16),
-                          child: Row(
-                            children: [
-                              Icon(Icons.schedule_rounded, size: 18, color: AdminWebColors.textSecondary.withValues(alpha: 0.6)),
-                              const SizedBox(width: 10),
-                              const Text(
-                                'No branches have verified yet today.',
-                                style: TextStyle(color: AdminWebColors.textSecondary),
-                              ),
-                            ],
-                          ),
-                        )
-                      else
-                        Wrap(
-                          spacing: 12,
-                          runSpacing: 12,
-                          children: _verifications
-                              .map((v) => SizedBox(
-                                    width: (constraints.maxWidth - 48 - 12) / 2,
-                                    child: _buildVerifCard(v),
-                                  ))
-                              .toList(),
                         ),
-                      const SizedBox(height: 20),
-                      Wrap(
-                        alignment: WrapAlignment.end,
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: [
-                          OutlinedButton.icon(
-                            onPressed: _pickDate,
-                            icon: const Icon(Icons.calendar_today_rounded, size: 16),
-                            label: Text(
-                              _dateFilter == null
-                                  ? 'FILTER BY DATE'
-                                  : '${_dateFilter!.month}/${_dateFilter!.day}/${_dateFilter!.year}',
-                              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
-                            ),
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: AdminWebColors.accent,
-                              side: const BorderSide(color: AdminWebColors.accent),
-                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      );
+
+                      final branchDropdown = SizedBox(
+                        width: isBarWide ? 240 : double.infinity,
+                        child: DropdownButtonFormField<String>(
+                          initialValue: _branchFilter ?? 'All',
+                          isExpanded: true,
+                          decoration: InputDecoration(
+                            isDense: true,
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                            prefixIcon: const Icon(Icons.storefront_rounded, size: 18, color: AdminWebColors.accent),
+                            filled: true,
+                            fillColor: Colors.white,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              borderSide: const BorderSide(color: AdminWebColors.border),
                             ),
                           ),
-                          if (_dateFilter != null)
-                            IconButton(
-                              icon: const Icon(Icons.clear_rounded, color: AdminWebColors.error, size: 20),
+                          items: [
+                            const DropdownMenuItem(value: 'All', child: Text('ALL BRANCHES / ROLES', style: TextStyle(fontSize: 12))),
+                            ...filterOptions.map((b) => DropdownMenuItem(
+                              value: b,
+                              child: Text(b.toUpperCase(), style: const TextStyle(fontSize: 12), overflow: TextOverflow.ellipsis),
+                            )),
+                          ],
+                          onChanged: (v) {
+                            setState(() {
+                              _branchFilter = (v == 'All' ? null : v);
+                              _currentPage = 0;
+                            });
+                          },
+                        ),
+                      );
+
+                      final dateBtn = OutlinedButton.icon(
+                        onPressed: _pickDate,
+                        icon: const Icon(Icons.calendar_today_rounded, size: 15),
+                        label: Text(
+                          _dateFilter == null
+                              ? 'FILTER DATE'
+                              : '${_dateFilter!.month}/${_dateFilter!.day}/${_dateFilter!.year}',
+                          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AdminWebColors.accent,
+                          side: const BorderSide(color: AdminWebColors.accent),
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                      );
+
+                      final dateClearBtn = _dateFilter != null
+                          ? IconButton(
+                              icon: const Icon(Icons.clear_rounded, color: AdminWebColors.error, size: 18),
                               onPressed: () {
                                 setState(() => _dateFilter = null);
                                 _subscribeInventory();
                               },
                               tooltip: 'Clear Date Filter',
-                            ),
-                          OutlinedButton.icon(
-                            onPressed: () {
-                              setState(() {
-                                _showResolvedReports = !_showResolvedReports;
-                                _currentPage = 0;
-                              });
-                            },
-                            icon: Icon(
-                              _showResolvedReports
-                                  ? Icons.hourglass_top_rounded
-                                  : Icons.check_circle_outline_rounded,
-                              size: 16,
-                            ),
-                            label: Text(
-                              _showResolvedReports
-                                  ? 'SHOW PENDING ONLY'
-                                  : 'SHOW RESOLVED (${_reports.where((r) => r.ownerReply != null && r.ownerReply!.isNotEmpty).length})',
-                              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
-                            ),
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: _showResolvedReports ? AdminWebColors.warning : AdminWebColors.accent,
-                              side: BorderSide(color: _showResolvedReports ? AdminWebColors.warning : AdminWebColors.accent),
-                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                            ),
-                          ),
-                          OutlinedButton.icon(
-                            onPressed: () {
-                              setState(() => _newestFirst = !_newestFirst);
-                              _updateShellActions();
-                            },
-                            icon: Icon(
-                              _newestFirst ? Icons.sort_rounded : Icons.history_rounded,
-                              size: 16,
-                            ),
-                            label: Text(
-                              _newestFirst ? 'NEWEST FIRST' : 'OLDEST FIRST',
-                              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
-                            ),
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: AdminWebColors.accent,
-                              side: const BorderSide(color: AdminWebColors.accent),
-                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      Row(
+                            )
+                          : const SizedBox.shrink();
+
+                      final resolvedToggle = OutlinedButton.icon(
+                        onPressed: () {
+                          setState(() {
+                            _showResolvedReports = !_showResolvedReports;
+                            _currentPage = 0;
+                          });
+                        },
+                        icon: Icon(
+                          _showResolvedReports
+                              ? Icons.hourglass_top_rounded
+                              : Icons.check_circle_outline_rounded,
+                          size: 15,
+                        ),
+                        label: Text(
+                          _showResolvedReports
+                              ? 'SHOW PENDING'
+                              : 'SHOW RESOLVED (${_reports.where((r) => r.ownerReply != null && r.ownerReply!.isNotEmpty).length})',
+                          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: _showResolvedReports ? AdminWebColors.warning : AdminWebColors.accent,
+                          side: BorderSide(color: _showResolvedReports ? AdminWebColors.warning : AdminWebColors.accent),
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                      );
+
+                      final sortBtn = OutlinedButton.icon(
+                        onPressed: () {
+                          setState(() => _newestFirst = !_newestFirst);
+                          _updateShellActions();
+                        },
+                        icon: Icon(
+                          _newestFirst ? Icons.sort_rounded : Icons.history_rounded,
+                          size: 15,
+                        ),
+                        label: Text(
+                          _newestFirst ? 'NEWEST FIRST' : 'OLDEST FIRST',
+                          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AdminWebColors.accent,
+                          side: const BorderSide(color: AdminWebColors.accent),
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                      );
+
+                      if (isBarWide) {
+                        return Row(
+                          children: [
+                            searchField,
+                            const SizedBox(width: 10),
+                            branchDropdown,
+                            const SizedBox(width: 10),
+                            dateBtn,
+                            if (_dateFilter != null) dateClearBtn,
+                            const Spacer(),
+                            resolvedToggle,
+                            const SizedBox(width: 8),
+                            sortBtn,
+                          ],
+                        );
+                      }
+
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Expanded(
-                            child: DropdownButtonFormField<String>(
-                              initialValue: _branchFilter ?? 'All',
-                              decoration: const InputDecoration(
-                                labelText: 'FILTER',
-                                isDense: true,
-                                prefixIcon: Icon(Icons.filter_list_rounded, size: 18),
-                              ),
-                              items: [
-                                const DropdownMenuItem(value: 'All', child: Text('ALL')),
-                                ...filterOptions.map((b) => DropdownMenuItem(
-                                  value: b,
-                                  child: Text(b.toUpperCase()),
-                                )),
-                              ],
-                              onChanged: (v) {
-                                setState(() {
-                                  _branchFilter = (v == 'All' ? null : v);
-                                  _currentPage = 0;
-                                });
-                              },
-                            ),
+                          searchField,
+                          const SizedBox(height: 10),
+                          branchDropdown,
+                          const SizedBox(height: 10),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: [
+                              dateBtn,
+                              if (_dateFilter != null) dateClearBtn,
+                              resolvedToggle,
+                              sortBtn,
+                            ],
                           ),
                         ],
-                      ),
-                      const SizedBox(height: 16),
-                      Expanded(
-                        child: _visibleReports.isEmpty
-                            ? const Center(
-                                child: Text(
-                                  'No matching reports found.',
-                                  style: TextStyle(color: AdminWebColors.textSecondary),
-                                ),
-                              )
-                            : Column(
-                                children: [
-                                  Expanded(
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // Daily Reports List View
+                Expanded(
+                  child: _visibleReports.isEmpty
+                      ? const Center(
+                          child: Text(
+                            'No matching reports found.',
+                            style: TextStyle(color: AdminWebColors.textSecondary),
+                          ),
+                        )
+                      : Column(
+                          children: [
+                            Expanded(
                               child: ListView.separated(
                                 itemCount: (_visibleReports.length - (_currentPage * _pageSize)).clamp(0, _pageSize),
                                 separatorBuilder: (context, index) =>
@@ -663,28 +785,38 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
                                         leading: CircleAvatar(
                                           backgroundColor: AdminWebColors.accent,
                                           child: Text(
-                                            r.employeeName.substring(0, 1),
-                                            style:
-                                                const TextStyle(color: Colors.white),
+                                            r.employeeName.isNotEmpty ? r.employeeName.substring(0, 1) : 'E',
+                                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                                           ),
                                         ),
-                                        title: Text(r.employeeName),
+                                        title: Text(
+                                          r.employeeName,
+                                          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                                        ),
                                         subtitle: Column(
                                           crossAxisAlignment: CrossAxisAlignment.start,
                                           children: [
-                                            Text('${r.branchName} · ${_formatDate(r.date)}'),
+                                            const SizedBox(height: 2),
+                                            Text(
+                                              '${r.branchName} · ${_formatDate(r.date)}',
+                                              style: const TextStyle(fontSize: 12, color: AdminWebColors.textSecondary),
+                                            ),
                                             if (r.ownerReply != null && r.ownerReply!.isNotEmpty) ...[
-                                              const SizedBox(height: 3),
+                                              const SizedBox(height: 4),
                                               Row(
                                                 children: [
                                                   const Icon(Icons.reply_rounded, size: 13, color: AdminWebColors.accent),
                                                   const SizedBox(width: 4),
-                                                  Text(
-                                                    'Response: ${r.ownerReply}',
-                                                    style: const TextStyle(
-                                                      fontSize: 11.5,
-                                                      fontWeight: FontWeight.w600,
-                                                      color: AdminWebColors.accent,
+                                                  Expanded(
+                                                    child: Text(
+                                                      'Response: ${r.ownerReply}',
+                                                      maxLines: 1,
+                                                      overflow: TextOverflow.ellipsis,
+                                                      style: const TextStyle(
+                                                        fontSize: 11.5,
+                                                        fontWeight: FontWeight.w600,
+                                                        color: AdminWebColors.accent,
+                                                      ),
                                                     ),
                                                   ),
                                                 ],
@@ -692,28 +824,20 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
                                             ],
                                           ],
                                         ),
-                                        trailing: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.end,
-                                          mainAxisAlignment: MainAxisAlignment.center,
-                                          children: [
-                                            Container(
-                                              padding: const EdgeInsets.symmetric(
-                                                  horizontal: 10, vertical: 4),
-                                              decoration: BoxDecoration(
-                                                color: _statusColor(r.status)
-                                                    .withValues(alpha: 0.15),
-                                                borderRadius: BorderRadius.circular(8),
-                                              ),
-                                              child: Text(
-                                                r.status.label,
-                                                style: TextStyle(
-                                                  color: _statusColor(r.status),
-                                                  fontWeight: FontWeight.w600,
-                                                  fontSize: 11.5,
-                                                ),
-                                              ),
+                                        trailing: Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                          decoration: BoxDecoration(
+                                            color: _statusColor(r.status).withValues(alpha: 0.15),
+                                            borderRadius: BorderRadius.circular(8),
+                                          ),
+                                          child: Text(
+                                            r.status.label,
+                                            style: TextStyle(
+                                              color: _statusColor(r.status),
+                                              fontWeight: FontWeight.w700,
+                                              fontSize: 11.5,
                                             ),
-                                          ],
+                                          ),
                                         ),
                                       ),
                                     ),
@@ -721,7 +845,7 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
                                 },
                               ),
                             ),
-                            const SizedBox(height: 16),
+                            const SizedBox(height: 12),
                             AdminPaginationBar(
                               currentPage: _currentPage,
                               totalItems: _visibleReports.length,
@@ -732,281 +856,89 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
                         ),
                 ),
               ],
-            ),
-          )
-              // ── MOBILE: SingleChildScrollView so content scrolls ──
-              : SingleChildScrollView(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          Expanded(child: statusCards[0]),
-                          const SizedBox(width: 8),
-                          Expanded(child: statusCards[1]),
-                          const SizedBox(width: 8),
-                          Expanded(child: statusCards[2]),
-                        ],
+
+              // ── TAB 1: INVENTORY VERIFICATION ──────────────────────────────
+              if (_selectedTab == 1) ...[
+                Row(
+                  children: [
+                    Expanded(child: verifStatusCards[0]),
+                    const SizedBox(width: 12),
+                    Expanded(child: verifStatusCards[1]),
+                    const SizedBox(width: 12),
+                    Expanded(child: verifStatusCards[2]),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                Row(
+                  children: [
+                    const Icon(Icons.verified_rounded, size: 20, color: AdminWebColors.accent),
+                    const SizedBox(width: 8),
+                    const Text(
+                      'TODAY\'S INVENTORY VERIFICATION',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.5,
+                        color: AdminWebColors.textSecondary,
                       ),
-                      const SizedBox(height: 20),
-                      Row(
-                        children: [
-                          const Icon(Icons.verified_rounded, size: 18, color: AdminWebColors.accent),
-                          const SizedBox(width: 8),
-                          const Flexible(
-                            child: Text(
-                              'INVENTORY VERIFICATION — TODAY',
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: 0.5,
-                                color: AdminWebColors.textSecondary,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: AdminWebColors.accent.withValues(alpha: 0.12),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Text(
-                              '${_verifications.length} branches',
-                              style: const TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w700,
-                                color: AdminWebColors.accent,
-                              ),
-                            ),
-                          ),
-                        ],
+                    ),
+                    const SizedBox(width: 10),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: AdminWebColors.accent.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(8),
                       ),
-                      const SizedBox(height: 10),
-                      if (_verifications.isEmpty)
-                        GlassCard(
-                          padding: const EdgeInsets.all(16),
-                          child: Row(
-                            children: [
-                              Icon(Icons.schedule_rounded, size: 18, color: AdminWebColors.textSecondary.withValues(alpha: 0.6)),
-                              const SizedBox(width: 10),
-                              const Flexible(
-                                child: Text(
-                                  'No branches have verified yet today.',
+                      child: Text(
+                        '${_verifications.length} branches',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: AdminWebColors.accent,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                Expanded(
+                  child: _verifications.isEmpty
+                      ? GlassCard(
+                          padding: const EdgeInsets.all(24),
+                          child: Center(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: const [
+                                Icon(Icons.schedule_rounded, size: 40, color: AdminWebColors.border),
+                                SizedBox(height: 10),
+                                Text(
+                                  'No branches have verified inventory yet today.',
                                   style: TextStyle(color: AdminWebColors.textSecondary),
                                 ),
-                              ),
-                            ],
-                          ),
-                        )
-                      else
-                        Column(
-                          children: _verifications
-                              .map((v) => Padding(
-                                    padding: const EdgeInsets.only(bottom: 10),
-                                    child: _buildVerifCard(v),
-                                  ))
-                              .toList(),
-                        ),
-                      const SizedBox(height: 20),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: [
-                          OutlinedButton.icon(
-                            onPressed: _pickDate,
-                            icon: const Icon(Icons.calendar_today_rounded, size: 16),
-                            label: Text(
-                              _dateFilter == null
-                                  ? 'FILTER BY DATE'
-                                  : '${_dateFilter!.month}/${_dateFilter!.day}/${_dateFilter!.year}',
-                              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
-                            ),
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: AdminWebColors.accent,
-                              side: const BorderSide(color: AdminWebColors.accent),
-                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                            ),
-                          ),
-                          if (_dateFilter != null)
-                            IconButton(
-                              icon: const Icon(Icons.clear_rounded, color: AdminWebColors.error, size: 20),
-                              onPressed: () {
-                                setState(() => _dateFilter = null);
-                                _subscribeInventory();
-                              },
-                            ),
-                          OutlinedButton.icon(
-                            onPressed: () {
-                              setState(() {
-                                _showResolvedReports = !_showResolvedReports;
-                                _currentPage = 0;
-                              });
-                            },
-                            icon: Icon(
-                              _showResolvedReports
-                                  ? Icons.hourglass_top_rounded
-                                  : Icons.check_circle_outline_rounded,
-                              size: 16,
-                            ),
-                            label: Text(
-                              _showResolvedReports ? 'SHOW PENDING ONLY' : 'SHOW RESOLVED (${_reports.where((r) => r.ownerReply != null && r.ownerReply!.isNotEmpty).length})',
-                              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
-                            ),
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: _showResolvedReports ? AdminWebColors.warning : AdminWebColors.accent,
-                              side: BorderSide(color: _showResolvedReports ? AdminWebColors.warning : AdminWebColors.accent),
-                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                            ),
-                          ),
-                          OutlinedButton.icon(
-                            onPressed: () {
-                              setState(() => _newestFirst = !_newestFirst);
-                              _updateShellActions();
-                            },
-                            icon: Icon(_newestFirst ? Icons.sort_rounded : Icons.history_rounded, size: 16),
-                            label: Text(
-                              _newestFirst ? 'NEWEST FIRST' : 'OLDEST FIRST',
-                              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
-                            ),
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: AdminWebColors.accent,
-                              side: const BorderSide(color: AdminWebColors.accent),
-                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      TextField(
-                        decoration: const InputDecoration(
-                          hintText: 'Search by employee name...',
-                          prefixIcon: Icon(Icons.search_rounded),
-                          isDense: true,
-                        ),
-                        onChanged: (v) => setState(() {
-                          _searchQuery = v;
-                          _currentPage = 0;
-                        }),
-                      ),
-                      const SizedBox(height: 12),
-                      DropdownButtonFormField<String>(
-                        initialValue: _branchFilter ?? 'All',
-                        decoration: const InputDecoration(
-                          labelText: 'FILTER',
-                          isDense: true,
-                          prefixIcon: Icon(Icons.filter_list_rounded, size: 18),
-                        ),
-                        items: [
-                          const DropdownMenuItem(value: 'All', child: Text('ALL')),
-                          ...filterOptions.map((b) => DropdownMenuItem(
-                            value: b,
-                            child: Text(b.toUpperCase()),
-                          )),
-                        ],
-                        onChanged: (v) {
-                          setState(() {
-                            _branchFilter = (v == 'All' ? null : v);
-                            _currentPage = 0;
-                          });
-                        },
-                      ),
-                      const SizedBox(height: 16),
-                      if (_visibleReports.isEmpty)
-                        const Center(
-                          child: Padding(
-                            padding: EdgeInsets.symmetric(vertical: 32),
-                            child: Text(
-                              'No matching reports found.',
-                              style: TextStyle(color: AdminWebColors.textSecondary),
+                              ],
                             ),
                           ),
                         )
-                      else
-                        ListView.separated(
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          itemCount: (_visibleReports.length - (_currentPage * _pageSize)).clamp(0, _pageSize),
-                          separatorBuilder: (_, _) => const SizedBox(height: 10),
-                          itemBuilder: (context, index) {
-                            final r = _visibleReports[(_currentPage * _pageSize) + index];
-                            return GlassCard(
-                              padding: EdgeInsets.zero,
-                              child: Material(
-                                color: Colors.transparent,
-                                borderRadius: BorderRadius.circular(16),
-                                clipBehavior: Clip.antiAlias,
-                                child: ListTile(
-                                  onTap: () => _showReportDetail(r),
-                                  leading: CircleAvatar(
-                                    backgroundColor: AdminWebColors.accent,
-                                    child: Text(
-                                      r.employeeName.substring(0, 1),
-                                      style: const TextStyle(color: Colors.white),
-                                    ),
-                                  ),
-                                  title: Text(r.employeeName),
-                                  subtitle: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text('${r.branchName} · ${_formatDate(r.date)}'),
-                                      if (r.ownerReply != null && r.ownerReply!.isNotEmpty) ...[
-                                        const SizedBox(height: 3),
-                                        Row(
-                                          children: [
-                                            const Icon(Icons.reply_rounded, size: 13, color: AdminWebColors.accent),
-                                            const SizedBox(width: 4),
-                                            Flexible(
-                                              child: Text(
-                                                'Response: ${r.ownerReply}',
-                                                style: const TextStyle(
-                                                  fontSize: 11.5,
-                                                  fontWeight: FontWeight.w600,
-                                                  color: AdminWebColors.accent,
-                                                ),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ],
-                                    ],
-                                  ),
-                                  trailing: Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                    decoration: BoxDecoration(
-                                      color: _statusColor(r.status).withValues(alpha: 0.15),
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    child: Text(
-                                      r.status.label,
-                                      style: TextStyle(
-                                        color: _statusColor(r.status),
-                                        fontWeight: FontWeight.w600,
-                                        fontSize: 11.5,
-                                      ),
-                                    ),
-                                  ),
-                                ),
+                      : isWide
+                          ? GridView.builder(
+                              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: 3,
+                                childAspectRatio: 2.1,
+                                crossAxisSpacing: 14,
+                                mainAxisSpacing: 14,
                               ),
-                            );
-                          },
-                        ),
-                      const SizedBox(height: 16),
-                      AdminPaginationBar(
-                        currentPage: _currentPage,
-                        totalItems: _visibleReports.length,
-                        pageSize: _pageSize,
-                        onPageChanged: (p) => setState(() => _currentPage = p),
-                      ),
-                      const SizedBox(height: 24),
-                    ],
-                  ),
+                              itemCount: _verifications.length,
+                              itemBuilder: (ctx, i) => _buildVerifCard(_verifications[i]),
+                            )
+                          : ListView.separated(
+                              itemCount: _verifications.length,
+                              separatorBuilder: (_, _) => const SizedBox(height: 12),
+                              itemBuilder: (ctx, i) => _buildVerifCard(_verifications[i]),
+                            ),
                 ),
+              ],
+            ],
+          ),
         );
       },
     );
@@ -1102,7 +1034,6 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
                   ),
                 ],
                 const SizedBox(height: 16),
-                // Table header
                 Row(
                   children: const [
                     Expanded(child: Text('ITEM', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: AdminWebColors.textSecondary))),
@@ -1137,8 +1068,6 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
       ),
     );
   }
-
-
 
   String _formatTime(DateTime dt) {
     final hour = dt.hour > 12 ? dt.hour - 12 : (dt.hour == 0 ? 12 : dt.hour);
@@ -1193,72 +1122,93 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
         child: InkWell(
           onTap: () => _showVerifDetail(v),
           child: Padding(
-            padding: const EdgeInsets.all(14),
-            child: Row(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Container(
-                  width: 40,
-                  height: 40,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: color.withValues(alpha: 0.14),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(icon, color: color, size: 20),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        v.branchName,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w700,
-                          fontSize: 14,
-                          color: AdminWebColors.textPrimary,
-                        ),
-                      ),
-                      const SizedBox(height: 3),
-                      if (ar != null)
-                        Text(
-                          'Reg ${ar.regular}  Med ${ar.medium}  B1T1 ${ar.b1t1}  Mayo ${ar.mayo}  Styro ${ar.styro}',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontSize: 11.5, color: AdminWebColors.textSecondary),
-                        )
-                      else
-                        const Text(
-                          'Not yet verified',
-                          style: TextStyle(fontSize: 11.5, color: AdminWebColors.textSecondary,
-                              fontStyle: FontStyle.italic),
-                        ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+                      width: 36,
+                      height: 36,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: color.withValues(alpha: 0.14),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(icon, color: color, size: 18),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            v.branchName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w800,
+                              fontSize: 14,
+                              color: AdminWebColors.textPrimary,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            v.verifiedBy != null && v.verifiedAt != null
+                                ? 'Verified by ${v.verifiedBy} · ${_formatTime(v.verifiedAt!)}'
+                                : 'Awaiting staff verification',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 11, color: AdminWebColors.textSecondary),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                       decoration: BoxDecoration(
                         color: color.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(8),
+                        borderRadius: BorderRadius.circular(6),
                       ),
                       child: Text(
                         v.status.label,
-                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: color),
+                        style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: color),
                       ),
                     ),
-                    if (ar != null) ...[
-                      const SizedBox(height: 4),
-                      const Text('Click for detail',
-                          style: TextStyle(fontSize: 10, color: AdminWebColors.textSecondary)),
-                    ],
                   ],
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: AdminWebColors.surfaceTint.withValues(alpha: 0.6),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: AdminWebColors.border),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.inventory_2_outlined, size: 13, color: AdminWebColors.accent),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          ar != null
+                              ? 'Actual: ${ar.regular + ar.medium + ar.b1t1} Meat · ${ar.mayo} Mayo · ${ar.styro} Styro'
+                              : 'Allocated: ${v.allocated.karne} Meat · ${v.allocated.mayo} Mayo · ${v.allocated.toyo} Toyo · ${v.allocated.styro} Styro',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: AdminWebColors.textPrimary,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -1272,44 +1222,43 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
     return GlassCard(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
       child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.15),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(icon, color: color, size: 20),
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.15),
+              shape: BoxShape.circle,
             ),
-            const SizedBox(width: 10),
-            Flexible(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    label,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 11.5,
-                      color: AdminWebColors.textSecondary,
-                    ),
+            child: Icon(icon, color: color, size: 20),
+          ),
+          const SizedBox(width: 10),
+          Flexible(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  label,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 11.5,
+                    color: AdminWebColors.textSecondary,
                   ),
-                  Text(
-                    '$count',
-                    style: TextStyle(
-                      fontSize: 17,
-                      fontWeight: FontWeight.bold,
-                      color: color,
-                    ),
+                ),
+                Text(
+                  '$count',
+                  style: TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.bold,
+                    color: color,
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
-          ],
+          ),
+        ],
       ),
     );
   }
 }
-

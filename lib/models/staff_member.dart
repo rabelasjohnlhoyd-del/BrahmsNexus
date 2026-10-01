@@ -134,7 +134,7 @@ class StaffMember {
 
 final List<String> kBranchOptions = [
   ...kSampleBranches.map((b) => b.fullName),
-  'Floating / Any Branch',
+  'Any Branch',
   'N/A',
 ];
 
@@ -248,7 +248,7 @@ final List<StaffMember> kSampleStaff = [
     firstName: 'Extra Cook 1',
     lastName: '(Floating)',
     username: 'floating_cook_1',
-    branch: 'Floating / Any Branch',
+    branch: 'Any Branch',
     position: 'Floating Cook',
     phone: 'Pending Info',
     address: 'Laguna',
@@ -258,7 +258,7 @@ final List<StaffMember> kSampleStaff = [
     firstName: 'Extra Cook 2',
     lastName: '(Floating)',
     username: 'floating_cook_2',
-    branch: 'Floating / Any Branch',
+    branch: 'Any Branch',
     position: 'Floating Cook',
     phone: 'Pending Info',
     address: 'Laguna',
@@ -268,7 +268,7 @@ final List<StaffMember> kSampleStaff = [
     firstName: 'Extra Cook 3',
     lastName: '(Floating)',
     username: 'floating_cook_3',
-    branch: 'Floating / Any Branch',
+    branch: 'Any Branch',
     position: 'Floating Cook',
     phone: 'Pending Info',
     address: 'Laguna',

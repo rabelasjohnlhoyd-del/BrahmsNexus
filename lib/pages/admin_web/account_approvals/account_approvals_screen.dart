@@ -223,7 +223,6 @@ class _AccountApprovalsScreenState extends State<AccountApprovalsScreen> {
                           .map(
                             (r) => _RequestCard(
                               request: r,
-                              onChangeStatus: (s) => _decide(r, s),
                             ),
                           ),
                       AdminPaginationBar(

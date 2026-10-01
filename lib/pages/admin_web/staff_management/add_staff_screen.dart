@@ -1,18 +1,11 @@
 import 'package:flutter/material.dart';
 import '../../../models/staff_member.dart';
+import '../../../widgets/address_edit_dialog.dart';
 import '../admin_web_widgets/glass_card.dart';
 import '../admin_web_colors.dart';
 import '../admin_web_shell.dart';
 
 /// Form used by the Administrator to create a new staff/employee account.
-///
-/// This is the "registration" screen for Brahms Nexus: since customers
-/// never use the system, only the admin creates accounts, and only for
-/// staff. It is reached from Admin Dashboard -> Staff Management -> Add.
-///
-/// Front-end only for now — on submit this simply builds a [StaffMember]
-/// locally and returns it via Navigator.pop(). Firebase Auth account
-/// creation + Firestore write will replace the simulated delay later.
 class AddStaffScreen extends StatefulWidget {
   const AddStaffScreen({super.key});
 
@@ -29,12 +22,14 @@ class _AddStaffScreenState extends State<AddStaffScreen> {
   final _usernameController = TextEditingController();
   final _emailController = TextEditingController();
   final _phoneController = TextEditingController();
+  final _birthdateController = TextEditingController();
   final _ageController = TextEditingController();
   final _addressController = TextEditingController();
   final _otherBranchController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
 
+  DateTime? _selectedBirthdate;
   String? _selectedSuffix;
   String? _selectedBranch;
   String? _selectedPosition;
@@ -58,6 +53,7 @@ class _AddStaffScreenState extends State<AddStaffScreen> {
     _usernameController.dispose();
     _emailController.dispose();
     _phoneController.dispose();
+    _birthdateController.dispose();
     _ageController.dispose();
     _addressController.dispose();
     _otherBranchController.dispose();
@@ -103,7 +99,7 @@ class _AddStaffScreenState extends State<AddStaffScreen> {
 
   String? _validateEmail(String? value) {
     final trimmed = value?.trim() ?? '';
-    if (trimmed.isEmpty) return null; // optional field
+    if (trimmed.isEmpty) return 'Email address is required';
     final emailPattern = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
     if (!emailPattern.hasMatch(trimmed)) return 'Enter a valid email address';
     return null;
@@ -111,7 +107,7 @@ class _AddStaffScreenState extends State<AddStaffScreen> {
 
   String? _validatePhone(String? value) {
     final trimmed = value?.trim() ?? '';
-    if (trimmed.isEmpty) return null; // optional field
+    if (trimmed.isEmpty) return 'Phone number is required';
     if (!RegExp(r'^[0-9+\-\s]{7,14}$').hasMatch(trimmed)) {
       return 'Enter a valid phone number';
     }
@@ -147,6 +143,38 @@ class _AddStaffScreenState extends State<AddStaffScreen> {
     if (value == null || value.isEmpty) return 'Please confirm the password';
     if (value != _passwordController.text) return 'Passwords do not match';
     return null;
+  }
+
+  Future<void> _pickBirthdate() async {
+    final now = DateTime.now();
+    final initialDate = _selectedBirthdate ?? DateTime(now.year - 20, now.month, now.day);
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: initialDate,
+      firstDate: DateTime(1940),
+      lastDate: DateTime(now.year - 15, now.month, now.day),
+    );
+
+    if (picked != null) {
+      setState(() {
+        _selectedBirthdate = picked;
+        _birthdateController.text = '${picked.month}/${picked.day}/${picked.year}';
+        int calculatedAge = now.year - picked.year;
+        if (now.month < picked.month || (now.month == picked.month && now.day < picked.day)) {
+          calculatedAge--;
+        }
+        _ageController.text = calculatedAge.toString();
+      });
+    }
+  }
+
+  Future<void> _pickAddress() async {
+    final selected = await AddressEditDialog.show(context, initialAddress: _addressController.text);
+    if (selected != null && selected.isNotEmpty) {
+      setState(() {
+        _addressController.text = selected;
+      });
+    }
   }
 
   Future<void> _handleSave() async {
@@ -188,12 +216,8 @@ class _AddStaffScreenState extends State<AddStaffScreen> {
       username: _usernameController.text.trim(),
       branch: branch,
       position: _selectedPosition!,
-      email: _emailController.text.trim().isEmpty
-          ? null
-          : _emailController.text.trim(),
-      phone: _phoneController.text.trim().isEmpty
-          ? null
-          : _phoneController.text.trim(),
+      email: _emailController.text.trim(),
+      phone: _phoneController.text.trim(),
       age: _ageController.text.trim(),
       address: _addressController.text.trim(),
       isActive: _isActive,
@@ -220,7 +244,27 @@ class _AddStaffScreenState extends State<AddStaffScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const SizedBox(height: 20),
+                  // Top Back Button Header
+                  Row(
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.arrow_back_rounded, color: AdminWebColors.textPrimary),
+                        onPressed: () => Navigator.of(context).pop(),
+                        tooltip: 'Back to Staff List',
+                      ),
+                      const SizedBox(width: 8),
+                      const Text(
+                        'BACK TO STAFF LIST',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.5,
+                          color: AdminWebColors.textPrimary,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
                   
                   GlassCard(
                     padding: const EdgeInsets.all(24),
@@ -318,47 +362,38 @@ class _AddStaffScreenState extends State<AddStaffScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Expanded(
-                              flex: 1,
+                              flex: 2,
                               child: TextFormField(
-                                controller: _ageController,
-                                keyboardType: TextInputType.number,
-                                textInputAction: TextInputAction.next,
-                                decoration: const InputDecoration(
-                                  labelText: 'AGE *',
+                                controller: _birthdateController,
+                                readOnly: true,
+                                onTap: _pickBirthdate,
+                                decoration: InputDecoration(
+                                  labelText: 'BIRTHDATE *',
+                                  hintText: 'Select birthdate',
                                   isDense: true,
-                                  prefixIcon: Icon(Icons.cake_outlined, size: 20),
+                                  prefixIcon: const Icon(Icons.calendar_month_outlined, size: 20),
+                                  suffixIcon: IconButton(
+                                    icon: const Icon(Icons.calendar_today_rounded, size: 18),
+                                    onPressed: _pickBirthdate,
+                                  ),
                                 ),
-                                validator: (v) => _validateRequired(v, 'Age'),
+                                validator: (v) => _validateRequired(v, 'Birthdate'),
                               ),
                             ),
                             const SizedBox(width: 16),
                             Expanded(
-                              flex: 2,
+                              flex: 1,
                               child: TextFormField(
-                                controller: _phoneController,
-                                keyboardType: TextInputType.phone,
-                                textInputAction: TextInputAction.next,
+                                controller: _ageController,
+                                readOnly: true,
                                 decoration: const InputDecoration(
-                                  labelText: 'PHONE NUMBER (OPTIONAL)',
-                                  hintText: '0917 123 4567',
+                                  labelText: 'AGE',
                                   isDense: true,
-                                  prefixIcon: Icon(Icons.phone_outlined, size: 20),
+                                  prefixIcon: Icon(Icons.cake_outlined, size: 20),
                                 ),
-                                validator: _validatePhone,
                               ),
                             ),
                           ],
-                        ),
-                        const SizedBox(height: 20),
-                        TextFormField(
-                          controller: _addressController,
-                          textCapitalization: TextCapitalization.words,
-                          textInputAction: TextInputAction.next,
-                          decoration: const InputDecoration(
-                            labelText: 'HOME ADDRESS',
-                            isDense: true,
-                            prefixIcon: Icon(Icons.home_outlined, size: 20),
-                          ),
                         ),
                         const SizedBox(height: 20),
                         Row(
@@ -366,16 +401,16 @@ class _AddStaffScreenState extends State<AddStaffScreen> {
                           children: [
                             Expanded(
                               child: TextFormField(
-                                controller: _usernameController,
+                                controller: _phoneController,
+                                keyboardType: TextInputType.phone,
                                 textInputAction: TextInputAction.next,
-                                autocorrect: false,
                                 decoration: const InputDecoration(
-                                  labelText: 'USERNAME *',
+                                  labelText: 'PHONE NUMBER *',
+                                  hintText: '0917 123 4567',
                                   isDense: true,
-                                  helperText: 'Used for logging in. No spaces.',
-                                  prefixIcon: Icon(Icons.account_circle_outlined, size: 20),
+                                  prefixIcon: Icon(Icons.phone_outlined, size: 20),
                                 ),
-                                validator: _validateUsername,
+                                validator: _validatePhone,
                               ),
                             ),
                             const SizedBox(width: 16),
@@ -385,7 +420,8 @@ class _AddStaffScreenState extends State<AddStaffScreen> {
                                 keyboardType: TextInputType.emailAddress,
                                 textInputAction: TextInputAction.next,
                                 decoration: const InputDecoration(
-                                  labelText: 'EMAIL (OPTIONAL)',
+                                  labelText: 'EMAIL *',
+                                  hintText: 'name@example.com',
                                   isDense: true,
                                   prefixIcon: Icon(Icons.email_outlined, size: 20),
                                 ),
@@ -393,6 +429,36 @@ class _AddStaffScreenState extends State<AddStaffScreen> {
                               ),
                             ),
                           ],
+                        ),
+                        const SizedBox(height: 20),
+                        TextFormField(
+                          controller: _addressController,
+                          readOnly: true,
+                          onTap: _pickAddress,
+                          decoration: InputDecoration(
+                            labelText: 'HOME ADDRESS *',
+                            hintText: 'Click to choose Philippine Address API',
+                            isDense: true,
+                            prefixIcon: const Icon(Icons.home_outlined, size: 20),
+                            suffixIcon: IconButton(
+                              icon: const Icon(Icons.edit_location_alt_outlined, size: 20),
+                              onPressed: _pickAddress,
+                            ),
+                          ),
+                          validator: (v) => _validateRequired(v, 'Home address'),
+                        ),
+                        const SizedBox(height: 20),
+                        TextFormField(
+                          controller: _usernameController,
+                          textInputAction: TextInputAction.next,
+                          autocorrect: false,
+                          decoration: const InputDecoration(
+                            labelText: 'USERNAME *',
+                            isDense: true,
+                            helperText: 'Used for logging in. No spaces.',
+                            prefixIcon: Icon(Icons.account_circle_outlined, size: 20),
+                          ),
+                          validator: _validateUsername,
                         ),
                       ],
                     ),
@@ -587,18 +653,6 @@ class _AddStaffScreenState extends State<AddStaffScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.end,
                     children: [
-                      TextButton(
-                        onPressed:
-                            _isSaving ? null : () => Navigator.of(context).pop(),
-                        child: const Text(
-                          'CANCEL',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: AdminWebColors.textSecondary,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 16),
                       ElevatedButton.icon(
                         onPressed: _isSaving ? null : _handleSave,
                         icon: _isSaving
@@ -635,4 +689,3 @@ class _AddStaffScreenState extends State<AddStaffScreen> {
     );
   }
 }
-
