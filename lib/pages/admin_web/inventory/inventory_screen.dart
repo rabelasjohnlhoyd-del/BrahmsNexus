@@ -27,7 +27,7 @@ class InventoryScreen extends StatefulWidget {
 class _InventoryScreenState extends State<InventoryScreen>
     with SingleTickerProviderStateMixin {
   late final TabController _tabController =
-      TabController(length: 5, vsync: this, initialIndex: widget.initialTab.clamp(0, 4));
+      TabController(length: 4, vsync: this, initialIndex: widget.initialTab.clamp(0, 3));
 
   StreamSubscription<List<KarneBatch>>? _batchesSub;
   StreamSubscription<List<BranchMeatStock>>? _meatStocksSub;
@@ -92,7 +92,20 @@ class _InventoryScreenState extends State<InventoryScreen>
 
   void _updateShellActions() {
     final shell = context.findAncestorStateOfType<AdminWebShellState>();
-    shell?.setActions([]);
+    shell?.setActions([
+      ElevatedButton.icon(
+        onPressed: _showDispatchLogsDialog,
+        icon: const Icon(Icons.local_shipping_rounded, size: 16),
+        label: const Text('DISPATCH LOGS'),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AdminWebColors.accent.withValues(alpha: 0.1),
+          foregroundColor: AdminWebColors.accent,
+          elevation: 0,
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        ),
+      ),
+    ]);
   }
 
   void _addNewBatch() {
@@ -419,7 +432,6 @@ class _InventoryScreenState extends State<InventoryScreen>
             tabs: [
               const Tab(text: 'Main Warehouse'),
               const Tab(text: 'Branch Allocation'),
-              const Tab(text: 'Dispatch Logs'),
               Tab(
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
@@ -452,7 +464,6 @@ class _InventoryScreenState extends State<InventoryScreen>
               children: [
                 _buildWarehouseTab(),
                 _buildBranchStockTab(),
-                _buildTransferLogsTab(),
                 _buildSupplyRequestsTab(),
                 MonthlyFinancialsScreen(karneBatches: _karneBatches),
               ],
@@ -775,38 +786,56 @@ class _InventoryScreenState extends State<InventoryScreen>
   Widget _buildBranchStockTab() {
     return Column(
       children: [
-        // Informational header banner explaining automated allocation
-        GlassCard(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          child: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: AdminWebColors.accent.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Icon(Icons.autorenew_rounded, color: AdminWebColors.accent, size: 20),
-              ),
-              const SizedBox(width: 12),
-              const Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+        // Informational header banner explaining automated allocation + RESTOCK button
+        Row(
+          children: [
+            Expanded(
+              child: GlassCard(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                child: Row(
                   children: [
-                    Text(
-                      'AUTOMATED BRANCH ALLOCATION',
-                      style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12, color: AdminWebColors.textPrimary),
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: AdminWebColors.accent.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(Icons.autorenew_rounded, color: AdminWebColors.accent, size: 20),
                     ),
-                    SizedBox(height: 2),
-                    Text(
-                      'Base: 250G Reg (20) · 300G Med (10) · B1T1 (10) · Mayo (40) · Styro (40) · Toyo (10). Automatic na nagre-reset tuwing 12:00 AM · Nadaragdagan kapag nag-deliver si Driver.',
-                      style: TextStyle(fontSize: 11, color: AdminWebColors.textSecondary),
+                    const SizedBox(width: 12),
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'AUTOMATED BRANCH ALLOCATION & RESTOCK',
+                            style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12, color: AdminWebColors.textPrimary),
+                          ),
+                          SizedBox(height: 2),
+                          Text(
+                            'Base: 250G Reg (20) · 300G Med (10) · B1T1 (10) · Mayo (40) · Styro (40) · Toyo (10). Automatic na nagre-reset tuwing 12:00 AM.',
+                            style: TextStyle(fontSize: 11, color: AdminWebColors.textSecondary),
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ),
               ),
-            ],
-          ),
+            ),
+            const SizedBox(width: 12),
+            ElevatedButton.icon(
+              onPressed: _navigateToRecordTransfer,
+              icon: const Icon(Icons.add_shopping_cart_rounded, size: 18),
+              label: const Text('RESTOCK'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AdminWebColors.accent,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+            ),
+          ],
         ),
         const SizedBox(height: 12),
         Expanded(
@@ -996,20 +1025,6 @@ class _InventoryScreenState extends State<InventoryScreen>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Align(
-          alignment: Alignment.centerRight,
-          child: ElevatedButton.icon(
-            onPressed: _navigateToRecordTransfer,
-            icon: const Icon(Icons.local_shipping_rounded),
-            label: const Text('RECORD NEW DISPATCH'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AdminWebColors.accent,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.all(20),
-            ),
-          ),
-        ),
-        const SizedBox(height: 16),
         Expanded(
           child: _meatDispatches.isEmpty
               ? const Center(
@@ -1161,6 +1176,73 @@ class _InventoryScreenState extends State<InventoryScreen>
     }
   }
 
+
+  void _showDispatchLogsDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.local_shipping_rounded, color: AdminWebColors.accent),
+            SizedBox(width: 10),
+            Text('Stock Dispatch Logs', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+          ],
+        ),
+        content: SizedBox(
+          width: 700,
+          height: 500,
+          child: _meatDispatches.isEmpty
+              ? const Center(child: Text('No stock dispatches recorded yet.'))
+              : ListView.separated(
+                  itemCount: _meatDispatches.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 8),
+                  itemBuilder: (context, index) {
+                    final dispatch = _meatDispatches[index];
+                    final isDelivered = dispatch.isDelivered;
+                    return GlassCard(
+                      padding: const EdgeInsets.all(12),
+                      child: Row(
+                        children: [
+                          Icon(Icons.warehouse_rounded, color: isDelivered ? AdminWebColors.success : AdminWebColors.accent),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('Warehouse → ${dispatch.destinationBranchName}', style: const TextStyle(fontWeight: FontWeight.bold)),
+                                Text(dispatch.itemsSummary, style: const TextStyle(fontSize: 12)),
+                                Text('${dispatch.createdAt.month}/${dispatch.createdAt.day} · ${dispatch.createdAt.hour.toString().padLeft(2, '0')}:${dispatch.createdAt.minute.toString().padLeft(2, '0')}', style: const TextStyle(fontSize: 11, color: AdminWebColors.textSecondary)),
+                              ],
+                            ),
+                          ),
+                          Text('${dispatch.totalPcs} pcs', style: const TextStyle(fontWeight: FontWeight.bold, color: AdminWebColors.accent)),
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: (isDelivered ? AdminWebColors.success : AdminWebColors.warning).withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(isDelivered ? 'DELIVERED' : 'PENDING', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: isDelivered ? AdminWebColors.success : AdminWebColors.warning)),
+                          ),
+                          const SizedBox(width: 8),
+                          IconButton(
+                            icon: const Icon(Icons.delete_outline_rounded, color: AdminWebColors.error, size: 18),
+                            onPressed: () => _confirmDeleteDispatch(dispatch),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('CLOSE')),
+        ],
+      ),
+    );
+  }
 
   Widget _buildSupplyRequestsTab() {
     final pendingCount = _supplyRequests.where((r) => r.isPending).length;

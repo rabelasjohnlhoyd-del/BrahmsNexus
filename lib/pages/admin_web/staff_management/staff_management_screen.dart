@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../../../models/staff_member.dart';
 import '../../../services/auth_service.dart';
@@ -506,13 +507,24 @@ class _StaffTile extends StatelessWidget {
               ),
             ),
             alignment: Alignment.center,
-            child: Text(
-              member.initials,
-              style: TextStyle(
-                color: !member.isActive ? Colors.grey : AdminWebColors.accent,
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
-              ),
+            child: ClipOval(
+              child: member.photoUrl.trim().isNotEmpty
+                  ? (member.photoUrl.startsWith('data:image')
+                      ? Image.memory(
+                          base64Decode(member.photoUrl.split(',').last),
+                          width: 48,
+                          height: 48,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => _buildInitialsText(member),
+                        )
+                      : Image.network(
+                          member.photoUrl,
+                          width: 48,
+                          height: 48,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => _buildInitialsText(member),
+                        ))
+                  : _buildInitialsText(member),
             ),
           ),
           const SizedBox(width: 16),
@@ -711,6 +723,17 @@ class _StaffTile extends StatelessWidget {
             },
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildInitialsText(StaffMember member) {
+    return Text(
+      member.initials,
+      style: TextStyle(
+        color: !member.isActive ? Colors.grey : AdminWebColors.accent,
+        fontWeight: FontWeight.bold,
+        fontSize: 16,
       ),
     );
   }

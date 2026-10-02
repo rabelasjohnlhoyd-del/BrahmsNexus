@@ -25,7 +25,6 @@ class DailyReportScreen extends StatefulWidget {
 class _DailyReportScreenState extends State<DailyReportScreen> {
   bool _mayoTorn = false;
   bool _gasEmpty = false;
-  bool _needMoreMeat = false;
   final _messageController = TextEditingController();
   bool _isSubmitting = false;
 
@@ -100,9 +99,6 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
       if (mounted) {
         setState(() {
           _todayInventory = inv;
-          if (!_isInventoryVerified && _needMoreMeat) {
-            _needMoreMeat = false;
-          }
         });
       }
     });
@@ -120,7 +116,6 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
   bool get _canSubmit =>
       _mayoTorn ||
       _gasEmpty ||
-      _needMoreMeat ||
       _messageController.text.trim().isNotEmpty;
 
   Future<void> _confirmSubmit() async {
@@ -153,14 +148,13 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
     final parts = <String>[];
     if (_mayoTorn) parts.add('The mayo we brought got punctured');
     if (_gasEmpty) parts.add("We're out of gas (LPG)");
-    if (_needMoreMeat) parts.add('Need additional meat stock');
     final msg = _messageController.text.trim();
     if (msg.isNotEmpty) {
       parts.add(msg);
     }
     final content = parts.isEmpty ? 'Normal operational report.' : parts.join('\n');
 
-    final hasIncident = _mayoTorn || _gasEmpty || _needMoreMeat;
+    final hasIncident = _mayoTorn || _gasEmpty;
     final status = hasIncident
         ? ReportSubmissionStatus.incomplete
         : ReportSubmissionStatus.submitted;
@@ -187,7 +181,6 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
       _isSubmitting = false;
       _mayoTorn = false;
       _gasEmpty = false;
-      _needMoreMeat = false;
       _messageController.clear();
     });
 
@@ -284,33 +277,6 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
               label: "We're out of gas (LPG)",
               value: _gasEmpty,
               onChanged: (v) => setState(() => _gasEmpty = v),
-            ),
-            _checklistTile(
-              icon: CupertinoIcons.cube_box_fill,
-              label: 'Need additional meat stock',
-              value: _needMoreMeat,
-              enabled: _isInventoryVerified,
-              subtitle: _isInventoryVerified
-                  ? null
-                  : 'Locked: Please verify received inventory on the Home tab first',
-              onDisabledTap: () {
-                showCupertinoDialog<void>(
-                  context: context,
-                  builder: (context) => CupertinoAlertDialog(
-                    title: const Text('Inventory Verification Required'),
-                    content: const Text(
-                      'Please complete "Verify: Count What You Actually Received" on the Home tab before requesting additional meat.',
-                    ),
-                    actions: [
-                      CupertinoDialogAction(
-                        onPressed: () => Navigator.of(context).pop(),
-                        child: const Text('OK'),
-                      ),
-                    ],
-                  ),
-                );
-              },
-              onChanged: (v) => setState(() => _needMoreMeat = v),
             ),
             const SizedBox(height: 18),
             const StaffSectionHeader(

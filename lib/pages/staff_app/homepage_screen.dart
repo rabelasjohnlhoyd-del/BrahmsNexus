@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/cupertino.dart';
 import '../../models/branch.dart';
 import '../../models/branch_assignment.dart';
@@ -17,6 +18,7 @@ import '../../widgets/staff_nav_bar.dart';
 import '../../widgets/staff_section_header.dart';
 import '../../widgets/staff_stat_tile.dart';
 import '../../widgets/staff_top_actions.dart';
+import '../../widgets/user_avatar.dart';
 import '../../services/weather_service.dart';
 
 /// Homepage tab of the Cook/Staff app:
@@ -351,11 +353,27 @@ class _HomepageScreenState extends State<HomepageScreen> with WidgetsBindingObse
           (currentUid.isNotEmpty && (sId == currentUid || sCleanId == currentUid)) ||
           (currentFullName.isNotEmpty && s.fullName.trim().toLowerCase() == currentFullName);
 
+      // Must be assigned to a real physical branch (or be self)
+      final isAssignedToRealBranch = kSampleBranches.any(
+        (b) => branchName.isNotEmpty &&
+               (b.fullName.toLowerCase().contains(branchName.toLowerCase()) ||
+                b.name.toLowerCase().contains(branchName.toLowerCase()) ||
+                branchName.toLowerCase().contains(b.name.toLowerCase())),
+      );
+
+      if (!isAssignedToRealBranch && !isSelf) continue;
+
+      String photoUrl = s.photoUrl;
+      if (isSelf && photoUrl.isEmpty && AuthService.currentAppUser?.photoUrl.isNotEmpty == true) {
+        photoUrl = AuthService.currentAppUser!.photoUrl;
+      }
+
       list.add({
         'name': s.fullName,
         'branch': (branchName.isNotEmpty && branchName != 'N/A') ? branchName : 'Pending Assignment',
         'isSelf': isSelf,
         'initials': s.initials,
+        'avatarUrl': photoUrl,
       });
     }
 
@@ -564,6 +582,42 @@ class _HomepageScreenState extends State<HomepageScreen> with WidgetsBindingObse
         toyoEntered == a.toyo;
   }
 
+  Future<void> _updateMeatStockFromVerification({
+    required int reg,
+    required int med,
+    required int b1t1,
+    required int mayo,
+    required int styro,
+    required int toyo,
+  }) async {
+    final matchedBranch = kSampleBranches.firstWhere((b) => b.id == _currentBranchId, orElse: () => kSampleBranches.first);
+    final currentStock = _branchMeatStock ?? BranchMeatStock.defaultForBranch(matchedBranch);
+
+    final updatedStock = currentStock.copyWith(
+      branchId: _currentBranchId,
+      branchName: _inventory.branchName.isNotEmpty ? _inventory.branchName : matchedBranch.fullName,
+      regular250gTotal: reg,
+      regular250gRemaining: reg,
+      medium300gTotal: med,
+      medium300gRemaining: med,
+      b1t1_400gTotal: b1t1,
+      b1t1_400gRemaining: b1t1,
+      mayoTotal: mayo,
+      mayoRemaining: mayo,
+      styroTotal: styro,
+      styroRemaining: styro,
+      toyoTotal: toyo,
+      toyoRemaining: toyo,
+      date: DateTime.now(),
+    );
+
+    setState(() {
+      _branchMeatStock = updatedStock;
+    });
+
+    await FirestoreService.saveBranchMeatStock(updatedStock);
+  }
+
   void _confirm() {
     showCupertinoDialog(
       context: context,
@@ -579,16 +633,23 @@ class _HomepageScreenState extends State<HomepageScreen> with WidgetsBindingObse
             isDefaultAction: true,
             onPressed: () async {
               Navigator.pop(context);
+              final actualMayo = int.tryParse(_mayoController.text) ?? 0;
+              final actualToyo = int.tryParse(_toyoController.text) ?? 0;
+              final actualStyro = int.tryParse(_styroController.text) ?? 0;
+              final actualReg = int.tryParse(_karneController.text) ?? 0;
+              final actualMed = int.tryParse(_mediumController.text) ?? 0;
+              final actualB1t1 = int.tryParse(_b1t1Controller.text) ?? 0;
+
               final updated = _inventory.copyWith(
                 date: DateTime.now(),
                 status: InventoryVerificationStatus.confirmed,
                 actualReceived: ActualReceivedCounts(
-                  mayo: int.tryParse(_mayoController.text) ?? 0,
-                  toyo: int.tryParse(_toyoController.text) ?? 0,
-                  styro: int.tryParse(_styroController.text) ?? 0,
-                  regular: int.tryParse(_karneController.text) ?? 0,
-                  medium: int.tryParse(_mediumController.text) ?? 0,
-                  b1t1: int.tryParse(_b1t1Controller.text) ?? 0,
+                  mayo: actualMayo,
+                  toyo: actualToyo,
+                  styro: actualStyro,
+                  regular: actualReg,
+                  medium: actualMed,
+                  b1t1: actualB1t1,
                 ),
                 verifiedBy: AuthService.currentUsername,
                 verifiedAt: DateTime.now(),
@@ -596,6 +657,16 @@ class _HomepageScreenState extends State<HomepageScreen> with WidgetsBindingObse
               setState(() {
                 _inventory = updated;
               });
+
+              await _updateMeatStockFromVerification(
+                reg: actualReg,
+                med: actualMed,
+                b1t1: actualB1t1,
+                mayo: actualMayo,
+                styro: actualStyro,
+                toyo: actualToyo,
+              );
+
               final ok = await FirestoreService.saveDailyInventory(updated);
               if (ok) {
                 _showToast('Inventory confirmed & synced!');
@@ -681,27 +752,14 @@ class _HomepageScreenState extends State<HomepageScreen> with WidgetsBindingObse
                 _inventory = updated;
               });
 
-              if (_branchMeatStock != null) {
-                final updatedStock = _branchMeatStock!.copyWith(
-                  regular250gTotal: actualReg,
-                  regular250gRemaining: actualReg,
-                  medium300gTotal: actualMed,
-                  medium300gRemaining: actualMed,
-                  b1t1_400gTotal: actualB1t1,
-                  b1t1_400gRemaining: actualB1t1,
-                  mayoTotal: actualMayo,
-                  mayoRemaining: actualMayo,
-                  styroTotal: actualStyro,
-                  styroRemaining: actualStyro,
-                  toyoTotal: actualToyo,
-                  toyoRemaining: actualToyo,
-                  date: DateTime.now(),
-                );
-                setState(() {
-                  _branchMeatStock = updatedStock;
-                });
-                await FirestoreService.saveBranchMeatStock(updatedStock);
-              }
+              await _updateMeatStockFromVerification(
+                reg: actualReg,
+                med: actualMed,
+                b1t1: actualB1t1,
+                mayo: actualMayo,
+                styro: actualStyro,
+                toyo: actualToyo,
+              );
 
               final ok = await FirestoreService.saveDailyInventory(updated);
               if (ok) {
@@ -741,6 +799,33 @@ class _HomepageScreenState extends State<HomepageScreen> with WidgetsBindingObse
       case InventoryVerificationStatus.discrepancyReported:
         return AppColors.error;
     }
+  }
+
+  Widget _buildInitialsBubble(String initials, bool isSelf) {
+    return Container(
+      width: 34,
+      height: 34,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: isSelf
+            ? const Color(0xFF10B981).withValues(alpha: 0.15)
+            : AppColors.pastelBrown.withValues(alpha: 0.25),
+        shape: BoxShape.circle,
+        border: Border.all(
+          color: isSelf
+              ? const Color(0xFFA7F3D0)
+              : AppColors.pastelBrown.withValues(alpha: 0.4),
+        ),
+      ),
+      child: Text(
+        initials,
+        style: TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w800,
+          color: isSelf ? const Color(0xFF047857) : AppColors.accentDark,
+        ),
+      ),
+    );
   }
 
   IconData _statusIcon(InventoryVerificationStatus status) {
@@ -1117,6 +1202,7 @@ class _HomepageScreenState extends State<HomepageScreen> with WidgetsBindingObse
                         ),
                       ),
                     ),
+
                     const SizedBox(height: 10),
                     if (coworkers.isEmpty)
                       Padding(
@@ -1142,6 +1228,28 @@ class _HomepageScreenState extends State<HomepageScreen> with WidgetsBindingObse
                           final branch = c['branch'] as String;
                           final name = c['name'] as String;
                           final initials = c['initials'] as String? ?? '?';
+                          final photoUrl = c['avatarUrl'] as String? ?? '';
+
+                          Widget avatarWidget;
+                          if (photoUrl.isNotEmpty) {
+                            if (photoUrl.startsWith('data:image')) {
+                              try {
+                                final base64Part = photoUrl.contains(',') ? photoUrl.split(',').last : photoUrl;
+                                final bytes = base64Decode(base64Part);
+                                avatarWidget = ClipOval(
+                                  child: Image.memory(bytes, width: 34, height: 34, fit: BoxFit.cover, errorBuilder: (_, __, ___) => _buildInitialsBubble(initials, isSelf)),
+                                );
+                              } catch (_) {
+                                avatarWidget = _buildInitialsBubble(initials, isSelf);
+                              }
+                            } else {
+                              avatarWidget = ClipOval(
+                                child: Image.network(photoUrl, width: 34, height: 34, fit: BoxFit.cover, errorBuilder: (_, __, ___) => _buildInitialsBubble(initials, isSelf)),
+                              );
+                            }
+                          } else {
+                            avatarWidget = _buildInitialsBubble(initials, isSelf);
+                          }
 
                           return Padding(
                             padding: const EdgeInsets.only(bottom: 8),
@@ -1149,30 +1257,7 @@ class _HomepageScreenState extends State<HomepageScreen> with WidgetsBindingObse
                               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                               child: Row(
                                 children: [
-                                  Container(
-                                    width: 34,
-                                    height: 34,
-                                    alignment: Alignment.center,
-                                    decoration: BoxDecoration(
-                                      color: isSelf
-                                          ? const Color(0xFF10B981).withValues(alpha: 0.15)
-                                          : AppColors.pastelBrown.withValues(alpha: 0.25),
-                                      shape: BoxShape.circle,
-                                      border: Border.all(
-                                        color: isSelf
-                                            ? const Color(0xFFA7F3D0)
-                                            : AppColors.pastelBrown.withValues(alpha: 0.4),
-                                      ),
-                                    ),
-                                    child: Text(
-                                      initials,
-                                      style: TextStyle(
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w800,
-                                        color: isSelf ? const Color(0xFF047857) : AppColors.accentDark,
-                                      ),
-                                    ),
-                                  ),
+                                  avatarWidget,
                                   const SizedBox(width: 12),
                                   Expanded(
                                     child: Row(

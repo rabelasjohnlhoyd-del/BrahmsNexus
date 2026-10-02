@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../../models/branch.dart';
+import '../../../models/branch_meat_inventory.dart';
 import '../../../models/meat_dispatch.dart';
 import '../../../services/firestore_service.dart';
 import '../../../services/notification_service.dart';
@@ -20,9 +22,6 @@ class RecordTransferScreen extends StatefulWidget {
 class _RecordTransferScreenState extends State<RecordTransferScreen> {
   final _formKey = GlobalKey<FormState>();
   
-  // Source is always Main Warehouse (Owner's House)
-  final String _sourceName = 'Main Warehouse (Owner\'s House)';
-  
   List<Branch> _branches = SupabaseService.getAllBranchesSync();
   late String _destId;
   final _regController = TextEditingController();
@@ -32,6 +31,10 @@ class _RecordTransferScreenState extends State<RecordTransferScreen> {
   final _styroController = TextEditingController();
   final _toyoController = TextEditingController();
   bool _isSaving = false;
+  bool _hasSubmittedSales = false;
+
+  StreamSubscription<List<BranchMeatStock>>? _stocksSub;
+  List<BranchMeatStock> _allStocks = [];
 
   @override
   void initState() {
@@ -43,6 +46,14 @@ class _RecordTransferScreenState extends State<RecordTransferScreen> {
       _destId = _branches.first.id;
     }
     _loadBranches();
+    _checkSalesSubmitted(_destId);
+    
+    _stocksSub = FirestoreService.watchBranchMeatStocks().listen((stocks) {
+      if (mounted) {
+        setState(() => _allStocks = stocks);
+      }
+    });
+
     _updateShellActions();
   }
 
@@ -55,11 +66,20 @@ class _RecordTransferScreenState extends State<RecordTransferScreen> {
           _destId = _branches.first.id;
         }
       });
+      _checkSalesSubmitted(_destId);
+    }
+  }
+
+  Future<void> _checkSalesSubmitted(String branchId) async {
+    final submitted = await FirestoreService.hasBranchSubmittedSalesToday(branchId);
+    if (mounted) {
+      setState(() => _hasSubmittedSales = submitted);
     }
   }
 
   @override
   void dispose() {
+    _stocksSub?.cancel();
     _regController.dispose();
     _medController.dispose();
     _b1t1Controller.dispose();
@@ -71,11 +91,18 @@ class _RecordTransferScreenState extends State<RecordTransferScreen> {
 
   void _updateShellActions() {
     final shell = context.findAncestorStateOfType<AdminWebShellState>();
-    shell?.setTitle('RECORD STOCK DISPATCH');
+    shell?.setTitle('RESTOCK BRANCH');
     shell?.setActions([]);
   }
 
   Future<void> _handleSave() async {
+    if (_hasSubmittedSales) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Hindi na maaaring i-restock dahil naisumite na ang Closing EOD Sales.')),
+      );
+      return;
+    }
+
     final reg = int.tryParse(_regController.text.trim()) ?? 0;
     final med = int.tryParse(_medController.text.trim()) ?? 0;
     final b1t1 = int.tryParse(_b1t1Controller.text.trim()) ?? 0;
@@ -85,7 +112,7 @@ class _RecordTransferScreenState extends State<RecordTransferScreen> {
 
     if (reg == 0 && med == 0 && b1t1 == 0 && mayo == 0 && styro == 0 && toyo == 0) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Pakiusap maglagay ng kahit isang bilang ng item (karne o supplies) na ipapadala.')),
+        const SnackBar(content: Text('Pakiusap maglagay ng kahit isang bilang ng item na ire-restock.')),
       );
       return;
     }
@@ -95,10 +122,10 @@ class _RecordTransferScreenState extends State<RecordTransferScreen> {
       _updateShellActions();
     });
 
-    final dest = kSampleBranches.firstWhere((b) => b.id == _destId);
+    final dest = kSampleBranches.firstWhere((b) => b.id == _destId, orElse: () => kSampleBranches.first);
 
     final dispatch = MeatDispatch(
-      id: '',
+      id: 'disp_${DateTime.now().millisecondsSinceEpoch}',
       destinationBranchId: dest.id,
       destinationBranchName: dest.fullName,
       regular250gPcs: reg,
@@ -107,43 +134,54 @@ class _RecordTransferScreenState extends State<RecordTransferScreen> {
       mayoPcs: mayo,
       styroPcs: styro,
       toyoPcs: toyo,
-      status: 'pending',
+      status: 'delivered', // Immediate restock
       createdAt: DateTime.now(),
+      deliveredAt: DateTime.now(),
     );
 
     await FirestoreService.createMeatDispatch(dispatch);
-
-    await NotificationService.notifyDriverOfDeliveryTask(
-      branchName: dest.fullName,
-      quantityKg: (reg * 0.25) + (med * 0.30) + (b1t1 * 0.40),
-      itemsSummary: dispatch.itemsSummary,
-    );
+    await FirestoreService.markDispatchAsDelivered(dispatch);
 
     if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Restock successfully applied to ${dest.fullName}!')),
+    );
     Navigator.of(context).pop(dispatch);
   }
 
   @override
   Widget build(BuildContext context) {
+    BranchMeatStock? s;
+    for (final st in _allStocks) {
+      if (st.branchId == _destId) {
+        s = st;
+        break;
+      }
+    }
+    s ??= BranchMeatStock.defaultForBranch(
+      _branches.firstWhere((b) => b.id == _destId, orElse: () => kSampleBranches.first),
+    );
+
     return Container(
       color: AdminWebColors.background,
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Center(
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 600),
+            constraints: const BoxConstraints(maxWidth: 650),
             child: Form(
               key: _formKey,
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 10),
                   GlassCard(
                     padding: const EdgeInsets.all(24),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const Text(
-                          'DISPATCH DETAILS (PCS)',
+                          'RESTOCK BRANCH',
                           style: TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.w800,
@@ -151,30 +189,11 @@ class _RecordTransferScreenState extends State<RecordTransferScreen> {
                             color: AdminWebColors.textSecondary,
                           ),
                         ),
-                        const SizedBox(height: 24),
-                        // FIXED SOURCE
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: AdminWebColors.accent.withValues(alpha: 0.05),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: AdminWebColors.border),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text('FROM SOURCE', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AdminWebColors.textSecondary)),
-                              const SizedBox(height: 4),
-                              Text(_sourceName, style: const TextStyle(fontWeight: FontWeight.w800, color: AdminWebColors.textPrimary)),
-                            ],
-                          ),
-                        ),
                         const SizedBox(height: 20),
                         DropdownButtonFormField<String>(
                           initialValue: _destId,
                           decoration: const InputDecoration(
-                            labelText: 'DESTINATION BRANCH',
+                            labelText: 'TARGET BRANCH',
                             isDense: true,
                             prefixIcon: Icon(Icons.storefront_rounded, size: 20),
                           ),
@@ -183,90 +202,166 @@ class _RecordTransferScreenState extends State<RecordTransferScreen> {
                                   DropdownMenuItem(value: b.id, child: Text(b.fullName)))
                               .toList(),
                           onChanged: (v) {
-                            if (v != null) setState(() => _destId = v);
+                            if (v != null) {
+                              setState(() => _destId = v);
+                              _checkSalesSubmitted(v);
+                            }
                           },
                         ),
-                        const SizedBox(height: 24),
+                        const SizedBox(height: 16),
+
+                        if (_hasSubmittedSales) ...[
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: AdminWebColors.error.withValues(alpha: 0.08),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: AdminWebColors.error.withValues(alpha: 0.3)),
+                            ),
+                            child: const Row(
+                              children: [
+                                Icon(Icons.warning_amber_rounded, color: AdminWebColors.error, size: 20),
+                                SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    'Hindi na maaaring i-restock ang branch na ito dahil naisumite na ang Closing EOD Sales para sa araw na ito.',
+                                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: AdminWebColors.error),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                        ],
+
+                        // CURRENT STOCK DISPLAY AT TOP (Always visible for selected branch)
                         const Text(
-                          'BILANG NG PCS NA IPAPADALA:',
+                          'CURRENT STOCK SA BRANCH:',
+                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: AdminWebColors.accent),
+                        ),
+                        const SizedBox(height: 8),
+                        Container(
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: AdminWebColors.accent.withValues(alpha: 0.06),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: AdminWebColors.accent.withValues(alpha: 0.2)),
+                          ),
+                          child: Column(
+                            children: [
+                              Row(
+                                children: [
+                                  Expanded(child: _stockInfoChip('250g Regular', '${s.regular250gRemaining} / ${s.regular250gTotal} pcs')),
+                                  const SizedBox(width: 8),
+                                  Expanded(child: _stockInfoChip('300g Medium', '${s.medium300gRemaining} / ${s.medium300gTotal} pcs')),
+                                  const SizedBox(width: 8),
+                                  Expanded(child: _stockInfoChip('400g B1T1', '${s.b1t1_400gRemaining} / ${s.b1t1_400gTotal} pcs')),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              Row(
+                                children: [
+                                  Expanded(child: _stockInfoChip('Mayo', '${s.mayoRemaining} / ${s.mayoTotal} pcs')),
+                                  const SizedBox(width: 8),
+                                  Expanded(child: _stockInfoChip('Styro Box', '${s.styroRemaining} / ${s.styroTotal} pcs')),
+                                  const SizedBox(width: 8),
+                                  Expanded(child: _stockInfoChip('Toyo', '${s.toyoRemaining} / ${s.toyoTotal} pcs')),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+
+                        const Text(
+                          'ILAGAY ANG MGA IDADAGDAG NA PCS (RESTOCK):',
                           style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: AdminWebColors.accent),
                         ),
                         const SizedBox(height: 12),
-                        TextFormField(
-                          controller: _regController,
-                          keyboardType: TextInputType.number,
-                          decoration: const InputDecoration(
-                            labelText: '250 grams - Regular',
-                            hintText: 'e.g. 20',
-                            isDense: true,
-                            prefixIcon: Icon(Icons.fastfood_rounded, size: 20),
-                            suffixText: 'PCS',
-                          ),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: TextFormField(
+                                controller: _regController,
+                                keyboardType: TextInputType.number,
+                                enabled: !_hasSubmittedSales,
+                                decoration: const InputDecoration(
+                                  labelText: 'Regular (250g)',
+                                  hintText: '0',
+                                  isDense: true,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: TextFormField(
+                                controller: _medController,
+                                keyboardType: TextInputType.number,
+                                enabled: !_hasSubmittedSales,
+                                decoration: const InputDecoration(
+                                  labelText: 'Medium (300g)',
+                                  hintText: '0',
+                                  isDense: true,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: TextFormField(
+                                controller: _b1t1Controller,
+                                keyboardType: TextInputType.number,
+                                enabled: !_hasSubmittedSales,
+                                decoration: const InputDecoration(
+                                  labelText: 'B1T1 (400g)',
+                                  hintText: '0',
+                                  isDense: true,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                         const SizedBox(height: 16),
-                        TextFormField(
-                          controller: _medController,
-                          keyboardType: TextInputType.number,
-                          decoration: const InputDecoration(
-                            labelText: '300 grams - Medium',
-                            hintText: 'e.g. 10',
-                            isDense: true,
-                            prefixIcon: Icon(Icons.lunch_dining_rounded, size: 20),
-                            suffixText: 'PCS',
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        TextFormField(
-                          controller: _b1t1Controller,
-                          keyboardType: TextInputType.number,
-                          decoration: const InputDecoration(
-                            labelText: '400 grams - B1T1 (Buy 1 Take 1)',
-                            hintText: 'e.g. 10',
-                            isDense: true,
-                            prefixIcon: Icon(Icons.dinner_dining_rounded, size: 20),
-                            suffixText: 'PCS',
-                          ),
-                        ),
-                        const SizedBox(height: 24),
-                        const Text(
-                          'SUPPLIES / MATERIALS:',
-                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: AdminWebColors.accent),
-                        ),
-                        const SizedBox(height: 12),
-                        TextFormField(
-                          controller: _mayoController,
-                          keyboardType: TextInputType.number,
-                          decoration: const InputDecoration(
-                            labelText: 'Mayo',
-                            hintText: 'e.g. 40',
-                            isDense: true,
-                            prefixIcon: Icon(Icons.egg_rounded, size: 20),
-                            suffixText: 'PCS',
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        TextFormField(
-                          controller: _styroController,
-                          keyboardType: TextInputType.number,
-                          decoration: const InputDecoration(
-                            labelText: 'Styro Box',
-                            hintText: 'e.g. 40',
-                            isDense: true,
-                            prefixIcon: Icon(Icons.inventory_2_rounded, size: 20),
-                            suffixText: 'PCS',
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        TextFormField(
-                          controller: _toyoController,
-                          keyboardType: TextInputType.number,
-                          decoration: const InputDecoration(
-                            labelText: 'Toyo',
-                            hintText: 'e.g. 10',
-                            isDense: true,
-                            prefixIcon: Icon(Icons.water_drop_rounded, size: 20),
-                            suffixText: 'PCS',
-                          ),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: TextFormField(
+                                controller: _mayoController,
+                                keyboardType: TextInputType.number,
+                                enabled: !_hasSubmittedSales,
+                                decoration: const InputDecoration(
+                                  labelText: 'Mayo Packs',
+                                  hintText: '0',
+                                  isDense: true,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: TextFormField(
+                                controller: _styroController,
+                                keyboardType: TextInputType.number,
+                                enabled: !_hasSubmittedSales,
+                                decoration: const InputDecoration(
+                                  labelText: 'Styro Boxes',
+                                  hintText: '0',
+                                  isDense: true,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: TextFormField(
+                                controller: _toyoController,
+                                keyboardType: TextInputType.number,
+                                enabled: !_hasSubmittedSales,
+                                decoration: const InputDecoration(
+                                  labelText: 'Toyo Packs',
+                                  hintText: '0',
+                                  isDense: true,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
@@ -288,7 +383,7 @@ class _RecordTransferScreenState extends State<RecordTransferScreen> {
                       ),
                       const SizedBox(width: 16),
                       ElevatedButton.icon(
-                        onPressed: _isSaving ? null : _handleSave,
+                        onPressed: (_isSaving || _hasSubmittedSales) ? null : _handleSave,
                         icon: _isSaving
                             ? const SizedBox(
                                 width: 18,
@@ -299,10 +394,10 @@ class _RecordTransferScreenState extends State<RecordTransferScreen> {
                                       AlwaysStoppedAnimation<Color>(Colors.white),
                                 ),
                               )
-                            : const Icon(Icons.check_rounded, size: 18),
-                        label: const Text('CONFIRM DISPATCH'),
+                            : const Icon(Icons.add_shopping_cart_rounded, size: 18),
+                        label: const Text('CONFIRM RESTOCK'),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: AdminWebColors.accent,
+                          backgroundColor: _hasSubmittedSales ? Colors.grey : AdminWebColors.accent,
                           foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(
                               horizontal: 24, vertical: 14),
@@ -319,6 +414,24 @@ class _RecordTransferScreenState extends State<RecordTransferScreen> {
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _stockInfoChip(String label, String value) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: AdminWebColors.border),
+      ),
+      child: Column(
+        children: [
+          Text(label, style: const TextStyle(fontSize: 10, color: AdminWebColors.textSecondary, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 2),
+          Text(value, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: AdminWebColors.textPrimary)),
+        ],
       ),
     );
   }

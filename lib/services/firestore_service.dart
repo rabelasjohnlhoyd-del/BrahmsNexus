@@ -836,6 +836,16 @@ class FirestoreService {
     return '${branchId}_$yyyy$mm$dd';
   }
 
+  static Future<bool> hasBranchSubmittedSalesToday(String branchId) async {
+    try {
+      final docId = _dailySalesDocId(branchId, DateTime.now());
+      final doc = await _db.collection('daily_sales').doc(docId).get();
+      return doc.exists;
+    } catch (_) {
+      return false;
+    }
+  }
+
   /// Streams today's sales submission for a specific branch.
   /// If a record exists for today, returns the SalesRecord; otherwise returns null.
   static Stream<SalesRecord?> watchTodayBranchSales({
@@ -1935,10 +1945,86 @@ class FirestoreService {
   /// Saves or updates the meat stock counts for a specific branch.
   static Future<bool> saveBranchMeatStock(BranchMeatStock stock) async {
     try {
-      await _db.collection('branch_meat_stocks').doc(stock.branchId).set({
-        ...stock.toMap(),
+      final docRef = _db.collection('branch_meat_stocks').doc(stock.branchId);
+      final oldDoc = await docRef.get();
+
+      BranchMeatStock? oldStock;
+      final todayStr = DateTime.now().toIso8601String().substring(0, 10);
+
+      if (oldDoc.exists && oldDoc.data() != null) {
+        oldStock = BranchMeatStock.fromMap(oldDoc.data()!, id: stock.branchId);
+      }
+
+      // If new day, reset alert flags
+      bool regSent = (oldStock?.lowStockAlertDate == todayStr) ? oldStock!.regLowAlertSent : false;
+      bool medSent = (oldStock?.lowStockAlertDate == todayStr) ? oldStock!.medLowAlertSent : false;
+      bool b1t1Sent = (oldStock?.lowStockAlertDate == todayStr) ? oldStock!.b1t1LowAlertSent : false;
+      bool mayoSent = (oldStock?.lowStockAlertDate == todayStr) ? oldStock!.mayoLowAlertSent : false;
+      bool toyoSent = (oldStock?.lowStockAlertDate == todayStr) ? oldStock!.toyoLowAlertSent : false;
+      bool styroSent = (oldStock?.lowStockAlertDate == todayStr) ? oldStock!.styroLowAlertSent : false;
+
+      final isRegLow = stock.regular250gRemaining <= 8;
+      final isMedLow = stock.medium300gRemaining <= 4;
+      final isB1t1Low = stock.b1t1_400gRemaining <= 4;
+      final isMayoLow = stock.mayoRemaining <= 8;
+      final isToyoLow = stock.toyoRemaining <= 4;
+      final isStyroLow = stock.styroRemaining <= 8;
+
+      final newlyLowItems = <String>[];
+
+      if (isRegLow && !regSent) {
+        newlyLowItems.add('Regular Meat: ${stock.regular250gRemaining}/20 (<=8)');
+        regSent = true;
+      }
+      if (isMedLow && !medSent) {
+        newlyLowItems.add('Medium Meat: ${stock.medium300gRemaining}/10 (<=4)');
+        medSent = true;
+      }
+      if (isB1t1Low && !b1t1Sent) {
+        newlyLowItems.add('B1T1 Meat: ${stock.b1t1_400gRemaining}/10 (<=4)');
+        b1t1Sent = true;
+      }
+      if (isMayoLow && !mayoSent) {
+        newlyLowItems.add('Mayo Packs: ${stock.mayoRemaining}/40 (<=8)');
+        mayoSent = true;
+      }
+      if (isToyoLow && !toyoSent) {
+        newlyLowItems.add('Toyo Packs: ${stock.toyoRemaining}/10 (<=4)');
+        toyoSent = true;
+      }
+      if (isStyroLow && !styroSent) {
+        newlyLowItems.add('Styro Boxes: ${stock.styroRemaining}/40 (<=8)');
+        styroSent = true;
+      }
+
+      final anyLow = isRegLow || isMedLow || isB1t1Low || isMayoLow || isToyoLow || isStyroLow;
+
+      final stockToSave = stock.copyWith(
+        regLowAlertSent: regSent,
+        medLowAlertSent: medSent,
+        b1t1LowAlertSent: b1t1Sent,
+        mayoLowAlertSent: mayoSent,
+        toyoLowAlertSent: toyoSent,
+        styroLowAlertSent: styroSent,
+        lowStockAlertDate: anyLow ? todayStr : stock.lowStockAlertDate,
+      );
+
+      await docRef.set({
+        ...stockToSave.toMap(),
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
+
+      if (newlyLowItems.isNotEmpty) {
+        await NotificationService.sendNotification(
+          title: '⚠️ Low Stock Alert — ${stock.branchName}',
+          message: '${stock.branchName} has items running critically low:\n• ${newlyLowItems.join('\n• ')}',
+          type: NotificationType.inventoryAlert,
+          targetRole: 'owner',
+          route: 'inventory',
+          targetBranch: stock.branchName,
+        ).catchError((_) => false);
+      }
+
       return true;
     } catch (e) {
       debugPrint('FirestoreService.saveBranchMeatStock error: $e');
@@ -2077,80 +2163,6 @@ class FirestoreService {
 
       await branchDocRef.set({
         ...updatedStock.toMap(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
-
-      // 3. Update staff daily inventory for this branch today
-      final docId = _dailyInventoryDocId(branchId, now);
-      final staffInvDocRef = _db.collection('branch_daily_inventories').doc(docId);
-      final staffInvDoc = await staffInvDocRef.get();
-
-      int newReg = dispatch.regular250gPcs;
-      int newMed = dispatch.medium300gPcs;
-      int newB1t1 = dispatch.b1t1_400gPcs;
-      int newMayo = dispatch.mayoPcs;
-      int newStyro = dispatch.styroPcs;
-      int newToyo = dispatch.toyoPcs;
-
-      int curAllocMayo = 40;
-      int curAllocStyro = 40;
-      int curAllocToyo = 10;
-
-      if (staffInvDoc.exists && staffInvDoc.data() != null) {
-        final data = staffInvDoc.data()!;
-        final alloc = data['allocated'] as Map<String, dynamic>? ?? {};
-        curAllocMayo = (alloc['mayo'] as num?)?.toInt() ?? 40;
-        curAllocStyro = (alloc['styro'] as num?)?.toInt() ?? 40;
-        curAllocToyo = (alloc['toyo'] as num?)?.toInt() ?? 10;
-
-        final ar = data['actualReceived'] as Map<String, dynamic>?;
-        if (ar != null) {
-          newReg += (ar['regular'] as num?)?.toInt() ?? 0;
-          newMed += (ar['medium'] as num?)?.toInt() ?? 0;
-          newB1t1 += (ar['b1t1'] as num?)?.toInt() ?? 0;
-          newMayo += (ar['mayo'] as num?)?.toInt() ?? 0;
-          newStyro += (ar['styro'] as num?)?.toInt() ?? 0;
-          newToyo += (ar['toyo'] as num?)?.toInt() ?? 0;
-        } else {
-          newReg += 20;
-          newMed += 10;
-          newB1t1 += 10;
-          newMayo += curAllocMayo;
-          newStyro += curAllocStyro;
-          newToyo += curAllocToyo;
-        }
-      } else {
-        newReg += 20;
-        newMed += 10;
-        newB1t1 += 10;
-        newMayo += 40;
-        newStyro += 40;
-        newToyo += 10;
-      }
-
-      final totalAllocKarne = newReg + newMed + newB1t1;
-
-      await staffInvDocRef.set({
-        'branchId': branchId,
-        'branchName': dispatch.destinationBranchName,
-        'date': Timestamp.fromDate(now),
-        'allocated': {
-          'karne': totalAllocKarne,
-          'mayo': curAllocMayo + dispatch.mayoPcs,
-          'styro': curAllocStyro + dispatch.styroPcs,
-          'toyo': curAllocToyo + dispatch.toyoPcs,
-        },
-        'actualReceived': {
-          'regular': newReg,
-          'medium': newMed,
-          'b1t1': newB1t1,
-          'mayo': newMayo,
-          'styro': newStyro,
-          'toyo': newToyo,
-        },
-        // Automatic na mawawala ang discrepancy dahil naihatid na ang kulang!
-        'status': InventoryVerificationStatus.confirmed.name,
-        'discrepancyNote': null,
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
 

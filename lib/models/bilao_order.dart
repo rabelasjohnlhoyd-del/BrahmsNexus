@@ -159,6 +159,7 @@ class BilaoOrder {
     this.pickupBranchName,
     this.notes,
     this.unitPrice,
+    this.depositAmount = 0.0,
     this.createdAt,
     this.preparationStatus = PreparationStatus.pending,
     this.deliveryStatus = DeliveryStatus.forDelivery,
@@ -177,12 +178,14 @@ class BilaoOrder {
   final String? pickupBranchName;
   final String? notes;
   final double? unitPrice;
+  final double depositAmount;
   final DateTime? createdAt;
   final PreparationStatus preparationStatus;
   final DeliveryStatus deliveryStatus;
 
   double get effectiveUnitPrice => unitPrice ?? size.price;
   double get totalAmount => effectiveUnitPrice * quantity;
+  double get remainingBalance => (totalAmount - depositAmount).clamp(0.0, totalAmount);
 
   /// Cook commission is ONLY awarded if the order originated from the Branch.
   /// Direct orders to Owner yield ₱0 commission to the branch cook.
@@ -216,6 +219,7 @@ class BilaoOrder {
     String? pickupBranchName,
     String? notes,
     double? unitPrice,
+    double? depositAmount,
     DateTime? createdAt,
     PreparationStatus? preparationStatus,
     DeliveryStatus? deliveryStatus,
@@ -234,6 +238,7 @@ class BilaoOrder {
       pickupBranchName: pickupBranchName ?? this.pickupBranchName,
       notes: notes ?? this.notes,
       unitPrice: unitPrice ?? this.unitPrice,
+      depositAmount: depositAmount ?? this.depositAmount,
       createdAt: createdAt ?? this.createdAt,
       preparationStatus: preparationStatus ?? this.preparationStatus,
       deliveryStatus: deliveryStatus ?? this.deliveryStatus,

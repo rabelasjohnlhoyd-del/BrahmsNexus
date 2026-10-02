@@ -27,6 +27,14 @@ class BranchMeatStock {
     this.styroRemaining = 40,
     this.toyoTotal = 10,
     this.toyoRemaining = 10,
+    this.regLowAlertSent = false,
+    this.medLowAlertSent = false,
+    this.b1t1LowAlertSent = false,
+    this.mayoLowAlertSent = false,
+    this.toyoLowAlertSent = false,
+    this.styroLowAlertSent = false,
+    this.lowStockAlertDate,
+    this.spoilagePenalty = 0.0,
   });
 
   final String branchId;
@@ -55,6 +63,15 @@ class BranchMeatStock {
   final int toyoTotal;
   final int toyoRemaining;
 
+  final bool regLowAlertSent;
+  final bool medLowAlertSent;
+  final bool b1t1LowAlertSent;
+  final bool mayoLowAlertSent;
+  final bool toyoLowAlertSent;
+  final bool styroLowAlertSent;
+  final String? lowStockAlertDate;
+  final double spoilagePenalty;
+
   int get totalAllocatedPcs => regular250gTotal + medium300gTotal + b1t1_400gTotal;
   int get totalRemainingPcs => regular250gRemaining + medium300gRemaining + b1t1_400gRemaining;
   int get totalUsedPcs => totalAllocatedPcs - totalRemainingPcs;
@@ -78,6 +95,14 @@ class BranchMeatStock {
     int? styroRemaining,
     int? toyoTotal,
     int? toyoRemaining,
+    bool? regLowAlertSent,
+    bool? medLowAlertSent,
+    bool? b1t1LowAlertSent,
+    bool? mayoLowAlertSent,
+    bool? toyoLowAlertSent,
+    bool? styroLowAlertSent,
+    String? lowStockAlertDate,
+    double? spoilagePenalty,
   }) {
     return BranchMeatStock(
       branchId: branchId ?? this.branchId,
@@ -95,6 +120,14 @@ class BranchMeatStock {
       styroRemaining: styroRemaining ?? this.styroRemaining,
       toyoTotal: toyoTotal ?? this.toyoTotal,
       toyoRemaining: toyoRemaining ?? this.toyoRemaining,
+      regLowAlertSent: regLowAlertSent ?? this.regLowAlertSent,
+      medLowAlertSent: medLowAlertSent ?? this.medLowAlertSent,
+      b1t1LowAlertSent: b1t1LowAlertSent ?? this.b1t1LowAlertSent,
+      mayoLowAlertSent: mayoLowAlertSent ?? this.mayoLowAlertSent,
+      toyoLowAlertSent: toyoLowAlertSent ?? this.toyoLowAlertSent,
+      styroLowAlertSent: styroLowAlertSent ?? this.styroLowAlertSent,
+      lowStockAlertDate: lowStockAlertDate ?? this.lowStockAlertDate,
+      spoilagePenalty: spoilagePenalty ?? this.spoilagePenalty,
     );
   }
 
@@ -115,6 +148,14 @@ class BranchMeatStock {
       'styroRemaining': styroRemaining,
       'toyoTotal': toyoTotal,
       'toyoRemaining': toyoRemaining,
+      'regLowAlertSent': regLowAlertSent,
+      'medLowAlertSent': medLowAlertSent,
+      'b1t1LowAlertSent': b1t1LowAlertSent,
+      'mayoLowAlertSent': mayoLowAlertSent,
+      'toyoLowAlertSent': toyoLowAlertSent,
+      'styroLowAlertSent': styroLowAlertSent,
+      'lowStockAlertDate': lowStockAlertDate,
+      'spoilagePenalty': spoilagePenalty,
     };
   }
 
@@ -146,6 +187,14 @@ class BranchMeatStock {
       styroRemaining: (map['styroRemaining'] as num?)?.toInt() ?? 40,
       toyoTotal: (map['toyoTotal'] as num?)?.toInt() ?? 10,
       toyoRemaining: (map['toyoRemaining'] as num?)?.toInt() ?? 10,
+      regLowAlertSent: map['regLowAlertSent'] as bool? ?? false,
+      medLowAlertSent: map['medLowAlertSent'] as bool? ?? false,
+      b1t1LowAlertSent: map['b1t1LowAlertSent'] as bool? ?? false,
+      mayoLowAlertSent: map['mayoLowAlertSent'] as bool? ?? false,
+      toyoLowAlertSent: map['toyoLowAlertSent'] as bool? ?? false,
+      styroLowAlertSent: map['styroLowAlertSent'] as bool? ?? false,
+      lowStockAlertDate: map['lowStockAlertDate']?.toString(),
+      spoilagePenalty: (map['spoilagePenalty'] as num?)?.toDouble() ?? 0.0,
     );
   }
 

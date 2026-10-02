@@ -205,6 +205,16 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
   int _countVerifByStatus(InventoryVerificationStatus status) =>
       _verifications.where((v) => v.status == status).length;
 
+  String _getInitials(String name) {
+    final parts = name.trim().split(RegExp(r'\s+'));
+    if (parts.length >= 2) {
+      return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
+    } else if (parts.isNotEmpty && parts[0].isNotEmpty) {
+      return parts[0].substring(0, parts[0].length >= 2 ? 2 : 1).toUpperCase();
+    }
+    return 'E';
+  }
+
   void _showReportDetail(DailyReport report) {
     String? currentReply = report.ownerReply;
     final replyController = TextEditingController();
@@ -217,12 +227,18 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           title: Row(
             children: [
-              CircleAvatar(
-                radius: 16,
-                backgroundColor: AdminWebColors.accent,
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF5EDE6),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: AdminWebColors.accent.withValues(alpha: 0.2)),
+                ),
+                alignment: Alignment.center,
                 child: Text(
-                  report.employeeName.isNotEmpty ? report.employeeName.substring(0, 1) : 'E',
-                  style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
+                  _getInitials(report.employeeName),
+                  style: const TextStyle(color: AdminWebColors.accent, fontSize: 13, fontWeight: FontWeight.bold),
                 ),
               ),
               const SizedBox(width: 10),
@@ -782,11 +798,18 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
                                       clipBehavior: Clip.antiAlias,
                                       child: ListTile(
                                         onTap: () => _showReportDetail(r),
-                                        leading: CircleAvatar(
-                                          backgroundColor: AdminWebColors.accent,
+                                        leading: Container(
+                                          width: 36,
+                                          height: 36,
+                                          decoration: BoxDecoration(
+                                            color: const Color(0xFFF5EDE6),
+                                            shape: BoxShape.circle,
+                                            border: Border.all(color: AdminWebColors.accent.withValues(alpha: 0.2)),
+                                          ),
+                                          alignment: Alignment.center,
                                           child: Text(
-                                            r.employeeName.isNotEmpty ? r.employeeName.substring(0, 1) : 'E',
-                                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                                            _getInitials(r.employeeName),
+                                            style: const TextStyle(color: AdminWebColors.accent, fontSize: 12, fontWeight: FontWeight.bold),
                                           ),
                                         ),
                                         title: Text(

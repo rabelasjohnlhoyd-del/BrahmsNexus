@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../../../models/branch.dart';
 import '../../../models/branch_assignment.dart';
@@ -65,6 +66,27 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
       if (cleanName.isNotEmpty && s.fullName.trim().toLowerCase() == cleanName) return s;
     }
     return null;
+  }
+
+  String _getTwoInitials(String name) {
+    final parts = name.trim().split(RegExp(r'\s+'));
+    if (parts.length >= 2) {
+      return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
+    } else if (parts.isNotEmpty && parts[0].isNotEmpty) {
+      return parts[0].substring(0, parts[0].length >= 2 ? 2 : 1).toUpperCase();
+    }
+    return '?';
+  }
+
+  Widget _buildInitialsText(String name, bool isOnDuty) {
+    return Text(
+      _getTwoInitials(name),
+      style: TextStyle(
+        color: isOnDuty ? AdminWebColors.accent : Colors.grey.shade600,
+        fontWeight: FontWeight.bold,
+        fontSize: 16,
+      ),
+    );
   }
 
   void _onAssignmentsChanged() {
@@ -659,6 +681,39 @@ class _AssignmentCard extends StatelessWidget {
   final ValueChanged<Branch> onBranchChanged;
   final ValueChanged<WorkStatus> onStatusChanged;
 
+  static StaffMember? _findStaff(List<StaffMember> staffList, String employeeId, String employeeName) {
+    final cleanId = employeeId.trim().toLowerCase().replaceAll('-', '');
+    final cleanName = employeeName.trim().toLowerCase();
+    for (final s in staffList) {
+      if (s.id.trim().toLowerCase() == employeeId.trim().toLowerCase()) return s;
+      if (s.id.trim().toLowerCase().replaceAll('-', '') == cleanId) return s;
+      if (s.username.isNotEmpty && s.username.trim().toLowerCase() == employeeId.trim().toLowerCase()) return s;
+      if (cleanName.isNotEmpty && s.fullName.trim().toLowerCase() == cleanName) return s;
+    }
+    return null;
+  }
+
+  static String _getTwoInitials(String name) {
+    final parts = name.trim().split(RegExp(r'\s+'));
+    if (parts.length >= 2) {
+      return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
+    } else if (parts.isNotEmpty && parts[0].isNotEmpty) {
+      return parts[0].substring(0, parts[0].length >= 2 ? 2 : 1).toUpperCase();
+    }
+    return '?';
+  }
+
+  static Widget _buildInitialsText(String name, bool isOnDuty) {
+    return Text(
+      _getTwoInitials(name),
+      style: TextStyle(
+        color: isOnDuty ? AdminWebColors.accent : Colors.grey.shade600,
+        fontWeight: FontWeight.bold,
+        fontSize: 16,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final bool isOnDuty = assignment.workStatus == WorkStatus.onDuty;
@@ -679,6 +734,29 @@ class _AssignmentCard extends StatelessWidget {
       }
     }
 
+    final matchedStaff = _findStaff(SupabaseService.getAllStaff(), assignment.employeeId, assignment.employeeName);
+    final photoUrl = matchedStaff?.photoUrl ?? '';
+
+    Widget avatarChild;
+    if (photoUrl.isNotEmpty) {
+      if (photoUrl.startsWith('data:image')) {
+        try {
+          final bytes = base64Decode(photoUrl.split(',').last);
+          avatarChild = ClipOval(
+            child: Image.memory(bytes, width: 44, height: 44, fit: BoxFit.cover, errorBuilder: (_, __, ___) => _buildInitialsText(assignment.employeeName, isOnDuty)),
+          );
+        } catch (_) {
+          avatarChild = _buildInitialsText(assignment.employeeName, isOnDuty);
+        }
+      } else {
+        avatarChild = ClipOval(
+          child: Image.network(photoUrl, width: 44, height: 44, fit: BoxFit.cover, errorBuilder: (_, __, ___) => _buildInitialsText(assignment.employeeName, isOnDuty)),
+        );
+      }
+    } else {
+      avatarChild = _buildInitialsText(assignment.employeeName, isOnDuty);
+    }
+
     final avatarAndName = Row(
       children: [
         Container(
@@ -696,16 +774,7 @@ class _AssignmentCard extends StatelessWidget {
             ),
           ),
           alignment: Alignment.center,
-          child: Text(
-            assignment.employeeName.isNotEmpty
-                ? assignment.employeeName.substring(0, 1).toUpperCase()
-                : '?',
-            style: TextStyle(
-              color: isOnDuty ? AdminWebColors.accent : Colors.grey.shade600,
-              fontWeight: FontWeight.bold,
-              fontSize: 18,
-            ),
-          ),
+          child: avatarChild,
         ),
         const SizedBox(width: 14),
         Expanded(

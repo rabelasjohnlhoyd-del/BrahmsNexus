@@ -14,19 +14,13 @@ import 'theme/app_theme.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Force off the debug "paint baselines" overlay (the green/yellow
-  // lines drawn under every piece of text) regardless of whatever
-  // state the Flutter Inspector / DevTools "Toggle Baseline Painting"
-  // button was left in during a previous debug session. This runs on
-  // every app start, so it can't be silently left on again.
+  // Force off debug baselines
   assert(() {
     debugPaintBaselinesEnabled = false;
     return true;
   }());
 
-  // Draw behind the system status bar / Android gesture-navigation bar
-  // consistently (edge-to-edge) instead of leaving Android to pick its
-  // own default bar treatment.
+  // Transparent system status bar
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
@@ -41,37 +35,41 @@ void main() async {
     ),
   );
 
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
-
-  // Enable Firestore local cache / offline persistence.
-  // Documents served from this cache are not billed as reads.
-  // Wrapped so a web IndexedDB failure cannot crash app startup.
+  // Initialize Firebase FIRST so all Firestore/Auth streams on Web and Mobile work!
   try {
-    FirebaseFirestore.instance.settings = const Settings(
-      persistenceEnabled: true,
-      cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
-    );
+    if (Firebase.apps.isEmpty) {
+      await Firebase.initializeApp(
+        options: DefaultFirebaseOptions.currentPlatform,
+      );
+    }
   } catch (e) {
-    debugPrint('Firestore persistence settings error: $e');
+    debugPrint('Firebase.initializeApp error: $e');
   }
 
+  // Enable Firestore persistence for offline support (safely wrapped)
+  if (!kIsWeb) {
+    try {
+      FirebaseFirestore.instance.settings = const Settings(
+        persistenceEnabled: true,
+        cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
+      );
+    } catch (e) {
+      debugPrint('Firestore settings error: $e');
+    }
+  }
+
+  // Initialize Supabase for master data
   if (SupabaseConfig.isConfigured) {
     try {
-      await Supabase.initialize(
-        url: SupabaseConfig.cleanSupabaseUrl,
-        // ignore: deprecated_member_use
-        anonKey: SupabaseConfig.supabaseAnonKey,
-      );
+      if (!Supabase.instance.isInitialized) {
+        await Supabase.initialize(
+          url: SupabaseConfig.cleanSupabaseUrl,
+          anonKey: SupabaseConfig.supabaseAnonKey,
+        );
+      }
     } catch (e) {
       debugPrint('Supabase.initialize error: $e');
     }
-  } else {
-    debugPrint(
-      'ℹ️ Brahms Nexus: Supabase is in local fallback mode. '
-          'Provide your Supabase URL & Key in lib/config/supabase_config.dart to activate live Supabase sync.',
-    );
   }
 
   runApp(const BrahmsNexusApp());

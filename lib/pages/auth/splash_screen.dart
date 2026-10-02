@@ -1,7 +1,12 @@
 import 'dart:async';
 import 'dart:math' show min;
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../config/supabase_config.dart';
+import '../../firebase_options.dart';
 import '../../models/user_role.dart';
 import '../../services/auth_service.dart';
 import '../../theme/app_theme.dart';
@@ -79,8 +84,38 @@ class _SplashScreenState extends State<SplashScreen>
       }
     });
 
+    _initServicesAndNavigate();
+  }
+
+  Future<void> _initServicesAndNavigate() async {
+    try {
+      if (Firebase.apps.isEmpty) {
+        await Firebase.initializeApp(
+          options: DefaultFirebaseOptions.currentPlatform,
+        );
+        FirebaseFirestore.instance.settings = const Settings(
+          persistenceEnabled: true,
+          cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
+        );
+      }
+    } catch (e) {
+      debugPrint('Firebase init error: $e');
+    }
+
+    try {
+      if (!Supabase.instance.isInitialized && SupabaseConfig.isConfigured) {
+        await Supabase.initialize(
+          url: SupabaseConfig.cleanSupabaseUrl,
+          anonKey: SupabaseConfig.supabaseAnonKey,
+        );
+      }
+    } catch (e) {
+      debugPrint('Supabase init error: $e');
+    }
+
     final splashDuration = Duration(milliseconds: kIsWeb ? 2000 : 2800);
-    Timer(splashDuration, _checkSessionAndNavigate);
+    await Future.delayed(splashDuration);
+    _checkSessionAndNavigate();
   }
 
   Future<void> _checkSessionAndNavigate() async {

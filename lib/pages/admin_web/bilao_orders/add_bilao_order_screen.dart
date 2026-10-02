@@ -20,6 +20,7 @@ class _AddBilaoOrderScreenState extends State<AddBilaoOrderScreen> {
   final _addressController = TextEditingController();
   final _notesController = TextEditingController();
   final _quantityController = TextEditingController(text: '1');
+  final _depositController = TextEditingController(text: '0');
 
   BilaoFulfillmentType _fulfillmentType = BilaoFulfillmentType.branchPickup;
   BilaoOrderChannel _orderChannel = BilaoOrderChannel.branchOrder;
@@ -35,6 +36,7 @@ class _AddBilaoOrderScreenState extends State<AddBilaoOrderScreen> {
     _addressController.dispose();
     _notesController.dispose();
     _quantityController.dispose();
+    _depositController.dispose();
     super.dispose();
   }
 
@@ -83,6 +85,7 @@ class _AddBilaoOrderScreenState extends State<AddBilaoOrderScreen> {
       pickupBranchName: _selectedBranch.fullName,
       deliveryAddress: deliveryAddr,
       notes: _notesController.text.trim().isNotEmpty ? _notesController.text.trim() : null,
+      depositAmount: double.tryParse(_depositController.text.trim()) ?? 0.0,
       createdAt: DateTime.now(),
     );
 
@@ -389,9 +392,9 @@ class _AddBilaoOrderScreenState extends State<AddBilaoOrderScreen> {
                         ),
                         const SizedBox(height: 24),
 
-                        // ── FULFILLMENT / LOCATION SELECTION ───────────────
+                        // ── BRANCH OUTLET SELECTION ──────────────────────────
                         const Text(
-                          'WHERE WILL THE CUSTOMER RECEIVE THE ORDER?',
+                          'ASSIGNED BRANCH OUTLET',
                           style: TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.w800,
@@ -400,147 +403,49 @@ class _AddBilaoOrderScreenState extends State<AddBilaoOrderScreen> {
                           ),
                         ),
                         const SizedBox(height: 12),
-                        LayoutBuilder(
-                          builder: (context, constraints) {
-                            final isWide = constraints.maxWidth >= 550;
-                            final opt1 = _buildFulfillmentOption(
-                              type: BilaoFulfillmentType.branchPickup,
-                              title: 'Branch Pickup / Waiting at Branch',
-                              subtitle: 'Customer is at or picking up from a branch',
-                              icon: Icons.storefront_rounded,
-                            );
-                            final opt2 = _buildFulfillmentOption(
-                              type: BilaoFulfillmentType.directDelivery,
-                              title: 'Direct Delivery Address',
-                              subtitle: 'Driver delivers directly to an address',
-                              icon: Icons.delivery_dining_rounded,
-                            );
-
-                            if (isWide) {
-                              return Row(
-                                children: [
-                                  Expanded(child: opt1),
-                                  const SizedBox(width: 12),
-                                  Expanded(child: opt2),
-                                ],
-                              );
-                            }
-
-                            return Column(
-                              children: [
-                                opt1,
-                                const SizedBox(height: 10),
-                                opt2,
-                              ],
-                            );
-                          },
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: AdminWebColors.background,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: AdminWebColors.border),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              DropdownButtonFormField<String>(
+                                initialValue: _selectedBranchId,
+                                isExpanded: true,
+                                decoration: const InputDecoration(
+                                  labelText: 'BRANCH OUTLET',
+                                  isDense: true,
+                                  prefixIcon: Icon(Icons.storefront_rounded, size: 20),
+                                ),
+                                items: kSampleBranches
+                                    .map((b) => DropdownMenuItem(
+                                          value: b.id,
+                                          child: Text(b.fullName),
+                                        ))
+                                    .toList(),
+                                onChanged: (v) {
+                                  if (v != null) {
+                                    setState(() => _selectedBranchId = v);
+                                  }
+                                },
+                              ),
+                              const SizedBox(height: 12),
+                              TextFormField(
+                                controller: _notesController,
+                                decoration: const InputDecoration(
+                                  labelText: 'WAITING SPOT / NOTES (OPTIONAL)',
+                                  hintText: 'e.g. Seated at Table 2 / waiting at store counter',
+                                  isDense: true,
+                                  prefixIcon: Icon(Icons.edit_note_rounded, size: 20),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                        const SizedBox(height: 18),
-
-                        // Form for Branch Pickup
-                        if (_fulfillmentType == BilaoFulfillmentType.branchPickup) ...[
-                          Container(
-                            padding: const EdgeInsets.all(16),
-                            decoration: BoxDecoration(
-                              color: AdminWebColors.background,
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: AdminWebColors.border),
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
-                                  'SELECT BRANCH FOR PICKUP / WAITING SPOT',
-                                  style: TextStyle(
-                                    fontSize: 10.5,
-                                    fontWeight: FontWeight.w700,
-                                    color: AdminWebColors.accent,
-                                  ),
-                                ),
-                                const SizedBox(height: 10),
-                                DropdownButtonFormField<String>(
-                                  initialValue: _selectedBranchId,
-                                  isExpanded: true,
-                                  decoration: const InputDecoration(
-                                    labelText: 'BRANCH OUTLET',
-                                    isDense: true,
-                                    prefixIcon: Icon(Icons.storefront_rounded, size: 20),
-                                  ),
-                                  items: kSampleBranches
-                                      .map((b) => DropdownMenuItem(
-                                            value: b.id,
-                                            child: Text(b.fullName),
-                                          ))
-                                      .toList(),
-                                  onChanged: (v) {
-                                    if (v != null) {
-                                      setState(() => _selectedBranchId = v);
-                                    }
-                                  },
-                                ),
-                                const SizedBox(height: 12),
-                                TextFormField(
-                                  controller: _notesController,
-                                  decoration: const InputDecoration(
-                                    labelText: 'WAITING SPOT / NOTES (OPTIONAL)',
-                                    hintText: 'e.g. Seated at Table 2 / waiting at store counter',
-                                    isDense: true,
-                                    prefixIcon: Icon(Icons.edit_note_rounded, size: 20),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ] else ...[
-                          // Form for Direct Delivery Address
-                          Container(
-                            padding: const EdgeInsets.all(16),
-                            decoration: BoxDecoration(
-                              color: AdminWebColors.background,
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: AdminWebColors.border),
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
-                                  'ENTER COMPLETE DELIVERY ADDRESS',
-                                  style: TextStyle(
-                                    fontSize: 10.5,
-                                    fontWeight: FontWeight.w700,
-                                    color: AdminWebColors.accent,
-                                  ),
-                                ),
-                                const SizedBox(height: 10),
-                                TextFormField(
-                                  controller: _addressController,
-                                  decoration: const InputDecoration(
-                                    labelText: 'DELIVERY ADDRESS',
-                                    hintText: 'House/Unit #, Street, Brgy, Municipality, Laguna',
-                                    isDense: true,
-                                    prefixIcon: Icon(Icons.location_on_outlined, size: 20),
-                                  ),
-                                  validator: (v) {
-                                    if (_fulfillmentType == BilaoFulfillmentType.directDelivery) {
-                                      if (v == null || v.trim().isEmpty) return 'Delivery address is required';
-                                    }
-                                    return null;
-                                  },
-                                ),
-                                const SizedBox(height: 12),
-                                TextFormField(
-                                  controller: _notesController,
-                                  decoration: const InputDecoration(
-                                    labelText: 'DELIVERY NOTES / LANDMARK (OPTIONAL)',
-                                    hintText: 'e.g. Tapat ng barangay hall, tawagan pagdating',
-                                    isDense: true,
-                                    prefixIcon: Icon(Icons.signpost_outlined, size: 20),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
                       ],
                     ),
                   ),
@@ -612,13 +517,34 @@ class _AddBilaoOrderScreenState extends State<AddBilaoOrderScreen> {
                               },
                             );
 
+                            final depositField = TextFormField(
+                              controller: _depositController,
+                              keyboardType: TextInputType.number,
+                              decoration: const InputDecoration(
+                                labelText: 'DEPOSIT / DOWNPAYMENT (₱)',
+                                isDense: true,
+                                prefixIcon: Icon(Icons.payments_outlined, size: 20),
+                              ),
+                              onChanged: (_) => setState(() {}),
+                            );
+
                             if (isWide) {
-                              return Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
+                              return Column(
                                 children: [
-                                  Expanded(flex: 2, child: sizeDropdown),
-                                  const SizedBox(width: 16),
-                                  Expanded(child: qtyField),
+                                  Row(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Expanded(flex: 2, child: sizeDropdown),
+                                      const SizedBox(width: 16),
+                                      Expanded(child: qtyField),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 14),
+                                  Row(
+                                    children: [
+                                      Expanded(child: depositField),
+                                    ],
+                                  ),
                                 ],
                               );
                             }
@@ -628,6 +554,8 @@ class _AddBilaoOrderScreenState extends State<AddBilaoOrderScreen> {
                                 sizeDropdown,
                                 const SizedBox(height: 14),
                                 qtyField,
+                                const SizedBox(height: 14),
+                                depositField,
                               ],
                             );
                           },
@@ -636,17 +564,17 @@ class _AddBilaoOrderScreenState extends State<AddBilaoOrderScreen> {
 
                         // Price summary banner
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                           decoration: BoxDecoration(
                             color: AdminWebColors.accent.withValues(alpha: 0.08),
                             borderRadius: BorderRadius.circular(10),
                             border: Border.all(color: AdminWebColors.accent.withValues(alpha: 0.2)),
                           ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                 children: [
                                   Text(
                                     '${_selectedSize.label} Bilao (${_selectedSize.weightLabel})',
@@ -656,23 +584,29 @@ class _AddBilaoOrderScreenState extends State<AddBilaoOrderScreen> {
                                       color: AdminWebColors.textPrimary,
                                     ),
                                   ),
-                                  const SizedBox(height: 2),
                                   Text(
-                                    '₱${_selectedSize.price.toStringAsFixed(0)} × $qty',
+                                    'Total: ₱${totalPrice.toStringAsFixed(0)}',
                                     style: const TextStyle(
-                                      fontSize: 12,
-                                      color: AdminWebColors.textSecondary,
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w800,
+                                      color: AdminWebColors.accent,
                                     ),
                                   ),
                                 ],
                               ),
-                              Text(
-                                '₱${totalPrice.toStringAsFixed(0)}',
-                                style: const TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w800,
-                                  color: AdminWebColors.accent,
-                                ),
+                              const SizedBox(height: 6),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    'Deposit Paid: ₱${(double.tryParse(_depositController.text.trim()) ?? 0.0).toStringAsFixed(0)}',
+                                    style: const TextStyle(fontSize: 12, color: AdminWebColors.textSecondary),
+                                  ),
+                                  Text(
+                                    'Remaining COD: ₱${(totalPrice - (double.tryParse(_depositController.text.trim()) ?? 0.0)).clamp(0.0, totalPrice).toStringAsFixed(0)}',
+                                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AdminWebColors.warning),
+                                  ),
+                                ],
                               ),
                             ],
                           ),

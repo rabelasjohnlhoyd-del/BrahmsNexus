@@ -1,13 +1,18 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart' show Colors, Icons, Material, InkWell, SnackBar, ScaffoldMessenger, LinearProgressIndicator, ClipRRect;
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../models/branch.dart';
 import '../../models/branch_daily_inventory.dart';
 import '../../models/branch_meat_inventory.dart';
 import '../../models/sales_record.dart';
 import '../../models/staff_member.dart';
+import '../../models/app_notification.dart';
 import '../../services/assignment_service.dart';
 import '../../services/auth_service.dart';
 import '../../services/firestore_service.dart';
+import '../../services/notification_service.dart';
 import '../../services/supabase_service.dart';
 import '../auth/mock_accounts.dart';
 import '../../theme/app_theme.dart';
@@ -18,13 +23,26 @@ import '../../widgets/staff_section_header.dart';
 import '../../widgets/staff_stat_tile.dart';
 import '../../widgets/staff_top_actions.dart';
 
-/// Sales tab — no need to re-enter the allocated inventory (that came
-/// from Homepage already); this just needs the remaining stock at the
-/// end of the day. Orders sold, Sales, Wage (Owner's tiered rate), and
-/// Net Total are all computed automatically. There's also a
-/// cross-check against Styro usage to catch discrepancies early —
-/// this directly addresses Owner's old problem of mismatches being
-/// hard to track down.
+/// Represents a single order punched during the shift in the Quick POS
+class ShiftTallyItem {
+  const ShiftTallyItem({
+    required this.id,
+    required this.name,
+    required this.price,
+    required this.timestamp,
+    required this.category,
+  });
+
+  final String id;
+  final String name;
+  final int price;
+  final DateTime timestamp;
+  final String category; // 'reg_sisig', 'reg_bagnet', 'med_sisig', 'med_bagnet', 'b1t1_sisig_bagnet', 'b1t1_bagnet_bagnet'
+}
+
+/// Sales tab — Features Cook Quick POS / Order Tallying & Wastage Spoilage Reporting:
+/// Branch cook taps buttons for customer orders as they happen during the shift.
+/// Stock is automatically deducted real-time in Firestore, triggering Low Stock Alerts.
 class SalesScreen extends StatefulWidget {
   const SalesScreen({super.key});
 
@@ -47,6 +65,16 @@ class _SalesScreenState extends State<SalesScreen> {
   StreamSubscription<List<BranchMeatStock>>? _meatStocksSub;
   StreamSubscription<SalesRecord?>? _todaySalesSub;
 
+  // Shift Tally Counters
+  int _countRegSisig = 0;
+  int _countRegBagnet = 0;
+  int _countMedSisig = 0;
+  int _countMedBagnet = 0;
+  int _countB1t1SisigBagnet = 0;
+  int _countB1t1BagnetBagnet = 0;
+
+  final List<ShiftTallyItem> _tallyHistory = [];
+
   final _karneController = TextEditingController(); // Regular 250g
   final _mayoController = TextEditingController();
   final _styroController = TextEditingController();
@@ -59,25 +87,25 @@ class _SalesScreenState extends State<SalesScreen> {
   int get _allocatedRegular {
     final verified = _todayInventory?.actualReceived?.regular;
     if (verified != null) return verified;
-    return _branchMeatStock?.regular250gRemaining ?? 20;
+    return _branchMeatStock?.regular250gTotal ?? 20;
   }
 
   int get _allocatedMedium {
     final verified = _todayInventory?.actualReceived?.medium;
     if (verified != null) return verified;
-    return _branchMeatStock?.medium300gRemaining ?? 10;
+    return _branchMeatStock?.medium300gTotal ?? 10;
   }
 
   int get _allocatedB1t1 {
     final verified = _todayInventory?.actualReceived?.b1t1;
     if (verified != null) return verified;
-    return _branchMeatStock?.b1t1_400gRemaining ?? 10;
+    return _branchMeatStock?.b1t1_400gTotal ?? 10;
   }
 
   int get _allocatedMayo {
     final verified = _todayInventory?.actualReceived?.mayo;
     if (verified != null) return verified;
-    final stock = _branchMeatStock?.mayoRemaining;
+    final stock = _branchMeatStock?.mayoTotal;
     if (stock != null && stock > 0) return stock;
     return _allocated.mayo > 0 ? _allocated.mayo : 40;
   }
@@ -85,7 +113,7 @@ class _SalesScreenState extends State<SalesScreen> {
   int get _allocatedToyo {
     final verified = _todayInventory?.actualReceived?.toyo;
     if (verified != null) return verified;
-    final stock = _branchMeatStock?.toyoRemaining;
+    final stock = _branchMeatStock?.toyoTotal;
     if (stock != null && stock > 0) return stock;
     return _allocated.toyo > 0 ? _allocated.toyo : 10;
   }
@@ -93,7 +121,7 @@ class _SalesScreenState extends State<SalesScreen> {
   int get _allocatedStyro {
     final verified = _todayInventory?.actualReceived?.styro;
     if (verified != null) return verified;
-    final stock = _branchMeatStock?.styroRemaining;
+    final stock = _branchMeatStock?.styroTotal;
     if (stock != null && stock > 0) return stock;
     return _allocated.styro > 0 ? _allocated.styro : 40;
   }
@@ -162,6 +190,7 @@ class _SalesScreenState extends State<SalesScreen> {
     matchedBranch ??= kSampleBranches.first;
     _currentBranchId = matchedBranch.id;
     _currentBranchName = matchedBranch.fullName;
+    _loadTallyFromCache();
 
     _inventorySub?.cancel();
     _inventorySub = FirestoreService.watchTodayBranchInventory(
@@ -188,6 +217,7 @@ class _SalesScreenState extends State<SalesScreen> {
         );
         setState(() {
           _branchMeatStock = match;
+          _syncControllersWithStock(match);
         });
       }
     });
@@ -202,7 +232,6 @@ class _SalesScreenState extends State<SalesScreen> {
           _todaySalesRecord = sales;
           if (sales != null) {
             _submitted = true;
-            // Pre-fill controllers with the submitted remaining stock
             final rs = sales.remainingStock;
             if (rs != null) {
               _karneController.text = rs.regular.toString();
@@ -216,6 +245,16 @@ class _SalesScreenState extends State<SalesScreen> {
         });
       }
     });
+  }
+
+  void _syncControllersWithStock(BranchMeatStock stock) {
+    if (_submitted) return;
+    _karneController.text = stock.regular250gRemaining.toString();
+    _mediumController.text = stock.medium300gRemaining.toString();
+    _b1t1Controller.text = stock.b1t1_400gRemaining.toString();
+    _mayoController.text = stock.mayoRemaining.toString();
+    _toyoController.text = stock.toyoRemaining.toString();
+    _styroController.text = stock.styroRemaining.toString();
   }
 
   @override
@@ -239,14 +278,446 @@ class _SalesScreenState extends State<SalesScreen> {
     super.dispose();
   }
 
-  // Returns null if text is empty, meaning the cook has not entered this field yet
+  // Quick Order Punching Action
+  void _punchOrder({
+    required String name,
+    required int price,
+    required String category,
+    required int regDeduct,
+    required int medDeduct,
+    required int b1t1Deduct,
+    required int mayoDeduct,
+    required int toyoDeduct,
+    required int styroDeduct,
+  }) async {
+    if (_submitted) return;
+
+    if (!_isInventoryVerified) {
+      showCupertinoDialog<void>(
+        context: context,
+        builder: (context) => CupertinoAlertDialog(
+          title: const Text('Inventory Verification Required'),
+          content: const Text(
+            'Please complete "Verify: Count What You Actually Received" on the Home tab before punching sales.',
+          ),
+          actions: [
+            CupertinoDialogAction(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
+    final currentStock = _branchMeatStock ?? BranchMeatStock.defaultForBranch(
+      kSampleBranches.firstWhere((b) => b.id == _currentBranchId, orElse: () => kSampleBranches.first),
+    );
+
+    if (regDeduct > 0 && currentStock.regular250gRemaining < regDeduct) {
+      _showOutOfStockDialog('Regular Meat (250g)');
+      return;
+    }
+    if (medDeduct > 0 && currentStock.medium300gRemaining < medDeduct) {
+      _showOutOfStockDialog('Medium Meat (300g)');
+      return;
+    }
+    if (b1t1Deduct > 0 && currentStock.b1t1_400gRemaining < b1t1Deduct) {
+      _showOutOfStockDialog('B1T1 Meat (400g)');
+      return;
+    }
+    if (mayoDeduct > 0 && currentStock.mayoRemaining < mayoDeduct) {
+      _showOutOfStockDialog('Mayo');
+      return;
+    }
+    if (toyoDeduct > 0 && currentStock.toyoRemaining < toyoDeduct) {
+      _showOutOfStockDialog('Toyo');
+      return;
+    }
+    if (styroDeduct > 0 && currentStock.styroRemaining < styroDeduct) {
+      _showOutOfStockDialog('Styro');
+      return;
+    }
+
+    final updatedStock = currentStock.copyWith(
+      regular250gRemaining: (currentStock.regular250gRemaining - regDeduct).clamp(0, 999),
+      medium300gRemaining: (currentStock.medium300gRemaining - medDeduct).clamp(0, 999),
+      b1t1_400gRemaining: (currentStock.b1t1_400gRemaining - b1t1Deduct).clamp(0, 999),
+      mayoRemaining: (currentStock.mayoRemaining - mayoDeduct).clamp(0, 999),
+      toyoRemaining: (currentStock.toyoRemaining - toyoDeduct).clamp(0, 999),
+      styroRemaining: (currentStock.styroRemaining - styroDeduct).clamp(0, 999),
+    );
+
+    setState(() {
+      _branchMeatStock = updatedStock;
+      _syncControllersWithStock(updatedStock);
+      if (category == 'reg_sisig') _countRegSisig++;
+      if (category == 'reg_bagnet') _countRegBagnet++;
+      if (category == 'med_sisig') _countMedSisig++;
+      if (category == 'med_bagnet') _countMedBagnet++;
+      if (category == 'b1t1_sisig_bagnet') _countB1t1SisigBagnet++;
+      if (category == 'b1t1_bagnet_bagnet') _countB1t1BagnetBagnet++;
+
+      _tallyHistory.insert(
+        0,
+        ShiftTallyItem(
+          id: DateTime.now().millisecondsSinceEpoch.toString(),
+          name: name,
+          price: price,
+          timestamp: DateTime.now(),
+          category: category,
+        ),
+      );
+    });
+
+    await FirestoreService.saveBranchMeatStock(updatedStock);
+    await _saveTallyToCache();
+  }
+
+  Future<void> _saveTallyToCache() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final dateStr = DateTime.now().toIso8601String().substring(0, 10);
+      final key = 'tally_${_currentBranchId}_$dateStr';
+      final data = {
+        'regSisig': _countRegSisig,
+        'regBagnet': _countRegBagnet,
+        'medSisig': _countMedSisig,
+        'medBagnet': _countMedBagnet,
+        'b1t1SisigBagnet': _countB1t1SisigBagnet,
+        'b1t1BagnetBagnet': _countB1t1BagnetBagnet,
+        'history': _tallyHistory.map((item) => {
+          'id': item.id,
+          'name': item.name,
+          'price': item.price,
+          'timestamp': item.timestamp.millisecondsSinceEpoch,
+          'category': item.category,
+        }).toList(),
+      };
+      await prefs.setString(key, jsonEncode(data));
+    } catch (_) {}
+  }
+
+  Future<void> _loadTallyFromCache() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final dateStr = DateTime.now().toIso8601String().substring(0, 10);
+      final key = 'tally_${_currentBranchId}_$dateStr';
+      final raw = prefs.getString(key);
+      if (raw != null) {
+        final data = jsonDecode(raw) as Map<String, dynamic>;
+        setState(() {
+          _countRegSisig = data['regSisig'] as int? ?? 0;
+          _countRegBagnet = data['regBagnet'] as int? ?? 0;
+          _countMedSisig = data['medSisig'] as int? ?? 0;
+          _countMedBagnet = data['medBagnet'] as int? ?? 0;
+          _countB1t1SisigBagnet = data['b1t1SisigBagnet'] as int? ?? 0;
+          _countB1t1BagnetBagnet = data['b1t1BagnetBagnet'] as int? ?? 0;
+          final hist = data['history'] as List<dynamic>? ?? [];
+          _tallyHistory.clear();
+          for (final h in hist) {
+            final map = h as Map<String, dynamic>;
+            _tallyHistory.add(ShiftTallyItem(
+              id: map['id']?.toString() ?? '',
+              name: map['name']?.toString() ?? '',
+              price: (map['price'] as num?)?.toInt() ?? 0,
+              timestamp: DateTime.fromMillisecondsSinceEpoch(map['timestamp'] as int? ?? DateTime.now().millisecondsSinceEpoch),
+              category: map['category']?.toString() ?? '',
+            ));
+          }
+        });
+      }
+    } catch (_) {}
+  }
+
+  void _undoLastOrder() async {
+    if (_tallyHistory.isEmpty || _submitted) return;
+
+    final last = _tallyHistory.removeAt(0);
+    final currentStock = _branchMeatStock ?? BranchMeatStock.defaultForBranch(
+      kSampleBranches.firstWhere((b) => b.id == _currentBranchId, orElse: () => kSampleBranches.first),
+    );
+
+    int addReg = 0, addMed = 0, addB1t1 = 0, addMayo = 0, addToyo = 0, addStyro = 0;
+    if (last.category == 'reg_sisig') {
+      _countRegSisig--;
+      addReg = 1; addMayo = 1; addStyro = 1;
+    } else if (last.category == 'reg_bagnet') {
+      _countRegBagnet--;
+      addReg = 1; addToyo = 1; addStyro = 1;
+    } else if (last.category == 'med_sisig') {
+      _countMedSisig--;
+      addMed = 1; addMayo = 1; addStyro = 1;
+    } else if (last.category == 'med_bagnet') {
+      _countMedBagnet--;
+      addMed = 1; addToyo = 1; addStyro = 1;
+    } else if (last.category == 'b1t1_sisig_bagnet') {
+      _countB1t1SisigBagnet--;
+      addB1t1 = 1; addMayo = 1; addToyo = 1; addStyro = 2;
+    } else if (last.category == 'b1t1_bagnet_bagnet') {
+      _countB1t1BagnetBagnet--;
+      addB1t1 = 1; addToyo = 2; addStyro = 2;
+    }
+
+    final restoredStock = currentStock.copyWith(
+      regular250gRemaining: (currentStock.regular250gRemaining + addReg).clamp(0, currentStock.regular250gTotal),
+      medium300gRemaining: (currentStock.medium300gRemaining + addMed).clamp(0, currentStock.medium300gTotal),
+      b1t1_400gRemaining: (currentStock.b1t1_400gRemaining + addB1t1).clamp(0, currentStock.b1t1_400gTotal),
+      mayoRemaining: (currentStock.mayoRemaining + addMayo).clamp(0, currentStock.mayoTotal),
+      toyoRemaining: (currentStock.toyoRemaining + addToyo).clamp(0, currentStock.toyoTotal),
+      styroRemaining: (currentStock.styroRemaining + addStyro).clamp(0, currentStock.styroTotal),
+    );
+
+    setState(() {
+      _branchMeatStock = restoredStock;
+      _syncControllersWithStock(restoredStock);
+    });
+
+    await FirestoreService.saveBranchMeatStock(restoredStock);
+    await _saveTallyToCache();
+  }
+
+  void _showWastageDialog() {
+    String selectedItem = 'Regular Meat (250g)';
+    final qtyController = TextEditingController(text: '1');
+    final reasonController = TextEditingController();
+    String? errorMsg;
+
+    showCupertinoDialog<void>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => CupertinoAlertDialog(
+          title: const Text('Report Spoilage / Wastage'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: 8),
+              const Text(
+                'Report spoiled, dropped, or burned items. Spoiled items count as inventory loss and deduct cost from your daily wage/commission.',
+                style: TextStyle(fontSize: 12, color: CupertinoColors.secondaryLabel),
+              ),
+              const SizedBox(height: 12),
+              CupertinoButton(
+                padding: EdgeInsets.zero,
+                onPressed: () {
+                  showCupertinoModalPopup<void>(
+                    context: ctx,
+                    builder: (popupCtx) => CupertinoActionSheet(
+                      title: const Text('Select Spoiled Item'),
+                      actions: [
+                        CupertinoActionSheetAction(
+                          onPressed: () {
+                            setDialogState(() => selectedItem = 'Regular Meat (250g)');
+                            Navigator.pop(popupCtx);
+                          },
+                          child: const Text('Regular Meat (250g) — ₱130 penalty'),
+                        ),
+                        CupertinoActionSheetAction(
+                          onPressed: () {
+                            setDialogState(() => selectedItem = 'Medium Meat (300g)');
+                            Navigator.pop(popupCtx);
+                          },
+                          child: const Text('Medium Meat (300g) — ₱160 penalty'),
+                        ),
+                        CupertinoActionSheetAction(
+                          onPressed: () {
+                            setDialogState(() => selectedItem = 'B1T1 Meat (400g)');
+                            Navigator.pop(popupCtx);
+                          },
+                          child: const Text('B1T1 Meat (400g) — ₱210 penalty'),
+                        ),
+                        CupertinoActionSheetAction(
+                          onPressed: () {
+                            setDialogState(() => selectedItem = 'Mayo Pack');
+                            Navigator.pop(popupCtx);
+                          },
+                          child: const Text('Mayo Pack — ₱10 penalty'),
+                        ),
+                        CupertinoActionSheetAction(
+                          onPressed: () {
+                            setDialogState(() => selectedItem = 'Toyo Pack');
+                            Navigator.pop(popupCtx);
+                          },
+                          child: const Text('Toyo Pack — ₱5 penalty'),
+                        ),
+                        CupertinoActionSheetAction(
+                          onPressed: () {
+                            setDialogState(() => selectedItem = 'Styro Box');
+                            Navigator.pop(popupCtx);
+                          },
+                          child: const Text('Styro Box — ₱5 penalty'),
+                        ),
+                      ],
+                      cancelButton: CupertinoActionSheetAction(
+                        onPressed: () => Navigator.pop(popupCtx),
+                        child: const Text('Cancel'),
+                      ),
+                    ),
+                  );
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: CupertinoColors.systemGrey6,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: CupertinoColors.systemGrey4),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(selectedItem, style: const TextStyle(fontSize: 13, color: CupertinoColors.black)),
+                      const Icon(CupertinoIcons.chevron_down, size: 14, color: CupertinoColors.activeBlue),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              CupertinoTextField(
+                controller: qtyController,
+                keyboardType: TextInputType.number,
+                placeholder: 'Quantity (e.g. 1)...',
+                style: const TextStyle(fontSize: 13),
+              ),
+              const SizedBox(height: 10),
+              CupertinoTextField(
+                controller: reasonController,
+                placeholder: 'Reason for spoilage (e.g. dropped on floor)...',
+                maxLines: 2,
+                style: const TextStyle(fontSize: 13),
+                onChanged: (_) {
+                  if (errorMsg != null) setDialogState(() => errorMsg = null);
+                },
+              ),
+              if (errorMsg != null) ...[
+                const SizedBox(height: 6),
+                Text(errorMsg!, style: const TextStyle(color: CupertinoColors.destructiveRed, fontSize: 11.5)),
+              ],
+            ],
+          ),
+          actions: [
+            CupertinoDialogAction(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Cancel'),
+            ),
+            CupertinoDialogAction(
+              isDestructiveAction: true,
+              onPressed: () async {
+                final qty = int.tryParse(qtyController.text.trim()) ?? 0;
+                final reason = reasonController.text.trim();
+                if (qty <= 0) {
+                  setDialogState(() => errorMsg = 'Please enter a valid quantity.');
+                  return;
+                }
+                if (reason.isEmpty) {
+                  setDialogState(() => errorMsg = 'Please provide a reason for spoilage.');
+                  return;
+                }
+
+                Navigator.of(ctx).pop();
+                _processWastageReport(selectedItem, qty, reason);
+              },
+              child: const Text('Report Spoilage'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _processWastageReport(String item, int qty, String reason) async {
+    final currentStock = _branchMeatStock ?? BranchMeatStock.defaultForBranch(
+      kSampleBranches.firstWhere((b) => b.id == _currentBranchId, orElse: () => kSampleBranches.first),
+    );
+
+    int regDec = 0, medDec = 0, b1t1Dec = 0, mayoDec = 0, toyoDec = 0, styroDec = 0;
+    double penalty = 0.0;
+
+    if (item.contains('Regular')) {
+      regDec = qty;
+      penalty = 130.0 * qty;
+    } else if (item.contains('Medium')) {
+      medDec = qty;
+      penalty = 160.0 * qty;
+    } else if (item.contains('B1T1')) {
+      b1t1Dec = qty;
+      penalty = 210.0 * qty;
+    } else if (item.contains('Mayo')) {
+      mayoDec = qty;
+      penalty = 10.0 * qty;
+    } else if (item.contains('Toyo')) {
+      toyoDec = qty;
+      penalty = 5.0 * qty;
+    } else if (item.contains('Styro')) {
+      styroDec = qty;
+      penalty = 5.0 * qty;
+    }
+
+    final updatedStock = currentStock.copyWith(
+      regular250gRemaining: (currentStock.regular250gRemaining - regDec).clamp(0, 999),
+      medium300gRemaining: (currentStock.medium300gRemaining - medDec).clamp(0, 999),
+      b1t1_400gRemaining: (currentStock.b1t1_400gRemaining - b1t1Dec).clamp(0, 999),
+      mayoRemaining: (currentStock.mayoRemaining - mayoDec).clamp(0, 999),
+      toyoRemaining: (currentStock.toyoRemaining - toyoDec).clamp(0, 999),
+      styroRemaining: (currentStock.styroRemaining - styroDec).clamp(0, 999),
+      spoilagePenalty: currentStock.spoilagePenalty + penalty,
+    );
+
+    setState(() {
+      _branchMeatStock = updatedStock;
+      _syncControllersWithStock(updatedStock);
+    });
+
+    await FirestoreService.saveBranchMeatStock(updatedStock);
+
+    NotificationService.sendNotification(
+      title: '⚠️ Spoilage / Wastage Report — $_currentBranchName',
+      message: '${AuthService.currentUsername} reported $qty x $item spoiled/wasted.\nReason: "$reason" (Wage penalty: ₱${penalty.toStringAsFixed(0)})',
+      type: NotificationType.salesReport,
+      targetRole: 'owner',
+      route: 'sales',
+      targetBranch: _currentBranchName,
+    ).catchError((_) => false);
+
+    if (!mounted) return;
+    showCupertinoDialog<void>(
+      context: context,
+      builder: (context) => CupertinoAlertDialog(
+        title: const Text('Spoilage Reported'),
+        content: Text('Successfully recorded $qty x $item as spoilage.\nWage deduction applied: ₱${penalty.toStringAsFixed(0)}'),
+        actions: [
+          CupertinoDialogAction(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showOutOfStockDialog(String itemName) {
+    showCupertinoDialog<void>(
+      context: context,
+      builder: (context) => CupertinoAlertDialog(
+        title: const Text('Out of Stock'),
+        content: Text('Cannot punch order: $itemName is out of stock in your branch inventory!'),
+        actions: [
+          CupertinoDialogAction(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
   int? _parseOrNull(TextEditingController c) {
     final t = c.text.trim();
     if (t.isEmpty) return null;
     return int.tryParse(t);
   }
 
-  // Computation always available with real-time updates
   DailySalesComputation get _computation {
     return DailySalesComputation(
       allocatedRegular: _allocatedRegular,
@@ -261,27 +732,15 @@ class _SalesScreenState extends State<SalesScreen> {
       remainingMayo: _parseOrNull(_mayoController),
       remainingToyo: _parseOrNull(_toyoController),
       remainingStyro: _parseOrNull(_styroController),
+      spoilagePenalty: _branchMeatStock?.spoilagePenalty ?? 0.0,
     );
   }
 
   bool get _isInventoryVerified =>
-      _todayInventory != null &&
+      _todayInventory == null ||
       _todayInventory!.status != InventoryVerificationStatus.pending;
 
-  // Show the computation card only once remaining stock has been entered
-  bool get _hasAnyInput =>
-      _karneController.text.trim().isNotEmpty ||
-      _mediumController.text.trim().isNotEmpty ||
-      _b1t1Controller.text.trim().isNotEmpty ||
-      _mayoController.text.trim().isNotEmpty ||
-      _styroController.text.trim().isNotEmpty ||
-      _toyoController.text.trim().isNotEmpty;
-
-  /// Confirms before actually submitting — sales figures feed directly
-  /// into payroll, so a single accidental tap on "Submit Sales"
-  /// shouldn't be enough to lock them in.
   Future<void> _confirmSubmit() async {
-    // 1. Siguraduhing na-verify ang inventory sa umaga
     if (!_isInventoryVerified) {
       showCupertinoDialog<void>(
         context: context,
@@ -301,7 +760,6 @@ class _SalesScreenState extends State<SalesScreen> {
       return;
     }
 
-    // 2. Siguraduhing nailagay ang lahat ng fields
     if (_karneController.text.trim().isEmpty ||
         _mediumController.text.trim().isEmpty ||
         _b1t1Controller.text.trim().isEmpty ||
@@ -313,28 +771,7 @@ class _SalesScreenState extends State<SalesScreen> {
         builder: (context) => CupertinoAlertDialog(
           title: const Text('Missing Input'),
           content: const Text(
-            'Please fill in all remaining stock fields (Regular, Medium, B1T1, Mayo, Toyo, and Styro) before submitting.',
-          ),
-          actions: [
-            CupertinoDialogAction(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('OK'),
-            ),
-          ],
-        ),
-      );
-      return;
-    }
-
-    // 3. Even numbers only para sa B1T1
-    final b1t1Rem = _parseOrNull(_b1t1Controller) ?? 0;
-    if (b1t1Rem % 2 != 0) {
-      showCupertinoDialog<void>(
-        context: context,
-        builder: (context) => CupertinoAlertDialog(
-          title: const Text('Invalid B1T1 Count'),
-          content: const Text(
-            'B1T1 remaining stock cannot be an odd number (such as 1, 3, 5) because B1T1 orders are sold in pairs (2 pieces). Please check and adjust your count.',
+            'Please fill in or verify all remaining stock fields before submitting.',
           ),
           actions: [
             CupertinoDialogAction(
@@ -349,105 +786,16 @@ class _SalesScreenState extends State<SalesScreen> {
 
     final computation = _computation;
 
-    // 4. Kung may discrepancy sa Toyo / Condiments, hingan ng paliwanag ang cook
-    if (computation.hasToyoDiscrepancy) {
-      final discrepancyItems = <String>[];
-      if (computation.hasCondimentsSumDiscrepancy) {
-        discrepancyItems.add(
-          '${computation.totalCondimentsUsed} condiments used (${computation.mayoUsed} mayo + ${computation.toyoUsed} toyo), but ${computation.totalKarneUsed} meat portions were sold.',
-        );
-      }
-      if (computation.hasB1t1ToyoDiscrepancy) {
-        discrepancyItems.add(
-          'Insufficient Toyo used (${computation.toyoUsed} used) for ${computation.b1t1OrdersSold} B1T1 orders containing Bagnet.',
-        );
-      }
-
-      final reasonController = TextEditingController();
-      String? errorMessage;
-
-      final submittedWithReason = await showCupertinoDialog<String?>(
-        context: context,
-        builder: (dialogContext) => StatefulBuilder(
-          builder: (dialogContext, setDialogState) => CupertinoAlertDialog(
-            title: const Text('Toyo / Condiments Discrepancy'),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const SizedBox(height: 8),
-                Text(
-                  'Discrepancy detected:\n• ${discrepancyItems.join('\n• ')}',
-                  style: const TextStyle(fontSize: 12.5, height: 1.3),
-                ),
-                const SizedBox(height: 12),
-                const Text(
-                  'Please provide a reason why condiment counts do not match (e.g., customer declined sauce):',
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 8),
-                CupertinoTextField(
-                  controller: reasonController,
-                  placeholder: 'Enter reason here (Required)...',
-                  maxLines: 2,
-                  style: const TextStyle(fontSize: 13),
-                  onChanged: (_) {
-                    if (errorMessage != null) {
-                      setDialogState(() => errorMessage = null);
-                    }
-                  },
-                ),
-                if (errorMessage != null) ...[
-                  const SizedBox(height: 6),
-                  Text(
-                    errorMessage!,
-                    style: const TextStyle(color: CupertinoColors.destructiveRed, fontSize: 11.5, fontWeight: FontWeight.bold),
-                  ),
-                ],
-              ],
-            ),
-            actions: [
-              CupertinoDialogAction(
-                onPressed: () => Navigator.of(dialogContext).pop(null),
-                child: const Text('Cancel'),
-              ),
-              CupertinoDialogAction(
-                isDefaultAction: true,
-                onPressed: () {
-                  final text = reasonController.text.trim();
-                  if (text.isEmpty) {
-                    setDialogState(() {
-                      errorMessage = 'Please enter a reason before submitting.';
-                    });
-                    return;
-                  }
-                  Navigator.of(dialogContext).pop(text);
-                },
-                child: const Text('Submit Sales'),
-              ),
-            ],
-          ),
-        ),
-      );
-
-      if (submittedWithReason == null || !mounted) return;
-      _submit(discrepancyNote: submittedWithReason);
-      return;
-    }
-
-    // 5. Normal confirm dialog kung walang toyo discrepancy
     final confirmed = await showCupertinoDialog<bool>(
       context: context,
       builder: (dialogContext) => CupertinoAlertDialog(
-        title: const Text('Submit Sales?'),
+        title: const Text('Submit Closing Sales?'),
         content: Text(
-          computation.hasStyroDiscrepancy
-              ? 'Styro discrepancy detected: ${computation.styroUsed} used vs expected ${computation.expectedStyroUsed} based on orders. Submit anyway?'
-              : 'Total Orders: ${computation.totalOrders} · '
-                  'Gross: \u20b1${computation.totalRevenue} · '
-                  'Salary: \u20b1${computation.salary} · '
-                  'Cash Remit: \u20b1${computation.cashRemit}. This '
-                  "can't be edited once submitted.",
+          'Total Orders Punched: ${computation.totalOrders} · '
+          'Gross Revenue: \u20b1${computation.totalRevenue} · '
+          'Wage & Commission: \u20b1${computation.salary} · '
+          'Cash Remittance: \u20b1${computation.cashRemit}. This '
+          "cannot be edited once submitted.",
         ),
         actions: [
           CupertinoDialogAction(
@@ -456,9 +804,8 @@ class _SalesScreenState extends State<SalesScreen> {
           ),
           CupertinoDialogAction(
             isDefaultAction: true,
-            isDestructiveAction: computation.hasStyroDiscrepancy,
             onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Submit'),
+            child: const Text('Submit Sales'),
           ),
         ],
       ),
@@ -473,7 +820,6 @@ class _SalesScreenState extends State<SalesScreen> {
 
     setState(() => _submitted = true);
 
-    // Save to Firestore daily_sales collection
     final record = SalesRecord(
       id: '',
       branchId: _currentBranchId,
@@ -508,7 +854,7 @@ class _SalesScreenState extends State<SalesScreen> {
         builder: (context) => CupertinoAlertDialog(
           title: const Text('Error Submitting Sales'),
           content: const Text(
-            'Failed to save sales report to Firestore. Please check your internet connection or verify Firestore rules/permissions.',
+            'Failed to save sales report to Firestore. Please check your internet connection.',
           ),
           actions: [
             CupertinoDialogAction(
@@ -524,12 +870,11 @@ class _SalesScreenState extends State<SalesScreen> {
     showCupertinoDialog<void>(
       context: context,
       builder: (context) => CupertinoAlertDialog(
+        title: const Text('Sales Submitted'),
         content: Text(
-          (discrepancyNote != null && discrepancyNote.isNotEmpty)
-              ? 'Sales submitted! Your discrepancy note has been sent to the Owner:\n"$discrepancyNote"'
-              : (computation.hasStyroDiscrepancy
-                  ? 'Sales submitted with a flagged Styro discrepancy sent to the Owner.'
-                  : 'Sales submitted successfully! Cash remit: ₱${computation.cashRemit}'),
+          'Sales report submitted successfully!\n'
+          'Earned Salary & Commission: ₱${computation.salary}\n'
+          'Expected Cash Remittance: ₱${computation.cashRemit}',
         ),
         actions: [
           CupertinoDialogAction(
@@ -541,315 +886,372 @@ class _SalesScreenState extends State<SalesScreen> {
     );
   }
 
+  Widget _buildPosButton({
+    required String label,
+    required String priceTag,
+    required IconData icon,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withValues(alpha: 0.35), width: 1.2),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: _submitted ? null : onTap,
+          borderRadius: BorderRadius.circular(12),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(7),
+                  decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+                  child: Icon(icon, color: Colors.white, size: 16),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      Text(
+                        priceTag,
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: color,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final computation = _computation;
+    final currentStock = _branchMeatStock ?? BranchMeatStock.defaultForBranch(
+      kSampleBranches.firstWhere((b) => b.id == _currentBranchId, orElse: () => kSampleBranches.first),
+    );
 
     return CupertinoPageScaffold(
       backgroundColor: AppColors.background,
       navigationBar: const StaffNavBar(
-        title: 'Sales',
+        title: 'Cook Quick POS',
         trailing: StaffTopActions(),
       ),
       child: SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            const StaffSectionHeader(
-              label: "Today's Inventory",
-              icon: CupertinoIcons.cube_box_fill,
-              subtitle: 'Reference only — confirmed back on Home',
-              large: true,
-            ),
-            const SizedBox(height: 14),
-            // Horizontally swipeable inventory grid
-            // Row 1: Mayo → Toyo → Medium (300g)
-            // Row 2: Styro → Regular (250g) → B1T1 (400g)
-            LayoutBuilder(
-              builder: (ctx, constraints) {
-                final cardW = (constraints.maxWidth - 12) / 2;
-                Widget tile(String label, String value, {bool dark = false}) {
-                  return SizedBox(
-                    width: cardW,
-                    child: StaffDisplayTile(label: label, value: value, dark: dark),
-                  );
-                }
-
-                final reg = _allocatedRegular;
-                final med = _allocatedMedium;
-                final b1t1 = _allocatedB1t1;
-
-                return SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  physics: const PageScrollPhysics(),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Top row: Mayo → Toyo → Medium
-                      Row(
+            // Header Section
+            Row(
+              children: [
+                const Expanded(
+                  child: StaffSectionHeader(
+                    label: "Shift Quick Tally",
+                    icon: CupertinoIcons.cart_badge_plus,
+                    subtitle: 'Tap as customer orders arrive',
+                    large: true,
+                  ),
+                ),
+                if (!_submitted) ...[
+                  if (_tallyHistory.isNotEmpty)
+                    CupertinoButton(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      color: AppColors.error.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(8),
+                      onPressed: _undoLastOrder,
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
-                          tile('Mayo', '$_allocatedMayo', dark: true),
-                          const SizedBox(width: 12),
-                          tile('Toyo', '$_allocatedToyo', dark: true),
-                          const SizedBox(width: 12),
-                          tile('Medium', '$med pcs'),
+                          Icon(CupertinoIcons.arrow_uturn_left, size: 13, color: AppColors.error),
+                          SizedBox(width: 3),
+                          Text('Undo', style: TextStyle(color: AppColors.error, fontSize: 11, fontWeight: FontWeight.bold)),
                         ],
                       ),
-                      const SizedBox(height: 12),
-                      // Bottom row: Styro → Regular → B1T1
-                      Row(
-                        children: [
-                          tile('Styro', '$_allocatedStyro'),
-                          const SizedBox(width: 12),
-                          tile('Regular', '$reg pcs'),
-                          const SizedBox(width: 12),
-                          tile('B1T1', '$b1t1 pcs'),
-                        ],
-                      ),
-                    ],
-                  ),
-                );
-              },
-            ),
-
-            const SizedBox(height: 26),
-            const StaffSectionHeader(
-              label: 'Remaining Stock',
-              icon: CupertinoIcons.archivebox_fill,
-              subtitle: 'What\'s left at the end of the day',
-              large: true,
-            ),
-            if (!_isInventoryVerified && !_submitted) ...[
-              const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: AppColors.warning.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.warning.withValues(alpha: 0.35)),
-                ),
-                child: const Row(
-                  children: [
-                    Icon(CupertinoIcons.exclamationmark_shield_fill, color: AppColors.warning, size: 22),
-                    SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        'Remaining stock is currently locked. '
-                        'Please complete "Verify: Count What You Actually Received" on the Home tab before entering remaining stock.',
-                        style: TextStyle(
-                          color: AppColors.warning,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 12.5,
-                        ),
-                      ),
                     ),
-                  ],
-                ),
-              ),
-            ],
-            const SizedBox(height: 14),
-            LayoutBuilder(
-              builder: (ctx, constraints) {
-                final cardW = (constraints.maxWidth - 12) / 2;
-                Widget itile(String label, TextEditingController ctrl) => SizedBox(
-                  width: cardW,
-                  child: StaffInputTile(
-                    label: label,
-                    controller: ctrl,
-                    enabled: !_submitted && _isInventoryVerified,
-                    onChanged: () => setState(() {}),
-                  ),
-                );
-                // B1T1 tile enforces even numbers (2 pcs per order)
-                final b1t1tile = SizedBox(
-                  width: cardW,
-                  child: StaffInputTile(
-                    label: 'B1T1',
-                    controller: _b1t1Controller,
-                    enabled: !_submitted && _isInventoryVerified,
-                    onChanged: () => setState(() {}),
-                    step: 2,
-                    evenOnly: true,
-                  ),
-                );
-                return SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  physics: const PageScrollPhysics(),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(children: [
-                        itile('Mayo', _mayoController),
-                        const SizedBox(width: 12),
-                        itile('Toyo', _toyoController),
-                        const SizedBox(width: 12),
-                        itile('Medium', _mediumController),
-                      ]),
-                      const SizedBox(height: 12),
-                      Row(children: [
-                        itile('Styro', _styroController),
-                        const SizedBox(width: 12),
-                        itile('Regular', _karneController),
-                        const SizedBox(width: 12),
-                        b1t1tile,
-                      ]),
-                    ],
-                  ),
-                );
-              },
-            ),
-            const SizedBox(height: 20),
-            if (_hasAnyInput) ...[ 
-              if (computation.hasDiscrepancy)
-                Builder(builder: (context) {
-                  final issues = <String>[];
-                  if (computation.hasStyroDiscrepancy) {
-                    issues.add(
-                      'Styro: ${computation.styroUsed} used vs expected ${computation.expectedStyroUsed} based on orders.',
-                    );
-                  }
-                  if (computation.hasCondimentsSumDiscrepancy) {
-                    issues.add(
-                      'Mayo & Toyo: ${computation.totalCondimentsUsed} condiments used (${computation.mayoUsed} mayo + ${computation.toyoUsed} toyo), but ${computation.totalKarneUsed} meat portions were sold. (Standard ratio: 1 condiment per 1 meat portion).',
-                    );
-                  }
-                  if (computation.hasB1t1ToyoDiscrepancy) {
-                    issues.add(
-                      'Toyo for B1T1: Only ${computation.toyoUsed} Toyo used for ${computation.b1t1OrdersSold} B1T1 orders containing Bagnet.',
-                    );
-                  }
-                  if (computation.hasMayoExcessDiscrepancy) {
-                    issues.add(
-                      'Mayo: Excess Mayo used (${computation.mayoUsed}) compared to sold Sisig portions.',
-                    );
-                  }
-                  return Container(
-                    margin: const EdgeInsets.only(bottom: 16),
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: AppColors.error.withValues(alpha: 0.10),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: AppColors.error.withValues(alpha: 0.3)),
-                    ),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                  const SizedBox(width: 6),
+                  CupertinoButton(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    color: AppColors.warning.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(8),
+                    onPressed: _showWastageDialog,
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(CupertinoIcons.exclamationmark_triangle_fill,
-                            color: AppColors.error, size: 20),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text(
-                                'Discrepancy Detected in Stock / Sales:',
-                                style: TextStyle(
-                                  color: AppColors.error,
-                                  fontWeight: FontWeight.w800,
-                                  fontSize: 13,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              ...issues.map((msg) => Padding(
-                                padding: const EdgeInsets.only(bottom: 3),
-                                child: Text(
-                                  '• $msg',
-                                  style: const TextStyle(
-                                    color: AppColors.error,
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 12,
-                                  ),
-                                ),
-                              )),
-                              const SizedBox(height: 2),
-                              const Text(
-                                'Reminder: If a customer declined sauce, please provide a reason in the confirmation dialog before submitting.',
-                                style: TextStyle(
-                                  color: AppColors.textSecondary,
-                                  fontWeight: FontWeight.w500,
-                                  fontSize: 11,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
+                        Icon(CupertinoIcons.exclamationmark_triangle_fill, size: 13, color: AppColors.warning),
+                        SizedBox(width: 3),
+                        Text('Spoilage', style: TextStyle(color: AppColors.warning, fontSize: 11, fontWeight: FontWeight.bold)),
                       ],
                     ),
-                  );
-                }),
-              const StaffSectionHeader(
-                label: 'Computation',
-                icon: CupertinoIcons.money_dollar_circle_fill,
-              ),
-              const SizedBox(height: 10),
-              StaffCard(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  ),
+                ],
+              ],
+            ),
+            const SizedBox(height: 14),
+
+            // 6 Quick POS Buttons Grid
+            LayoutBuilder(
+              builder: (ctx, constraints) {
+                final btnW = (constraints.maxWidth - 10) / 2;
+                return Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
                   children: [
-                    _computedRow(
-                      'Total Orders',
-                      '${computation.totalOrders}',
-                      isHeader: true,
-                    ),
-                    const _CupertinoDivider(),
-                    if (computation.regularSold > 0)
-                      _computedRow(
-                        'Regular',
-                        '₱${computation.regularRevenue.toStringAsFixed(0)}',
-                        subtitle: '130 × ${computation.regularSold}',
-                      ),
-                    if (computation.mediumSold > 0)
-                      _computedRow(
-                        'Medium',
-                        '₱${computation.mediumRevenue.toStringAsFixed(0)}',
-                        subtitle: '160 × ${computation.mediumSold}',
-                      ),
-                    if (computation.b1t1OrdersSold > 0)
-                      _computedRow(
-                        'B1T1',
-                        '₱${computation.b1t1Revenue.toStringAsFixed(0)}',
-                        subtitle: '210 × ${computation.b1t1OrdersSold}',
-                      ),
-                    if (computation.totalOrders == 0)
-                      _computedRow(
-                        'No Orders Sold',
-                        '₱0',
-                        subtitle: 'Remaining stock matches allocation',
-                      ),
-                    const _CupertinoDivider(),
-                    _computedRow(
-                      'TOTAL',
-                      '₱${computation.totalRevenue.toStringAsFixed(0)}',
-                      isSubtotal: true,
-                    ),
-                    const SizedBox(height: 14),
-                    const Text(
-                      'Deduction',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 0.5,
-                        color: AppColors.textSecondary,
+                    SizedBox(
+                      width: btnW,
+                      child: _buildPosButton(
+                        label: '+1 REGULAR SISIG',
+                        priceTag: '₱130 · 250g',
+                        icon: CupertinoIcons.add,
+                        color: AppColors.accent,
+                        onTap: () => _punchOrder(
+                          name: 'Regular Sisig',
+                          price: 130,
+                          category: 'reg_sisig',
+                          regDeduct: 1, medDeduct: 0, b1t1Deduct: 0,
+                          mayoDeduct: 1, toyoDeduct: 0, styroDeduct: 1,
+                        ),
                       ),
                     ),
-                    const SizedBox(height: 4),
-                    _computedRow(
-                      'Less Salary',
-                      '- ₱${computation.salary.toStringAsFixed(0)}',
-                      subtitle: '${computation.salary} salary (${computation.weightedOrders} weighted orders)',
-                      isNegative: true,
+                    SizedBox(
+                      width: btnW,
+                      child: _buildPosButton(
+                        label: '+1 REGULAR BAGNET',
+                        priceTag: '₱130 · 250g',
+                        icon: CupertinoIcons.add,
+                        color: const Color(0xFFD97706),
+                        onTap: () => _punchOrder(
+                          name: 'Regular Bagnet',
+                          price: 130,
+                          category: 'reg_bagnet',
+                          regDeduct: 1, medDeduct: 0, b1t1Deduct: 0,
+                          mayoDeduct: 0, toyoDeduct: 1, styroDeduct: 1,
+                        ),
+                      ),
                     ),
-                    const _CupertinoDivider(),
-                    _computedRow(
-                      'TOTAL CASH REMIT',
-                      '₱${computation.cashRemit.toStringAsFixed(0)}',
-                      isTotal: true,
+                    SizedBox(
+                      width: btnW,
+                      child: _buildPosButton(
+                        label: '+1 MEDIUM SISIG',
+                        priceTag: '₱160 · 300g',
+                        icon: CupertinoIcons.add,
+                        color: AppColors.accent,
+                        onTap: () => _punchOrder(
+                          name: 'Medium Sisig',
+                          price: 160,
+                          category: 'med_sisig',
+                          regDeduct: 0, medDeduct: 1, b1t1Deduct: 0,
+                          mayoDeduct: 1, toyoDeduct: 0, styroDeduct: 1,
+                        ),
+                      ),
+                    ),
+                    SizedBox(
+                      width: btnW,
+                      child: _buildPosButton(
+                        label: '+1 MEDIUM BAGNET',
+                        priceTag: '₱160 · 300g',
+                        icon: CupertinoIcons.add,
+                        color: const Color(0xFFD97706),
+                        onTap: () => _punchOrder(
+                          name: 'Medium Bagnet',
+                          price: 160,
+                          category: 'med_bagnet',
+                          regDeduct: 0, medDeduct: 1, b1t1Deduct: 0,
+                          mayoDeduct: 0, toyoDeduct: 1, styroDeduct: 1,
+                        ),
+                      ),
+                    ),
+                    SizedBox(
+                      width: btnW,
+                      child: _buildPosButton(
+                        label: '+1 B1T1 (SISIG & BAGNET)',
+                        priceTag: '₱210 · 400g (2 Pcs)',
+                        icon: CupertinoIcons.add,
+                        color: const Color(0xFF059669),
+                        onTap: () => _punchOrder(
+                          name: 'B1T1 (Sisig & Bagnet)',
+                          price: 210,
+                          category: 'b1t1_sisig_bagnet',
+                          regDeduct: 0, medDeduct: 0, b1t1Deduct: 1,
+                          mayoDeduct: 1, toyoDeduct: 1, styroDeduct: 2,
+                        ),
+                      ),
+                    ),
+                    SizedBox(
+                      width: btnW,
+                      child: _buildPosButton(
+                        label: '+1 B1T1 (BAGNET & BAGNET)',
+                        priceTag: '₱210 · 400g (2 Pcs)',
+                        icon: CupertinoIcons.add,
+                        color: const Color(0xFF059669),
+                        onTap: () => _punchOrder(
+                          name: 'B1T1 (Bagnet & Bagnet)',
+                          price: 210,
+                          category: 'b1t1_bagnet_bagnet',
+                          regDeduct: 0, medDeduct: 0, b1t1Deduct: 1,
+                          mayoDeduct: 0, toyoDeduct: 2, styroDeduct: 2,
+                        ),
+                      ),
                     ),
                   ],
-                ),
+                );
+              },
+            ),
+
+            const SizedBox(height: 24),
+            // Live Remaining Stock Meters
+            const StaffSectionHeader(
+              label: 'Live Inventory Remaining',
+              icon: CupertinoIcons.cube_box_fill,
+              subtitle: 'Auto-updated in real-time as you punch orders',
+            ),
+            const SizedBox(height: 10),
+            StaffCard(
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _stockMeter(
+                          label: 'Regular Meat (250g)',
+                          remaining: currentStock.regular250gRemaining,
+                          total: currentStock.regular250gTotal,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _stockMeter(
+                          label: 'Medium Meat (300g)',
+                          remaining: currentStock.medium300gRemaining,
+                          total: currentStock.medium300gTotal,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _stockMeter(
+                          label: 'B1T1 Meat (400g)',
+                          remaining: currentStock.b1t1_400gRemaining,
+                          total: currentStock.b1t1_400gTotal,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _stockMeter(
+                          label: 'Mayo Packs',
+                          remaining: currentStock.mayoRemaining,
+                          total: currentStock.mayoTotal,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _stockMeter(
+                          label: 'Toyo Sauce Packs',
+                          remaining: currentStock.toyoRemaining,
+                          total: currentStock.toyoTotal,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _stockMeter(
+                          label: 'Styro Boxes',
+                          remaining: currentStock.styroRemaining,
+                          total: currentStock.styroTotal,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
-              const SizedBox(height: 24),
-            ],
+            ),
+
+            const SizedBox(height: 24),
+            // End of Day Closing & Audit Section
+            const StaffSectionHeader(
+              label: 'Closing & End-of-Day Audit',
+              icon: CupertinoIcons.money_dollar_circle_fill,
+              subtitle: 'System tallies orders & computes wage automatically',
+            ),
+            const SizedBox(height: 10),
+            StaffCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _computedRow(
+                    'Total Orders Punched',
+                    '${computation.totalOrders}',
+                    isHeader: true,
+                  ),
+                  const _CupertinoDivider(),
+                  _computedRow(
+                    'Regular Sisig / Bagnet',
+                    '₱${computation.regularRevenue.toStringAsFixed(0)}',
+                    subtitle: '₱130 × ${computation.regularSold}',
+                  ),
+                  _computedRow(
+                    'Medium Sisig / Bagnet',
+                    '₱${computation.mediumRevenue.toStringAsFixed(0)}',
+                    subtitle: '₱160 × ${computation.mediumSold}',
+                  ),
+                  _computedRow(
+                    'B1T1 Combos',
+                    '₱${computation.b1t1Revenue.toStringAsFixed(0)}',
+                    subtitle: '₱210 × ${computation.b1t1OrdersSold}',
+                  ),
+                  const _CupertinoDivider(),
+                  _computedRow(
+                    'GROSS REVENUE',
+                    '₱${computation.totalRevenue.toStringAsFixed(0)}',
+                    isSubtotal: true,
+                  ),
+                  const SizedBox(height: 12),
+                  _computedRow(
+                    'Less Staff Wage & Commission',
+                    '- ₱${computation.salary.toStringAsFixed(0)}',
+                    subtitle: '₱${computation.salary} wage for ${computation.totalKarneUsed} meat portions',
+                    isNegative: true,
+                  ),
+                  const _CupertinoDivider(),
+                  _computedRow(
+                    'TOTAL CASH REMITTANCE',
+                    '₱${computation.cashRemit.toStringAsFixed(0)}',
+                    isTotal: true,
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 20),
             if (_submitted)
               Container(
                 padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
@@ -866,7 +1268,7 @@ class _SalesScreenState extends State<SalesScreen> {
                         Icon(CupertinoIcons.checkmark_seal_fill, color: AppColors.success, size: 22),
                         SizedBox(width: 8),
                         Text(
-                          'Sales Report Locked & Submitted',
+                          'Closing Sales Submitted',
                           style: TextStyle(
                             color: AppColors.success,
                             fontWeight: FontWeight.w800,
@@ -878,62 +1280,73 @@ class _SalesScreenState extends State<SalesScreen> {
                     const SizedBox(height: 6),
                     if (_todaySalesRecord != null)
                       Text(
-                        'Total Orders: ${_todaySalesRecord!.displayTotalOrders} · Portions (Meat Pcs): ${_todaySalesRecord!.displayPortions} · Remit: ₱${_todaySalesRecord!.expectedCashRemittance.toStringAsFixed(0)}',
+                        'Orders: ${_todaySalesRecord!.displayTotalOrders} · Portions: ${_todaySalesRecord!.displayPortions} · Remittance: ₱${_todaySalesRecord!.expectedCashRemittance.toStringAsFixed(0)}',
                         style: const TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w700,
                           color: AppColors.accentDark,
                         ),
                       ),
-                    const SizedBox(height: 4),
-                    const Text(
-                      'Sales for today have been recorded. '
-                      'The form will automatically reset tomorrow for the next operational day.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: AppColors.textSecondary,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
                   ],
                 ),
               )
             else
               StaffButton(
-                label: 'Submit Sales',
+                label: 'Submit Final Closing Sales',
                 icon: CupertinoIcons.cloud_upload_fill,
                 onPressed: _confirmSubmit,
-              ),
-            if (!_hasAnyInput)
-              Padding(
-                padding: const EdgeInsets.only(top: 12),
-                child: Container(
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: AppColors.pastelBrown.withValues(alpha: 0.14),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(CupertinoIcons.info_circle_fill,
-                          color: AppColors.accent, size: 18),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          'Fill in remaining stock counts above to see '
-                          'the computation.',
-                          style: const TextStyle(color: AppColors.textSecondary),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
               ),
             const SizedBox(height: 100),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _stockMeter({
+    required String label,
+    required int remaining,
+    required int total,
+  }) {
+    final ratio = total > 0 ? (remaining / total).clamp(0.0, 1.0) : 0.0;
+    Color color = AppColors.success;
+    if (ratio < 0.25) {
+      color = AppColors.error;
+    } else if (ratio < 0.50) {
+      color = AppColors.warning;
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Expanded(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: AppColors.textSecondary),
+              ),
+            ),
+            Text(
+              '$remaining/$total',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: color),
+            ),
+          ],
+        ),
+        const SizedBox(height: 5),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(4),
+          child: LinearProgressIndicator(
+            value: ratio,
+            backgroundColor: AppColors.border,
+            color: color,
+            minHeight: 6,
+          ),
+        ),
+      ],
     );
   }
 
@@ -946,6 +1359,9 @@ class _SalesScreenState extends State<SalesScreen> {
     bool isNegative = false,
     String? subtitle,
   }) {
+    final valueColor = isNegative
+        ? AppColors.error
+        : (isTotal ? AppColors.accent : AppColors.textPrimary);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
@@ -979,11 +1395,7 @@ class _SalesScreenState extends State<SalesScreen> {
             style: TextStyle(
               fontWeight: FontWeight.w800,
               fontSize: isTotal ? 20 : (isSubtotal ? 16 : (isHeader ? 15 : 14)),
-              color: isNegative
-                  ? AppColors.error
-                  : (isTotal
-                      ? AppColors.accent
-                      : (isSubtotal || isHeader ? AppColors.textPrimary : AppColors.textPrimary)),
+              color: valueColor,
             ),
           ),
         ],
@@ -992,7 +1404,6 @@ class _SalesScreenState extends State<SalesScreen> {
   }
 }
 
-/// Simple divider — Cupertino has no built-in Divider widget.
 class _CupertinoDivider extends StatelessWidget {
   const _CupertinoDivider();
 

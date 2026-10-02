@@ -294,6 +294,13 @@ class _StaffBilaoOrdersScreenState extends State<StaffBilaoOrdersScreen> {
                   fontWeight: FontWeight.bold,
                   color: AppColors.accent),
             ),
+            if (order.depositAmount > 0) ...[
+              const SizedBox(height: 2),
+              Text(
+                'Deposit Paid: \u20b1${order.depositAmount.toStringAsFixed(0)} · Remaining COD: \u20b1${order.remainingBalance.toStringAsFixed(0)}',
+                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.warning),
+              ),
+            ],
             const SizedBox(height: 8),
             if (order.notes != null && order.notes!.isNotEmpty) ...[
               Text('Notes: ${order.notes}',
@@ -780,6 +787,7 @@ class _AddBilaoOrderSheetState extends State<_AddBilaoOrderSheet> {
   final _contactCtrl = TextEditingController();
   final _notesCtrl   = TextEditingController();
   final _streetCtrl  = TextEditingController();
+  final _depositCtrl = TextEditingController(text: '0');
 
   // Address dropdowns
   String  _province  = 'Laguna';
@@ -788,7 +796,6 @@ class _AddBilaoOrderSheetState extends State<_AddBilaoOrderSheet> {
 
   BilaoSize _size              = BilaoSize.medium;
   int       _quantity          = 1;
-  bool      _isDirectDelivery  = false;
   bool      _isSaving          = false;
   DateTime  _scheduledDateTime = DateTime.now().add(const Duration(hours: 2));
 
@@ -857,6 +864,7 @@ class _AddBilaoOrderSheetState extends State<_AddBilaoOrderSheet> {
     _contactCtrl.dispose();
     _notesCtrl.dispose();
     _streetCtrl.dispose();
+    _depositCtrl.dispose();
     super.dispose();
   }
 
@@ -969,11 +977,6 @@ class _AddBilaoOrderSheetState extends State<_AddBilaoOrderSheet> {
       _showError('Please enter the customer name and contact number.');
       return;
     }
-    if (_isDirectDelivery && (_city == null || _barangay == null)) {
-      _showError('Please select a City and Barangay for the delivery address.');
-      return;
-    }
-
     setState(() => _isSaving = true);
     try {
       final orderId = 'bilao_${DateTime.now().millisecondsSinceEpoch}';
@@ -984,14 +987,13 @@ class _AddBilaoOrderSheetState extends State<_AddBilaoOrderSheet> {
         size: _size,
         quantity: _quantity,
         scheduledDateTime: _scheduledDateTime,
-        fulfillmentType: _isDirectDelivery
-            ? BilaoFulfillmentType.directDelivery
-            : BilaoFulfillmentType.branchPickup,
+        fulfillmentType: BilaoFulfillmentType.branchPickup,
         orderChannel: BilaoOrderChannel.branchOrder,
         pickupBranchId: widget.branchId,
         pickupBranchName: widget.branchName,
-        deliveryAddress: _isDirectDelivery ? _deliveryAddress : '',
+        deliveryAddress: '',
         notes: _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
+        depositAmount: double.tryParse(_depositCtrl.text.trim()) ?? 0.0,
         preparationStatus: PreparationStatus.pending,
         deliveryStatus: DeliveryStatus.forDelivery,
       );
@@ -1276,20 +1278,29 @@ class _AddBilaoOrderSheetState extends State<_AddBilaoOrderSheet> {
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.end,
                           children: [
-                            const Text(
-                              'Total',
-                              style: TextStyle(
-                                fontSize: 10.5,
+                            Text(
+                              'Total: \u20b1${_total.toStringAsFixed(0)}',
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF24140B),
+                                decoration: TextDecoration.none,
+                              ),
+                            ),
+                            Text(
+                              'Deposit: \u20b1${(double.tryParse(_depositCtrl.text.trim()) ?? 0.0).toStringAsFixed(0)}',
+                              style: const TextStyle(
+                                fontSize: 11,
                                 color: Color(0xFF9E8B7E),
                                 decoration: TextDecoration.none,
                               ),
                             ),
                             Text(
-                              '\u20b1${_total.toStringAsFixed(0)}',
+                              'COD: \u20b1${(_total - (double.tryParse(_depositCtrl.text.trim()) ?? 0.0)).clamp(0.0, _total).toStringAsFixed(0)}',
                               style: const TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w800,
-                                color: AppColors.accent,
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.warning,
                                 decoration: TextDecoration.none,
                               ),
                             ),
@@ -1297,6 +1308,20 @@ class _AddBilaoOrderSheetState extends State<_AddBilaoOrderSheet> {
                         ),
                       ],
                     ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // ── Deposit / Downpayment ─────────────────────────────────
+                  TextFormField(
+                    controller: _depositCtrl,
+                    keyboardType: TextInputType.number,
+                    style: _fieldTextStyle,
+                    decoration: _dec(
+                      label: 'Deposit / Downpayment (₱)',
+                      hint: '0',
+                      icon: Icons.payments_outlined,
+                    ),
+                    onChanged: (_) => setState(() {}),
                   ),
                   const SizedBox(height: 12),
 
@@ -1419,141 +1444,6 @@ class _AddBilaoOrderSheetState extends State<_AddBilaoOrderSheet> {
                   ),
                   const SizedBox(height: 12),
 
-                  // ── Order Type ──────────────────────────────────────────
-                  const Text(
-                    'Order Type',
-                    style: TextStyle(
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.w700,
-                      color: Color(0xFF6B584C),
-                      letterSpacing: 0.2,
-                      decoration: TextDecoration.none,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _typeChip(
-                          'Branch Pickup',
-                          Icons.storefront_outlined,
-                          !_isDirectDelivery,
-                          () => setState(() => _isDirectDelivery = false),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: _typeChip(
-                          'Direct Delivery',
-                          Icons.local_shipping_outlined,
-                          _isDirectDelivery,
-                          () => setState(() => _isDirectDelivery = true),
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  // ── Delivery Address (dropdown) ───────────────────────────
-                  if (_isDirectDelivery) ...[
-                    const SizedBox(height: 12),
-                    const Text(
-                      'Delivery Address',
-                      style: TextStyle(
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w700,
-                        color: Color(0xFF6B584C),
-                        letterSpacing: 0.2,
-                        decoration: TextDecoration.none,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-
-                    // Province
-                    DropdownButtonFormField<String>(
-                      initialValue: _province,
-                      isExpanded: true,
-                      style: _fieldTextStyle,
-                      decoration: _dec(
-                        label: 'Province',
-                        icon: Icons.map_outlined,
-                      ),
-                      items: PhilippineAddressData.provinces
-                          .map((p) => DropdownMenuItem(
-                              value: p,
-                              child: Text(p, style: _fieldTextStyle)))
-                          .toList(),
-                      onChanged: (v) {
-                        if (v == null) return;
-                        setState(() {
-                          _province  = v;
-                          _city      = null;
-                          _barangay  = null;
-                        });
-                      },
-                    ),
-                    const SizedBox(height: 8),
-
-                    // City / Municipality
-                    DropdownButtonFormField<String>(
-                      initialValue: _city != null && cities.contains(_city)
-                          ? _city
-                          : null,
-                      isExpanded: true,
-                      style: _fieldTextStyle,
-                      decoration: _dec(
-                        label: 'City / Municipality',
-                        icon: Icons.location_city_outlined,
-                      ),
-                      hint: const Text('Select city / municipality',
-                          style: _hintStyle),
-                      items: cities
-                          .map((c) => DropdownMenuItem(
-                              value: c,
-                              child: Text(c, style: _fieldTextStyle)))
-                          .toList(),
-                      onChanged: (v) => setState(() {
-                        _city     = v;
-                        _barangay = null;
-                      }),
-                    ),
-                    const SizedBox(height: 8),
-
-                    // Barangay
-                    DropdownButtonFormField<String>(
-                      initialValue:
-                          _barangay != null && barangays.contains(_barangay)
-                              ? _barangay
-                              : null,
-                      isExpanded: true,
-                      style: _fieldTextStyle,
-                      decoration: _dec(
-                        label: 'Barangay',
-                        icon: Icons.holiday_village_outlined,
-                      ),
-                      hint: const Text('Select barangay',
-                          style: _hintStyle),
-                      items: barangays
-                          .map((b) => DropdownMenuItem(
-                              value: b,
-                              child: Text(b, style: _fieldTextStyle)))
-                          .toList(),
-                      onChanged: _city == null
-                          ? null
-                          : (v) => setState(() => _barangay = v),
-                    ),
-                    const SizedBox(height: 8),
-
-                    // Street / House no.
-                    TextFormField(
-                      controller: _streetCtrl,
-                      style: _fieldTextStyle,
-                      decoration: _dec(
-                        label: 'House No. / Street (optional)',
-                        hint: 'e.g. Blk 5 Lot 2, Rizal St.',
-                        icon: Icons.home_outlined,
-                      ),
-                    ),
-                  ],
                   const SizedBox(height: 10),
 
                   // ── Notes ─────────────────────────────────────────────────

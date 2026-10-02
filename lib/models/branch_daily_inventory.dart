@@ -151,6 +151,7 @@ class DailySalesComputation {
     this.remainingMayo,
     this.remainingToyo,
     this.remainingStyro,
+    this.spoilagePenalty = 0.0,
   });
 
   // Allocated (what was delivered today)
@@ -168,6 +169,7 @@ class DailySalesComputation {
   final int? remainingMayo;
   final int? remainingToyo;
   final int? remainingStyro;
+  final double spoilagePenalty;
 
   // --- Has input checks ---
   bool get hasRegularInput => remainingRegular != null;
@@ -189,13 +191,13 @@ class DailySalesComputation {
       ? (allocatedMedium - remainingMedium!).clamp(0, 9999)
       : 0;
 
-  /// B1T1 pcs used (each order uses 2 pcs)
-  int get b1t1PcsUsed => remainingB1t1 != null
+  /// B1T1 orders sold = allocated B1T1 packs - remaining B1T1 packs
+  int get b1t1OrdersSold => remainingB1t1 != null
       ? (allocatedB1t1 - remainingB1t1!).clamp(0, 9999)
       : 0;
 
-  /// B1T1 orders = pcs used ÷ 2
-  int get b1t1OrdersSold => b1t1PcsUsed ~/ 2;
+  /// B1T1 meat pieces used = b1t1OrdersSold * 2 (since each B1T1 order contains 2 pcs of meat)
+  int get b1t1PcsUsed => b1t1OrdersSold * 2;
 
   // --- Condiment & supply used ---
   int get mayoUsed => remainingMayo != null
@@ -230,7 +232,7 @@ class DailySalesComputation {
   double get salesAmount => totalRevenue.toDouble();
 
   // --- Salary (based on weighted orders) ---
-  int get salary => weightedOrders > 0 ? WageCalculator.computeWage(weightedOrders) : 0;
+  int get salary => ((weightedOrders > 0 ? WageCalculator.computeWage(weightedOrders) : 0) - spoilagePenalty.toInt()).clamp(0, 99999);
 
   // Backward compatibility alias
   int get wage => salary;
