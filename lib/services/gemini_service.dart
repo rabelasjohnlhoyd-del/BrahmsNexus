@@ -70,13 +70,102 @@ class GeminiPhotoLicenseResult {
   final String source;
 }
 
-/// Service that utilizes Google AI Studio's Gemini 3.1 Flash Lite API
-/// to properly validate and verify addresses and driver licenses.
+/// Result from Gemini Vision GCash Receipt OCR.
+class GeminiGcashResult {
+  const GeminiGcashResult({
+    required this.success,
+    this.refNumber = '',
+    this.amount = 0.0,
+    this.errorMessage = '',
+  });
+
+  final bool success;
+  final String refNumber;
+  final double amount;
+  final String errorMessage;
+}
+
+/// Internal wrapper for successful Gemini API call with model tracking.
+class _GeminiCallResult {
+  const _GeminiCallResult({
+    required this.response,
+    required this.model,
+    required this.keyIndex,
+  });
+
+  final http.Response response;
+  final String model;
+  final int keyIndex;
+}
+
+/// Service that utilizes Google AI Studio's Gemini 3.x API suite
+/// with automatic model rollback hierarchy and multi-API key rotation.
 class GeminiService {
   const GeminiService._();
 
-  static const String _baseUrl =
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent';
+  /// Executes an API request with:
+  /// 1. Multi-API key rotation across [GeminiConfig.validKeys]
+  /// 2. Intelligent model rollback hierarchy across [GeminiConfig.models] (Gemini 3.x only)
+  /// Returns the first successful 200 OK response with the model name, or null.
+  static Future<_GeminiCallResult?> _postWithFallback({
+    required Map<String, dynamic> requestBody,
+    Duration timeout = const Duration(seconds: 20),
+  }) async {
+    final keys = GeminiConfig.validKeys;
+    if (keys.isEmpty) return null;
+
+    final models = GeminiConfig.models;
+    final bodyJson = jsonEncode(requestBody);
+
+    for (int keyIdx = 0; keyIdx < keys.length; keyIdx++) {
+      final currentKey = keys[keyIdx];
+
+      for (final model in models) {
+        final uri = Uri.parse(
+          'https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=$currentKey',
+        );
+
+        try {
+          debugPrint('[GeminiService] Calling model $model (Key #${keyIdx + 1})...');
+          final response = await http
+              .post(
+                uri,
+                headers: {'Content-Type': 'application/json'},
+                body: bodyJson,
+              )
+              .timeout(timeout);
+
+          if (response.statusCode == 200) {
+            debugPrint('[GeminiService] SUCCESS via $model (Key #${keyIdx + 1})');
+            return _GeminiCallResult(
+              response: response,
+              model: model,
+              keyIndex: keyIdx,
+            );
+          }
+
+          debugPrint(
+            '[GeminiService] Model $model returned status ${response.statusCode}',
+          );
+
+          // If 429 (quota or rate limit reached) and another key is available, switch key immediately!
+          if (response.statusCode == 429 && keyIdx + 1 < keys.length) {
+            debugPrint('[GeminiService] 429 Quota reached on Key #${keyIdx + 1}. Switching to Key #${keyIdx + 2}...');
+            break; // Break model loop, advance to next key in outer loop
+          }
+
+          // Otherwise (e.g. 503 high demand, 404 model not found, 429 on single key), rollback to next model
+          continue;
+        } catch (e) {
+          debugPrint('[GeminiService] Error calling $model on Key #${keyIdx + 1}: $e');
+          // Network timeout or socket error, continue rollback to next model
+          continue;
+        }
+      }
+    }
+
+    return null;
+  }
 
   /// Validates a Philippine residential address using Google AI Studio.
   static Future<GeminiAddressResult> validateAddress(String rawAddress) async {
@@ -112,10 +201,8 @@ Do not wrap in markdown quotes if possible, output raw JSON only.
 ''';
 
     try {
-      final response = await http.post(
-        Uri.parse('$_baseUrl?key=${GeminiConfig.apiKey}'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
+      final callResult = await _postWithFallback(
+        requestBody: {
           'contents': [
             {
               'parts': [
@@ -127,11 +214,12 @@ Do not wrap in markdown quotes if possible, output raw JSON only.
             'responseMimeType': 'application/json',
             'temperature': 0.1,
           }
-        }),
-      ).timeout(const Duration(seconds: 8));
+        },
+        timeout: const Duration(seconds: 10),
+      );
 
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body) as Map<String, dynamic>;
+      if (callResult != null && callResult.response.statusCode == 200) {
+        final data = jsonDecode(callResult.response.body) as Map<String, dynamic>;
         final candidates = data['candidates'] as List<dynamic>?;
         if (candidates != null && candidates.isNotEmpty) {
           final text = candidates.first['content']['parts'][0]['text'] as String;
@@ -143,7 +231,7 @@ Do not wrap in markdown quotes if possible, output raw JSON only.
             barangay: json['barangay'] as String? ?? '',
             city: json['city'] as String? ?? '',
             province: json['province'] as String? ?? '',
-            source: 'Gemini 3.1 Flash Lite (Google AI Studio)',
+            source: 'Gemini (${callResult.model})',
           );
         }
       }
@@ -224,10 +312,8 @@ Raw JSON only.
 ''';
 
     try {
-      final response = await http.post(
-        Uri.parse('$_baseUrl?key=${GeminiConfig.apiKey}'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
+      final callResult = await _postWithFallback(
+        requestBody: {
           'contents': [
             {
               'parts': [
@@ -239,11 +325,12 @@ Raw JSON only.
             'responseMimeType': 'application/json',
             'temperature': 0.1,
           }
-        }),
-      ).timeout(const Duration(seconds: 8));
+        },
+        timeout: const Duration(seconds: 10),
+      );
 
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body) as Map<String, dynamic>;
+      if (callResult != null && callResult.response.statusCode == 200) {
+        final data = jsonDecode(callResult.response.body) as Map<String, dynamic>;
         final candidates = data['candidates'] as List<dynamic>?;
         if (candidates != null && candidates.isNotEmpty) {
           final text = candidates.first['content']['parts'][0]['text'] as String;
@@ -254,7 +341,7 @@ Raw JSON only.
             classification: json['classification'] as String? ??
                 'Professional Driver (Light Commercial / Delivery)',
             dlCodes: json['dlCodes'] as String? ?? 'A, A1, B, B1, B2',
-            source: 'Gemini 3.1 Flash Lite (Google AI Studio)',
+            source: 'Gemini (${callResult.model})',
           );
         }
       }
@@ -414,7 +501,7 @@ Respond ONLY with raw JSON (do not include markdown codeblocks or quotes):
 }
 ''';
 
-    final requestBody = jsonEncode({
+    final requestBody = {
       'contents': [
         {
           'parts': [
@@ -432,38 +519,16 @@ Respond ONLY with raw JSON (do not include markdown codeblocks or quotes):
         'responseMimeType': 'application/json',
         'temperature': 0.0,
       }
-    });
+    };
 
     try {
-      http.Response? response;
+      final callResult = await _postWithFallback(
+        requestBody: requestBody,
+        timeout: const Duration(seconds: 25),
+      );
 
-      // Retry up to 3 times if Google AI servers return 503 (High demand) or 429 (Rate limit)
-      for (int attempt = 1; attempt <= 3; attempt++) {
-        try {
-          response = await http.post(
-            Uri.parse('$_baseUrl?key=${GeminiConfig.apiKey}'),
-            headers: {'Content-Type': 'application/json'},
-            body: requestBody,
-          ).timeout(const Duration(seconds: 25));
-
-          if (response.statusCode == 200) break;
-
-          debugPrint('[GeminiService] Attempt $attempt: Status ${response.statusCode}');
-
-          if ((response.statusCode == 503 || response.statusCode == 429) && attempt < 3) {
-            debugPrint('[GeminiService] Server busy (503/429). Retrying in ${attempt * 1500}ms...');
-            await Future.delayed(Duration(milliseconds: 1500 * attempt));
-            continue;
-          }
-          break;
-        } catch (e) {
-          if (attempt == 3) rethrow;
-          await Future.delayed(Duration(milliseconds: 1500 * attempt));
-        }
-      }
-
-      if (response != null && response.statusCode == 200) {
-        final data = jsonDecode(response.body) as Map<String, dynamic>;
+      if (callResult != null && callResult.response.statusCode == 200) {
+        final data = jsonDecode(callResult.response.body) as Map<String, dynamic>;
         final candidates = data['candidates'] as List<dynamic>?;
         if (candidates != null && candidates.isNotEmpty) {
           var rawText = candidates.first['content']['parts'][0]['text'] as String;
@@ -497,7 +562,7 @@ Respond ONLY with raw JSON (do not include markdown codeblocks or quotes):
                 isDriverLicense: false,
                 rejectionReason: 'This image does not appear to be an authentic LTO Driver\'s License. '
                     'Please take a clear photo of your official LTO plastic card ($plausibilityError).',
-                source: 'Gemini 3.1 Flash Lite Vision AI',
+                source: 'Gemini (${callResult.model})',
               );
             }
           }
@@ -515,7 +580,7 @@ Respond ONLY with raw JSON (do not include markdown codeblocks or quotes):
               rejectionReason: reason.isNotEmpty
                   ? reason
                   : 'The image was not recognized as an official Philippine LTO Driver\'s License card.',
-              source: 'Gemini 3.1 Flash Lite Vision AI',
+              source: 'Gemini (${callResult.model})',
             );
           }
 
@@ -529,34 +594,7 @@ Respond ONLY with raw JSON (do not include markdown codeblocks or quotes):
             dlCodes: dlCodes.isNotEmpty ? dlCodes : 'A, A1, B, B1, B2',
             message: msg.isNotEmpty ? msg : 'Official LTO Driver\'s License Verified',
             rejectionReason: '',
-            source: 'Gemini 3.1 Flash Lite Vision AI',
-          );
-        }
-      } else if (response != null) {
-        debugPrint('[GeminiService] HTTP Error ${response.statusCode}: ${response.body}');
-        if (response.statusCode == 503) {
-          return const GeminiPhotoLicenseResult(
-            isValid: false,
-            isDriverLicense: false,
-            rejectionReason: 'Google AI is experiencing high demand right now. Please tap Retake or wait a few seconds and try again.',
-          );
-        } else if (response.statusCode == 429) {
-          return const GeminiPhotoLicenseResult(
-            isValid: false,
-            isDriverLicense: false,
-            rejectionReason: 'API request limit reached. Please wait a moment and try again.',
-          );
-        } else if (response.statusCode == 400 || response.statusCode == 403 || response.statusCode == 401) {
-          return const GeminiPhotoLicenseResult(
-            isValid: false,
-            isDriverLicense: false,
-            rejectionReason: 'Invalid Google AI Studio API key. Please check the API key in lib/config/gemini_config.dart.',
-          );
-        } else {
-          return GeminiPhotoLicenseResult(
-            isValid: false,
-            isDriverLicense: false,
-            rejectionReason: 'AI service error (${response.statusCode}). Please try again in a moment.',
+            source: 'Gemini (${callResult.model})',
           );
         }
       }
@@ -564,14 +602,14 @@ Respond ONLY with raw JSON (do not include markdown codeblocks or quotes):
       return GeminiPhotoLicenseResult(
         isValid: false,
         isDriverLicense: false,
-        rejectionReason: 'Unable to connect to AI vision service ($e). Please check your internet connection.',
+        rejectionReason: 'Hindi makakonekta sa AI vision service ($e). Pakisuri ang iyong internet connection.',
       );
     }
 
     return const GeminiPhotoLicenseResult(
       isValid: false,
       isDriverLicense: false,
-      rejectionReason: 'Unable to verify image. Please take a clearer photo of your official LTO Driver\'s License card.',
+      rejectionReason: 'Hindi ma-verify ang lisensya gamit ang AI (busy o walang response ang mga modelo). Subukang muli.',
     );
   }
 
@@ -628,6 +666,98 @@ Respond ONLY with raw JSON (do not include markdown codeblocks or quotes):
     }
 
     return null; // All checks passed
+  }
+
+  /// Extracts GCash reference number and amount from a GCash receipt screenshot
+  /// using Gemini Vision multimodal AI (same pattern as validateDriverLicensePhoto).
+  static Future<GeminiGcashResult> extractGcashReceipt({
+    required Uint8List imageBytes,
+    String mimeType = 'image/jpeg',
+  }) async {
+    if (imageBytes.isEmpty) {
+      return const GeminiGcashResult(
+        success: false,
+        errorMessage: 'Walang larawan. Pakuha muli ng photo ng GCash receipt.',
+      );
+    }
+
+    if (!GeminiConfig.isConfigured) {
+      return const GeminiGcashResult(
+        success: false,
+        errorMessage: 'Hindi naka-configure ang AI. I-manual input na lang ang Ref No. at Amount.',
+      );
+    }
+
+    const prompt = '''
+You are a GCash payment receipt reader for a Philippine food business app.
+Extract the GCash reference number and amount from this GCash screenshot or receipt photo.
+
+Rules:
+- Reference number is usually 13 digits long (e.g. 1234567890123)
+- Amount is the peso amount sent/paid (look for "PHP", "₱", or a number near "Amount" or "Sent")
+- If you cannot find either field clearly, set success to false
+
+Respond ONLY with raw JSON (no markdown, no code blocks):
+{
+  "success": boolean,
+  "refNumber": "string (13-digit reference number or empty string if not found)",
+  "amount": number (amount in pesos as a decimal e.g. 900.00, or 0 if not found),
+  "errorMessage": "string (reason if success is false, otherwise empty string)"
+}
+''';
+
+    final requestBody = {
+      'contents': [
+        {
+          'parts': [
+            {
+              'inline_data': {
+                'mime_type': mimeType,
+                'data': base64Encode(imageBytes),
+              }
+            },
+            {'text': prompt}
+          ]
+        }
+      ],
+      'generationConfig': {
+        'responseMimeType': 'application/json',
+        'temperature': 0.0,
+      }
+    };
+
+    try {
+      final callResult = await _postWithFallback(
+        requestBody: requestBody,
+        timeout: const Duration(seconds: 20),
+      );
+
+      if (callResult != null && callResult.response.statusCode == 200) {
+        final data = jsonDecode(callResult.response.body) as Map<String, dynamic>;
+        final candidates = data['candidates'] as List<dynamic>?;
+        if (candidates != null && candidates.isNotEmpty) {
+          var rawText = candidates.first['content']['parts'][0]['text'] as String;
+          rawText = rawText.trim().replaceAll('```json', '').replaceAll('```', '').trim();
+          final json = jsonDecode(rawText) as Map<String, dynamic>;
+          return GeminiGcashResult(
+            success: json['success'] as bool? ?? false,
+            refNumber: (json['refNumber'] as String? ?? '').trim(),
+            amount: (json['amount'] as num?)?.toDouble() ?? 0.0,
+            errorMessage: (json['errorMessage'] as String? ?? '').trim(),
+          );
+        }
+      }
+    } catch (e) {
+      return GeminiGcashResult(
+        success: false,
+        errorMessage: 'Hindi ma-process ang larawan ($e). I-manual input na lang.',
+      );
+    }
+
+    return const GeminiGcashResult(
+      success: false,
+      errorMessage: 'Hindi nakuha ang data mula sa receipt. I-manual input na lang.',
+    );
   }
 }
 

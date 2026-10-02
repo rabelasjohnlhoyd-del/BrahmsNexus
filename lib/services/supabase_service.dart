@@ -582,7 +582,43 @@ class SupabaseService {
     return 'data:$mimeType;base64,$base64String';
   }
 
-  /// Returns all staff in the in-memory cache.
+  /// Uploads a bilao proof photo to Supabase Storage bucket 'bilao-proofs'.
+  /// [proofType] is either 'gcash' (GCash receipt) or 'delivery' (driver proof).
+  /// Returns the public URL on success, or a base64 data URI fallback.
+  static Future<String?> uploadBilaoProofPhoto({
+    required String orderId,
+    required String proofType, // 'gcash' or 'delivery'
+    required Uint8List bytes,
+    String extension = 'jpg',
+  }) async {
+    final client = _client;
+    if (client != null) {
+      try {
+        final timestamp = DateTime.now().millisecondsSinceEpoch;
+        final filePath = '$proofType/${orderId}_$timestamp.$extension';
+
+        await client.storage.from('bilao-proofs').uploadBinary(
+          filePath,
+          bytes,
+          fileOptions: FileOptions(
+            upsert: true,
+            contentType: extension == 'png' ? 'image/png' : 'image/jpeg',
+          ),
+        );
+
+        final publicUrl = client.storage.from('bilao-proofs').getPublicUrl(filePath);
+        return publicUrl;
+      } catch (e) {
+        debugPrint('Supabase bilao-proofs upload failed ($e). Using base64 fallback.');
+      }
+    }
+
+    // Fallback: base64 data URI so the photo is never permanently lost
+    final mimeType = extension == 'png' ? 'image/png' : 'image/jpeg';
+    final base64String = base64Encode(bytes);
+    return 'data:$mimeType;base64,$base64String';
+  }
+
   static List<StaffMember> getAllStaff() => List.unmodifiable(_inMemoryStaff);
 
   /// Checks if a staff member is active and not archived by username, ID, or full name.

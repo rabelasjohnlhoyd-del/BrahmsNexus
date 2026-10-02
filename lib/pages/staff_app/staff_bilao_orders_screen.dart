@@ -1,14 +1,17 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import '../../data/philippine_address_data.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../models/bilao_order.dart';
 import '../../models/branch.dart';
 import '../../services/assignment_service.dart';
 import '../../services/auth_service.dart';
 import '../../services/firestore_service.dart';
+import '../../services/gemini_service.dart';
+import '../../services/supabase_service.dart';
 import '../../theme/app_theme.dart';
-import '../../widgets/staff_button.dart';
 import '../../widgets/staff_card.dart';
 import '../../widgets/staff_nav_bar.dart';
 import '../../widgets/staff_top_actions.dart';
@@ -192,58 +195,6 @@ class _StaffBilaoOrdersScreenState extends State<StaffBilaoOrdersScreen> {
     }
   }
 
-  // ── Release to Customer Action ─────────────────────────────────────────────
-
-  Future<void> _completeBranchPickup(BilaoOrder order) async {
-    final confirmed = await showCupertinoDialog<bool>(
-      context: context,
-      builder: (dialogCtx) => CupertinoAlertDialog(
-        title: const Text('Release to Customer?'),
-        content: Text(
-          'Has ${order.customerName} picked up their ${order.size.label} Bilao Order and was payment received (\u20b1${order.totalAmount.toStringAsFixed(0)})?\n\n'
-          'This will mark the order as Completed and notify the Owner.',
-        ),
-        actions: [
-          CupertinoDialogAction(
-            onPressed: () => Navigator.pop(dialogCtx, false),
-            child: const Text('Cancel'),
-          ),
-          CupertinoDialogAction(
-            isDefaultAction: true,
-            onPressed: () => Navigator.pop(dialogCtx, true),
-            child: const Text('Yes, Released'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed != true) return;
-
-    final staffName = AuthService.currentAppUser?.fullName ?? 'Branch Staff';
-    final success = await FirestoreService.completeBranchBilaoPickup(
-      order: order,
-      staffName: staffName,
-    );
-
-    if (!mounted) return;
-    if (success) {
-      showCupertinoDialog<void>(
-        context: context,
-        builder: (ctx) => CupertinoAlertDialog(
-          title: const Text('Order Completed!'),
-          content: Text(
-            'The bilao order for ${order.customerName} was successfully released. It has been recorded and the Owner has been notified.',
-          ),
-          actions: [
-            CupertinoDialogAction(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('OK'),
-            ),
-          ],
-        ),
-      );
-    }
-  }
 
   // ── Add Order Sheet ─────────────────────────────────────────────────────────
 
@@ -266,9 +217,6 @@ class _StaffBilaoOrdersScreenState extends State<StaffBilaoOrdersScreen> {
     final statusLabel = _cardStatusLabel(order);
     final statusColor = _cardStatusColor(order);
     final isCompleted = _isCompleted(order);
-    final canRelease = !isCompleted &&
-        (order.preparationStatus == PreparationStatus.ready ||
-            order.deliveryStatus == DeliveryStatus.outForDelivery);
 
     showCupertinoDialog<void>(
       context: context,
@@ -330,6 +278,50 @@ class _StaffBilaoOrdersScreenState extends State<StaffBilaoOrdersScreen> {
                     fontSize: 12, color: AppColors.textSecondary),
               ),
             ],
+            if (!isCompleted) ...[
+              const SizedBox(height: 6),
+              Text(
+                'Completion is automatic once the driver delivers.',
+                style: const TextStyle(
+                    fontSize: 11, color: AppColors.textSecondary, fontStyle: FontStyle.italic),
+              ),
+            ],
+            if (order.gcashProofUrl != null) ...[
+              const SizedBox(height: 8),
+              GestureDetector(
+                onTap: () => _viewProofPhoto(order.gcashProofUrl!, 'GCash Receipt Photo'),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(CupertinoIcons.photo, size: 14, color: AppColors.accent),
+                    SizedBox(width: 4),
+                    Text('Tingnan ang GCash Proof Photo',
+                        style: TextStyle(
+                            fontSize: 12,
+                            color: AppColors.accent,
+                            decoration: TextDecoration.underline)),
+                  ],
+                ),
+              ),
+            ],
+            if (order.deliveryProofUrl != null) ...[
+              const SizedBox(height: 8),
+              GestureDetector(
+                onTap: () => _viewProofPhoto(order.deliveryProofUrl!, 'Delivery Proof Photo'),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(CupertinoIcons.checkmark_seal_fill, size: 14, color: AppColors.success),
+                    SizedBox(width: 4),
+                    Text('Tingnan ang Delivery Proof Photo',
+                        style: TextStyle(
+                            fontSize: 12,
+                            color: AppColors.success,
+                            decoration: TextDecoration.underline)),
+                  ],
+                ),
+              ),
+            ],
             const SizedBox(height: 10),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -356,18 +348,43 @@ class _StaffBilaoOrdersScreenState extends State<StaffBilaoOrdersScreen> {
           ],
         ),
         actions: [
-          if (canRelease)
-            CupertinoDialogAction(
-              isDefaultAction: true,
-              onPressed: () {
-                Navigator.pop(ctx);
-                _completeBranchPickup(order);
-              },
-              child: const Text('Release to Customer'),
-            ),
           CupertinoDialogAction(
             onPressed: () => Navigator.pop(ctx),
             child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _viewProofPhoto(String proofUrl, String title) {
+    showCupertinoDialog<void>(
+      context: context,
+      builder: (ctx) => CupertinoAlertDialog(
+        title: Text(title),
+        content: Padding(
+          padding: const EdgeInsets.only(top: 12),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: proofUrl.startsWith('data:')
+                ? Image.memory(
+                    base64Decode(proofUrl.split(',').last),
+                    fit: BoxFit.contain,
+                  )
+                : Image.network(
+                    proofUrl,
+                    fit: BoxFit.contain,
+                    errorBuilder: (context, error, stackTrace) => const Icon(
+                        CupertinoIcons.exclamationmark_triangle,
+                        size: 32,
+                        color: AppColors.warning),
+                  ),
+          ),
+        ),
+        actions: [
+          CupertinoDialogAction(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('OK'),
           ),
         ],
       ),
@@ -555,17 +572,11 @@ class _StaffBilaoOrdersScreenState extends State<StaffBilaoOrdersScreen> {
                               const SizedBox(height: 10),
                           itemBuilder: (context, index) {
                             final order = _filteredOrders[index];
-                            final canRelease = !_isCompleted(order) &&
-                                (order.preparationStatus == PreparationStatus.ready ||
-                                    order.deliveryStatus == DeliveryStatus.outForDelivery);
-
                             return _OrderCard(
                               order: order,
                               statusLabel: _cardStatusLabel(order),
                               statusColor: _cardStatusColor(order),
-                              canRelease: canRelease,
                               onTap: () => _showOrderDetails(order),
-                              onRelease: () => _completeBranchPickup(order),
                             );
                           },
                         ),
@@ -610,17 +621,13 @@ class _OrderCard extends StatelessWidget {
     required this.order,
     required this.statusLabel,
     required this.statusColor,
-    required this.canRelease,
     required this.onTap,
-    required this.onRelease,
   });
 
   final BilaoOrder order;
   final String statusLabel;
   final Color statusColor;
-  final bool canRelease;
   final VoidCallback onTap;
-  final VoidCallback onRelease;
 
   @override
   Widget build(BuildContext context) {
@@ -634,132 +641,115 @@ class _OrderCard extends StatelessWidget {
         borderColor: isCompleted
             ? AppColors.success.withValues(alpha: 0.2)
             : AppColors.accent.withValues(alpha: 0.25),
-        child: Column(
+        child: Row(
           children: [
-            Row(
-              children: [
-                // Avatar
-                Container(
-                  width: 38,
-                  height: 38,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: isCompleted
-                        ? AppColors.success.withValues(alpha: 0.12)
-                        : AppColors.accent.withValues(alpha: 0.12),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Text(
-                    order.customerName.isNotEmpty
-                        ? order.customerName[0].toUpperCase()
-                        : 'B',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                      color: isCompleted ? AppColors.success : AppColors.accent,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-
-                // Name + contact + package
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        order.customerName,
-                        style: const TextStyle(
-                          fontSize: 14.5,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.textPrimary,
-                        ),
-                      ),
-                      const SizedBox(height: 1),
-                      Text(
-                        order.contactNumber,
-                        style: const TextStyle(
-                            fontSize: 12, color: AppColors.textSecondary),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        '${order.size.label} Bilao × ${order.quantity}  ·  \u20b1${order.totalAmount.toStringAsFixed(0)}',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.textPrimary,
-                        ),
-                      ),
-                      const SizedBox(height: 3),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: order.hasCookCommission
-                              ? AppColors.success.withValues(alpha: 0.12)
-                              : AppColors.textSecondary.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text(
-                          order.hasCookCommission
-                              ? 'BRANCH ORDER (+₱${order.commissionAmount.toStringAsFixed(0)} COMMISSION)'
-                              : 'DIRECT TO OWNER (NO COMMISSION)',
-                          style: TextStyle(
-                            fontSize: 9.5,
-                            fontWeight: FontWeight.w800,
-                            color: order.hasCookCommission
-                                ? AppColors.success
-                                : AppColors.textSecondary,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 10),
-
-                // Status pill (right side)
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Container(
-                      padding:
-                          const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: statusColor.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(6),
-                        border:
-                            Border.all(color: statusColor.withValues(alpha: 0.35)),
-                      ),
-                      child: Text(
-                        statusLabel,
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w800,
-                          color: statusColor,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    const Icon(CupertinoIcons.chevron_right,
-                        size: 13, color: AppColors.textSecondary),
-                  ],
-                ),
-              ],
-            ),
-            if (canRelease) ...[
-              const SizedBox(height: 10),
-              SizedBox(
-                width: double.infinity,
-                child: StaffButton(
-                  label: 'Release to Customer',
-                  icon: CupertinoIcons.checkmark_seal_fill,
-                  color: AppColors.success,
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  onPressed: onRelease,
+            // Avatar
+            Container(
+              width: 38,
+              height: 38,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: isCompleted
+                    ? AppColors.success.withValues(alpha: 0.12)
+                    : AppColors.accent.withValues(alpha: 0.12),
+                shape: BoxShape.circle,
+              ),
+              child: Text(
+                order.customerName.isNotEmpty
+                    ? order.customerName[0].toUpperCase()
+                    : 'B',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                  color: isCompleted ? AppColors.success : AppColors.accent,
                 ),
               ),
-            ],
+            ),
+            const SizedBox(width: 12),
+
+            // Name + contact + package
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    order.customerName,
+                    style: const TextStyle(
+                      fontSize: 14.5,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 1),
+                  Text(
+                    order.contactNumber,
+                    style: const TextStyle(
+                        fontSize: 12, color: AppColors.textSecondary),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${order.size.label} Bilao × ${order.quantity}  ·  \u20b1${order.totalAmount.toStringAsFixed(0)}',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: order.hasCookCommission
+                          ? AppColors.success.withValues(alpha: 0.12)
+                          : AppColors.textSecondary.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      order.hasCookCommission
+                          ? 'BRANCH ORDER (+₱${order.commissionAmount.toStringAsFixed(0)} COMMISSION)'
+                          : 'DIRECT TO OWNER (NO COMMISSION)',
+                      style: TextStyle(
+                        fontSize: 9.5,
+                        fontWeight: FontWeight.w800,
+                        color: order.hasCookCommission
+                            ? AppColors.success
+                            : AppColors.textSecondary,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 10),
+
+            // Status pill (right side)
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: statusColor.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(6),
+                    border:
+                        Border.all(color: statusColor.withValues(alpha: 0.35)),
+                  ),
+                  child: Text(
+                    statusLabel,
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                      color: statusColor,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                const Icon(CupertinoIcons.chevron_right,
+                    size: 13, color: AppColors.textSecondary),
+              ],
+            ),
           ],
         ),
       ),
@@ -767,7 +757,7 @@ class _OrderCard extends StatelessWidget {
   }
 }
 
-// ── Add Bilao Order Sheet (Cupertino) ────────────────────────────────────────
+// ── Add Bilao Order Sheet — 3-Step Stepper ───────────────────────────────────
 
 class _AddBilaoOrderSheet extends StatefulWidget {
   const _AddBilaoOrderSheet({
@@ -783,23 +773,36 @@ class _AddBilaoOrderSheet extends StatefulWidget {
 }
 
 class _AddBilaoOrderSheetState extends State<_AddBilaoOrderSheet> {
-  final _nameCtrl    = TextEditingController();
-  final _contactCtrl = TextEditingController();
-  final _notesCtrl   = TextEditingController();
-  final _streetCtrl  = TextEditingController();
-  final _depositCtrl = TextEditingController(text: '0');
+  // ── Controllers ──────────────────────────────────────────────────────────
+  final _nameCtrl     = TextEditingController();
+  final _contactCtrl  = TextEditingController();
+  final _notesCtrl    = TextEditingController();
+  final _depositCtrl  = TextEditingController();
+  final _gcashRefCtrl = TextEditingController();
+  final _gcashAmtCtrl = TextEditingController();
 
-  // Address dropdowns
-  String  _province  = 'Laguna';
-  String? _city;
-  String? _barangay;
+  // ── State ─────────────────────────────────────────────────────────────────
+  int         _step             = 0; // 0,1,2
+  BilaoSize   _size             = BilaoSize.medium;
+  int         _quantity         = 1;
+  bool        _isSaving         = false;
+  DateTime    _scheduledDateTime = DateTime.now().add(const Duration(hours: 2));
 
-  BilaoSize _size              = BilaoSize.medium;
-  int       _quantity          = 1;
-  bool      _isSaving          = false;
-  DateTime  _scheduledDateTime = DateTime.now().add(const Duration(hours: 2));
+  // Payment
+  PaymentMethod _paymentMethod = PaymentMethod.cash;
+  PaymentType   _paymentType   = PaymentType.fullPayment;
 
-  // ── Shared compact field styles ──────────────────────────────────────────
+  // GCash OCR
+  XFile? _gcashPhoto;
+  bool   _isOcrLoading = false;
+  String _ocrError     = '';
+
+  // ── Computed ──────────────────────────────────────────────────────────────
+
+  double get _total => _size.price * _quantity;
+  double get _minDeposit => _total * 0.65;
+
+  // ── Styles ────────────────────────────────────────────────────────────────
 
   static const _fieldTextStyle = TextStyle(
     fontSize: 13,
@@ -819,84 +822,103 @@ class _AddBilaoOrderSheetState extends State<_AddBilaoOrderSheet> {
     required String label,
     String? hint,
     IconData? icon,
+    bool readOnly = false,
   }) =>
       InputDecoration(
         labelText: label,
         hintText: hint,
         isDense: true,
-        labelStyle: const TextStyle(
+        labelStyle: TextStyle(
           fontSize: 12,
           fontWeight: FontWeight.w600,
-          color: Color(0xFF6B584C),
+          color: readOnly ? const Color(0xFF9E8B7E) : const Color(0xFF6B584C),
           decoration: TextDecoration.none,
         ),
-        floatingLabelStyle: const TextStyle(
+        floatingLabelStyle: TextStyle(
           fontSize: 11.5,
           fontWeight: FontWeight.w700,
-          color: AppColors.accent,
+          color: readOnly ? const Color(0xFF9E8B7E) : AppColors.accent,
           decoration: TextDecoration.none,
         ),
         hintStyle: _hintStyle,
         prefixIcon: icon != null
-            ? Icon(icon, size: 17, color: const Color(0xFF8B4513))
+            ? Icon(icon,
+                size: 17,
+                color: readOnly
+                    ? const Color(0xFFCCC0B4)
+                    : const Color(0xFF8B4513))
             : null,
         prefixIconConstraints: const BoxConstraints(minWidth: 36, minHeight: 36),
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         filled: true,
-        fillColor: Colors.white,
+        fillColor: readOnly ? const Color(0xFFF7F3F0) : Colors.white,
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(9)),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(9),
-          borderSide: const BorderSide(color: Color(0xFFDCCFC3)),
+          borderSide: BorderSide(
+              color: readOnly
+                  ? const Color(0xFFEDE5DF)
+                  : const Color(0xFFDCCFC3)),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(9),
-          borderSide: const BorderSide(color: AppColors.accent, width: 1.5),
+          borderSide: BorderSide(
+              color: readOnly
+                  ? const Color(0xFFDCCFC3)
+                  : AppColors.accent,
+              width: 1.5),
+        ),
+        disabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(9),
+          borderSide:
+              const BorderSide(color: Color(0xFFEDE5DF)),
         ),
       );
 
-  // ── Lifecycle ────────────────────────────────────────────────────────────────
+  // ── Lifecycle ─────────────────────────────────────────────────────────────
+
+  @override
+  void initState() {
+    super.initState();
+    // Initialise deposit to full payment amount
+    _depositCtrl.text = _total.toStringAsFixed(0);
+  }
 
   @override
   void dispose() {
     _nameCtrl.dispose();
     _contactCtrl.dispose();
     _notesCtrl.dispose();
-    _streetCtrl.dispose();
     _depositCtrl.dispose();
+    _gcashRefCtrl.dispose();
+    _gcashAmtCtrl.dispose();
     super.dispose();
   }
 
-  // ── Computed ─────────────────────────────────────────────────────────────────
+  // ── Navigation ────────────────────────────────────────────────────────────
 
-  double get _total => _size.price * _quantity;
-
-  String get _formattedDateOnly {
-    final dt = _scheduledDateTime;
-    const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
-    ];
-    return '${months[dt.month - 1]} ${dt.day}, ${dt.year}';
+  void _nextStep() {
+    if (_step == 0) {
+      final name    = _nameCtrl.text.trim();
+      final contact = _contactCtrl.text.trim();
+      if (name.isEmpty) {
+        _showError('Pakienter ang pangalan ng customer.');
+        return;
+      }
+      if (contact.isEmpty) {
+        _showError('Pakienter ang contact number ng customer.');
+        return;
+      }
+    }
+    if (_step < 2) setState(() => _step++);
   }
 
-  String get _formattedTimeOnly {
-    final dt = _scheduledDateTime;
-    final hour   = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
-    final minute = dt.minute.toString().padLeft(2, '0');
-    final ampm   = dt.hour < 12 ? 'AM' : 'PM';
-    return '$hour:$minute $ampm';
+  void _prevStep() {
+    if (_step > 0) setState(() => _step--);
   }
 
-  String get _deliveryAddress {
-    if (_city == null || _barangay == null) return '';
-    final street = _streetCtrl.text.trim();
-    if (street.isEmpty) return 'Brgy. $_barangay, $_city, $_province';
-    return '$street, Brgy. $_barangay, $_city, $_province';
-  }
-
-  // ── Date and Time Pickers (Material themed dialogs) ──────────────────────────
+  // ── Date/Time pickers ─────────────────────────────────────────────────────
 
   Future<void> _pickDate() async {
     final picked = await showDatePicker(
@@ -904,29 +926,22 @@ class _AddBilaoOrderSheetState extends State<_AddBilaoOrderSheet> {
       initialDate: _scheduledDateTime,
       firstDate: DateTime.now().subtract(const Duration(days: 1)),
       lastDate: DateTime.now().add(const Duration(days: 90)),
-      builder: (context, child) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.light(
-              primary: AppColors.accent,
-              onPrimary: Colors.white,
-              surface: Colors.white,
-              onSurface: Color(0xFF24140B),
-            ),
+      builder: (context, child) => Theme(
+        data: Theme.of(context).copyWith(
+          colorScheme: const ColorScheme.light(
+            primary: AppColors.accent,
+            onPrimary: Colors.white,
+            surface: Colors.white,
+            onSurface: Color(0xFF24140B),
           ),
-          child: child!,
-        );
-      },
+        ),
+        child: child!,
+      ),
     );
     if (picked == null) return;
     setState(() {
-      _scheduledDateTime = DateTime(
-        picked.year,
-        picked.month,
-        picked.day,
-        _scheduledDateTime.hour,
-        _scheduledDateTime.minute,
-      );
+      _scheduledDateTime = DateTime(picked.year, picked.month, picked.day,
+          _scheduledDateTime.hour, _scheduledDateTime.minute);
     });
   }
 
@@ -934,68 +949,197 @@ class _AddBilaoOrderSheetState extends State<_AddBilaoOrderSheet> {
     final picked = await showTimePicker(
       context: context,
       initialTime: TimeOfDay.fromDateTime(_scheduledDateTime),
-      builder: (context, child) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.light(
-              primary: AppColors.accent,
-              onPrimary: Colors.white,
-              surface: Colors.white,
-              onSurface: Color(0xFF24140B),
-            ),
-            timePickerTheme: const TimePickerThemeData(
-              dialHandColor: AppColors.accent,
-              hourMinuteColor: Color(0xFFF5EDE6),
-              hourMinuteTextColor: Color(0xFF24140B),
-              dayPeriodColor: Color(0xFFF5EDE6),
-              dayPeriodTextColor: Color(0xFF24140B),
-            ),
+      builder: (context, child) => Theme(
+        data: Theme.of(context).copyWith(
+          colorScheme: const ColorScheme.light(
+            primary: AppColors.accent,
+            onPrimary: Colors.white,
+            surface: Colors.white,
+            onSurface: Color(0xFF24140B),
           ),
-          child: child!,
-        );
-      },
+          timePickerTheme: const TimePickerThemeData(
+            dialHandColor: AppColors.accent,
+            hourMinuteColor: Color(0xFFF5EDE6),
+            hourMinuteTextColor: Color(0xFF24140B),
+            dayPeriodColor: Color(0xFFF5EDE6),
+            dayPeriodTextColor: Color(0xFF24140B),
+          ),
+        ),
+        child: child!,
+      ),
     );
     if (picked == null) return;
     setState(() {
-      _scheduledDateTime = DateTime(
-        _scheduledDateTime.year,
-        _scheduledDateTime.month,
-        _scheduledDateTime.day,
-        picked.hour,
-        picked.minute,
-      );
+      _scheduledDateTime = DateTime(_scheduledDateTime.year,
+          _scheduledDateTime.month, _scheduledDateTime.day,
+          picked.hour, picked.minute);
     });
   }
 
-  // ── Save ─────────────────────────────────────────────────────────────────────
+  String get _formattedDateOnly {
+    final dt = _scheduledDateTime;
+    const months = ['Jan','Feb','Mar','Apr','May','Jun',
+                    'Jul','Aug','Sep','Oct','Nov','Dec'];
+    return '${months[dt.month - 1]} ${dt.day}, ${dt.year}';
+  }
+
+  String get _formattedTimeOnly {
+    final dt  = _scheduledDateTime;
+    final h   = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
+    final m   = dt.minute.toString().padLeft(2, '0');
+    final amp = dt.hour < 12 ? 'AM' : 'PM';
+    return '$h:$m $amp';
+  }
+
+  // ── Payment helpers ───────────────────────────────────────────────────────
+
+  void _onSelectPaymentType(PaymentType type) {
+    setState(() {
+      _paymentType = type;
+      if (type == PaymentType.fullPayment) {
+        _depositCtrl.text = _total.toStringAsFixed(0);
+      } else {
+        // Down payment — pre-fill minimum 65%
+        _depositCtrl.text = _minDeposit.toStringAsFixed(0);
+      }
+    });
+  }
+
+  void _onSelectPaymentMethod(PaymentMethod method) {
+    setState(() {
+      _paymentMethod = method;
+      if (method == PaymentMethod.cash) {
+        _clearGcashPhoto();
+      }
+    });
+  }
+
+  // ── GCash OCR ─────────────────────────────────────────────────────────────
+
+  Future<void> _pickGcashPhoto(ImageSource source) async {
+    try {
+      final photo = await ImagePicker().pickImage(
+          source: source, imageQuality: 90);
+      if (photo == null) return;
+      setState(() {
+        _gcashPhoto   = photo;
+        _ocrError     = '';
+        _isOcrLoading = true;
+      });
+      await _runOcr(photo);
+    } catch (e) {
+      setState(() => _ocrError = 'Hindi ma-access ang camera/gallery: $e');
+    }
+  }
+
+  Future<void> _runOcr(XFile photo) async {
+    try {
+      final bytes  = await photo.readAsBytes();
+      final result = await GeminiService.extractGcashReceipt(imageBytes: bytes);
+      if (!mounted) return;
+      setState(() {
+        _isOcrLoading = false;
+        if (result.success) {
+          _gcashRefCtrl.text = result.refNumber;
+          if (result.amount > 0) {
+            _gcashAmtCtrl.text = result.amount.toStringAsFixed(2);
+          }
+          _ocrError = '';
+        } else {
+          _ocrError = result.errorMessage.isNotEmpty
+              ? result.errorMessage
+              : 'Hindi nakuha ang data. I-edit na lang manually.';
+        }
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isOcrLoading = false;
+        _ocrError     = 'OCR error: $e';
+      });
+    }
+  }
+
+  void _clearGcashPhoto() {
+    setState(() {
+      _gcashPhoto   = null;
+      _ocrError     = '';
+      _isOcrLoading = false;
+      _gcashRefCtrl.clear();
+      _gcashAmtCtrl.clear();
+    });
+  }
+
+  // ── Save ──────────────────────────────────────────────────────────────────
 
   Future<void> _save() async {
-    final name    = _nameCtrl.text.trim();
-    final contact = _contactCtrl.text.trim();
-
-    if (name.isEmpty || contact.isEmpty) {
-      _showError('Please enter the customer name and contact number.');
-      return;
+    // Validate payment step
+    if (_paymentMethod == PaymentMethod.gcash) {
+      if (_gcashPhoto == null) {
+        _showError('Pakuha ng photo ng GCash receipt bago mag-submit.');
+        return;
+      }
+      if (_gcashRefCtrl.text.trim().isEmpty) {
+        _showError('Pakienter ang GCash Reference Number.');
+        return;
+      }
     }
+
+    // Validate deposit amount for down payment
+    if (_paymentType == PaymentType.downPayment) {
+      final entered = double.tryParse(_depositCtrl.text.trim()) ?? 0.0;
+      if (entered < _minDeposit - 0.01) {
+        _showError(
+            'Ang minimum na downpayment ay 65% ng total (₱${_minDeposit.toStringAsFixed(0)}).');
+        return;
+      }
+    }
+
     setState(() => _isSaving = true);
     try {
-      final orderId = 'bilao_${DateTime.now().millisecondsSinceEpoch}';
+      // Upload GCash proof if needed
+      String? gcashProofUrl;
+      if (_paymentMethod == PaymentMethod.gcash && _gcashPhoto != null) {
+        final bytes  = await _gcashPhoto!.readAsBytes();
+        final tempId = 'temp_${DateTime.now().millisecondsSinceEpoch}';
+        gcashProofUrl = await SupabaseService.uploadBilaoProofPhoto(
+          orderId:   tempId,
+          proofType: 'gcash',
+          bytes:     bytes,
+        );
+      }
+
+      final depositAmt = double.tryParse(_depositCtrl.text.trim()) ?? 0.0;
+      final orderId    = 'bilao_${DateTime.now().millisecondsSinceEpoch}';
+
       final order = BilaoOrder(
-        id: orderId,
-        customerName: name,
-        contactNumber: contact,
-        size: _size,
-        quantity: _quantity,
+        id:                orderId,
+        customerName:      _nameCtrl.text.trim(),
+        contactNumber:     _contactCtrl.text.trim(),
+        size:              _size,
+        quantity:          _quantity,
         scheduledDateTime: _scheduledDateTime,
-        fulfillmentType: BilaoFulfillmentType.branchPickup,
-        orderChannel: BilaoOrderChannel.branchOrder,
-        pickupBranchId: widget.branchId,
-        pickupBranchName: widget.branchName,
-        deliveryAddress: '',
-        notes: _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
-        depositAmount: double.tryParse(_depositCtrl.text.trim()) ?? 0.0,
+        fulfillmentType:   BilaoFulfillmentType.branchPickup,
+        orderChannel:      BilaoOrderChannel.branchOrder,
+        pickupBranchId:    widget.branchId,
+        pickupBranchName:  widget.branchName,
+        deliveryAddress:   '',
+        notes:             _notesCtrl.text.trim().isEmpty
+                               ? null
+                               : _notesCtrl.text.trim(),
+        depositAmount:     depositAmt,
         preparationStatus: PreparationStatus.pending,
-        deliveryStatus: DeliveryStatus.forDelivery,
+        deliveryStatus:    DeliveryStatus.forDelivery,
+        paymentMethod:     _paymentMethod,
+        paymentType:       _paymentType,
+        gcashRefNumber:    _paymentMethod == PaymentMethod.gcash
+                               ? _gcashRefCtrl.text.trim()
+                               : null,
+        gcashAmount:       _paymentMethod == PaymentMethod.gcash
+                               ? double.tryParse(_gcashAmtCtrl.text.trim())
+                               : null,
+        gcashProofUrl:     gcashProofUrl,
+        gcashVerified:     false,
       );
       await FirestoreService.createBilaoOrder(order);
       if (mounted) Navigator.pop(context);
@@ -1009,7 +1153,7 @@ class _AddBilaoOrderSheetState extends State<_AddBilaoOrderSheet> {
     showCupertinoDialog<void>(
       context: context,
       builder: (ctx) => CupertinoAlertDialog(
-        title: const Text('Missing Information'),
+        title: const Text('Error'),
         content: Text(msg),
         actions: [
           CupertinoDialogAction(
@@ -1021,469 +1165,7 @@ class _AddBilaoOrderSheetState extends State<_AddBilaoOrderSheet> {
     );
   }
 
-  // ── Build ─────────────────────────────────────────────────────────────────────
-
-  @override
-  Widget build(BuildContext context) {
-    final cities   = PhilippineAddressData.getCities(_province);
-    final barangays = _city != null
-        ? PhilippineAddressData.getBarangays(_city!)
-        : <String>[];
-
-    return Material(
-      color: Colors.transparent,
-      child: DefaultTextStyle(
-        style: const TextStyle(
-          decoration: TextDecoration.none,
-          color: Color(0xFF24140B),
-          fontFamily: '.SF Pro Text',
-        ),
-        child: Container(
-          padding: EdgeInsets.only(
-            left: 16,
-            right: 16,
-            top: 12,
-            bottom: MediaQuery.of(context).viewInsets.bottom + 18,
-          ),
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-            boxShadow: [
-              BoxShadow(
-                color: Color(0x20000000),
-                blurRadius: 16,
-                offset: Offset(0, -4),
-              ),
-            ],
-          ),
-          child: SafeArea(
-            top: false,
-            child: SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // ── Pull handle ──────────────────────────────────────────
-                  Center(
-                    child: Container(
-                      width: 36,
-                      height: 4,
-                      margin: const EdgeInsets.only(bottom: 10),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFDCCFC3),
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-                  ),
-
-                  // ── Header ───────────────────────────────────────────────
-                  Row(
-                    children: [
-                      const Expanded(
-                        child: Text(
-                          'Bagong Bilao Order',
-                          style: TextStyle(
-                            fontSize: 16.5,
-                            fontWeight: FontWeight.w800,
-                            color: Color(0xFF24140B),
-                            decoration: TextDecoration.none,
-                          ),
-                        ),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.close_rounded,
-                            size: 20, color: Color(0xFF9E8B7E)),
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
-                        onPressed: () => Navigator.pop(context),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 1),
-                  Text(
-                    widget.branchName,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: Color(0xFF7A6556),
-                      decoration: TextDecoration.none,
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-
-                  // ── Customer Name ─────────────────────────────────────────
-                  TextFormField(
-                    controller: _nameCtrl,
-                    textCapitalization: TextCapitalization.words,
-                    style: _fieldTextStyle,
-                    decoration: _dec(
-                      label: 'Customer Name',
-                      hint: 'e.g. Juan Dela Cruz',
-                      icon: Icons.person_outline_rounded,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-
-                  // ── Contact Number ────────────────────────────────────────
-                  TextFormField(
-                    controller: _contactCtrl,
-                    keyboardType: TextInputType.phone,
-                    style: _fieldTextStyle,
-                    decoration: _dec(
-                      label: 'Contact Number',
-                      hint: '09XX XXX XXXX',
-                      icon: Icons.phone_outlined,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-
-                  // ── Bilao Size ────────────────────────────────────────────
-                  const Text(
-                    'Bilao Size',
-                    style: TextStyle(
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.w700,
-                      color: Color(0xFF6B584C),
-                      letterSpacing: 0.2,
-                      decoration: TextDecoration.none,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Row(
-                    children: BilaoSize.values.map((s) {
-                      final selected = _size == s;
-                      return Expanded(
-                        child: GestureDetector(
-                          onTap: () => setState(() => _size = s),
-                          child: Container(
-                            margin: EdgeInsets.only(
-                                right: s != BilaoSize.large ? 6 : 0),
-                            padding: const EdgeInsets.symmetric(vertical: 7),
-                            decoration: BoxDecoration(
-                              color: selected
-                                  ? AppColors.accent
-                                  : Colors.white,
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(
-                                color: selected
-                                    ? AppColors.accent
-                                    : const Color(0xFFDCCFC3),
-                                width: selected ? 1.5 : 1,
-                              ),
-                            ),
-                            child: Column(
-                              children: [
-                                Text(
-                                  s.name[0].toUpperCase() +
-                                      s.name.substring(1),
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w700,
-                                    color: selected
-                                        ? Colors.white
-                                        : const Color(0xFF24140B),
-                                    decoration: TextDecoration.none,
-                                  ),
-                                ),
-                                Text(
-                                  '\u20b1${s.price.toStringAsFixed(0)}',
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w500,
-                                    color: selected
-                                        ? Colors.white70
-                                        : const Color(0xFF9E8B7E),
-                                    decoration: TextDecoration.none,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      );
-                    }).toList(),
-                  ),
-                  const SizedBox(height: 12),
-
-                  // ── Quantity ──────────────────────────────────────────────
-                  const Text(
-                    'Quantity',
-                    style: TextStyle(
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.w700,
-                      color: Color(0xFF6B584C),
-                      letterSpacing: 0.2,
-                      decoration: TextDecoration.none,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: const Color(0xFFDCCFC3)),
-                    ),
-                    child: Row(
-                      children: [
-                        // Minus
-                        GestureDetector(
-                          onTap: _quantity > 1
-                              ? () => setState(() => _quantity--)
-                              : null,
-                          child: Container(
-                            width: 28,
-                            height: 28,
-                            decoration: BoxDecoration(
-                              color: _quantity > 1
-                                  ? const Color(0xFFF5EDE6)
-                                  : const Color(0xFFF0EBE7),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Icon(
-                              Icons.remove_rounded,
-                              size: 16,
-                              color: _quantity > 1
-                                  ? AppColors.accent
-                                  : const Color(0xFFCCC0B4),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Text(
-                          '$_quantity',
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w800,
-                            color: Color(0xFF24140B),
-                            decoration: TextDecoration.none,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        // Plus
-                        GestureDetector(
-                          onTap: () => setState(() => _quantity++),
-                          child: Container(
-                            width: 28,
-                            height: 28,
-                            decoration: BoxDecoration(
-                              color: AppColors.accent,
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: const Icon(Icons.add_rounded,
-                                size: 16, color: Colors.white),
-                          ),
-                        ),
-                        const Spacer(),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            Text(
-                              'Total: \u20b1${_total.toStringAsFixed(0)}',
-                              style: const TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w800,
-                                color: Color(0xFF24140B),
-                                decoration: TextDecoration.none,
-                              ),
-                            ),
-                            Text(
-                              'Deposit: \u20b1${(double.tryParse(_depositCtrl.text.trim()) ?? 0.0).toStringAsFixed(0)}',
-                              style: const TextStyle(
-                                fontSize: 11,
-                                color: Color(0xFF9E8B7E),
-                                decoration: TextDecoration.none,
-                              ),
-                            ),
-                            Text(
-                              'COD: \u20b1${(_total - (double.tryParse(_depositCtrl.text.trim()) ?? 0.0)).clamp(0.0, _total).toStringAsFixed(0)}',
-                              style: const TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                                color: AppColors.warning,
-                                decoration: TextDecoration.none,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-
-                  // ── Deposit / Downpayment ─────────────────────────────────
-                  TextFormField(
-                    controller: _depositCtrl,
-                    keyboardType: TextInputType.number,
-                    style: _fieldTextStyle,
-                    decoration: _dec(
-                      label: 'Deposit / Downpayment (₱)',
-                      hint: '0',
-                      icon: Icons.payments_outlined,
-                    ),
-                    onChanged: (_) => setState(() {}),
-                  ),
-                  const SizedBox(height: 12),
-
-                  // ── Schedule ──────────────────────────────────────────────
-                  const Text(
-                    'Schedule',
-                    style: TextStyle(
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.w700,
-                      color: Color(0xFF6B584C),
-                      letterSpacing: 0.2,
-                      decoration: TextDecoration.none,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Row(
-                    children: [
-                      // Date Selector
-                      Expanded(
-                        flex: 3,
-                        child: GestureDetector(
-                          onTap: _pickDate,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 10, vertical: 8),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(9),
-                              border: Border.all(color: const Color(0xFFDCCFC3)),
-                            ),
-                            child: Row(
-                              children: [
-                                const Icon(Icons.calendar_month_outlined,
-                                    size: 16, color: Color(0xFF8B4513)),
-                                const SizedBox(width: 6),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      const Text(
-                                        'Date',
-                                        style: TextStyle(
-                                          fontSize: 9.5,
-                                          fontWeight: FontWeight.w600,
-                                          color: Color(0xFF9E8B7E),
-                                          decoration: TextDecoration.none,
-                                        ),
-                                      ),
-                                      Text(
-                                        _formattedDateOnly,
-                                        style: const TextStyle(
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w700,
-                                          color: Color(0xFF24140B),
-                                          decoration: TextDecoration.none,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                const Icon(Icons.keyboard_arrow_down_rounded,
-                                    size: 16, color: Color(0xFF9E8B7E)),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      // Time Selector
-                      Expanded(
-                        flex: 2,
-                        child: GestureDetector(
-                          onTap: _pickTime,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 10, vertical: 8),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(9),
-                              border: Border.all(color: const Color(0xFFDCCFC3)),
-                            ),
-                            child: Row(
-                              children: [
-                                const Icon(Icons.access_time_rounded,
-                                    size: 16, color: Color(0xFF8B4513)),
-                                const SizedBox(width: 6),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      const Text(
-                                        'Time',
-                                        style: TextStyle(
-                                          fontSize: 9.5,
-                                          fontWeight: FontWeight.w600,
-                                          color: Color(0xFF9E8B7E),
-                                          decoration: TextDecoration.none,
-                                        ),
-                                      ),
-                                      Text(
-                                        _formattedTimeOnly,
-                                        style: const TextStyle(
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w700,
-                                          color: Color(0xFF24140B),
-                                          decoration: TextDecoration.none,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                const Icon(Icons.keyboard_arrow_down_rounded,
-                                    size: 16, color: Color(0xFF9E8B7E)),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-
-                  const SizedBox(height: 10),
-
-                  // ── Notes ─────────────────────────────────────────────────
-                  TextFormField(
-                    controller: _notesCtrl,
-                    maxLines: 2,
-                    style: _fieldTextStyle,
-                    decoration: _dec(
-                      label: 'Notes (optional)',
-                      hint: 'e.g. Table 2, near the chapel...',
-                      icon: Icons.notes_rounded,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-
-                  // ── Save Button ───────────────────────────────────────────
-                  if (_isSaving)
-                    const SizedBox(
-                      height: 44,
-                      child: Center(
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: AppColors.accent,
-                        ),
-                      ),
-                    )
-                  else
-                    StaffButton(
-                      label: 'Save Order',
-                      padding: const EdgeInsets.symmetric(vertical: 11),
-                      onPressed: _save,
-                    ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
+  // ── Reusable chip ─────────────────────────────────────────────────────────
 
   Widget _typeChip(
     String label,
@@ -1495,8 +1177,7 @@ class _AddBilaoOrderSheetState extends State<_AddBilaoOrderSheet> {
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
-        padding:
-            const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
         decoration: BoxDecoration(
           color: selected ? AppColors.accent : Colors.white,
           borderRadius: BorderRadius.circular(8),
@@ -1508,11 +1189,8 @@ class _AddBilaoOrderSheetState extends State<_AddBilaoOrderSheet> {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              icon,
-              size: 15,
-              color: selected ? Colors.white : const Color(0xFF8B4513),
-            ),
+            Icon(icon, size: 15,
+                color: selected ? Colors.white : const Color(0xFF8B4513)),
             const SizedBox(width: 5),
             Flexible(
               child: Text(
@@ -1520,8 +1198,7 @@ class _AddBilaoOrderSheetState extends State<_AddBilaoOrderSheet> {
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w700,
-                  color:
-                      selected ? Colors.white : const Color(0xFF24140B),
+                  color: selected ? Colors.white : const Color(0xFF24140B),
                   decoration: TextDecoration.none,
                 ),
               ),
@@ -1531,5 +1208,924 @@ class _AddBilaoOrderSheetState extends State<_AddBilaoOrderSheet> {
       ),
     );
   }
-}
 
+  // ── Step indicator ────────────────────────────────────────────────────────
+
+  Widget _buildStepIndicator() {
+    const stepLabels = ['Info', 'Details', 'Payment'];
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: List.generate(5, (i) {
+        if (i.isOdd) {
+          // Connector line between dots
+          final lineIdx = i ~/ 2;
+          final filled = lineIdx < _step;
+          return Expanded(
+            child: Container(
+              height: 2,
+              margin: const EdgeInsets.only(bottom: 16),
+              decoration: BoxDecoration(
+                color: filled ? AppColors.accent : const Color(0xFFE2D5CB),
+                borderRadius: BorderRadius.circular(1),
+              ),
+            ),
+          );
+        }
+        final dotIdx = i ~/ 2;
+        final done   = dotIdx < _step;
+        final active = dotIdx == _step;
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 220),
+              width: 26,
+              height: 26,
+              decoration: BoxDecoration(
+                color: done
+                    ? AppColors.accent
+                    : active
+                        ? Colors.white
+                        : const Color(0xFFF4EDE8),
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: done || active ? AppColors.accent : const Color(0xFFD5C5BB),
+                  width: active ? 2 : 1.5,
+                ),
+                boxShadow: active
+                    ? [BoxShadow(
+                        color: AppColors.accent.withValues(alpha: 0.18),
+                        blurRadius: 6,
+                        offset: const Offset(0, 2),
+                      )]
+                    : null,
+              ),
+              child: done
+                  ? const Icon(Icons.check_rounded, size: 13, color: Colors.white)
+                  : Center(
+                      child: Text(
+                        '${dotIdx + 1}',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: active ? AppColors.accent : const Color(0xFFBBAFA8),
+                          decoration: TextDecoration.none,
+                        ),
+                      ),
+                    ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              stepLabels[dotIdx],
+              style: TextStyle(
+                fontSize: 9,
+                fontWeight: active ? FontWeight.w700 : FontWeight.w500,
+                color: active
+                    ? AppColors.accent
+                    : done
+                        ? const Color(0xFF7A6556)
+                        : const Color(0xFFBBAFA8),
+                decoration: TextDecoration.none,
+                letterSpacing: 0.1,
+              ),
+            ),
+          ],
+        );
+      }),
+    );
+  }
+
+  // ── STEP 1: Customer Info ─────────────────────────────────────────────────
+
+  Widget _buildStep1() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const Text(
+          'Sino ang mag-o-order?',
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: Color(0xFF9E8B7E),
+            decoration: TextDecoration.none,
+          ),
+        ),
+        const SizedBox(height: 12),
+        TextFormField(
+          controller: _nameCtrl,
+          textCapitalization: TextCapitalization.words,
+          style: _fieldTextStyle,
+          decoration: _dec(
+            label: 'Customer Name',
+            hint: 'e.g. Juan Dela Cruz',
+            icon: Icons.person_outline_rounded,
+          ),
+        ),
+        const SizedBox(height: 10),
+        TextFormField(
+          controller: _contactCtrl,
+          keyboardType: TextInputType.phone,
+          style: _fieldTextStyle,
+          decoration: _dec(
+            label: 'Contact Number',
+            hint: '09XX XXX XXXX',
+            icon: Icons.phone_outlined,
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ── STEP 2: Order Details ─────────────────────────────────────────────────
+
+  Widget _buildStep2() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Bilao Size label
+        const Text(
+          'BILAO SIZE',
+          style: TextStyle(
+            fontSize: 10,
+            fontWeight: FontWeight.w800,
+            color: Color(0xFF9E8B7E),
+            letterSpacing: 0.6,
+            decoration: TextDecoration.none,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Row(
+          children: BilaoSize.values.map((s) {
+            final selected = _size == s;
+            return Expanded(
+              child: GestureDetector(
+                onTap: () => setState(() {
+                  _size = s;
+                  if (_paymentType == PaymentType.fullPayment) {
+                    _depositCtrl.text = _total.toStringAsFixed(0);
+                  } else {
+                    _depositCtrl.text = _minDeposit.toStringAsFixed(0);
+                  }
+                }),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
+                  margin: EdgeInsets.only(right: s != BilaoSize.large ? 6 : 0),
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  decoration: BoxDecoration(
+                    color: selected ? AppColors.accent : Colors.white,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: selected ? AppColors.accent : const Color(0xFFDCCFC3),
+                      width: selected ? 1.5 : 1,
+                    ),
+                    boxShadow: selected
+                        ? [BoxShadow(
+                            color: AppColors.accent.withValues(alpha: 0.15),
+                            blurRadius: 6, offset: const Offset(0, 2))]
+                        : null,
+                  ),
+                  child: Column(
+                    children: [
+                      Text(
+                        s.name[0].toUpperCase() + s.name.substring(1),
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: selected ? Colors.white : const Color(0xFF24140B),
+                          decoration: TextDecoration.none,
+                        ),
+                      ),
+                      const SizedBox(height: 1),
+                      Text(
+                        '\u20b1${s.price.toStringAsFixed(0)}',
+                        style: TextStyle(
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w500,
+                          color: selected ? Colors.white70 : const Color(0xFF9E8B7E),
+                          decoration: TextDecoration.none,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+        const SizedBox(height: 12),
+
+        // Quantity
+        const Text(
+          'QUANTITY',
+          style: TextStyle(
+            fontSize: 10,
+            fontWeight: FontWeight.w800,
+            color: Color(0xFF9E8B7E),
+            letterSpacing: 0.6,
+            decoration: TextDecoration.none,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: const Color(0xFFDCCFC3)),
+          ),
+          child: Row(
+            children: [
+              _qtyButton(
+                icon: Icons.remove_rounded,
+                enabled: _quantity > 1,
+                onTap: () => setState(() {
+                  _quantity--;
+                  if (_paymentType == PaymentType.fullPayment) {
+                    _depositCtrl.text = _total.toStringAsFixed(0);
+                  } else {
+                    _depositCtrl.text = _minDeposit.toStringAsFixed(0);
+                  }
+                }),
+              ),
+              Expanded(
+                child: Center(
+                  child: Text(
+                    '$_quantity',
+                    style: const TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF24140B),
+                      decoration: TextDecoration.none,
+                    ),
+                  ),
+                ),
+              ),
+              _qtyButton(
+                icon: Icons.add_rounded,
+                enabled: true,
+                onTap: () => setState(() {
+                  _quantity++;
+                  if (_paymentType == PaymentType.fullPayment) {
+                    _depositCtrl.text = _total.toStringAsFixed(0);
+                  } else {
+                    _depositCtrl.text = _minDeposit.toStringAsFixed(0);
+                  }
+                }),
+              ),
+              const SizedBox(width: 12),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: AppColors.accent.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  '\u20b1${_total.toStringAsFixed(0)}',
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.accent,
+                    decoration: TextDecoration.none,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+
+        // Schedule
+        const Text(
+          'SCHEDULE',
+          style: TextStyle(
+            fontSize: 10,
+            fontWeight: FontWeight.w800,
+            color: Color(0xFF9E8B7E),
+            letterSpacing: 0.6,
+            decoration: TextDecoration.none,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Row(
+          children: [
+            Expanded(
+              flex: 3,
+              child: _scheduleBox(
+                label: 'Date',
+                value: _formattedDateOnly,
+                icon: Icons.calendar_month_outlined,
+                onTap: _pickDate,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              flex: 2,
+              child: _scheduleBox(
+                label: 'Time',
+                value: _formattedTimeOnly,
+                icon: Icons.access_time_rounded,
+                onTap: _pickTime,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+
+        // Notes
+        TextFormField(
+          controller: _notesCtrl,
+          maxLines: 2,
+          style: _fieldTextStyle,
+          decoration: _dec(
+            label: 'Notes (optional)',
+            hint: 'e.g. Special instructions...',
+            icon: Icons.notes_rounded,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _qtyButton({
+    required IconData icon,
+    required bool enabled,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: enabled ? onTap : null,
+      child: Container(
+        width: 30,
+        height: 30,
+        decoration: BoxDecoration(
+          color: enabled ? AppColors.accent : const Color(0xFFF0EBE7),
+          borderRadius: BorderRadius.circular(7),
+        ),
+        child: Icon(icon, size: 16,
+            color: enabled ? Colors.white : const Color(0xFFCCC0B4)),
+      ),
+    );
+  }
+
+  Widget _scheduleBox({
+    required String label,
+    required String value,
+    required IconData icon,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: const Color(0xFFDCCFC3)),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, size: 15, color: AppColors.accent),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(label,
+                      style: const TextStyle(
+                          fontSize: 9,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF9E8B7E),
+                          decoration: TextDecoration.none)),
+                  Text(value,
+                      style: const TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF24140B),
+                          decoration: TextDecoration.none)),
+                ],
+              ),
+            ),
+            const Icon(Icons.keyboard_arrow_down_rounded,
+                size: 14, color: Color(0xFF9E8B7E)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── STEP 3: Payment ───────────────────────────────────────────────────────
+
+  Widget _buildStep3() {
+    final isFull = _paymentType == PaymentType.fullPayment;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Method
+        const Text(
+          'PARAAN NG BAYAD',
+          style: TextStyle(
+            fontSize: 10,
+            fontWeight: FontWeight.w800,
+            color: Color(0xFF9E8B7E),
+            letterSpacing: 0.6,
+            decoration: TextDecoration.none,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Row(
+          children: [
+            Expanded(
+              child: _typeChip(
+                'Cash',
+                Icons.payments_outlined,
+                _paymentMethod == PaymentMethod.cash,
+                () => _onSelectPaymentMethod(PaymentMethod.cash),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _typeChip(
+                'GCash',
+                Icons.account_balance_wallet_outlined,
+                _paymentMethod == PaymentMethod.gcash,
+                () => _onSelectPaymentMethod(PaymentMethod.gcash),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+
+        // Type
+        const Text(
+          'URI NG BAYAD',
+          style: TextStyle(
+            fontSize: 10,
+            fontWeight: FontWeight.w800,
+            color: Color(0xFF9E8B7E),
+            letterSpacing: 0.6,
+            decoration: TextDecoration.none,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Row(
+          children: [
+            Expanded(
+              child: _typeChip(
+                'Full Payment',
+                Icons.check_circle_outline_rounded,
+                _paymentType == PaymentType.fullPayment,
+                () => _onSelectPaymentType(PaymentType.fullPayment),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _typeChip(
+                'Down Payment',
+                Icons.history_edu_rounded,
+                _paymentType == PaymentType.downPayment,
+                () => _onSelectPaymentType(PaymentType.downPayment),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+
+        // Total banner
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: AppColors.accent.withValues(alpha: 0.07),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: AppColors.accent.withValues(alpha: 0.18)),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('Order Total',
+                  style: TextStyle(
+                      fontSize: 12, color: Color(0xFF6B584C),
+                      decoration: TextDecoration.none)),
+              Text('\u20b1${_total.toStringAsFixed(0)}',
+                  style: const TextStyle(
+                      fontSize: 16, fontWeight: FontWeight.w800,
+                      color: AppColors.accent,
+                      decoration: TextDecoration.none)),
+            ],
+          ),
+        ),
+        const SizedBox(height: 10),
+
+        // Amount field
+        if (isFull) ...[
+          TextFormField(
+            controller: _depositCtrl,
+            readOnly: true,
+            enabled: false,
+            style: _fieldTextStyle,
+            decoration: _dec(
+              label: 'Full Payment — Fixed Amount',
+              icon: Icons.payments_outlined,
+              readOnly: true,
+            ),
+          ),
+        ] else ...[
+          TextFormField(
+            controller: _depositCtrl,
+            keyboardType: TextInputType.number,
+            style: _fieldTextStyle,
+            onChanged: (_) => setState(() {}),
+            decoration: _dec(
+              label: 'Downpayment (min. 65%)',
+              hint: _minDeposit.toStringAsFixed(0),
+              icon: Icons.payments_outlined,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Minimum: \u20b1${_minDeposit.toStringAsFixed(0)} (65% ng \u20b1${_total.toStringAsFixed(0)})',
+            style: const TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+              color: AppColors.warning,
+              decoration: TextDecoration.none,
+            ),
+          ),
+        ],
+
+        // GCash section
+        if (_paymentMethod == PaymentMethod.gcash) ...[
+          const SizedBox(height: 10),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF0F6FF),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                  color: const Color(0xFF2563EB).withValues(alpha: 0.2)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Row(children: [
+                  Icon(Icons.account_balance_wallet_outlined,
+                      size: 14, color: Color(0xFF2563EB)),
+                  SizedBox(width: 6),
+                  Text('GCash Receipt',
+                      style: TextStyle(
+                          fontSize: 12, fontWeight: FontWeight.w700,
+                          color: Color(0xFF2563EB),
+                          decoration: TextDecoration.none)),
+                ]),
+                const SizedBox(height: 8),
+
+                // Photo picker / preview
+                if (_gcashPhoto == null)
+                  Row(children: [
+                    Expanded(
+                        child: _gcashPhotoBtn(
+                            'Camera', Icons.camera_alt_outlined,
+                            () => _pickGcashPhoto(ImageSource.camera))),
+                    const SizedBox(width: 8),
+                    Expanded(
+                        child: _gcashPhotoBtn(
+                            'Gallery', Icons.photo_library_outlined,
+                            () => _pickGcashPhoto(ImageSource.gallery))),
+                  ])
+                else ...[
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(7),
+                    child: Image.file(File(_gcashPhoto!.path),
+                        height: 100, fit: BoxFit.cover),
+                  ),
+                  const SizedBox(height: 4),
+                  GestureDetector(
+                    onTap: _clearGcashPhoto,
+                    child: const Text('Palitan ang photo',
+                        style: TextStyle(
+                            fontSize: 10.5, color: Color(0xFF9E8B7E),
+                            decoration: TextDecoration.underline)),
+                  ),
+                ],
+
+                if (_isOcrLoading) ...[
+                  const SizedBox(height: 8),
+                  const Row(children: [
+                    SizedBox(
+                        width: 12, height: 12,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Color(0xFF2563EB))),
+                    SizedBox(width: 8),
+                    Text('Kinukuha ang ref no. at amount...',
+                        style: TextStyle(
+                            fontSize: 10.5, color: Color(0xFF2563EB),
+                            decoration: TextDecoration.none)),
+                  ]),
+                ],
+                if (_ocrError.isNotEmpty && !_isOcrLoading) ...[
+                  const SizedBox(height: 4),
+                  Text(_ocrError,
+                      style: const TextStyle(
+                          fontSize: 10, color: AppColors.warning,
+                          decoration: TextDecoration.none)),
+                ],
+
+                const SizedBox(height: 8),
+                TextFormField(
+                  controller: _gcashRefCtrl,
+                  keyboardType: TextInputType.number,
+                  style: _fieldTextStyle,
+                  decoration: _dec(
+                    label: 'Reference Number',
+                    hint: '1234567890123',
+                    icon: Icons.tag_rounded,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                TextFormField(
+                  controller: _gcashAmtCtrl,
+                  keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true),
+                  style: _fieldTextStyle,
+                  decoration: _dec(
+                    label: 'GCash Amount (₱)',
+                    hint: '900.00',
+                    icon: Icons.account_balance_wallet_outlined,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 10, vertical: 7),
+                  decoration: BoxDecoration(
+                    color: AppColors.warning.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: const Row(children: [
+                    Icon(Icons.info_outline_rounded,
+                        size: 12, color: AppColors.warning),
+                    SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        'Mag-aantay ng verification ng Owner bago iluto.',
+                        style: TextStyle(
+                            fontSize: 10, color: AppColors.warning,
+                            decoration: TextDecoration.none),
+                      ),
+                    ),
+                  ]),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _gcashPhotoBtn(String label, IconData icon, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: const Color(0xFFDCCFC3)),
+        ),
+        child: Column(children: [
+          Icon(icon, size: 18, color: AppColors.accent),
+          const SizedBox(height: 3),
+          Text(label,
+              style: const TextStyle(
+                  fontSize: 10.5, fontWeight: FontWeight.w600,
+                  color: AppColors.accent,
+                  decoration: TextDecoration.none)),
+        ]),
+      ),
+    );
+  }
+
+  // ── Build ─────────────────────────────────────────────────────────────────
+
+  @override
+  Widget build(BuildContext context) {
+    final bottomPad = MediaQuery.of(context).viewInsets.bottom;
+    return Material(
+      color: Colors.transparent,
+      child: DefaultTextStyle(
+        style: const TextStyle(
+          decoration: TextDecoration.none,
+          color: Color(0xFF24140B),
+          fontFamily: '.SF Pro Text',
+        ),
+        child: Container(
+          decoration: const BoxDecoration(
+            color: Color(0xFFFAF7F5),
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+            boxShadow: [
+              BoxShadow(
+                  color: Color(0x28000000),
+                  blurRadius: 20,
+                  offset: Offset(0, -6)),
+            ],
+          ),
+          child: SafeArea(
+            top: false,
+            child: SingleChildScrollView(
+              padding: EdgeInsets.fromLTRB(16, 0, 16, bottomPad + 20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // ── Pull handle ───────────────────────────────────────────
+                  Center(
+                    child: Container(
+                      width: 32,
+                      height: 4,
+                      margin: const EdgeInsets.symmetric(vertical: 10),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFDCCFC3),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+
+                  // ── Header ────────────────────────────────────────────────
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Bagong Bilao Order',
+                              style: TextStyle(
+                                fontSize: 17,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF1A0D07),
+                                decoration: TextDecoration.none,
+                              ),
+                            ),
+                            Text(
+                              widget.branchName,
+                              style: const TextStyle(
+                                fontSize: 11.5,
+                                color: Color(0xFF9E8B7E),
+                                decoration: TextDecoration.none,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      GestureDetector(
+                        onTap: () => Navigator.pop(context),
+                        child: Container(
+                          width: 30,
+                          height: 30,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFEDE5DF),
+                            borderRadius: BorderRadius.circular(15),
+                          ),
+                          child: const Icon(Icons.close_rounded,
+                              size: 16, color: Color(0xFF6B584C)),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+
+                  // ── Step indicator ────────────────────────────────────────
+                  _buildStepIndicator(),
+                  const SizedBox(height: 16),
+
+                  // ── Divider ───────────────────────────────────────────────
+                  Container(height: 1, color: const Color(0xFFEDE5DF)),
+                  const SizedBox(height: 14),
+
+                  // ── Step content (AnimatedSwitcher) ───────────────────────
+                  AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 260),
+                    transitionBuilder: (child, anim) => FadeTransition(
+                      opacity: anim,
+                      child: SlideTransition(
+                        position: Tween<Offset>(
+                          begin: const Offset(0.04, 0),
+                          end: Offset.zero,
+                        ).animate(anim),
+                        child: child,
+                      ),
+                    ),
+                    child: KeyedSubtree(
+                      key: ValueKey(_step),
+                      child: _step == 0
+                          ? _buildStep1()
+                          : _step == 1
+                              ? _buildStep2()
+                              : _buildStep3(),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // ── Divider ───────────────────────────────────────────────
+                  Container(height: 1, color: const Color(0xFFEDE5DF)),
+                  const SizedBox(height: 12),
+
+                  // ── Nav buttons ───────────────────────────────────────────
+                  if (_isSaving)
+                    const SizedBox(
+                      height: 46,
+                      child: Center(
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: AppColors.accent)),
+                    )
+                  else
+                    Row(
+                      children: [
+                        if (_step > 0) ...[
+                          Expanded(
+                            child: GestureDetector(
+                              onTap: _prevStep,
+                              child: Container(
+                                height: 46,
+                                alignment: Alignment.center,
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFEDE5DF),
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: const Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(Icons.arrow_back_ios_new_rounded,
+                                        size: 13, color: Color(0xFF6B584C)),
+                                    SizedBox(width: 4),
+                                    Text('Bumalik',
+                                        style: TextStyle(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w700,
+                                            color: Color(0xFF6B584C),
+                                            decoration: TextDecoration.none)),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                        ],
+                        Expanded(
+                          flex: 2,
+                          child: GestureDetector(
+                            onTap: _step < 2 ? _nextStep : _save,
+                            child: Container(
+                              height: 46,
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(
+                                color: AppColors.accent,
+                                borderRadius: BorderRadius.circular(10),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: AppColors.accent.withValues(
+                                        alpha: 0.28),
+                                    blurRadius: 10,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                ],
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Text(
+                                    _step < 2 ? 'Susunod' : 'I-save ang Order',
+                                    style: const TextStyle(
+                                      fontSize: 13.5,
+                                      fontWeight: FontWeight.w700,
+                                      color: Colors.white,
+                                      decoration: TextDecoration.none,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Icon(
+                                    _step < 2
+                                        ? Icons.arrow_forward_ios_rounded
+                                        : Icons.check_rounded,
+                                    size: 13,
+                                    color: Colors.white,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}

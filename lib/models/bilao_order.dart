@@ -142,6 +142,36 @@ enum BilaoOrderChannel {
   }
 }
 
+/// Payment method chosen by the customer.
+enum PaymentMethod {
+  cash,
+  gcash;
+
+  String get label {
+    switch (this) {
+      case PaymentMethod.cash:
+        return 'Cash';
+      case PaymentMethod.gcash:
+        return 'GCash';
+    }
+  }
+}
+
+/// Whether the customer is paying in full now or just leaving a down payment.
+enum PaymentType {
+  fullPayment,
+  downPayment;
+
+  String get label {
+    switch (this) {
+      case PaymentType.fullPayment:
+        return 'Full Payment';
+      case PaymentType.downPayment:
+        return 'Down Payment';
+    }
+  }
+}
+
 /// A confirmed advance/special bilao order recorded by the Owner or Staff after
 /// receiving it via Messenger/phone or in-store walk-in.
 class BilaoOrder {
@@ -163,6 +193,17 @@ class BilaoOrder {
     this.createdAt,
     this.preparationStatus = PreparationStatus.pending,
     this.deliveryStatus = DeliveryStatus.forDelivery,
+    this.paymentMethod = PaymentMethod.cash,
+    this.paymentType = PaymentType.fullPayment,
+    this.gcashRefNumber,
+    this.gcashAmount,
+    this.gcashProofUrl,
+    this.gcashVerified = false,
+    this.gcashVerifiedAt,
+    this.gcashVerifiedBy,
+    this.deliveryProofUrl,
+    this.isCancelled = false,
+    this.cancellationReason,
   });
 
   final String id;
@@ -183,6 +224,40 @@ class BilaoOrder {
   final PreparationStatus preparationStatus;
   final DeliveryStatus deliveryStatus;
 
+  // ── Payment ──────────────────────────────────────────────────────────────────
+  /// How the customer is paying (Cash or GCash).
+  final PaymentMethod paymentMethod;
+
+  /// Whether the customer paid in full now or left a down payment.
+  final PaymentType paymentType;
+
+  // ── GCash-specific ───────────────────────────────────────────────────────────
+  /// GCash reference number extracted from the receipt (OCR or manual).
+  final String? gcashRefNumber;
+
+  /// Amount shown on the GCash receipt.
+  final double? gcashAmount;
+
+  /// Supabase Storage public URL of the GCash receipt photo.
+  final String? gcashProofUrl;
+
+  /// True once Owner/Admin has verified the GCash payment.
+  final bool gcashVerified;
+
+  /// Timestamp when Owner verified.
+  final DateTime? gcashVerifiedAt;
+
+  /// Name of Owner/Admin who verified.
+  final String? gcashVerifiedBy;
+
+  // ── Delivery proof ───────────────────────────────────────────────────────────
+  /// Supabase Storage public URL of the driver's delivery proof photo.
+  final String? deliveryProofUrl;
+
+  // ── Cancellation ─────────────────────────────────────────────────────────────
+  final bool isCancelled;
+  final String? cancellationReason;
+
   double get effectiveUnitPrice => unitPrice ?? size.price;
   double get totalAmount => effectiveUnitPrice * quantity;
   double get remainingBalance => (totalAmount - depositAmount).clamp(0.0, totalAmount);
@@ -195,6 +270,10 @@ class BilaoOrder {
   bool get hasCookCommission => orderChannel == BilaoOrderChannel.branchOrder;
 
   bool get isBranchPickup => fulfillmentType == BilaoFulfillmentType.branchPickup;
+
+  /// True if this GCash order is still waiting for owner verification.
+  bool get isPendingGcashVerification =>
+      paymentMethod == PaymentMethod.gcash && !gcashVerified && !isCancelled;
 
   String get destinationDisplay {
     if (isBranchPickup) {
@@ -223,6 +302,17 @@ class BilaoOrder {
     DateTime? createdAt,
     PreparationStatus? preparationStatus,
     DeliveryStatus? deliveryStatus,
+    PaymentMethod? paymentMethod,
+    PaymentType? paymentType,
+    String? gcashRefNumber,
+    double? gcashAmount,
+    String? gcashProofUrl,
+    bool? gcashVerified,
+    DateTime? gcashVerifiedAt,
+    String? gcashVerifiedBy,
+    String? deliveryProofUrl,
+    bool? isCancelled,
+    String? cancellationReason,
   }) {
     return BilaoOrder(
       id: id ?? this.id,
@@ -242,6 +332,17 @@ class BilaoOrder {
       createdAt: createdAt ?? this.createdAt,
       preparationStatus: preparationStatus ?? this.preparationStatus,
       deliveryStatus: deliveryStatus ?? this.deliveryStatus,
+      paymentMethod: paymentMethod ?? this.paymentMethod,
+      paymentType: paymentType ?? this.paymentType,
+      gcashRefNumber: gcashRefNumber ?? this.gcashRefNumber,
+      gcashAmount: gcashAmount ?? this.gcashAmount,
+      gcashProofUrl: gcashProofUrl ?? this.gcashProofUrl,
+      gcashVerified: gcashVerified ?? this.gcashVerified,
+      gcashVerifiedAt: gcashVerifiedAt ?? this.gcashVerifiedAt,
+      gcashVerifiedBy: gcashVerifiedBy ?? this.gcashVerifiedBy,
+      deliveryProofUrl: deliveryProofUrl ?? this.deliveryProofUrl,
+      isCancelled: isCancelled ?? this.isCancelled,
+      cancellationReason: cancellationReason ?? this.cancellationReason,
     );
   }
 }

@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../models/bilao_order.dart';
 import '../../../services/firestore_service.dart';
 import '../admin_web_colors.dart';
@@ -406,6 +408,210 @@ class _BilaoOrderScreenState extends State<BilaoOrderScreen> {
                       value: currentOrder.deliveryStatus.label.toUpperCase(),
                       valueColor: deliveryColor,
                     ),
+                    const Divider(height: 24),
+
+                    // ── Payment Info ───────────────────────────────────────
+                    _detailTile(
+                      icon: currentOrder.paymentMethod == PaymentMethod.gcash
+                          ? Icons.account_balance_wallet_outlined
+                          : Icons.payments_outlined,
+                      label: 'PAYMENT',
+                      value: '${currentOrder.paymentMethod.label} — ${currentOrder.paymentType.label}'
+                          '${currentOrder.depositAmount > 0 ? " (Deposit: ₱${currentOrder.depositAmount.toStringAsFixed(0)})" : ""}'
+                          '${currentOrder.remainingBalance > 0 ? " — COD: ₱${currentOrder.remainingBalance.toStringAsFixed(0)}" : " — Fully Paid"}',
+                      valueColor: currentOrder.paymentMethod == PaymentMethod.gcash
+                          ? const Color(0xFF007AFF)
+                          : AdminWebColors.textPrimary,
+                    ),
+
+                    // ── GCash Verification Panel ───────────────────────────
+                    if (currentOrder.paymentMethod == PaymentMethod.gcash) ...[
+                      const SizedBox(height: 14),
+                      Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: currentOrder.gcashVerified
+                              ? AdminWebColors.success.withValues(alpha: 0.06)
+                              : AdminWebColors.warning.withValues(alpha: 0.06),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: currentOrder.gcashVerified
+                                ? AdminWebColors.success.withValues(alpha: 0.4)
+                                : AdminWebColors.warning.withValues(alpha: 0.4),
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(
+                                  currentOrder.gcashVerified
+                                      ? Icons.check_circle_rounded
+                                      : Icons.pending_outlined,
+                                  size: 15,
+                                  color: currentOrder.gcashVerified
+                                      ? AdminWebColors.success
+                                      : AdminWebColors.warning,
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  currentOrder.gcashVerified
+                                      ? 'GCASH VERIFIED'
+                                      : 'GCASH VERIFICATION PENDING',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w800,
+                                    color: currentOrder.gcashVerified
+                                        ? AdminWebColors.success
+                                        : AdminWebColors.warning,
+                                  ),
+                                ),
+                                if (currentOrder.gcashVerifiedBy != null) ...[
+                                  const Spacer(),
+                                  Text(
+                                    'by ${currentOrder.gcashVerifiedBy}',
+                                    style: const TextStyle(
+                                      fontSize: 10,
+                                      color: AdminWebColors.textSecondary,
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                            if (currentOrder.gcashRefNumber != null) ...[
+                              const SizedBox(height: 8),
+                              Text(
+                                'Ref No: ${currentOrder.gcashRefNumber}',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: AdminWebColors.textPrimary,
+                                ),
+                              ),
+                            ],
+                            if (currentOrder.gcashAmount != null) ...[
+                              const SizedBox(height: 2),
+                              Text(
+                                'GCash Amount: ₱${currentOrder.gcashAmount!.toStringAsFixed(2)}',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: AdminWebColors.textSecondary,
+                                ),
+                              ),
+                            ],
+                            if (currentOrder.gcashProofUrl != null) ...[
+                              const SizedBox(height: 10),
+                              _ProofPhotoTile(
+                                label: 'GCash Receipt Photo',
+                                proofUrl: currentOrder.gcashProofUrl!,
+                              ),
+                            ],
+                            if (!currentOrder.gcashVerified) ...[
+                              const SizedBox(height: 12),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: ElevatedButton.icon(
+                                      onPressed: () async {
+                                        final ok = await FirestoreService.verifyGcashPayment(
+                                          orderId: currentOrder.id,
+                                          verifiedBy: 'Admin/Owner',
+                                        );
+                                        if (ok) {
+                                          setDialogState(() {
+                                            currentOrder = currentOrder.copyWith(
+                                              gcashVerified: true,
+                                              gcashVerifiedBy: 'Admin/Owner',
+                                              gcashVerifiedAt: DateTime.now(),
+                                            );
+                                          });
+                                          setState(() {
+                                            final idx = _orders.indexWhere((o) => o.id == currentOrder.id);
+                                            if (idx >= 0) _orders[idx] = currentOrder;
+                                          });
+                                        }
+                                      },
+                                      icon: const Icon(Icons.check_rounded, size: 14),
+                                      label: const Text('Verify GCash'),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: AdminWebColors.success,
+                                        foregroundColor: Colors.white,
+                                        padding: const EdgeInsets.symmetric(vertical: 10),
+                                        shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(8)),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: OutlinedButton.icon(
+                                      onPressed: () async {
+                                        final reasonCtrl = TextEditingController();
+                                        final reason = await showDialog<String>(
+                                          context: context,
+                                          builder: (rCtx) => AlertDialog(
+                                            title: const Text('Reject GCash Payment'),
+                                            content: TextField(
+                                              controller: reasonCtrl,
+                                              decoration: const InputDecoration(
+                                                labelText: 'Reason for rejection',
+                                                hintText: 'e.g. Blurry photo, wrong amount...',
+                                              ),
+                                              maxLines: 2,
+                                            ),
+                                            actions: [
+                                              TextButton(
+                                                onPressed: () => Navigator.pop(rCtx),
+                                                child: const Text('CANCEL'),
+                                              ),
+                                              ElevatedButton(
+                                                style: ElevatedButton.styleFrom(
+                                                    backgroundColor: AdminWebColors.error,
+                                                    foregroundColor: Colors.white),
+                                                onPressed: () => Navigator.pop(
+                                                    rCtx, reasonCtrl.text.trim()),
+                                                child: const Text('REJECT'),
+                                              ),
+                                            ],
+                                          ),
+                                        );
+                                        if (reason == null) return;
+                                        await FirestoreService.rejectGcashPayment(
+                                          orderId: currentOrder.id,
+                                          reason: reason.isEmpty ? 'No reason given' : reason,
+                                          customerName: currentOrder.customerName,
+                                        );
+                                      },
+                                      icon: const Icon(Icons.close_rounded, size: 14),
+                                      label: const Text('Reject'),
+                                      style: OutlinedButton.styleFrom(
+                                        foregroundColor: AdminWebColors.error,
+                                        side: const BorderSide(color: AdminWebColors.error),
+                                        padding: const EdgeInsets.symmetric(vertical: 10),
+                                        shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(8)),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ],
+
+                    if (currentOrder.deliveryProofUrl != null) ...[
+                      const SizedBox(height: 14),
+                      const Divider(height: 1),
+                      const SizedBox(height: 14),
+                      _ProofPhotoTile(
+                        label: 'Delivery Proof Photo',
+                        proofUrl: currentOrder.deliveryProofUrl!,
+                        accentColor: AdminWebColors.success,
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -1320,3 +1526,139 @@ class _OrderCard extends StatelessWidget {
   }
 
 }
+
+// ── Proof Photo Tile ────────────────────────────────────────────────────────
+/// Displays a proof photo (GCash receipt or delivery proof) as a compact tile
+/// with an inline thumbnail. Supports:
+///   • Public HTTPS URLs from Supabase Storage
+///   • base64 data URIs (fallback when Supabase upload fails)
+/// Tapping opens a full-screen dialog for base64, or launches the URL in the
+/// browser for network images.
+class _ProofPhotoTile extends StatelessWidget {
+  const _ProofPhotoTile({
+    required this.label,
+    required this.proofUrl,
+    this.accentColor = const Color(0xFF007AFF),
+  });
+
+  final String label;
+  final String proofUrl;
+  final Color  accentColor;
+
+  bool get _isBase64 => proofUrl.startsWith('data:');
+
+  Future<void> _openUrl(BuildContext context) async {
+    if (_isBase64) {
+      if (!context.mounted) return;
+      showDialog<void>(
+        context: context,
+        builder: (dCtx) => Dialog(
+          backgroundColor: Colors.black,
+          insetPadding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              AppBar(
+                backgroundColor: Colors.black,
+                foregroundColor: Colors.white,
+                title: Text(label, style: const TextStyle(fontSize: 13)),
+                leading: IconButton(
+                  icon: const Icon(Icons.close),
+                  onPressed: () => Navigator.pop(dCtx),
+                ),
+              ),
+              InteractiveViewer(
+                child: Image.memory(
+                  base64Decode(proofUrl.split(',').last),
+                  fit: BoxFit.contain,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+      return;
+    }
+    final uri = Uri.tryParse(proofUrl);
+    if (uri != null && await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    Widget thumbnail;
+    if (_isBase64) {
+      try {
+        final bytes = base64Decode(proofUrl.split(',').last);
+        thumbnail = Image.memory(bytes, fit: BoxFit.cover);
+      } catch (_) {
+        thumbnail = const Icon(Icons.broken_image_rounded,
+            size: 28, color: Colors.grey);
+      }
+    } else {
+      thumbnail = Image.network(
+        proofUrl,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) => const Icon(
+          Icons.broken_image_rounded, size: 28, color: Colors.grey),
+        loadingBuilder: (_, child, prog) =>
+            prog == null ? child : const Center(
+              child: SizedBox(width: 18, height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2))),
+      );
+    }
+
+    return InkWell(
+      onTap: () => _openUrl(context),
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: accentColor.withValues(alpha: 0.06),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: accentColor.withValues(alpha: 0.25)),
+        ),
+        child: Row(
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(7),
+              child: SizedBox(width: 64, height: 64, child: thumbnail),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(children: [
+                    Icon(Icons.image_rounded, size: 14, color: accentColor),
+                    const SizedBox(width: 5),
+                    Flexible(
+                      child: Text(label,
+                          style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: accentColor)),
+                    ),
+                  ]),
+                  const SizedBox(height: 4),
+                  Text(
+                    _isBase64
+                        ? 'Stored locally — tap to view full size'
+                        : 'Tap to open in browser',
+                    style: const TextStyle(
+                        fontSize: 10.5,
+                        color: AdminWebColors.textSecondary),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Icon(Icons.open_in_new_rounded, size: 15, color: accentColor),
+          ],
+        ),
+      ),
+    );
+  }
+}
+

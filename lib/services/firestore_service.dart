@@ -146,6 +146,7 @@ class FirestoreService {
         'size': order.size.name,
         'quantity': order.quantity,
         'unitPrice': order.unitPrice,
+        'depositAmount': order.depositAmount, // BUG FIX: was missing
         'scheduledDateTime': Timestamp.fromDate(order.scheduledDateTime),
         'deliveryAddress': order.deliveryAddress,
         'fulfillmentType': order.fulfillmentType.name,
@@ -156,6 +157,19 @@ class FirestoreService {
         'notes': order.notes,
         'preparationStatus': order.preparationStatus.name,
         'deliveryStatus': order.deliveryStatus.name,
+        // Payment fields
+        'paymentMethod': order.paymentMethod.name,
+        'paymentType': order.paymentType.name,
+        'gcashRefNumber': order.gcashRefNumber,
+        'gcashAmount': order.gcashAmount,
+        'gcashProofUrl': order.gcashProofUrl,
+        'gcashVerified': order.gcashVerified,
+        'gcashVerifiedAt': order.gcashVerifiedAt != null
+            ? Timestamp.fromDate(order.gcashVerifiedAt!)
+            : null,
+        'gcashVerifiedBy': order.gcashVerifiedBy,
+        'isCancelled': order.isCancelled,
+        'cancellationReason': order.cancellationReason,
         'createdAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
       });
@@ -260,32 +274,42 @@ class FirestoreService {
   static Future<bool> completeBilaoDelivery({
     required BilaoOrder order,
     String? driverName,
+    String? deliveryProofUrl,
   }) async {
-    final success = await updateBilaoStatus(
+    final updateData = <String, dynamic>{
+      'deliveryStatus': DeliveryStatus.completed.name,
+      'updatedAt': FieldValue.serverTimestamp(),
+    };
+    if (deliveryProofUrl != null && deliveryProofUrl.isNotEmpty) {
+      updateData['deliveryProofUrl'] = deliveryProofUrl;
+    }
+
+    try {
+      await _db.collection('bilao_orders').doc(order.id).update(updateData);
+    } catch (e) {
+      debugPrint('FirestoreService.completeBilaoDelivery update error: $e');
+      return false;
+    }
+
+    final dName = (driverName != null && driverName.isNotEmpty) ? driverName : 'Driver';
+    await recordBilaoDeliveryReport(
       orderId: order.id,
-      deliveryStatus: DeliveryStatus.completed,
+      customerName: order.customerName,
+      deliveryAddress: order.destinationDisplay,
+      sizeLabel: order.size.label,
+      quantity: order.quantity,
+      driverName: dName,
     );
 
-    if (success) {
-      final dName = (driverName != null && driverName.isNotEmpty) ? driverName : 'Driver';
-      await recordBilaoDeliveryReport(
-        orderId: order.id,
-        customerName: order.customerName,
-        deliveryAddress: order.destinationDisplay,
-        sizeLabel: order.size.label,
-        quantity: order.quantity,
-        driverName: dName,
-      );
+    logActivity(
+      actor: dName,
+      role: 'Driver',
+      action: 'Completed direct delivery for ${order.customerName}',
+      detail: '${order.size.label} Bilao (${order.quantity} pcs) · ${order.deliveryAddress}',
+      type: 'Orders',
+    ).catchError((_) {});
 
-      logActivity(
-        actor: dName,
-        role: 'Driver',
-        action: 'Completed direct delivery for ${order.customerName}',
-        detail: '${order.size.label} Bilao (${order.quantity} pcs) · ${order.deliveryAddress}',
-        type: 'Orders',
-      ).catchError((_) {});
-    }
-    return success;
+    return true;
   }
 
   /// Triggered by branch staff when the customer arrives and claims their Bilao order.
@@ -361,6 +385,96 @@ class FirestoreService {
       return true;
     } catch (e) {
       debugPrint('FirestoreService.deleteBilaoOrder error: $e');
+      return false;
+    }
+  }
+
+  /// Soft-cancels a bilao order with a reason (does not delete the Firestore doc).
+  static Future<bool> cancelBilaoOrder(String orderId, {String reason = ''}) async {
+    try {
+      await _db.collection('bilao_orders').doc(orderId).update({
+        'isCancelled': true,
+        'cancellationReason': reason,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      return true;
+    } catch (e) {
+      debugPrint('FirestoreService.cancelBilaoOrder error: $e');
+      return false;
+    }
+  }
+
+  /// Owner/Admin verifies that the GCash payment is legitimate.
+  /// Advances the order so it can proceed to the Kitchen.
+  static Future<bool> verifyGcashPayment({
+    required String orderId,
+    required String verifiedBy,
+  }) async {
+    try {
+      await _db.collection('bilao_orders').doc(orderId).update({
+        'gcashVerified': true,
+        'gcashVerifiedAt': FieldValue.serverTimestamp(),
+        'gcashVerifiedBy': verifiedBy,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      return true;
+    } catch (e) {
+      debugPrint('FirestoreService.verifyGcashPayment error: $e');
+      return false;
+    }
+  }
+
+  /// Owner/Admin rejects the GCash payment proof and notifies staff.
+  static Future<bool> rejectGcashPayment({
+    required String orderId,
+    required String reason,
+    required String customerName,
+    String? branchName,
+  }) async {
+    try {
+      await _db.collection('bilao_orders').doc(orderId).update({
+        'gcashVerified': false,
+        'gcashProofUrl': null,
+        'gcashRefNumber': null,
+        'gcashAmount': null,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      // Notify branch staff to follow up with the customer
+      NotificationService.sendNotification(
+        title: '❌ GCash Rejected — $customerName',
+        message: 'Ang GCash proof ni $customerName ay na-reject ng Owner. Dahilan: $reason. Makipag-ugnayan sa customer.',
+        type: NotificationType.system,
+        targetRole: 'staff',
+        route: 'bilao_orders',
+      ).catchError((_) => false);
+
+      return true;
+    } catch (e) {
+      debugPrint('FirestoreService.rejectGcashPayment error: $e');
+      return false;
+    }
+  }
+
+  /// Saves the GCash receipt photo URL and extracted OCR data to Firestore.
+  /// Called after staff uploads the photo and OCR runs.
+  static Future<bool> updateGcashProof({
+    required String orderId,
+    required String gcashProofUrl,
+    String? gcashRefNumber,
+    double? gcashAmount,
+  }) async {
+    try {
+      await _db.collection('bilao_orders').doc(orderId).update({
+        'gcashProofUrl': gcashProofUrl,
+        'gcashRefNumber': gcashRefNumber,
+        'gcashAmount': gcashAmount,
+        'gcashVerified': false, // Reset verification whenever proof is updated
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      return true;
+    } catch (e) {
+      debugPrint('FirestoreService.updateGcashProof error: $e');
       return false;
     }
   }
@@ -463,6 +577,10 @@ class FirestoreService {
       orElse: () => BilaoOrderChannel.branchOrder,
     );
 
+    final payMethodStr = data['paymentMethod']?.toString() ?? 'cash';
+    final payTypeStr = data['paymentType']?.toString() ?? 'fullPayment';
+    final gcashVerifiedTs = data['gcashVerifiedAt'] as Timestamp?;
+
     return BilaoOrder(
       id: doc.id,
       customerName: data['customerName']?.toString() ?? '',
@@ -477,9 +595,21 @@ class FirestoreService {
       pickupBranchName: data['pickupBranchName']?.toString(),
       notes: data['notes']?.toString(),
       unitPrice: (data['unitPrice'] as num?)?.toDouble(),
+      depositAmount: (data['depositAmount'] as num?)?.toDouble() ?? 0.0, // BUG FIX: was missing
       createdAt: createdTs?.toDate(),
       preparationStatus: PreparationStatus.values.firstWhere((e) => e.name == prepStr, orElse: () => PreparationStatus.pending),
       deliveryStatus: DeliveryStatus.values.firstWhere((e) => e.name == delivStr, orElse: () => DeliveryStatus.forDelivery),
+      paymentMethod: PaymentMethod.values.firstWhere((e) => e.name == payMethodStr, orElse: () => PaymentMethod.cash),
+      paymentType: PaymentType.values.firstWhere((e) => e.name == payTypeStr, orElse: () => PaymentType.fullPayment),
+      gcashRefNumber: data['gcashRefNumber']?.toString(),
+      gcashAmount: (data['gcashAmount'] as num?)?.toDouble(),
+      gcashProofUrl: data['gcashProofUrl']?.toString(),
+      gcashVerified: data['gcashVerified'] as bool? ?? false,
+      gcashVerifiedAt: gcashVerifiedTs?.toDate(),
+      gcashVerifiedBy: data['gcashVerifiedBy']?.toString(),
+      deliveryProofUrl: data['deliveryProofUrl']?.toString(),
+      isCancelled: data['isCancelled'] as bool? ?? false,
+      cancellationReason: data['cancellationReason']?.toString(),
     );
   }
 
