@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/cupertino.dart';
-import 'package:flutter/material.dart' show Colors, Icons, Material, InkWell, SnackBar, ScaffoldMessenger, LinearProgressIndicator, ClipRRect;
+import 'package:flutter/material.dart' show Colors, Material, InkWell, LinearProgressIndicator, ClipRRect;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../models/branch.dart';
 import '../../models/branch_daily_inventory.dart';
@@ -20,7 +20,6 @@ import '../../widgets/staff_button.dart';
 import '../../widgets/staff_card.dart';
 import '../../widgets/staff_nav_bar.dart';
 import '../../widgets/staff_section_header.dart';
-import '../../widgets/staff_stat_tile.dart';
 import '../../widgets/staff_top_actions.dart';
 
 /// Represents a single order punched during the shift in the Quick POS
@@ -51,11 +50,6 @@ class SalesScreen extends StatefulWidget {
 }
 
 class _SalesScreenState extends State<SalesScreen> {
-  // Default fallback allocation
-  static const _defaultAllocated =
-      InventoryCounts(karne: 40, mayo: 40, styro: 40, toyo: 10);
-
-  InventoryCounts _allocated = _defaultAllocated;
   BranchDailyInventory? _todayInventory;
   BranchMeatStock? _branchMeatStock;
   SalesRecord? _todaySalesRecord;
@@ -84,51 +78,46 @@ class _SalesScreenState extends State<SalesScreen> {
 
   bool _submitted = false;
 
-  int get _allocatedRegular {
-    final verified = _todayInventory?.actualReceived?.regular;
-    if (verified != null) return verified;
-    return _branchMeatStock?.regular250gTotal ?? 20;
-  }
+  int get _allocatedRegular => _effectiveStock.regular250gTotal;
+  int get _allocatedMedium => _effectiveStock.medium300gTotal;
+  int get _allocatedB1t1 => _effectiveStock.b1t1_400gTotal;
+  int get _allocatedMayo => _effectiveStock.mayoTotal;
+  int get _allocatedToyo => _effectiveStock.toyoTotal;
+  int get _allocatedStyro => _effectiveStock.styroTotal;
 
-  int get _allocatedMedium {
-    final verified = _todayInventory?.actualReceived?.medium;
-    if (verified != null) return verified;
-    return _branchMeatStock?.medium300gTotal ?? 10;
-  }
-
-  int get _allocatedB1t1 {
-    final verified = _todayInventory?.actualReceived?.b1t1;
-    if (verified != null) return verified;
-    return _branchMeatStock?.b1t1_400gTotal ?? 10;
-  }
-
-  int get _allocatedMayo {
-    final verified = _todayInventory?.actualReceived?.mayo;
-    if (verified != null) return verified;
-    final stock = _branchMeatStock?.mayoTotal;
-    if (stock != null && stock > 0) return stock;
-    return _allocated.mayo > 0 ? _allocated.mayo : 40;
-  }
-
-  int get _allocatedToyo {
-    final verified = _todayInventory?.actualReceived?.toyo;
-    if (verified != null) return verified;
-    final stock = _branchMeatStock?.toyoTotal;
-    if (stock != null && stock > 0) return stock;
-    return _allocated.toyo > 0 ? _allocated.toyo : 10;
-  }
-
-  int get _allocatedStyro {
-    final verified = _todayInventory?.actualReceived?.styro;
-    if (verified != null) return verified;
-    final stock = _branchMeatStock?.styroTotal;
-    if (stock != null && stock > 0) return stock;
-    return _allocated.styro > 0 ? _allocated.styro : 40;
+  BranchMeatStock get _effectiveStock {
+    if (_branchMeatStock != null) {
+      return _branchMeatStock!;
+    }
+    if (_todayInventory?.actualReceived != null) {
+      final ar = _todayInventory!.actualReceived!;
+      return BranchMeatStock(
+        branchId: _currentBranchId,
+        branchName: _currentBranchName,
+        date: DateTime.now(),
+        regular250gTotal: ar.regular,
+        regular250gRemaining: ar.regular,
+        medium300gTotal: ar.medium,
+        medium300gRemaining: ar.medium,
+        b1t1_400gTotal: ar.b1t1,
+        b1t1_400gRemaining: ar.b1t1,
+        mayoTotal: ar.mayo,
+        mayoRemaining: ar.mayo,
+        styroTotal: ar.styro,
+        styroRemaining: ar.styro,
+        toyoTotal: ar.toyo,
+        toyoRemaining: ar.toyo,
+      );
+    }
+    return BranchMeatStock.defaultForBranch(
+      kSampleBranches.firstWhere((b) => b.id == _currentBranchId, orElse: () => kSampleBranches.first),
+    );
   }
 
   @override
   void initState() {
     super.initState();
+    AssignmentService.ensureInitialized();
     _setupBranchAndStreams();
     AssignmentService.changeNotifier.addListener(_onAssignmentChanged);
     _karneController.addListener(_onFieldChanged);
@@ -192,6 +181,19 @@ class _SalesScreenState extends State<SalesScreen> {
     _currentBranchName = matchedBranch.fullName;
     _loadTallyFromCache();
 
+    // Fast one-shot fetch so verification status is instantly active without delay
+    FirestoreService.getTodayBranchInventory(
+      branchId: matchedBranch.id,
+      branchName: matchedBranch.fullName,
+      date: DateTime.now(),
+    ).then((inv) {
+      if (mounted && inv != null) {
+        setState(() {
+          _todayInventory = inv;
+        });
+      }
+    });
+
     _inventorySub?.cancel();
     _inventorySub = FirestoreService.watchTodayBranchInventory(
       branchId: matchedBranch.id,
@@ -200,10 +202,10 @@ class _SalesScreenState extends State<SalesScreen> {
     ).listen((inv) {
       if (mounted) {
         setState(() {
-          _todayInventory = inv;
-          if (inv != null) {
-            _allocated = inv.allocated;
+          if (inv == null && _todayInventory != null && _isInventoryVerified) {
+            return;
           }
+          _todayInventory = inv;
         });
       }
     });
@@ -311,9 +313,7 @@ class _SalesScreenState extends State<SalesScreen> {
       return;
     }
 
-    final currentStock = _branchMeatStock ?? BranchMeatStock.defaultForBranch(
-      kSampleBranches.firstWhere((b) => b.id == _currentBranchId, orElse: () => kSampleBranches.first),
-    );
+    final currentStock = _effectiveStock;
 
     if (regDeduct > 0 && currentStock.regular250gRemaining < regDeduct) {
       _showOutOfStockDialog('Regular Meat (250g)');
@@ -435,9 +435,7 @@ class _SalesScreenState extends State<SalesScreen> {
     if (_tallyHistory.isEmpty || _submitted) return;
 
     final last = _tallyHistory.removeAt(0);
-    final currentStock = _branchMeatStock ?? BranchMeatStock.defaultForBranch(
-      kSampleBranches.firstWhere((b) => b.id == _currentBranchId, orElse: () => kSampleBranches.first),
-    );
+    final currentStock = _effectiveStock;
 
     int addReg = 0, addMed = 0, addB1t1 = 0, addMayo = 0, addToyo = 0, addStyro = 0;
     if (last.category == 'reg_sisig') {
@@ -627,9 +625,7 @@ class _SalesScreenState extends State<SalesScreen> {
   }
 
   void _processWastageReport(String item, int qty, String reason) async {
-    final currentStock = _branchMeatStock ?? BranchMeatStock.defaultForBranch(
-      kSampleBranches.firstWhere((b) => b.id == _currentBranchId, orElse: () => kSampleBranches.first),
-    );
+    final currentStock = _effectiveStock;
 
     int regDec = 0, medDec = 0, b1t1Dec = 0, mayoDec = 0, toyoDec = 0, styroDec = 0;
     double penalty = 0.0;
@@ -736,9 +732,21 @@ class _SalesScreenState extends State<SalesScreen> {
     );
   }
 
-  bool get _isInventoryVerified =>
-      _todayInventory == null ||
-      _todayInventory!.status != InventoryVerificationStatus.pending;
+  bool get _isInventoryVerified {
+    if (_todayInventory != null) {
+      return _todayInventory!.status != InventoryVerificationStatus.pending;
+    }
+    if (_branchMeatStock != null) {
+      final isNotDefault = _branchMeatStock!.regular250gTotal != 20 ||
+          _branchMeatStock!.medium300gTotal != 10 ||
+          _branchMeatStock!.b1t1_400gTotal != 10 ||
+          _branchMeatStock!.mayoTotal != 40 ||
+          _branchMeatStock!.styroTotal != 40 ||
+          _branchMeatStock!.toyoTotal != 10;
+      if (isNotDefault) return true;
+    }
+    return false;
+  }
 
   Future<void> _confirmSubmit() async {
     if (!_isInventoryVerified) {
@@ -951,9 +959,7 @@ class _SalesScreenState extends State<SalesScreen> {
   @override
   Widget build(BuildContext context) {
     final computation = _computation;
-    final currentStock = _branchMeatStock ?? BranchMeatStock.defaultForBranch(
-      kSampleBranches.firstWhere((b) => b.id == _currentBranchId, orElse: () => kSampleBranches.first),
-    );
+    final currentStock = _effectiveStock;
 
     return CupertinoPageScaffold(
       backgroundColor: AppColors.background,

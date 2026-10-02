@@ -98,13 +98,29 @@ class _SharedQueryListen {
   final Query<Map<String, dynamic>> query;
   late final StreamController<QuerySnapshot<Map<String, dynamic>>> _controller;
   StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _sub;
+  QuerySnapshot<Map<String, dynamic>>? _latest;
 
-  Stream<QuerySnapshot<Map<String, dynamic>>> get stream => _controller.stream;
+  Stream<QuerySnapshot<Map<String, dynamic>>> get stream {
+    return Stream<QuerySnapshot<Map<String, dynamic>>>.multi((controller) {
+      if (_latest != null) {
+        controller.add(_latest!);
+      }
+      final sub = _controller.stream.listen(
+        controller.add,
+        onError: controller.addError,
+        onDone: controller.close,
+      );
+      controller.onCancel = () => sub.cancel();
+    });
+  }
 
   void _onListen() {
     // Start the real Firestore subscription when first subscriber arrives.
     _sub ??= query.snapshots().listen(
-      _controller.add,
+      (snap) {
+        _latest = snap;
+        _controller.add(snap);
+      },
       onError: _controller.addError,
     );
   }
@@ -113,6 +129,7 @@ class _SharedQueryListen {
     // Cancel the Firestore subscription and clean up when all subscribers leave.
     _sub?.cancel();
     _sub = null;
+    _latest = null;
     FirestoreListenCache.removeQuery(key);
   }
 }
@@ -130,12 +147,28 @@ class _SharedDocListen {
   final DocumentReference<Map<String, dynamic>> ref;
   late final StreamController<DocumentSnapshot<Map<String, dynamic>>> _controller;
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _sub;
+  DocumentSnapshot<Map<String, dynamic>>? _latest;
 
-  Stream<DocumentSnapshot<Map<String, dynamic>>> get stream => _controller.stream;
+  Stream<DocumentSnapshot<Map<String, dynamic>>> get stream {
+    return Stream<DocumentSnapshot<Map<String, dynamic>>>.multi((controller) {
+      if (_latest != null) {
+        controller.add(_latest!);
+      }
+      final sub = _controller.stream.listen(
+        controller.add,
+        onError: controller.addError,
+        onDone: controller.close,
+      );
+      controller.onCancel = () => sub.cancel();
+    });
+  }
 
   void _onListen() {
     _sub ??= ref.snapshots().listen(
-      _controller.add,
+      (snap) {
+        _latest = snap;
+        _controller.add(snap);
+      },
       onError: _controller.addError,
     );
   }
@@ -143,6 +176,7 @@ class _SharedDocListen {
   void _onCancel() {
     _sub?.cancel();
     _sub = null;
+    _latest = null;
     FirestoreListenCache.removeDoc(key);
   }
 }

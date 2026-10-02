@@ -18,7 +18,6 @@ import '../../widgets/staff_nav_bar.dart';
 import '../../widgets/staff_section_header.dart';
 import '../../widgets/staff_stat_tile.dart';
 import '../../widgets/staff_top_actions.dart';
-import '../../widgets/user_avatar.dart';
 import '../../services/weather_service.dart';
 
 /// Homepage tab of the Cook/Staff app:
@@ -501,22 +500,26 @@ class _HomepageScreenState extends State<HomepageScreen> with WidgetsBindingObse
         });
       } else {
         // Bagong araw na (12:00 AM) o wala pang record para sa araw na ito:
-        // Automatic na nagre-reset sa Pending baseline at nililinis ang inputs!
-        setState(() {
-          _inventory = BranchDailyInventory(
-            branchId: matchedBranch!.id,
-            branchName: matchedBranch.fullName,
-            date: today,
-            allocated: const InventoryCounts(karne: 40, mayo: 40, styro: 40, toyo: 10),
-            status: InventoryVerificationStatus.pending,
-          );
-          _karneController.clear();
-          _mediumController.clear();
-          _b1t1Controller.clear();
-          _mayoController.clear();
-          _styroController.clear();
-          _toyoController.clear();
-        });
+        // Only reset to pending baseline if local inventory was not already verified today
+        if (_inventory.status == InventoryVerificationStatus.pending ||
+            _inventory.branchId != matchedBranch!.id ||
+            !_isSameDay(_inventory.date, today)) {
+          setState(() {
+            _inventory = BranchDailyInventory(
+              branchId: matchedBranch!.id,
+              branchName: matchedBranch.fullName,
+              date: today,
+              allocated: const InventoryCounts(karne: 40, mayo: 40, styro: 40, toyo: 10),
+              status: InventoryVerificationStatus.pending,
+            );
+            _karneController.clear();
+            _mediumController.clear();
+            _b1t1Controller.clear();
+            _mayoController.clear();
+            _styroController.clear();
+            _toyoController.clear();
+          });
+        }
       }
     });
 
@@ -563,9 +566,12 @@ class _HomepageScreenState extends State<HomepageScreen> with WidgetsBindingObse
   bool get _countsMatch {
     if (!_hasEnteredCount) return false;
     final a = _inventory.allocated;
-    final regTarget = _branchMeatStock?.regular250gRemaining ?? 20;
-    final medTarget = _branchMeatStock?.medium300gRemaining ?? 10;
-    final b1t1Target = _branchMeatStock?.b1t1_400gRemaining ?? 10;
+    const regTarget = 20;
+    const medTarget = 10;
+    const b1t1Target = 10;
+    final mayoTarget = a.mayo > 0 ? a.mayo : 40;
+    final styroTarget = a.styro > 0 ? a.styro : 40;
+    final toyoTarget = a.toyo > 0 ? a.toyo : 10;
 
     final regEntered = int.tryParse(_karneController.text) ?? -1;
     final medEntered = int.tryParse(_mediumController.text) ?? -1;
@@ -577,9 +583,9 @@ class _HomepageScreenState extends State<HomepageScreen> with WidgetsBindingObse
     return regEntered == regTarget &&
         medEntered == medTarget &&
         b1t1Entered == b1t1Target &&
-        mayoEntered == a.mayo &&
-        styroEntered == a.styro &&
-        toyoEntered == a.toyo;
+        mayoEntered == mayoTarget &&
+        styroEntered == styroTarget &&
+        toyoEntered == toyoTarget;
   }
 
   Future<void> _updateMeatStockFromVerification({
@@ -643,6 +649,12 @@ class _HomepageScreenState extends State<HomepageScreen> with WidgetsBindingObse
               final updated = _inventory.copyWith(
                 date: DateTime.now(),
                 status: InventoryVerificationStatus.confirmed,
+                allocated: InventoryCounts(
+                  karne: actualReg + actualMed + actualB1t1,
+                  mayo: actualMayo,
+                  styro: actualStyro,
+                  toyo: actualToyo,
+                ),
                 actualReceived: ActualReceivedCounts(
                   mayo: actualMayo,
                   toyo: actualToyo,
@@ -888,7 +900,6 @@ class _HomepageScreenState extends State<HomepageScreen> with WidgetsBindingObse
 
   @override
   Widget build(BuildContext context) {
-    final a = _inventory.allocated;
     final status = _inventory.status;
     final statusColor = _statusColor(status);
     final isVerified = status != InventoryVerificationStatus.pending;
@@ -957,12 +968,14 @@ class _HomepageScreenState extends State<HomepageScreen> with WidgetsBindingObse
               builder: (ctx, constraints) {
                 final cardW = (constraints.maxWidth - 12) / 2;
                 final ar = _inventory.actualReceived;
-                final reg = ar?.regular ?? _branchMeatStock?.regular250gRemaining ?? 20;
-                final med = ar?.medium ?? _branchMeatStock?.medium300gRemaining ?? 10;
-                final b1t1 = ar?.b1t1 ?? _branchMeatStock?.b1t1_400gRemaining ?? 10;
-                final mayo = ar?.mayo ?? a.mayo;
-                final toyo = ar?.toyo ?? a.toyo;
-                final styro = ar?.styro ?? a.styro;
+                final isDiscrepancy = _inventory.status == InventoryVerificationStatus.discrepancyReported && ar != null;
+
+                final reg = isDiscrepancy ? ar.regular : 20;
+                final med = isDiscrepancy ? ar.medium : 10;
+                final b1t1 = isDiscrepancy ? ar.b1t1 : 10;
+                final mayo = isDiscrepancy ? ar.mayo : 40;
+                final toyo = isDiscrepancy ? ar.toyo : 10;
+                final styro = isDiscrepancy ? ar.styro : 40;
                 Widget dtile(String label, String value, {bool dark = false}) =>
                     SizedBox(width: cardW, child: StaffDisplayTile(label: label, value: value, dark: dark));
                 return SingleChildScrollView(

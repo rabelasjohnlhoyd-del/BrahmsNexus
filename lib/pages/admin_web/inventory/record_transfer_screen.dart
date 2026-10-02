@@ -4,7 +4,6 @@ import '../../../models/branch.dart';
 import '../../../models/branch_meat_inventory.dart';
 import '../../../models/meat_dispatch.dart';
 import '../../../services/firestore_service.dart';
-import '../../../services/notification_service.dart';
 import '../../../services/supabase_service.dart';
 import '../admin_web_colors.dart';
 import '../admin_web_shell.dart';
@@ -134,17 +133,16 @@ class _RecordTransferScreenState extends State<RecordTransferScreen> {
       mayoPcs: mayo,
       styroPcs: styro,
       toyoPcs: toyo,
-      status: 'delivered', // Immediate restock
+      status: 'pending',
       createdAt: DateTime.now(),
-      deliveredAt: DateTime.now(),
+      deliveredAt: null,
     );
 
     await FirestoreService.createMeatDispatch(dispatch);
-    await FirestoreService.markDispatchAsDelivered(dispatch);
 
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Restock successfully applied to ${dest.fullName}!')),
+      SnackBar(content: Text('Restock request dispatched to Driver for ${dest.fullName}! Live stock will update once the driver confirms delivery.')),
     );
     Navigator.of(context).pop(dispatch);
   }
@@ -395,7 +393,7 @@ class _RecordTransferScreenState extends State<RecordTransferScreen> {
                                 ),
                               )
                             : const Icon(Icons.add_shopping_cart_rounded, size: 18),
-                        label: const Text('CONFIRM RESTOCK'),
+                        label: const Text('DISPATCH RESTOCK TO DRIVER'),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: _hasSubmittedSales ? Colors.grey : AdminWebColors.accent,
                           foregroundColor: Colors.white,

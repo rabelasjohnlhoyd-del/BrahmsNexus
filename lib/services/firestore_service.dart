@@ -542,6 +542,53 @@ class FirestoreService {
     });
   }
 
+  /// One-shot fetch of today's inventory check for a specific branch.
+  static Future<BranchDailyInventory?> getTodayBranchInventory({
+    required String branchId,
+    required String branchName,
+    required DateTime date,
+  }) async {
+    final docId = _dailyInventoryDocId(branchId, date);
+    try {
+      final snapshot = await _db.collection('branch_daily_inventories').doc(docId).get();
+      if (!snapshot.exists || snapshot.data() == null) return null;
+      final data = snapshot.data()!;
+      final allocated = data['allocated'] as Map<String, dynamic>? ?? {};
+      final ar = data['actualReceived'] as Map<String, dynamic>?;
+
+      return BranchDailyInventory(
+        branchId: branchId,
+        branchName: branchName,
+        date: date,
+        allocated: InventoryCounts(
+          karne: (allocated['karne'] as num?)?.toInt() ?? 0,
+          mayo: (allocated['mayo'] as num?)?.toInt() ?? 0,
+          styro: (allocated['styro'] as num?)?.toInt() ?? 0,
+          toyo: (allocated['toyo'] as num?)?.toInt() ?? 0,
+        ),
+        status: InventoryVerificationStatus.values.firstWhere(
+          (e) => e.name == data['status'],
+          orElse: () => InventoryVerificationStatus.pending,
+        ),
+        discrepancyNote: data['discrepancyNote']?.toString(),
+        verifiedBy: data['verifiedBy']?.toString(),
+        verifiedAt: (data['verifiedAt'] as Timestamp?)?.toDate(),
+        actualReceived: ar == null
+            ? null
+            : ActualReceivedCounts(
+                mayo: (ar['mayo'] as num?)?.toInt() ?? 0,
+                toyo: (ar['toyo'] as num?)?.toInt() ?? 0,
+                styro: (ar['styro'] as num?)?.toInt() ?? 0,
+                regular: (ar['regular'] as num?)?.toInt() ?? 0,
+                medium: (ar['medium'] as num?)?.toInt() ?? 0,
+                b1t1: (ar['b1t1'] as num?)?.toInt() ?? 0,
+              ),
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
   /// Streams today's inventory verification status for ALL branches.
   /// Uses one document-level snapshot per branch (guaranteed real-time,
   /// no `whereIn` query limitations). Each individual stream fires the
@@ -676,10 +723,11 @@ class FirestoreService {
         });
       }
 
-      // ── If Discrepancy Reported, also sync the actual counts to branch_meat_stocks ──
-      if (isDiscrepancy && record.actualReceived != null) {
+      // ── Sync the verified counts to branch_meat_stocks ──
+      if ((isDiscrepancy || isConfirmed) && record.actualReceived != null) {
         final ar = record.actualReceived!;
         await _db.collection('branch_meat_stocks').doc(record.branchId).set({
+          'date': DateTime.now().toIso8601String(),
           'regular250gTotal': ar.regular,
           'regular250gRemaining': ar.regular,
           'medium300gTotal': ar.medium,
@@ -1858,11 +1906,8 @@ class FirestoreService {
     });
   }
 
-  static bool _resettingMeatStocks = false;
-  static DateTime? _lastMeatResetDay;
-
   /// Streams real-time branch meat stocks for all 6 branches.
-  /// Automatically resets to standard baseline when a new day arrives or at 12:00 AM.
+  /// Preserves each branch's live stock without wiping out other branches.
   static Stream<List<BranchMeatStock>> watchBranchMeatStocks() {
     scheduleMidnightAutoReset();
     return FirestoreListenCache.query(
@@ -1872,36 +1917,11 @@ class FirestoreService {
       if (snapshot.docs.isEmpty) {
         return _defaultBranchMeatStocks;
       }
-      final now = DateTime.now();
       final map = <String, BranchMeatStock>{};
-      bool dayChanged = false;
 
       for (final doc in snapshot.docs) {
         final stock = BranchMeatStock.fromMap(doc.data(), id: doc.id);
-        final isToday = stock.date.year == now.year &&
-            stock.date.month == now.month &&
-            stock.date.day == now.day;
-        if (!isToday) {
-          dayChanged = true;
-          final b = kSampleBranches.firstWhere(
-            (item) => item.id == stock.branchId,
-            orElse: () => kSampleBranches.first,
-          );
-          map[stock.branchId] = BranchMeatStock.defaultForBranch(b);
-        } else {
-          map[stock.branchId] = stock;
-        }
-      }
-
-      if (dayChanged) {
-        final today = DateTime(now.year, now.month, now.day);
-        if (!_resettingMeatStocks && _lastMeatResetDay != today) {
-          _resettingMeatStocks = true;
-          _lastMeatResetDay = today;
-          resetAllBranchMeatStocksToStandard().whenComplete(() {
-            _resettingMeatStocks = false;
-          });
-        }
+        map[stock.branchId] = stock;
       }
 
       // Ensure all 6 branches are always present in the returned list
@@ -1912,7 +1932,8 @@ class FirestoreService {
   }
 
   /// Seeds default meat inventory for all 6 branches if not yet present in Firestore,
-  /// or resets them if the saved stock is from a previous day.
+  /// or updates an individual branch if its record is from a previous day.
+  /// Never wipes out branches that already have today's verified stock.
   static Future<void> seedDefaultBranchMeatStocksIfEmpty() async {
     try {
       final now = DateTime.now();
@@ -1923,19 +1944,58 @@ class FirestoreService {
         return;
       }
 
-      // Check if any existing stock is from a previous day
-      bool hasOutdatedDate = false;
-      for (final doc in snapshot.docs) {
-        final stock = BranchMeatStock.fromMap(doc.data(), id: doc.id);
-        if (stock.date.year != now.year || stock.date.month != now.month || stock.date.day != now.day) {
-          hasOutdatedDate = true;
-          break;
+      final existingDocs = {for (final doc in snapshot.docs) doc.id: doc};
+      for (final b in kSampleBranches) {
+        final doc = existingDocs[b.id];
+        if (doc == null || !doc.exists) {
+          final stock = BranchMeatStock.defaultForBranch(b);
+          await _db.collection('branch_meat_stocks').doc(b.id).set({
+            ...stock.toMap(),
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
+        } else {
+          final stock = BranchMeatStock.fromMap(doc.data(), id: doc.id);
+          final isToday = stock.date.year == now.year &&
+              stock.date.month == now.month &&
+              stock.date.day == now.day;
+          if (!isToday) {
+            // Check if today's inventory was already verified
+            final dailyDocId = _dailyInventoryDocId(b.id, now);
+            final dailyDoc = await _db.collection('branch_daily_inventories').doc(dailyDocId).get();
+            BranchMeatStock stockToSet;
+            if (dailyDoc.exists && dailyDoc.data() != null) {
+              final dData = dailyDoc.data()!;
+              final ar = dData['actualReceived'] as Map<String, dynamic>?;
+              if (ar != null) {
+                stockToSet = BranchMeatStock(
+                  branchId: b.id,
+                  branchName: b.fullName,
+                  date: now,
+                  regular250gTotal: (ar['regular'] as num?)?.toInt() ?? 20,
+                  regular250gRemaining: (ar['regular'] as num?)?.toInt() ?? 20,
+                  medium300gTotal: (ar['medium'] as num?)?.toInt() ?? 10,
+                  medium300gRemaining: (ar['medium'] as num?)?.toInt() ?? 10,
+                  b1t1_400gTotal: (ar['b1t1'] as num?)?.toInt() ?? 10,
+                  b1t1_400gRemaining: (ar['b1t1'] as num?)?.toInt() ?? 10,
+                  mayoTotal: (ar['mayo'] as num?)?.toInt() ?? 40,
+                  mayoRemaining: (ar['mayo'] as num?)?.toInt() ?? 40,
+                  styroTotal: (ar['styro'] as num?)?.toInt() ?? 40,
+                  styroRemaining: (ar['styro'] as num?)?.toInt() ?? 40,
+                  toyoTotal: (ar['toyo'] as num?)?.toInt() ?? 10,
+                  toyoRemaining: (ar['toyo'] as num?)?.toInt() ?? 10,
+                );
+              } else {
+                stockToSet = BranchMeatStock.defaultForBranch(b);
+              }
+            } else {
+              stockToSet = BranchMeatStock.defaultForBranch(b);
+            }
+            await _db.collection('branch_meat_stocks').doc(b.id).set({
+              ...stockToSet.toMap(),
+              'updatedAt': FieldValue.serverTimestamp(),
+            });
+          }
         }
-      }
-
-      if (hasOutdatedDate) {
-        debugPrint('FirestoreService: Outdated branch stock detected. Auto-resetting to today\'s standard.');
-        await resetAllBranchMeatStocksToStandard();
       }
     } catch (e) {
       debugPrint('FirestoreService.seedDefaultBranchMeatStocksIfEmpty error: $e');
@@ -2064,6 +2124,16 @@ class FirestoreService {
         'driverName': dispatch.driverName,
         'serverCreatedAt': FieldValue.serverTimestamp(),
       });
+
+      await NotificationService.sendNotification(
+        title: '🚚 Bagong Restock Dispatch — ${dispatch.destinationBranchName}',
+        message: 'May bagong restock para sa ${dispatch.destinationBranchName}: ${dispatch.itemsSummary}. Mangyaring i-deliver sa branch.',
+        type: NotificationType.deliveryTask,
+        targetRole: 'driver',
+        route: 'stock_transfer',
+        targetBranch: dispatch.destinationBranchName,
+      );
+
       return docRef.id;
     } catch (e) {
       debugPrint('FirestoreService.createMeatDispatch error: $e');
@@ -2166,7 +2236,7 @@ class FirestoreService {
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
 
-      // 4. Send real-time notification to the branch staff that stock has arrived
+      // 3. Send real-time notification to the branch staff that stock has arrived
       await NotificationService.sendNotification(
         title: '📦 Karagdagang Stock Dumating — ${dispatch.destinationBranchName}',
         message: 'Na-deliver na ng Driver ang: ${dispatch.itemsSummary}',
@@ -2200,7 +2270,7 @@ class FirestoreService {
         'submittedAt': FieldValue.serverTimestamp(),
       });
 
-      // 6. Update incomplete reports for this branch to 'missing' (delivered by driver, awaiting branch cook confirmation)
+      // 6. Resolve any open discrepancy reports for this branch since restock has been delivered
       try {
         final reportsSnap = await _db
             .collection('daily_reports')
@@ -2209,8 +2279,9 @@ class FirestoreService {
             .get();
         for (final doc in reportsSnap.docs) {
           await doc.reference.update({
-            'status': ReportSubmissionStatus.missing.name,
+            'status': ReportSubmissionStatus.submitted.name,
             'driverDeliveredAt': FieldValue.serverTimestamp(),
+            'resolvedAt': FieldValue.serverTimestamp(),
           });
         }
         if (reportsSnap.docs.isEmpty) {
@@ -2221,13 +2292,14 @@ class FirestoreService {
               .get();
           for (final doc in byNameSnap.docs) {
             await doc.reference.update({
-              'status': ReportSubmissionStatus.missing.name,
+              'status': ReportSubmissionStatus.submitted.name,
               'driverDeliveredAt': FieldValue.serverTimestamp(),
+              'resolvedAt': FieldValue.serverTimestamp(),
             });
           }
         }
       } catch (e) {
-        debugPrint('Error updating daily_reports to missing: $e');
+        debugPrint('Error updating daily_reports on restock delivery: $e');
       }
 
       return true;
