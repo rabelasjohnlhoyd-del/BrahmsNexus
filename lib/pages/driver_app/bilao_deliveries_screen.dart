@@ -203,21 +203,13 @@ class _BilaoDeliveriesScreenState extends State<BilaoDeliveriesScreen> {
   }
 
   Future<void> _completeDelivery(BilaoOrder order) async {
-    final proofUrl = await Navigator.of(context).push<String?>(
+    final success = await Navigator.of(context).push<bool>(
       CupertinoPageRoute(
         builder: (_) => BilaoDeliveryDetailScreen(order: order),
       ),
     );
 
-    // proofUrl is non-null when driver submitted (could be Supabase URL or base64 fallback)
-    if (proofUrl != null) {
-      final driverName = AuthService.currentAppUser?.fullName ?? 'Driver';
-      await FirestoreService.completeBilaoDelivery(
-        order: order,
-        driverName: driverName,
-        deliveryProofUrl: proofUrl,
-      );
-
+    if (success == true) {
       if (!mounted) return;
       showCupertinoDialog<void>(
         context: context,

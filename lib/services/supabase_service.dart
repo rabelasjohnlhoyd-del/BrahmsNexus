@@ -37,13 +37,19 @@ class PaginatedResponse<T> {
 class SupabaseService {
   const SupabaseService._();
 
+  static SupabaseClient? _directClient;
+
   static SupabaseClient? get _client {
     if (!SupabaseConfig.isConfigured) return null;
     try {
-      return Supabase.instance.client;
-    } catch (_) {
-      return null;
-    }
+      if (Supabase.instance.isInitialized) {
+        return Supabase.instance.client;
+      }
+    } catch (_) {}
+    return _directClient ??= SupabaseClient(
+      SupabaseConfig.cleanSupabaseUrl,
+      SupabaseConfig.supabaseAnonKey,
+    );
   }
 
   static bool get isAvailable => _client != null;
@@ -595,28 +601,36 @@ class SupabaseService {
     if (client != null) {
       try {
         final timestamp = DateTime.now().millisecondsSinceEpoch;
-        final filePath = '$proofType/${orderId}_$timestamp.$extension';
+        final cleanExt = extension.toLowerCase().replaceAll('.', '').trim();
+        final ext = (cleanExt == 'png') ? 'png' : 'jpg';
+        final mimeExt = (ext == 'png') ? 'image/png' : 'image/jpeg';
+        final filePath = '$proofType/${orderId}_$timestamp.$ext';
 
         await client.storage.from('bilao-proofs').uploadBinary(
           filePath,
           bytes,
           fileOptions: FileOptions(
             upsert: true,
-            contentType: extension == 'png' ? 'image/png' : 'image/jpeg',
+            contentType: mimeExt,
           ),
         );
 
         final publicUrl = client.storage.from('bilao-proofs').getPublicUrl(filePath);
+        debugPrint('Supabase bilao-proofs upload success: $publicUrl');
         return publicUrl;
       } catch (e) {
-        debugPrint('Supabase bilao-proofs upload failed ($e). Using base64 fallback.');
+        debugPrint('Supabase bilao-proofs upload failed: $e');
       }
     }
 
-    // Fallback: base64 data URI so the photo is never permanently lost
-    final mimeType = extension == 'png' ? 'image/png' : 'image/jpeg';
-    final base64String = base64Encode(bytes);
-    return 'data:$mimeType;base64,$base64String';
+    // Fallback: only if bytes is small enough (< 500KB) to safely fit in Firestore document!
+    if (bytes.lengthInBytes < 500 * 1024) {
+      final mimeType = extension.toLowerCase().contains('png') ? 'image/png' : 'image/jpeg';
+      final base64String = base64Encode(bytes);
+      return 'data:$mimeType;base64,$base64String';
+    }
+
+    return null;
   }
 
   static List<StaffMember> getAllStaff() => List.unmodifiable(_inMemoryStaff);

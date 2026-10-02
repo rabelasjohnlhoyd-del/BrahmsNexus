@@ -281,14 +281,24 @@ class FirestoreService {
       'updatedAt': FieldValue.serverTimestamp(),
     };
     if (deliveryProofUrl != null && deliveryProofUrl.isNotEmpty) {
-      updateData['deliveryProofUrl'] = deliveryProofUrl;
+      // Prevent Firestore 1MB doc violation from oversized base64 strings
+      if (!deliveryProofUrl.startsWith('data:') || deliveryProofUrl.length < 600000) {
+        updateData['deliveryProofUrl'] = deliveryProofUrl;
+      }
     }
 
     try {
       await _db.collection('bilao_orders').doc(order.id).update(updateData);
     } catch (e) {
-      debugPrint('FirestoreService.completeBilaoDelivery update error: $e');
-      return false;
+      debugPrint('FirestoreService.completeBilaoDelivery update error: $e. Retrying without proof URL...');
+      try {
+        // Fallback: update status without proof URL so order completion is never blocked
+        updateData.remove('deliveryProofUrl');
+        await _db.collection('bilao_orders').doc(order.id).update(updateData);
+      } catch (retryError) {
+        debugPrint('FirestoreService.completeBilaoDelivery retry error: $retryError');
+        return false;
+      }
     }
 
     final dName = (driverName != null && driverName.isNotEmpty) ? driverName : 'Driver';

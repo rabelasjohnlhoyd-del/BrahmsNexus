@@ -2,6 +2,8 @@ import 'dart:io';
 import 'package:flutter/cupertino.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../models/bilao_order.dart';
+import '../../services/auth_service.dart';
+import '../../services/firestore_service.dart';
 import '../../services/supabase_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/driver_button.dart';
@@ -10,7 +12,7 @@ import '../../widgets/driver_nav_bar.dart';
 
 /// Full delivery details + take-a-picture flow to confirm the delivery was
 /// successful. Uploads the proof photo to Supabase Storage (bilao-proofs bucket)
-/// and pops the public URL so the parent can save it to Firestore.
+/// and saves completion directly in Firestore.
 ///
 /// For Cash COD orders (remaining balance > 0) the driver must confirm
 /// collection before submitting.
@@ -42,7 +44,9 @@ class _BilaoDeliveryDetailScreenState
       final picker = ImagePicker();
       final photo = await picker.pickImage(
         source: ImageSource.camera,
-        imageQuality: 85,
+        maxWidth: 1024,
+        maxHeight: 1024,
+        imageQuality: 75,
       );
       if (photo != null) {
         setState(() => _photo = photo);
@@ -68,7 +72,7 @@ class _BilaoDeliveryDetailScreenState
   void _retake() => setState(() => _photo = null);
 
   Future<void> _confirmSubmit() async {
-    if (!_canSubmit) return;
+    if (!_canSubmit || _isSubmitting) return;
 
     final confirmed = await showCupertinoDialog<bool>(
       context: context,
@@ -97,23 +101,68 @@ class _BilaoDeliveryDetailScreenState
 
     setState(() => _isSubmitting = true);
 
-    // Upload proof photo to Supabase Storage
-    String? proofUrl;
     try {
-      final bytes = await _photo!.readAsBytes();
-      proofUrl = await SupabaseService.uploadBilaoProofPhoto(
-        orderId: widget.order.id,
-        proofType: 'delivery',
-        bytes: bytes,
-      );
-    } catch (e) {
-      // Non-fatal: if upload fails we still complete the delivery
-      debugPrint('Delivery proof upload failed: $e');
-    }
+      // 1. Upload proof photo to Supabase Storage
+      String? proofUrl;
+      try {
+        final bytes = await _photo!.readAsBytes();
+        proofUrl = await SupabaseService.uploadBilaoProofPhoto(
+          orderId: widget.order.id,
+          proofType: 'delivery',
+          bytes: bytes,
+        );
+      } catch (e) {
+        debugPrint('Delivery proof upload failed: $e');
+      }
 
-    if (!mounted) return;
-    // Pop with the URL (or null if upload failed — caller handles gracefully)
-    Navigator.of(context).pop(proofUrl);
+      // 2. Mark delivery completed in Firestore
+      final driverName = AuthService.currentAppUser?.fullName ?? 'Driver';
+      final success = await FirestoreService.completeBilaoDelivery(
+        order: widget.order,
+        driverName: driverName,
+        deliveryProofUrl: proofUrl,
+      );
+
+      if (!mounted) return;
+
+      if (success) {
+        // Pop with true to indicate delivery was completed
+        Navigator.of(context).pop(true);
+      } else {
+        setState(() => _isSubmitting = false);
+        showCupertinoDialog<void>(
+          context: context,
+          builder: (ctx) => CupertinoAlertDialog(
+            title: const Text('Error'),
+            content: const Text(
+              'Hindi ma-save ang delivery report. Pakisubukang muli.',
+            ),
+            actions: [
+              CupertinoDialogAction(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isSubmitting = false);
+      showCupertinoDialog<void>(
+        context: context,
+        builder: (ctx) => CupertinoAlertDialog(
+          title: const Text('Error'),
+          content: Text('May naganap na error: $e'),
+          actions: [
+            CupertinoDialogAction(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+    }
   }
 
   @override

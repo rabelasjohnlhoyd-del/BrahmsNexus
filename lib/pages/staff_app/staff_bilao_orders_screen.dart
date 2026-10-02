@@ -1019,7 +1019,11 @@ class _AddBilaoOrderSheetState extends State<_AddBilaoOrderSheet> {
   Future<void> _pickGcashPhoto(ImageSource source) async {
     try {
       final photo = await ImagePicker().pickImage(
-          source: source, imageQuality: 90);
+        source: source,
+        maxWidth: 1024,
+        maxHeight: 1024,
+        imageQuality: 75,
+      );
       if (photo == null) return;
       setState(() {
         _gcashPhoto   = photo;
