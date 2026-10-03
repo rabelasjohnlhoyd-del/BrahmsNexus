@@ -58,17 +58,15 @@ void main() async {
     }
   }
 
-  // Initialize Supabase for master data
+  // Initialize Supabase for master data & auth
   if (SupabaseConfig.isConfigured) {
     try {
-      if (!Supabase.instance.isInitialized) {
-        await Supabase.initialize(
-          url: SupabaseConfig.cleanSupabaseUrl,
-          anonKey: SupabaseConfig.supabaseAnonKey,
-        );
-      }
+      await Supabase.initialize(
+        url: SupabaseConfig.cleanSupabaseUrl,
+        anonKey: SupabaseConfig.supabaseAnonKey,
+      );
     } catch (e) {
-      debugPrint('Supabase.initialize error: $e');
+      debugPrint('Supabase.initialize note: $e');
     }
   }
 

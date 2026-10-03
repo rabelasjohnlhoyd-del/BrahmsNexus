@@ -49,8 +49,13 @@ class SupabaseService {
     return _directClient ??= SupabaseClient(
       SupabaseConfig.cleanSupabaseUrl,
       SupabaseConfig.supabaseAnonKey,
+      authOptions: const AuthClientOptions(
+        authFlowType: AuthFlowType.implicit,
+      ),
     );
   }
+
+  static SupabaseClient? get client => _client;
 
   static bool get isAvailable => _client != null;
 
@@ -298,15 +303,16 @@ class SupabaseService {
     );
   }
 
-  /// Inserts a new staff member profile into Supabase.
+  /// Inserts or updates a staff member profile into Supabase.
   static Future<bool> createStaffProfile(StaffMember staff) async {
+    _inMemoryStaff.removeWhere((s) => s.id == staff.id);
     _inMemoryStaff.insert(0, staff);
 
     final client = _client;
     if (client == null) return true;
 
     try {
-      await client.from('staff_profiles').insert(staff.toMap());
+      await client.from('staff_profiles').upsert(staff.toMap());
       return true;
     } catch (e) {
       debugPrint('SupabaseService.createStaffProfile error: $e');
@@ -787,9 +793,19 @@ class SupabaseService {
       final data = await client.from('staff_profiles').select();
       final list = (data as List).map((row) => StaffMember.fromMap(row as Map<String, dynamic>)).toList();
       if (list.isNotEmpty) {
+        // Retain any existing in-memory staff (e.g. sample staff or newly added staff)
+        // that are not yet in the remote database so they never disappear!
+        final remoteIds = list.map((s) => s.id.toLowerCase().trim()).toSet();
+        final remoteUsernames = list.map((s) => s.username.toLowerCase().trim()).toSet();
+        final preserved = _inMemoryStaff.where((s) =>
+            !remoteIds.contains(s.id.toLowerCase().trim()) &&
+            !remoteUsernames.contains(s.username.toLowerCase().trim())
+        ).toList();
+
         _inMemoryStaff
           ..clear()
-          ..addAll(list);
+          ..addAll(list)
+          ..addAll(preserved);
         _staffRefreshTime = DateTime.now();
       }
       return list;
@@ -894,7 +910,9 @@ class SupabaseService {
       final updateData = <String, dynamic>{
         'rfid_tag': isRestDay ? 'REST_DAY_$resolvedId' : 'DUTY_$resolvedId',
       };
-      if (branchName.isNotEmpty) {
+      final branchNameClean = branchName.trim().toLowerCase();
+      final isRealBranch = branchName.isNotEmpty && branchNameClean != 'n/a' && branchNameClean != 'unassigned';
+      if (isRealBranch) {
         updateData['branch_name'] = branchName;
       }
       if (!isRestDay) {

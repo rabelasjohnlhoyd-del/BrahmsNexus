@@ -94,12 +94,15 @@ class StaffMember {
       'username': username,
       'branch_name': branch,
       'position': position,
-      'email': email,
-      'phone': phone,
+      // Use null instead of empty string for UNIQUE columns so multiple
+      // staff without a value don't violate the UNIQUE constraint.
+      if (email != null && email!.isNotEmpty) 'email': email,
+      if (phone != null && phone!.isNotEmpty) 'phone': phone,
       'address': address,
       'age': age,
       if (photoUrl.isNotEmpty) 'photo_url': photoUrl,
-      'rfid_tag': rfidTag,
+      // rfid_tag has UNIQUE constraint — never send empty string, use null
+      if (rfidTag.isNotEmpty) 'rfid_tag': rfidTag,
       'is_active': isActive,
       'is_archived': isArchived,
       'date_added': dateAdded.toIso8601String(),

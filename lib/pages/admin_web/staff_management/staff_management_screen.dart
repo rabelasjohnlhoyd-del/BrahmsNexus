@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../models/staff_member.dart';
 import '../../../services/auth_service.dart';
 import '../../../services/supabase_service.dart';
@@ -90,7 +91,6 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
 
     if (result == null) return;
 
-    await SupabaseService.createStaffProfile(result);
     _currentPage = 1;
     await _loadStaff();
 
@@ -125,6 +125,25 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
     if (result == null) return;
 
     await SupabaseService.updateStaffProfile(result);
+
+    // Sync updated info to Firestore users/{uid} so mobile app role routing immediately updates
+    try {
+      final docRef = FirebaseFirestore.instance.collection('users').doc(result.id);
+      final doc = await docRef.get();
+      if (doc.exists) {
+        await docRef.update({
+          'fullName': result.fullName,
+          'contactNumber': result.phone ?? '',
+          'position': result.position,
+          'address': result.address,
+          'age': result.age,
+          'role': 'staff',
+        });
+      }
+    } catch (e) {
+      debugPrint('Syncing edited staff to Firestore error: $e');
+    }
+
     await _loadStaff();
 
     if (!mounted) return;

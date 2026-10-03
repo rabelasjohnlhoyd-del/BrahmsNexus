@@ -45,8 +45,8 @@ service cloud.firestore {
     // Holds authentication mapping, roles, statuses, and staff details.
     // =========================================================================
     match /users/{userId} {
-      // Owner and approved staff can read user lists; users can read their own profile
-      allow read: if isOwner(userId) || isApprovedStaff();
+      // Owner and approved staff can read user lists; users can read their own profile; unauthenticated can lookup for login/recovery
+      allow read: if isOwner(userId) || isApprovedStaff() || request.auth == null;
 
       // Users can register as staff, or Owner can auto-seed/create user profiles
       allow create: if isOwner(userId) || isSystemOwner();

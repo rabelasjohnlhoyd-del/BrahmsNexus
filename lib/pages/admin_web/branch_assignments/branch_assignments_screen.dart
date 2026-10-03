@@ -29,7 +29,7 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
   final _searchController = TextEditingController();
   String _query = '';
   int _currentPage = 0;
-  static const int _pageSize = 5;
+  static const int _pageSize = 15;
 
   List<Branch> _availableBranches = SupabaseService.getAllBranchesSync();
 
@@ -68,26 +68,7 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
     return null;
   }
 
-  String _getTwoInitials(String name) {
-    final parts = name.trim().split(RegExp(r'\s+'));
-    if (parts.length >= 2) {
-      return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
-    } else if (parts.isNotEmpty && parts[0].isNotEmpty) {
-      return parts[0].substring(0, parts[0].length >= 2 ? 2 : 1).toUpperCase();
-    }
-    return '?';
-  }
 
-  Widget _buildInitialsText(String name, bool isOnDuty) {
-    return Text(
-      _getTwoInitials(name),
-      style: TextStyle(
-        color: isOnDuty ? AdminWebColors.accent : Colors.grey.shade600,
-        fontWeight: FontWeight.bold,
-        fontSize: 16,
-      ),
-    );
-  }
 
   void _onAssignmentsChanged() {
     if (!mounted) return;
@@ -243,7 +224,6 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
   @override
   void didUpdateWidget(BranchAssignmentsScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
-    _initializeAssignments();
     _updateShellActions();
   }
 
@@ -322,12 +302,6 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
       _assignments[originalIndex] = a.copyWith(workStatus: status);
     });
 
-    final isRest = status == WorkStatus.restDay;
-    await SupabaseService.toggleStaffActive(a.employeeId, !isRest);
-    if (staff != null && staff.username.isNotEmpty) {
-      await SupabaseService.toggleStaffActiveByUsername(staff.username, !isRest);
-    }
-
     await AssignmentService.setAssignment(
       username: username,
       employeeId: a.employeeId,
@@ -339,11 +313,13 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
   }
 
   void _saveAll() async {
-    // Check for duplicate on-duty cooks per branch
+    // Check for duplicate on-duty cooks per branch (excluding Unassigned / N/A)
     final onDutyList = _assignments.where((a) => a.workStatus == WorkStatus.onDuty).toList();
     final Map<String, List<String>> branchOccupants = {};
     for (final a in onDutyList) {
-      branchOccupants.putIfAbsent(a.branchName, () => []).add(a.employeeName);
+      final bName = a.branchName.trim();
+      if (bName.isEmpty || bName == 'Unassigned' || bName == 'N/A') continue;
+      branchOccupants.putIfAbsent(bName, () => []).add(a.employeeName);
     }
     final conflicts = branchOccupants.entries.where((e) => e.value.length > 1).toList();
     if (conflicts.isNotEmpty) {
@@ -381,6 +357,15 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
 
     final allStaff = SupabaseService.getAllStaff();
     for (final a in _assignments) {
+      // Skip staff who still have no real branch assigned — writing "Unassigned"
+      // or "N/A" to Supabase would corrupt the realtime cache for all staff.
+      final bNameClean = a.branchName.trim().toLowerCase();
+      final hasRealBranch = bNameClean.isNotEmpty && bNameClean != 'n/a' && bNameClean != 'unassigned';
+
+      // Always save rest-day status (even without a branch) so it persists.
+      // For on-duty staff, skip if they have no branch yet — they must select one first.
+      if (!hasRealBranch && a.workStatus != WorkStatus.restDay) continue;
+
       final staff = _findStaff(allStaff, a.employeeId, a.employeeName);
       final username = (staff != null && staff.username.isNotEmpty) ? staff.username : a.employeeId;
       await AssignmentService.setAssignment(
@@ -388,7 +373,7 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
         employeeId: a.employeeId,
         employeeName: a.employeeName,
         branchId: a.branchId,
-        branchName: a.branchName,
+        branchName: hasRealBranch ? a.branchName : '',
         status: a.workStatus,
       );
     }
@@ -576,38 +561,46 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
             Expanded(
               child: list.isEmpty
                 ? const Center(child: Text('No matching staff found.', style: TextStyle(color: AdminWebColors.textSecondary)))
-                : Column(
-                    children: [
-                      Expanded(
-                        child: ListView.separated(
-                          itemCount: (list.length - (_currentPage * _pageSize)).clamp(0, _pageSize),
-                          separatorBuilder: (context, index) => const SizedBox(height: 12),
-                          itemBuilder: (context, index) {
-                            final a = list[(_currentPage * _pageSize) + index];
-                            return LayoutBuilder(
-                              builder: (context, constraints) {
-                                final isWide = constraints.maxWidth >= 700;
-                                return _AssignmentCard(
-                                  key: ValueKey('card-${a.employeeId}-${a.employeeName}'),
-                                  assignment: a,
-                                  allAssignments: _assignments,
-                                  branches: _availableBranches,
-                                  isWide: isWide,
-                                  onBranchChanged: (branch) => _updateBranch(a, branch),
-                                  onStatusChanged: (status) => _updateStatus(a, status),
+                : Builder(
+                    builder: (context) {
+                      final safeTotalPages = ((list.length + _pageSize - 1) / _pageSize).floor().clamp(1, 99999);
+                      final safePage = _currentPage.clamp(0, safeTotalPages - 1);
+                      final pageItemCount = (list.length - (safePage * _pageSize)).clamp(0, _pageSize);
+
+                      return Column(
+                        children: [
+                          Expanded(
+                            child: ListView.separated(
+                              itemCount: pageItemCount,
+                              separatorBuilder: (context, index) => const SizedBox(height: 12),
+                              itemBuilder: (context, index) {
+                                final a = list[(safePage * _pageSize) + index];
+                                return LayoutBuilder(
+                                  builder: (context, constraints) {
+                                    final isWide = constraints.maxWidth >= 700;
+                                    return _AssignmentCard(
+                                      key: ValueKey('card-${a.employeeId}-${a.employeeName}'),
+                                      assignment: a,
+                                      allAssignments: _assignments,
+                                      branches: _availableBranches,
+                                      isWide: isWide,
+                                      onBranchChanged: (branch) => _updateBranch(a, branch),
+                                      onStatusChanged: (status) => _updateStatus(a, status),
+                                    );
+                                  },
                                 );
                               },
-                            );
-                          },
-                        ),
-                      ),
-                      AdminPaginationBar(
-                        currentPage: _currentPage,
-                        totalItems: list.length,
-                        pageSize: _pageSize,
-                        onPageChanged: (p) => setState(() => _currentPage = p),
-                      ),
-                    ],
+                            ),
+                          ),
+                          AdminPaginationBar(
+                            currentPage: safePage,
+                            totalItems: list.length,
+                            pageSize: _pageSize,
+                            onPageChanged: (p) => setState(() => _currentPage = p),
+                          ),
+                        ],
+                      );
+                    },
                   ),
             ),
             const SizedBox(height: 24),
@@ -718,10 +711,16 @@ class _AssignmentCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final bool isOnDuty = assignment.workStatus == WorkStatus.onDuty;
 
-    // Check if another cook is currently ON DUTY at this same branch (conflict)
+    // Check if another cook is currently ON DUTY at this same branch (conflict).
+    // Skip N/A / Unassigned branches — they are not real branches and would cause false conflicts.
     BranchAssignment? conflictingOnDutyCook;
-    if (isOnDuty) {
+    final conflictBranchClean = assignment.branchId.trim().toLowerCase();
+    final isNoConflictBranch = conflictBranchClean.isEmpty || conflictBranchClean == 'n/a' || conflictBranchClean == 'unassigned';
+    if (isOnDuty && !isNoConflictBranch) {
       for (final other in allAssignments) {
+        final otherBranchClean = other.branchId.trim().toLowerCase();
+        final otherIsUnassigned = otherBranchClean.isEmpty || otherBranchClean == 'n/a' || otherBranchClean == 'unassigned';
+        if (otherIsUnassigned) continue;
         final samePerson = other.employeeId == assignment.employeeId ||
             (other.employeeName.isNotEmpty &&
                 other.employeeName.trim().toLowerCase() == assignment.employeeName.trim().toLowerCase());

@@ -31,7 +31,19 @@ class _AccountApprovalsScreenState extends State<AccountApprovalsScreen> {
   int _decidedPage = 0;
   static const int _pageSize = 5;
   void _decide(RegistrationRequest request, AccountStatus status) async {
-    await AuthService.updateAccountStatus(request.id, status);
+    final success = await AuthService.updateAccountStatus(request.id, status);
+
+    if (!mounted) return;
+
+    if (!success) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to update status for ${request.fullName}. Please try again.'),
+          backgroundColor: AdminWebColors.error,
+        ),
+      );
+      return;
+    }
 
     final adminName = AuthService.currentAppUser?.fullName ?? 'Admin';
     if (status == AccountStatus.approved) {
@@ -51,8 +63,6 @@ class _AccountApprovalsScreenState extends State<AccountApprovalsScreen> {
         type: 'Staff',
       ).catchError((_) {});
     }
-
-    if (!mounted) return;
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -223,6 +233,7 @@ class _AccountApprovalsScreenState extends State<AccountApprovalsScreen> {
                           .map(
                             (r) => _RequestCard(
                               request: r,
+                              onChangeStatus: (newStatus) => _decide(r, newStatus),
                             ),
                           ),
                       AdminPaginationBar(

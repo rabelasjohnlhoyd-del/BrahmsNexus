@@ -24,8 +24,8 @@ class EmailOtpScreen extends StatefulWidget {
 
 class _EmailOtpScreenState extends State<EmailOtpScreen> {
   final List<TextEditingController> _controllers =
-      List.generate(8, (_) => TextEditingController());
-  final List<FocusNode> _focusNodes = List.generate(8, (_) => FocusNode());
+      List.generate(6, (_) => TextEditingController());
+  final List<FocusNode> _focusNodes = List.generate(6, (_) => FocusNode());
 
   int _resendCountdown = 60;
   Timer? _timer;
@@ -94,7 +94,7 @@ class _EmailOtpScreenState extends State<EmailOtpScreen> {
         _startCountdown();
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('A new 8-digit verification code has been sent.'),
+            content: Text('A new 6-digit verification code has been sent.'),
             backgroundColor: AppColors.accent,
           ),
         );
@@ -115,8 +115,8 @@ class _EmailOtpScreenState extends State<EmailOtpScreen> {
 
   Future<void> _handleVerify() async {
     final code = _enteredCode.trim();
-    if (code.length < 8) {
-      setState(() => _errorMessage = 'Please enter all 8 digits of the code.');
+    if (code.length < 6) {
+      setState(() => _errorMessage = 'Please enter all 6 digits of the code.');
       return;
     }
 
@@ -204,7 +204,7 @@ class _EmailOtpScreenState extends State<EmailOtpScreen> {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        'We sent an 8-digit confirmation code to\n${widget.email}',
+                        'We sent a 6-digit confirmation code to\n${widget.email}',
                         textAlign: TextAlign.center,
                         style: const TextStyle(
                           fontSize: 13.5,
@@ -214,12 +214,12 @@ class _EmailOtpScreenState extends State<EmailOtpScreen> {
                       ),
                       const SizedBox(height: 24),
 
-                      // 8-digit Pin Fields (Responsive)
+                      // 6-digit Pin Fields (Responsive)
                       Row(
-                        children: List.generate(8, (index) {
+                        children: List.generate(6, (index) {
                           return Expanded(
                             child: Container(
-                              margin: const EdgeInsets.symmetric(horizontal: 2),
+                              margin: const EdgeInsets.symmetric(horizontal: 4),
                               height: 52,
                               child: TextField(
                                 controller: _controllers[index],
@@ -228,7 +228,7 @@ class _EmailOtpScreenState extends State<EmailOtpScreen> {
                                 textAlign: TextAlign.center,
                                 maxLength: 1,
                                 style: const TextStyle(
-                                  fontSize: 18,
+                                  fontSize: 20,
                                   fontWeight: FontWeight.w700,
                                   color: AppColors.textPrimary,
                                 ),
@@ -251,12 +251,12 @@ class _EmailOtpScreenState extends State<EmailOtpScreen> {
                                   ),
                                 ),
                                 onChanged: (val) {
-                                  if (val.isNotEmpty && index < 7) {
+                                  if (val.isNotEmpty && index < 5) {
                                     _focusNodes[index + 1].requestFocus();
                                   } else if (val.isEmpty && index > 0) {
                                     _focusNodes[index - 1].requestFocus();
                                   }
-                                  if (_enteredCode.length == 8) {
+                                  if (_enteredCode.length == 6) {
                                     _handleVerify();
                                   }
                                 },

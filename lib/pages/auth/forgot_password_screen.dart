@@ -104,6 +104,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       final username = account['username']!;
       final fullName = account['fullName'] ?? '';
 
+      // Send official Firebase reset email and Supabase 6-digit OTP
+      AuthService.sendPasswordResetEmail(email: email).catchError((_) => false);
       final sent = await AuthService.sendPasswordResetOtp(email: email);
       if (!sent) {
         if (!mounted) return;
@@ -182,6 +184,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   Future<void> _handleResendOtp() async {
     if (_resendCountdown > 0 || _targetEmail == null) return;
     setState(() => _errorMessage = null);
+    AuthService.sendPasswordResetEmail(email: _targetEmail!).catchError((_) => false);
     final sent = await AuthService.sendPasswordResetOtp(email: _targetEmail!);
     if (!mounted) return;
     if (sent) {
@@ -206,12 +209,9 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     final newPassword = _passwordController.text;
     final confirmPassword = _confirmPasswordController.text;
 
-    if (newPassword.isEmpty) {
-      setState(() => _errorMessage = 'Ilagay ang iyong bagong password.');
-      return;
-    }
-    if (newPassword.length < 6) {
-      setState(() => _errorMessage = 'Ang password ay dapat hindi bababa sa 6 characters.');
+    final passwordError = AuthService.validateStrongPassword(newPassword, tagalog: true);
+    if (passwordError != null) {
+      setState(() => _errorMessage = passwordError);
       return;
     }
     if (newPassword != confirmPassword) {
@@ -262,7 +262,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
             ],
           ),
           content: Text(
-            'Matagumpay na napalitan ang password ng iyong account (@${_targetUsername!}). Maaari ka nang mag-login gamit ang bagong password.',
+            'Matagumpay na na-set ang bagong password para sa iyong account (@${_targetUsername!}). Kung may natanggap ka ring official confirmation link sa iyong email, i-click din ito para magkabisa agad sa lahat ng platform.',
             style: const TextStyle(fontSize: 14, color: AppColors.textSecondary, height: 1.4),
           ),
           actions: [
@@ -460,6 +460,32 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
                                 // STEP 1: 6-Digit OTP Input
                                 if (_currentStep == 1) ...[
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                                    margin: const EdgeInsets.only(bottom: 18),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.accent.withValues(alpha: 0.08),
+                                      borderRadius: BorderRadius.circular(10),
+                                      border: Border.all(color: AppColors.accent.withValues(alpha: 0.2)),
+                                    ),
+                                    child: const Row(
+                                      children: [
+                                        Icon(Icons.info_outline_rounded, color: AppColors.accent, size: 18),
+                                        SizedBox(width: 8),
+                                        Expanded(
+                                          child: Text(
+                                            'Maaari mo ring i-click ang official reset link sa iyong email para sa mabilis na pag-update.',
+                                            style: TextStyle(
+                                              color: AppColors.accent,
+                                              fontSize: 11.5,
+                                              fontWeight: FontWeight.w600,
+                                              height: 1.3,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
                                   TextFormField(
                                     controller: _otpController,
                                     keyboardType: TextInputType.number,
@@ -544,6 +570,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                                     decoration: InputDecoration(
                                       labelText: 'NEW PASSWORD',
                                       labelStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 0.8),
+                                      helperText: 'Dapat may malaki at maliit na titik, numero, at symbol (min. 6).',
+                                      helperStyle: const TextStyle(fontSize: 10.5, color: Color(0xFF8D6E63)),
                                       prefixIcon: const Icon(Icons.lock_outline_rounded, size: 20),
                                       suffixIcon: IconButton(
                                         icon: Icon(_obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined, size: 20),

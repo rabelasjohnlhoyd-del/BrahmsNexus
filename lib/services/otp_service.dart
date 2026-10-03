@@ -57,8 +57,9 @@ class OtpService {
 
     // Send real email with 6-digit OTP code to the user's actual email inbox via Supabase
     try {
-      if (SupabaseService.isAvailable) {
-        await Supabase.instance.client.auth.signInWithOtp(
+      final client = SupabaseService.client;
+      if (client != null) {
+        await client.auth.signInWithOtp(
           email: cleanEmail,
           shouldCreateUser: true,
         );
@@ -84,8 +85,9 @@ class OtpService {
 
     // 2. Try verifying via Supabase Auth OTP (real email token)
     try {
-      if (SupabaseService.isAvailable) {
-        final res = await Supabase.instance.client.auth.verifyOTP(
+      final client = SupabaseService.client;
+      if (client != null) {
+        final res = await client.auth.verifyOTP(
           email: cleanEmail,
           token: cleanCode,
           type: OtpType.email,
@@ -135,6 +137,115 @@ class OtpService {
     try {
       await _db.collection('email_otps').doc(email).delete();
     } catch (_) {}
+  }
+
+  // ===========================================================================
+  // 1.1 PASSWORD RESET OTP (Supabase Recovery + In-Memory/Firestore Backup)
+  // ===========================================================================
+
+  /// Generates and sends a 6-digit Password Reset OTP to the user's email address.
+  /// Uses Supabase's native `resetPasswordForEmail` (which triggers the "Reset Password" email template)
+  /// and stores a backup in Firestore & memory valid for 60 minutes (3600 seconds).
+  static Future<String> sendPasswordResetOtp(String email) async {
+    final cleanEmail = email.trim().toLowerCase();
+
+    // Generate secure 6-digit code
+    final code = (100000 + Random().nextInt(900000)).toString();
+    final expiresAt = DateTime.now().add(const Duration(seconds: 3600)); // Matches 3600s Supabase setting
+
+    // Store in local memory for fast lookup
+    _recentEmailOtps[cleanEmail] = _EmailOtpEntry(code: code, expiresAt: expiresAt);
+
+    // Store in Firestore `email_otps`
+    try {
+      await _db.collection('email_otps').doc(cleanEmail).set({
+        'email': cleanEmail,
+        'code': code,
+        'purpose': 'password_reset',
+        'createdAt': FieldValue.serverTimestamp(),
+        'expiresAt': Timestamp.fromDate(expiresAt),
+        'attempts': 0,
+      });
+    } catch (e) {
+      debugPrint('OtpService.sendPasswordResetOtp Firestore error: $e');
+    }
+
+    // Trigger Supabase Password Reset Email
+    try {
+      final client = SupabaseService.client;
+      if (client != null) {
+        await client.auth.resetPasswordForEmail(cleanEmail);
+        debugPrint('OtpService: Sent real Password Reset Email to $cleanEmail via Supabase');
+      }
+    } catch (e) {
+      debugPrint('OtpService.sendPasswordResetOtp Supabase error: $e');
+    }
+
+    debugPrint('OtpService: Generated Password Reset OTP for $cleanEmail -> $code');
+    return code;
+  }
+
+  /// Verifies the entered 6-digit OTP specifically for password recovery.
+  static Future<bool> verifyPasswordResetOtp(String email, String enteredCode) async {
+    final cleanEmail = email.trim().toLowerCase();
+    final cleanCode = enteredCode.trim();
+
+    // 1. Dev test bypass
+    if (cleanCode == devUniversalCode) {
+      return true;
+    }
+
+    // 2. Try verifying via Supabase Auth recovery OTP
+    try {
+      final client = SupabaseService.client;
+      if (client != null) {
+        final res = await client.auth.verifyOTP(
+          email: cleanEmail,
+          token: cleanCode,
+          type: OtpType.recovery,
+        );
+        if (res.user != null || res.session != null) {
+          _recentEmailOtps.remove(cleanEmail);
+          _cleanFirestoreEmailOtp(cleanEmail);
+          debugPrint('OtpService: Verified recovery OTP via Supabase successfully');
+          return true;
+        }
+      }
+    } catch (e) {
+      debugPrint('OtpService.verifyPasswordResetOtp Supabase recovery check: $e');
+    }
+
+    // 3. Fallback: check in-memory store
+    final memEntry = _recentEmailOtps[cleanEmail];
+    if (memEntry != null) {
+      if (DateTime.now().isBefore(memEntry.expiresAt) && memEntry.code == cleanCode) {
+        _recentEmailOtps.remove(cleanEmail);
+        _cleanFirestoreEmailOtp(cleanEmail);
+        return true;
+      }
+    }
+
+    // 4. Fallback: check Firestore
+    try {
+      final doc = await _db.collection('email_otps').doc(cleanEmail).get();
+      if (doc.exists) {
+        final data = doc.data();
+        if (data != null) {
+          final storedCode = data['code'] as String? ?? '';
+          final expiresAtTs = data['expiresAt'] as Timestamp?;
+          final expiresAt = expiresAtTs?.toDate() ?? DateTime.now();
+
+          if (DateTime.now().isBefore(expiresAt) && storedCode == cleanCode) {
+            await _cleanFirestoreEmailOtp(cleanEmail);
+            return true;
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('OtpService.verifyPasswordResetOtp Firestore check error: $e');
+    }
+
+    return false;
   }
 
   // ===========================================================================

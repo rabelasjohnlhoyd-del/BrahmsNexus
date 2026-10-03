@@ -396,12 +396,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
 
     final password = _passwordController.text;
-    if (password.isEmpty) {
-      setState(() => _registerError = 'Please enter a password.');
-      return;
-    }
-    if (password.length < 6) {
-      setState(() => _registerError = 'Password must be at least 6 characters.');
+    final passwordError = AuthService.validateStrongPassword(password);
+    if (passwordError != null) {
+      setState(() => _registerError = passwordError);
       return;
     }
 
@@ -1338,7 +1335,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
           style: _fieldTextStyle,
           decoration: _fieldDecoration(
             label: 'Password',
-            hint: 'At least 6 characters',
+            hint: 'Upper, lower, digit, symbol (min. 6)',
             prefixIcon: const Icon(Icons.lock_outline_rounded, size: 19),
             suffixIcon: IconButton(
               icon: Icon(

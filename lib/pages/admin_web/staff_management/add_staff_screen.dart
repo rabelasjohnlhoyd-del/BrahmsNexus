@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../models/staff_member.dart';
+import '../../../services/auth_service.dart';
 import '../../../widgets/address_edit_dialog.dart';
 import '../admin_web_widgets/glass_card.dart';
 import '../admin_web_colors.dart';
@@ -152,9 +153,7 @@ class _AddStaffScreenState extends State<AddStaffScreen> {
   }
 
   String? _validatePassword(String? value) {
-    if (value == null || value.isEmpty) return 'Password is required';
-    if (value.length < 6) return 'Password must be at least 6 characters';
-    return null;
+    return AuthService.validateStrongPassword(value);
   }
 
   String? _validateConfirmPassword(String? value) {
@@ -212,10 +211,6 @@ class _AddStaffScreenState extends State<AddStaffScreen> {
       _updateShellActions();
     });
 
-    await Future.delayed(const Duration(milliseconds: 800));
-
-    if (!mounted) return;
-
     final branch = _selectedPosition == 'Branch Cook'
         ? (_selectedBranch == 'Other'
             ? _otherBranchController.text.trim()
@@ -226,8 +221,40 @@ class _AddStaffScreenState extends State<AddStaffScreen> {
         ? '${_lastNameController.text.trim()} ${_selectedSuffix!}'
         : _lastNameController.text.trim();
 
+    final res = await AuthService.createStaffByAdmin(
+      username: _usernameController.text.trim(),
+      password: _passwordController.text,
+      firstName: _firstNameController.text.trim(),
+      middleName: _middleNameController.text.trim(),
+      lastName: lastName,
+      contactNumber: _phoneController.text.trim(),
+      email: _emailController.text.trim(),
+      position: _selectedPosition!,
+      branch: branch,
+      age: _ageController.text.trim(),
+      address: _addressController.text.trim(),
+      birthdate: _selectedBirthdate,
+      isActive: _isActive,
+    );
+
+    if (!mounted) return;
+
+    if (res.error != null) {
+      setState(() {
+        _isSaving = false;
+        _updateShellActions();
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(res.error!),
+          backgroundColor: AdminWebColors.error,
+        ),
+      );
+      return;
+    }
+
     final newStaff = StaffMember(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      id: res.user!.uid,
       firstName: _firstNameController.text.trim(),
       middleName: _middleNameController.text.trim(),
       lastName: lastName,

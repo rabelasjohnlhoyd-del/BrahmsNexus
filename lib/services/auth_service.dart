@@ -2,12 +2,14 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:supabase_flutter/supabase_flutter.dart' show Supabase, UserAttributes;
+import 'package:supabase_flutter/supabase_flutter.dart' show UserAttributes;
 import '../models/app_user.dart';
 import '../models/user_role.dart';
 import '../models/account_status.dart';
 import '../models/staff_member.dart';
 import 'assignment_service.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'firestore_service.dart';
 import 'firestore_cache.dart';
 import 'notification_service.dart';
 import 'otp_service.dart';
@@ -107,7 +109,7 @@ class AuthService {
         role: role,
         status: AccountStatus.pending,
         position: position,
-        email: email.trim(),
+        email: email.trim().toLowerCase(),
         age: age.trim(),
         address: address.trim(),
         driverLicenseNumber: driverLicenseNumber.trim(),
@@ -141,7 +143,7 @@ class AuthService {
         branch: 'N/A',
         position: position.isNotEmpty ? position : role.label,
         phone: contactNumber,
-        email: email.trim().isNotEmpty ? email.trim() : null,
+        email: email.trim().isNotEmpty ? email.trim().toLowerCase() : null,
         address: address.trim(),
         age: age.trim(),
       );
@@ -189,8 +191,8 @@ class AuthService {
         }
       }
 
-      // 2. Try the deterministic internal address: username@brahmsnexus.internal
-      if (credential == null) {
+      // 2. Try the deterministic internal address: username@brahmsnexus.internal (ONLY if input does NOT contain '@')
+      if (credential == null && !cleanInput.contains('@')) {
         try {
           credential = await _auth.signInWithEmailAndPassword(
             email: _usernameToEmail(cleanInput),
@@ -201,11 +203,21 @@ class AuthService {
         }
       }
 
-      // 3. Fallback: Lookup real email from Supabase (Costs 0 Firestore reads)
+      // 3. Fallback: Lookup real email from Supabase or Firestore (if username was typed)
       if (credential == null && !cleanInput.contains('@')) {
         try {
+          String? realEmail;
           final profile = await SupabaseService.findStaffProfileByUsernameOrEmail(cleanInput);
-          final realEmail = profile?.email?.trim().toLowerCase();
+          realEmail = profile?.email?.trim().toLowerCase();
+
+          if (realEmail == null || realEmail.isEmpty) {
+            // Also check Firestore users collection for this username
+            final snap = await _db.collection('users').where('username', isEqualTo: cleanInput).limit(1).get();
+            if (snap.docs.isNotEmpty) {
+              realEmail = (snap.docs.first.data()['email'] as String? ?? '').trim().toLowerCase();
+            }
+          }
+
           if (realEmail != null && realEmail.isNotEmpty) {
             try {
               credential = await _auth.signInWithEmailAndPassword(
@@ -220,6 +232,48 @@ class AuthService {
       }
 
       if (credential == null) {
+        // 4. Final fallback: try Supabase Auth sign-in.
+        //    This handles the case where the user reset their password via OTP —
+        //    the OTP flow only updates Supabase Auth, so Firebase still has the old
+        //    password. If Supabase Auth succeeds here, the reset password works.
+        try {
+          final supaClient = SupabaseService.client;
+          if (supaClient != null) {
+            // Resolve email from input (may be username or email)
+            String supaEmail = cleanInput.contains('@') ? cleanInput.toLowerCase() : '';
+            if (supaEmail.isEmpty) {
+              final profile = await SupabaseService.findStaffProfileByUsernameOrEmail(cleanInput);
+              supaEmail = profile?.email?.trim().toLowerCase() ?? '';
+              if (supaEmail.isEmpty) {
+                final snap = await _db.collection('users').where('username', isEqualTo: cleanInput).limit(1).get();
+                if (snap.docs.isNotEmpty) {
+                  supaEmail = (snap.docs.first.data()['email'] as String? ?? '').trim().toLowerCase();
+                }
+              }
+            }
+            if (supaEmail.isNotEmpty) {
+              final supaResponse = await supaClient.auth.signInWithPassword(
+                email: supaEmail,
+                password: password,
+              );
+              if (supaResponse.user != null) {
+                // Supabase Auth success — look up this user in Firestore by email
+                final snap = await _db
+                    .collection('users')
+                    .where('email', isEqualTo: supaEmail)
+                    .limit(1)
+                    .get();
+                if (snap.docs.isNotEmpty) {
+                  final uid = snap.docs.first.id;
+                  final user = AppUser.fromMap(uid, snap.docs.first.data());
+                  currentAppUser = user;
+                  return user;
+                }
+              }
+            }
+          }
+        } catch (_) {}
+
         if (lastAuthError != null) {
           onError(_friendlyAuthError(lastAuthError));
         } else {
@@ -437,9 +491,7 @@ class AuthService {
     }
     await _auth.signOut();
     try {
-      if (SupabaseService.isAvailable) {
-        await Supabase.instance.client.auth.signOut();
-      }
+      await SupabaseService.client?.auth.signOut();
     } catch (_) {}
   }
 
@@ -525,6 +577,7 @@ class AuthService {
   static Future<Map<String, String>?> lookupAccountForPasswordReset(String input) async {
     final cleanInput = input.trim();
     if (cleanInput.isEmpty) return null;
+    final lowerInput = cleanInput.toLowerCase();
 
     // 1. Supabase lookup (Costs ZERO Firestore reads)
     try {
@@ -542,11 +595,22 @@ class AuthService {
     // 2. Targeted Firestore lookup with limit 1 (Minimal 1 read)
     try {
       final isEmail = cleanInput.contains('@');
-      final query = isEmail
-          ? _db.collection('users').where('email', isEqualTo: cleanInput.toLowerCase()).limit(1)
-          : _db.collection('users').where('username', isEqualTo: cleanInput).limit(1);
+      QuerySnapshot<Map<String, dynamic>>? snap;
 
-      final snap = await query.get();
+      if (isEmail) {
+        // Try exact lowercase email match first
+        snap = await _db.collection('users').where('email', isEqualTo: lowerInput).limit(1).get();
+        if (snap.docs.isEmpty) {
+          snap = await _db.collection('users').where('email', isEqualTo: cleanInput).limit(1).get();
+        }
+      } else {
+        // Try username match (case sensitive in Firestore, so try original and lower)
+        snap = await _db.collection('users').where('username', isEqualTo: cleanInput).limit(1).get();
+        if (snap.docs.isEmpty && cleanInput != lowerInput) {
+          snap = await _db.collection('users').where('username', isEqualTo: lowerInput).limit(1).get();
+        }
+      }
+
       if (snap.docs.isNotEmpty) {
         final doc = snap.docs.first;
         final data = doc.data();
@@ -555,6 +619,29 @@ class AuthService {
         final fullName = (data['fullName'] as String? ?? '').trim();
 
         if (email.isNotEmpty) {
+          // Auto-sync into Supabase staff_profiles so future lookups cost 0 Firestore reads!
+          try {
+            final appUser = AppUser.fromMap(doc.id, data);
+            final nameParts = appUser.fullName.trim().split(' ');
+            final fName = nameParts.isNotEmpty ? nameParts.first : appUser.fullName;
+            final lName = nameParts.length > 1 ? nameParts.sublist(1).join(' ') : '';
+            final staff = StaffMember(
+              id: doc.id,
+              firstName: fName,
+              lastName: lName,
+              username: appUser.username,
+              branch: 'N/A',
+              position: appUser.position.isNotEmpty ? appUser.position : 'Staff',
+              email: email,
+              phone: appUser.contactNumber,
+              address: appUser.address,
+              age: appUser.age,
+              isActive: true,
+              isArchived: false,
+            );
+            await SupabaseService.createStaffProfile(staff);
+          } catch (_) {}
+
           return {
             'email': email,
             'username': username,
@@ -570,20 +657,61 @@ class AuthService {
     return null;
   }
 
-  /// Sends both Supabase Mailer 6-digit OTP and Firebase official reset email.
+  /// Validates password strength according to Supabase policy:
+  /// - Minimum 6 characters
+  /// - At least one lowercase letter (a-z)
+  /// - At least one uppercase letter (A-Z)
+  /// - At least one digit (0-9)
+  /// - At least one symbol (!@#$%^&*...)
+  static String? validateStrongPassword(String? password, {bool tagalog = false}) {
+    if (password == null || password.isEmpty) {
+      return tagalog ? 'Paki-enter ang iyong password.' : 'Password is required.';
+    }
+    if (password.length < 6) {
+      return tagalog
+          ? 'Ang password ay dapat hindi bababa sa 6 characters.'
+          : 'Password must be at least 6 characters.';
+    }
+    if (!RegExp(r'[a-z]').hasMatch(password)) {
+      return tagalog
+          ? 'Ang password ay dapat may lowercase letter (a-z).'
+          : 'Password must contain at least one lowercase letter (a-z).';
+    }
+    if (!RegExp(r'[A-Z]').hasMatch(password)) {
+      return tagalog
+          ? 'Ang password ay dapat may uppercase letter (A-Z).'
+          : 'Password must contain at least one uppercase letter (A-Z).';
+    }
+    if (!RegExp(r'[0-9]').hasMatch(password)) {
+      return tagalog
+          ? 'Ang password ay dapat may numero (0-9).'
+          : 'Password must contain at least one number (0-9).';
+    }
+    if (!RegExp(r'[!@#$%^&*(),.?":{}|<>\-_=+\\[\]~`]').hasMatch(password)) {
+      return tagalog
+          ? 'Ang password ay dapat may symbol (hal. !@#\$%^&*).'
+          : 'Password must contain at least one symbol (e.g. !@#\$%^&*).';
+    }
+    return null;
+  }
+
+  /// Sends the official Firebase Auth password reset email directly to the user's email.
+  static Future<bool> sendPasswordResetEmail({required String email}) async {
+    final cleanEmail = email.trim().toLowerCase();
+    try {
+      await _auth.sendPasswordResetEmail(email: cleanEmail);
+      return true;
+    } catch (e) {
+      debugPrint('AuthService.sendPasswordResetEmail error: $e');
+      return false;
+    }
+  }
+
+  /// Sends a 6-digit Password Reset OTP directly to the user's email via Supabase Mailer.
   static Future<bool> sendPasswordResetOtp({required String email}) async {
     final cleanEmail = email.trim().toLowerCase();
     try {
-      // 1. Send real 6-digit OTP code to email inbox via Supabase Mailer + Firestore
-      await OtpService.sendEmailOtp(cleanEmail);
-
-      // 2. Also dispatch Firebase Auth password reset link in background if account exists there
-      try {
-        await _auth.sendPasswordResetEmail(email: cleanEmail);
-      } catch (e) {
-        debugPrint('AuthService.sendPasswordResetEmail fallback note: $e');
-      }
-
+      await OtpService.sendPasswordResetOtp(cleanEmail);
       return true;
     } catch (e) {
       debugPrint('AuthService.sendPasswordResetOtp error: $e');
@@ -591,12 +719,12 @@ class AuthService {
     }
   }
 
-  /// Verifies the entered 6-digit OTP code.
+  /// Verifies the entered 6-digit OTP code for password reset.
   static Future<bool> verifyPasswordResetOtp({
     required String email,
     required String enteredOtp,
   }) async {
-    return OtpService.verifyEmailOtp(email, enteredOtp);
+    return OtpService.verifyPasswordResetOtp(email, enteredOtp);
   }
 
   /// Completes the password reset after OTP verification.
@@ -648,8 +776,9 @@ class AuthService {
 
     // 3. Update Supabase Auth user password if authenticated in Supabase
     try {
-      if (SupabaseService.isAvailable && Supabase.instance.client.auth.currentSession != null) {
-        await Supabase.instance.client.auth.updateUser(
+      final client = SupabaseService.client;
+      if (client != null && client.auth.currentSession != null) {
+        await client.auth.updateUser(
           UserAttributes(password: newPassword),
         );
       }
@@ -681,6 +810,21 @@ class AuthService {
     });
   }
 
+  /// Maps a raw position string from Firestore to a valid position value
+  /// recognized by the Branch Assignments screen filter.
+  /// Unknown or empty values default to 'Branch Cook'.
+  static String _normalizePosition(String raw) {
+    final p = raw.toLowerCase().trim();
+    if (p.isEmpty) return 'Branch Cook';
+    if (p.contains('driver') || p.contains('delivery')) return 'Delivery Driver';
+    if (p.contains('float')) return 'Floating Cook';
+    if (p.contains('cook')) return 'Branch Cook';
+    if (p.contains('production')) return 'Production Cook';
+    // Any other position (staff, cashier, etc.) — still assign Branch Cook
+    // so they appear in Branch Assignments. Admin can edit later in Staff Management.
+    return 'Branch Cook';
+  }
+
   /// Approve or reject a pending registration. `uid` is the Firestore
   /// document id, which is the same value as the Firebase Auth uid —
   /// carried through as [RegistrationRequest.id] via
@@ -706,9 +850,8 @@ class AuthService {
             final nameParts = appUser.fullName.trim().split(' ');
             final firstName = nameParts.isNotEmpty ? nameParts.first : appUser.fullName;
             final lastName = nameParts.length > 1 ? nameParts.sublist(1).join(' ') : '';
-            final position = appUser.position.isNotEmpty
-                ? appUser.position
-                : (appUser.position.toLowerCase().contains('driver') ? 'Delivery Driver' : 'Branch Cook');
+            final rawPosition = appUser.position.trim();
+            final position = _normalizePosition(rawPosition);
 
             final staff = StaffMember(
               id: appUser.uid,
@@ -717,7 +860,7 @@ class AuthService {
               username: appUser.username,
               branch: 'N/A',
               position: position,
-              email: appUser.email.isNotEmpty ? appUser.email : null,
+              email: appUser.email.trim().isNotEmpty ? appUser.email.trim().toLowerCase() : null,
               phone: appUser.contactNumber.isNotEmpty ? appUser.contactNumber : null,
               address: appUser.address,
               age: appUser.age,
@@ -725,12 +868,141 @@ class AuthService {
               isArchived: false,
             );
             await SupabaseService.createStaffProfile(staff);
+            // Reset sync guard so the next navigation to Branch Assignments /
+            // Staff Management will re-run syncApprovedUsersToStaffDirectory()
+            // and pick up this newly approved user immediately.
+            _hasSyncedApprovedUsers = false;
           }
+        } catch (_) {}
+      } else {
+        try {
+          await SupabaseService.toggleStaffArchived(uid, true);
         } catch (_) {}
       }
       return true;
     } catch (_) {
       return false;
+    }
+  }
+
+  /// Creates a staff account on behalf of the Owner/Admin without disrupting
+  /// the current admin's session. Uses an isolated secondary Firebase App instance.
+  /// Automatically sets status to 'approved' and synchronizes Supabase + Firestore.
+  static Future<({String? error, AppUser? user})> createStaffByAdmin({
+    required String username,
+    required String password,
+    required String firstName,
+    String middleName = '',
+    required String lastName,
+    required String contactNumber,
+    required String email,
+    required String position,
+    String branch = 'N/A',
+    String age = '',
+    String address = '',
+    DateTime? birthdate,
+    bool isActive = true,
+  }) async {
+    try {
+      final cleanUsername = username.trim().toLowerCase();
+      final cleanEmail = email.trim().toLowerCase();
+
+      // 1. Validation checks
+      final usernameRegistered = await SupabaseService.isUsernameRegistered(cleanUsername);
+      if (usernameRegistered) {
+        return (error: 'Username is already taken. Please choose another.', user: null);
+      }
+      if (cleanEmail.isNotEmpty) {
+        final emailRegistered = await SupabaseService.isEmailRegistered(cleanEmail);
+        if (emailRegistered) {
+          return (error: 'Email is already registered. Please use another email.', user: null);
+        }
+      }
+
+      // 2. Create the user via a secondary Firebase App so the current Admin is NOT logged out
+      final secondaryAppName = 'staff_create_${DateTime.now().millisecondsSinceEpoch}';
+      final secondaryApp = await Firebase.initializeApp(
+        name: secondaryAppName,
+        options: Firebase.app().options,
+      );
+      final secondaryAuth = FirebaseAuth.instanceFor(app: secondaryApp);
+      final authEmail = cleanEmail.isNotEmpty ? cleanEmail : _usernameToEmail(cleanUsername);
+
+      UserCredential? credential;
+      try {
+        credential = await secondaryAuth.createUserWithEmailAndPassword(
+          email: authEmail,
+          password: password,
+        );
+      } finally {
+        try {
+          await secondaryAuth.signOut();
+          await secondaryApp.delete();
+        } catch (_) {}
+      }
+
+      if (credential.user == null) {
+        return (error: 'Failed to create user account credential.', user: null);
+      }
+
+      final uid = credential.user!.uid;
+      final fullName = [firstName, middleName, lastName].where((s) => s.trim().isNotEmpty).join(' ');
+      const userRole = UserRole.staff;
+
+      final appUser = AppUser(
+        uid: uid,
+        username: cleanUsername,
+        fullName: fullName,
+        contactNumber: contactNumber.trim(),
+        role: userRole,
+        status: AccountStatus.approved,
+        position: position,
+        email: cleanEmail,
+        age: age.trim(),
+        address: address.trim(),
+        isEmailVerified: true,
+        isPhoneVerified: true,
+      );
+
+      // 3. Write Firestore record (authenticated as Owner/Admin via _db)
+      await _db.collection('users').doc(uid).set({
+        ...appUser.toMap(),
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+
+      // 4. Write Supabase record (zero Firestore reads for staff listings)
+      final staff = StaffMember(
+        id: uid,
+        firstName: firstName.trim(),
+        middleName: middleName.trim(),
+        lastName: lastName.trim(),
+        username: cleanUsername,
+        branch: branch,
+        position: position,
+        email: cleanEmail.isNotEmpty ? cleanEmail : null,
+        phone: contactNumber.trim().isNotEmpty ? contactNumber.trim() : null,
+        age: age.trim(),
+        address: address.trim(),
+        isActive: isActive,
+        isArchived: false,
+      );
+      await SupabaseService.createStaffProfile(staff);
+
+      final adminName = currentAppUser?.fullName ?? 'Admin';
+      FirestoreService.logActivity(
+        actor: adminName,
+        role: 'Admin',
+        action: 'Created staff account for $fullName (@$cleanUsername)',
+        detail: 'Position: $position · Branch: $branch',
+        type: 'Staff',
+      ).catchError((_) {});
+
+      return (error: null, user: appUser);
+    } on FirebaseAuthException catch (e) {
+      return (error: _friendlyAuthError(e), user: null);
+    } catch (e) {
+      debugPrint('AuthService.createStaffByAdmin error: $e');
+      return (error: 'Failed to create staff account: $e', user: null);
     }
   }
 
@@ -761,14 +1033,13 @@ class AuthService {
             s.id == appUser.uid ||
             (usernameKey.isNotEmpty && s.username.toLowerCase().trim() == usernameKey));
 
-        if (!exists) {
-          final nameParts = appUser.fullName.trim().split(' ');
-          final firstName = nameParts.isNotEmpty ? nameParts.first : appUser.fullName;
-          final lastName = nameParts.length > 1 ? nameParts.sublist(1).join(' ') : '';
-          final position = appUser.position.isNotEmpty
-              ? appUser.position
-              : (appUser.position.toLowerCase().contains('driver') ? 'Delivery Driver' : 'Branch Cook');
+        final nameParts = appUser.fullName.trim().split(' ');
+        final firstName = nameParts.isNotEmpty ? nameParts.first : appUser.fullName;
+        final lastName = nameParts.length > 1 ? nameParts.sublist(1).join(' ') : '';
+        final rawPosition = appUser.position.trim();
+        final position = _normalizePosition(rawPosition);
 
+        if (!exists) {
           final staff = StaffMember(
             id: appUser.uid,
             firstName: firstName,
@@ -783,9 +1054,24 @@ class AuthService {
             isActive: true,
             isArchived: false,
           );
-
           await SupabaseService.createStaffProfile(staff);
           debugPrint('AuthService: Auto-synced approved user ${appUser.username} to staff directory.');
+        } else {
+          // Staff already exists — update position if it's not a valid cook/driver role
+          // so they appear correctly in Branch Assignments filter.
+          final existing = SupabaseService.getAllStaff().firstWhere(
+            (s) => s.id == appUser.uid || s.username.toLowerCase().trim() == appUser.username.toLowerCase().trim(),
+            orElse: () => StaffMember(id: '', firstName: '', lastName: '', username: '', branch: '', position: position),
+          );
+          final existingPositionLower = existing.position.toLowerCase();
+          final isValidPosition = existingPositionLower.contains('cook') ||
+              existingPositionLower.contains('driver') ||
+              existingPositionLower.contains('delivery') ||
+              existingPositionLower.contains('production');
+          if (!isValidPosition && existing.id.isNotEmpty) {
+            await SupabaseService.updateStaffProfile(existing.copyWith(position: position));
+            debugPrint('AuthService: Updated position for ${appUser.username}: ${existing.position} → $position');
+          }
         }
       }
     } catch (e) {

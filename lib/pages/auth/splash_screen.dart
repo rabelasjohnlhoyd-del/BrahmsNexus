@@ -103,7 +103,13 @@ class _SplashScreenState extends State<SplashScreen>
     }
 
     try {
-      if (!Supabase.instance.isInitialized && SupabaseConfig.isConfigured) {
+      bool isInit = false;
+      try {
+        isInit = Supabase.instance.isInitialized;
+      } catch (_) {
+        isInit = false;
+      }
+      if (!isInit && SupabaseConfig.isConfigured) {
         await Supabase.initialize(
           url: SupabaseConfig.cleanSupabaseUrl,
           anonKey: SupabaseConfig.supabaseAnonKey,
