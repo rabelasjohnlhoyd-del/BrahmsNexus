@@ -1,5 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+
 import '../../../models/branch.dart';
 import '../../../models/branch_meat_inventory.dart';
 import '../../../models/meat_dispatch.dart';
@@ -108,6 +110,22 @@ class _RecordTransferScreenState extends State<RecordTransferScreen> {
     final mayo = int.tryParse(_mayoController.text.trim()) ?? 0;
     final styro = int.tryParse(_styroController.text.trim()) ?? 0;
     final toyo = int.tryParse(_toyoController.text.trim()) ?? 0;
+
+    // Per-field: no negative values
+    if (reg < 0 || med < 0 || b1t1 < 0 || mayo < 0 || styro < 0 || toyo < 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Quantities cannot be negative.')),
+      );
+      return;
+    }
+
+    // Per-field: cap at 999 pcs per item
+    if (reg > 999 || med > 999 || b1t1 > 999 || mayo > 999 || styro > 999 || toyo > 999) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Quantity per item must not exceed 999 pcs.')),
+      );
+      return;
+    }
 
     if (reg == 0 && med == 0 && b1t1 == 0 && mayo == 0 && styro == 0 && toyo == 0) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -283,10 +301,13 @@ class _RecordTransferScreenState extends State<RecordTransferScreen> {
                                 controller: _regController,
                                 keyboardType: TextInputType.number,
                                 enabled: !_hasSubmittedSales,
+                                maxLength: 3,
+                                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                                 decoration: const InputDecoration(
                                   labelText: 'Regular (250g)',
                                   hintText: '0',
                                   isDense: true,
+                                  counterText: '',
                                 ),
                               ),
                             ),
@@ -296,10 +317,13 @@ class _RecordTransferScreenState extends State<RecordTransferScreen> {
                                 controller: _medController,
                                 keyboardType: TextInputType.number,
                                 enabled: !_hasSubmittedSales,
+                                maxLength: 3,
+                                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                                 decoration: const InputDecoration(
                                   labelText: 'Medium (300g)',
                                   hintText: '0',
                                   isDense: true,
+                                  counterText: '',
                                 ),
                               ),
                             ),
@@ -309,10 +333,13 @@ class _RecordTransferScreenState extends State<RecordTransferScreen> {
                                 controller: _b1t1Controller,
                                 keyboardType: TextInputType.number,
                                 enabled: !_hasSubmittedSales,
+                                maxLength: 3,
+                                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                                 decoration: const InputDecoration(
                                   labelText: 'B1T1 (400g)',
                                   hintText: '0',
                                   isDense: true,
+                                  counterText: '',
                                 ),
                               ),
                             ),
@@ -326,10 +353,13 @@ class _RecordTransferScreenState extends State<RecordTransferScreen> {
                                 controller: _mayoController,
                                 keyboardType: TextInputType.number,
                                 enabled: !_hasSubmittedSales,
+                                maxLength: 3,
+                                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                                 decoration: const InputDecoration(
                                   labelText: 'Mayo Packs',
                                   hintText: '0',
                                   isDense: true,
+                                  counterText: '',
                                 ),
                               ),
                             ),
@@ -339,10 +369,13 @@ class _RecordTransferScreenState extends State<RecordTransferScreen> {
                                 controller: _styroController,
                                 keyboardType: TextInputType.number,
                                 enabled: !_hasSubmittedSales,
+                                maxLength: 3,
+                                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                                 decoration: const InputDecoration(
                                   labelText: 'Styro Boxes',
                                   hintText: '0',
                                   isDense: true,
+                                  counterText: '',
                                 ),
                               ),
                             ),
@@ -352,15 +385,19 @@ class _RecordTransferScreenState extends State<RecordTransferScreen> {
                                 controller: _toyoController,
                                 keyboardType: TextInputType.number,
                                 enabled: !_hasSubmittedSales,
+                                maxLength: 3,
+                                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                                 decoration: const InputDecoration(
                                   labelText: 'Toyo Packs',
                                   hintText: '0',
                                   isDense: true,
+                                  counterText: '',
                                 ),
                               ),
                             ),
                           ],
                         ),
+
                       ],
                     ),
                   ),

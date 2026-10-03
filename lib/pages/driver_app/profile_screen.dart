@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import '../../models/app_user.dart';
 import '../../services/auth_service.dart';
+import '../../services/tutorial_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/driver_button.dart';
 import '../../widgets/driver_card.dart';
@@ -9,7 +10,9 @@ import '../../widgets/driver_section_header.dart';
 import '../../widgets/driver_top_actions.dart';
 import '../../widgets/user_avatar.dart';
 import '../auth/login_screen.dart';
+import 'driver_shell.dart';
 import 'edit_profile_screen.dart';
+import 'route_screen.dart';
 
 /// Refined Driver Profile — displays the logged-in driver's real account details.
 class DriverProfileScreen extends StatefulWidget {
@@ -132,6 +135,42 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
                           'Security & Privacy', null,
                           showChevron: true),
                       _divider(),
+                      _listTile(CupertinoIcons.play_circle,
+                          'System Tutorial', 'Replay',
+                          showChevron: true,
+                          onTap: () async {
+                            if (!context.mounted) return;
+                            final confirmed = await showCupertinoDialog<bool>(
+                              context: context,
+                              builder: (ctx) => CupertinoAlertDialog(
+                                title: const Text('Panoorin Ulit ang Tutorial?'),
+                                content: const Text(
+                                  'Ipapakita muli ang step-by-step guided tour para sa iyong role. Gusto mo bang simulan ngayon?',
+                                ),
+                                actions: [
+                                  CupertinoDialogAction(
+                                    onPressed: () => Navigator.of(ctx).pop(false),
+                                    child: const Text('Huwag Na'),
+                                  ),
+                                  CupertinoDialogAction(
+                                    onPressed: () => Navigator.of(ctx).pop(true),
+                                    isDefaultAction: true,
+                                    child: const Text('Oo, Simulan Na'),
+                                  ),
+                                ],
+                              ),
+                            );
+                            if (confirmed != true) return;
+                            await TutorialService.resetTutorial('driver_spotlight');
+                            if (!context.mounted) return;
+                            // Navigate to Route tab (index 1) and start tour directly
+                            DriverShell.tabController.index = 1;
+                            await Future.delayed(const Duration(milliseconds: 350));
+                            if (context.mounted) {
+                              RouteScreen.globalKey.currentState?.startTour();
+                            }
+                          }),
+                      _divider(),
                       _listTile(CupertinoIcons.question_circle,
                           'Help & Support', null,
                           showChevron: true),
@@ -235,51 +274,55 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
   }
 
 
-  Widget _listTile(IconData icon, String label, String? value, {bool showChevron = false, Color? color}) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: AppColors.accent.withValues(alpha: 0.06),
-              borderRadius: BorderRadius.circular(12),
+  Widget _listTile(IconData icon, String label, String? value, {bool showChevron = false, Color? color, VoidCallback? onTap}) {
+    return CupertinoButton(
+      padding: EdgeInsets.zero,
+      onPressed: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: AppColors.accent.withValues(alpha: 0.06),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(icon, size: 18, color: AppColors.accent.withValues(alpha: 0.8)),
             ),
-            child: Icon(icon, size: 18, color: AppColors.accent.withValues(alpha: 0.8)),
-          ),
-          const SizedBox(width: 14),
-          Text(
-            label,
-            style: const TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w600,
-              color: AppColors.textPrimary,
-            ),
-          ),
-          if (value != null) ...[
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                value,
-                textAlign: TextAlign.end,
-                style: TextStyle(
-                  fontSize: 14,
-                  color: color ?? AppColors.textSecondary,
-                  fontWeight: FontWeight.w600,
-                ),
-                overflow: TextOverflow.ellipsis,
-                maxLines: 1,
+            const SizedBox(width: 14),
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textPrimary,
               ),
             ),
-          ] else
-            const Spacer(),
-          if (showChevron)
-            const Padding(
-              padding: EdgeInsets.only(left: 8),
-              child: Icon(CupertinoIcons.chevron_forward, size: 16, color: AppColors.border),
-            ),
-        ],
+            if (value != null) ...[
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  value,
+                  textAlign: TextAlign.end,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: color ?? AppColors.textSecondary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
+                ),
+              ),
+            ] else
+              const Spacer(),
+            if (showChevron)
+              const Padding(
+                padding: EdgeInsets.only(left: 8),
+                child: Icon(CupertinoIcons.chevron_forward, size: 16, color: AppColors.border),
+              ),
+          ],
+        ),
       ),
     );
   }

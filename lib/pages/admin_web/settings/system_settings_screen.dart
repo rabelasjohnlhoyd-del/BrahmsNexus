@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../admin_web_colors.dart';
 import '../admin_web_shell.dart';
 import '../admin_web_widgets/glass_card.dart';
+import '../../../services/tutorial_service.dart';
 
 class SystemSettingsScreen extends StatefulWidget {
   const SystemSettingsScreen({super.key});
@@ -91,6 +92,58 @@ class _SystemSettingsScreenState extends State<SystemSettingsScreen> {
                   'Daily Summary Reports',
                   'Generate and email a PDF summary of daily gross sales every midnight.',
                   false,
+                ),
+              ]),
+              const SizedBox(height: 24),
+              _buildSection('System Help & Tutorials', [
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: AdminWebColors.accent.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.school_outlined, color: AdminWebColors.accent, size: 20),
+                  ),
+                  title: const Text(
+                    'View Owner System Tutorial',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                  ),
+                  subtitle: const Text(
+                    'Interactive walkthrough explaining each module of the Owner Web system.',
+                    style: TextStyle(fontSize: 12, color: AdminWebColors.textSecondary),
+                  ),
+                  trailing: const Icon(Icons.chevron_right, color: AdminWebColors.textSecondary),
+                  onTap: () async {
+                    final confirmed = await showDialog<bool>(
+                      context: context,
+                      builder: (ctx) => AlertDialog(
+                        title: const Text('Panoorin Ulit ang Tutorial?'),
+                        content: const Text(
+                          'Ipapakita muli ang step-by-step guided tour para sa Owner Web system. Gusto mo bang simulan ngayon?',
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.of(ctx).pop(false),
+                            child: const Text('Huwag Na'),
+                          ),
+                          TextButton(
+                            onPressed: () => Navigator.of(ctx).pop(true),
+                            child: const Text(
+                              'Oo, Simulan Na',
+                              style: TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                    if (confirmed != true) return;
+                    if (!context.mounted) return;
+                    final shell = context.findAncestorStateOfType<AdminWebShellState>();
+                    await TutorialService.resetTutorial('owner_spotlight');
+                    shell?.showTutorial();
+                  },
                 ),
               ]),
               const SizedBox(height: 32),

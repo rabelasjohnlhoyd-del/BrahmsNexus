@@ -86,6 +86,18 @@ class _EditStaffScreenState extends State<EditStaffScreen> {
   String? _validateRequired(String? value, String fieldName) {
     final trimmed = value?.trim() ?? '';
     if (trimmed.isEmpty) return '$fieldName is required';
+    if (fieldName.toLowerCase().contains('name')) {
+      if (trimmed.length < 2) return '$fieldName must be at least 2 characters';
+      if (trimmed.length > 50) return '$fieldName must not exceed 50 characters';
+      final namePattern = RegExp(r"^[a-zA-ZñÑáéíóúÁÉÍÓÚ\s\-'.]+$");
+      if (!namePattern.hasMatch(trimmed)) {
+        return '$fieldName must contain only letters';
+      }
+    }
+    if (fieldName.toLowerCase().contains('address')) {
+      if (trimmed.length < 5) return '$fieldName must be at least 5 characters';
+      if (trimmed.length > 150) return '$fieldName must not exceed 150 characters';
+    }
     return null;
   }
 
@@ -93,6 +105,7 @@ class _EditStaffScreenState extends State<EditStaffScreen> {
     final trimmed = value?.trim() ?? '';
     if (trimmed.isEmpty) return 'Username is required';
     if (trimmed.length < 4) return 'Username must be at least 4 characters';
+    if (trimmed.length > 20) return 'Username must not exceed 20 characters';
     if (trimmed.contains(' ')) return 'Username cannot contain spaces';
     if (!RegExp(r'^[a-zA-Z0-9._]+$').hasMatch(trimmed)) {
       return 'Use letters, numbers, dots, or underscores only';
@@ -111,8 +124,13 @@ class _EditStaffScreenState extends State<EditStaffScreen> {
   String? _validatePhone(String? value) {
     final trimmed = value?.trim() ?? '';
     if (trimmed.isEmpty) return 'Phone number is required';
-    if (!RegExp(r'^[0-9+\-\s]{7,14}$').hasMatch(trimmed)) {
-      return 'Enter a valid phone number';
+    final digits = trimmed.replaceAll(RegExp(r'\D'), '');
+    if (digits.length < 7 || digits.length > 12) {
+      return 'Enter a valid phone number (7 to 12 digits, e.g. 0917 123 4567)';
+    }
+    final phRegex = RegExp(r'^(09|\+639)\d{9}$');
+    if (digits.length >= 10 && !phRegex.hasMatch(trimmed.replaceAll(RegExp(r'[\s\-]'), ''))) {
+      return 'Enter a valid Philippine mobile number (e.g. 0917 123 4567)';
     }
     return null;
   }

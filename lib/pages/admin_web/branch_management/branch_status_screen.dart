@@ -1,13 +1,16 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../../models/branch.dart';
+import '../../../services/supabase_service.dart';
 import '../admin_web_colors.dart';
 import '../admin_web_shell.dart';
 import '../admin_web_widgets/glass_card.dart';
 
 /// Real-time Branch Status Overview — replaces the old Map screen.
 /// Shows which branches are OPEN, CLOSED, or have Driver On the Way.
-/// Data flows from [rfid_attendance] and [branch_status] Firestore collections.
+/// Data flows from [branch_status] Firestore collection updated by
+/// Driver route actions and Branch Cook RFID taps.
 class BranchStatusScreen extends StatefulWidget {
   const BranchStatusScreen({super.key, this.isEmbedded = false});
 
@@ -20,17 +23,9 @@ class BranchStatusScreen extends StatefulWidget {
 class _BranchStatusScreenState extends State<BranchStatusScreen> {
   StreamSubscription<QuerySnapshot>? _sub;
 
-  // Map of branchId -> status data
+  // Map of documentId or branchId -> live status data
   final Map<String, _BranchLiveStatus> _statuses = {};
-
-  static const _orderedBranches = [
-    _BranchDef(id: 'labuin', name: 'Labuin', municipality: 'Pila'),
-    _BranchDef(id: 'nanhaya', name: 'Nanhaya', municipality: 'Pila'),
-    _BranchDef(id: 'san_francisco', name: 'San Francisco', municipality: 'Pila'),
-    _BranchDef(id: 'dayap', name: 'Dayap', municipality: 'Calauan'),
-    _BranchDef(id: 'gatid', name: 'Gatid', municipality: 'Sta. Cruz'),
-    _BranchDef(id: 'pila', name: 'Pila', municipality: 'Pila'),
-  ];
+  List<Branch> _branches = List.from(kSampleBranches);
 
   @override
   void initState() {
@@ -38,23 +33,42 @@ class _BranchStatusScreenState extends State<BranchStatusScreen> {
     if (!widget.isEmbedded) {
       _updateShellActions();
     }
+    _loadBranches();
     _sub = FirebaseFirestore.instance
         .collection('branch_status')
         .snapshots()
         .listen((snap) {
       if (!mounted) return;
       setState(() {
+        _statuses.clear();
         for (final doc in snap.docs) {
           final data = doc.data();
-          _statuses[doc.id] = _BranchLiveStatus(
+          final status = _BranchLiveStatus(
+            branchId: (data['branchId']?.toString() ?? doc.id).toLowerCase(),
+            branchName: data['branchName']?.toString() ?? '',
             isOpen: data['isOpen'] as bool? ?? false,
             driverOnWay: data['driverOnWay'] as bool? ?? false,
             cookName: data['cookName']?.toString() ?? '',
+            driverName: data['driverName']?.toString() ?? '',
             lastUpdated: (data['lastUpdated'] as Timestamp?)?.toDate(),
           );
+          _statuses[doc.id.toLowerCase()] = status;
+          if (status.branchId.isNotEmpty) {
+            _statuses[status.branchId] = status;
+          }
         }
       });
     });
+  }
+
+  Future<void> _loadBranches() async {
+    final list = await SupabaseService.getBranches();
+    if (!mounted) return;
+    if (list.isNotEmpty) {
+      setState(() {
+        _branches = list;
+      });
+    }
   }
 
   @override
@@ -77,12 +91,28 @@ class _BranchStatusScreenState extends State<BranchStatusScreen> {
     }
   }
 
+  _BranchLiveStatus? _getStatusForBranch(Branch branch) {
+    final bId = branch.id.toLowerCase();
+    if (_statuses.containsKey(bId)) return _statuses[bId];
+
+    final normName = branch.name.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
+    for (final entry in _statuses.entries) {
+      final key = entry.key.replaceAll(RegExp(r'[^a-z0-9]'), '');
+      final statusName = entry.value.branchName.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
+      if (normName.contains(key) || key.contains(normName) ||
+          normName.contains(statusName) || statusName.contains(normName)) {
+        return entry.value;
+      }
+    }
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
-    final openCount = _orderedBranches
-        .where((b) => _statuses[b.id]?.isOpen == true)
+    final openCount = _branches
+        .where((b) => _getStatusForBranch(b)?.isOpen == true)
         .length;
-    final closedCount = _orderedBranches.length - openCount;
+    final closedCount = _branches.length - openCount;
 
     return Container(
       color: AdminWebColors.background,
@@ -103,20 +133,18 @@ class _BranchStatusScreenState extends State<BranchStatusScreen> {
                   return GridView.builder(
                     gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                       crossAxisCount: 3,
-                      childAspectRatio: 1.7,
+                      childAspectRatio: 1.6,
                       crossAxisSpacing: 16,
                       mainAxisSpacing: 16,
                     ),
-                    itemCount: _orderedBranches.length,
-                    itemBuilder: (ctx, i) =>
-                        _buildBranchCard(_orderedBranches[i]),
+                    itemCount: _branches.length,
+                    itemBuilder: (ctx, i) => _buildBranchCard(_branches[i], i + 1),
                   );
                 }
                 return ListView.separated(
-                  itemCount: _orderedBranches.length,
+                  itemCount: _branches.length,
                   separatorBuilder: (_, _) => const SizedBox(height: 14),
-                  itemBuilder: (ctx, i) =>
-                      _buildBranchCard(_orderedBranches[i]),
+                  itemBuilder: (ctx, i) => _buildBranchCard(_branches[i], i + 1),
                 );
               },
             ),
@@ -188,8 +216,8 @@ class _BranchStatusScreenState extends State<BranchStatusScreen> {
     );
   }
 
-  Widget _buildBranchCard(_BranchDef branch) {
-    final status = _statuses[branch.id];
+  Widget _buildBranchCard(Branch branch, int stopNumber) {
+    final status = _getStatusForBranch(branch);
     final isOpen = status?.isOpen ?? false;
     final driverOnWay = status?.driverOnWay ?? false;
     final neverUpdated = status == null;
@@ -200,8 +228,8 @@ class _BranchStatusScreenState extends State<BranchStatusScreen> {
 
     if (neverUpdated) {
       statusColor = AdminWebColors.textSecondary;
-      statusText = 'NO DATA';
-      statusIcon = Icons.help_outline_rounded;
+      statusText = 'CLOSED';
+      statusIcon = Icons.lock_rounded;
     } else if (driverOnWay && !isOpen) {
       statusColor = AdminWebColors.warning;
       statusText = 'DRIVER ON THE WAY';
@@ -233,8 +261,7 @@ class _BranchStatusScreenState extends State<BranchStatusScreen> {
             height: 6,
             decoration: BoxDecoration(
               color: statusColor,
-              borderRadius:
-                  const BorderRadius.vertical(top: Radius.circular(16)),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
             ),
           ),
           Expanded(
@@ -251,7 +278,7 @@ class _BranchStatusScreenState extends State<BranchStatusScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'BRANCH ${_orderedBranches.indexOf(branch) + 1}',
+                              'STOP $stopNumber · ROUTE SEQUENCE ${branch.dailyRouteSequence}',
                               style: const TextStyle(
                                 fontSize: 10,
                                 fontWeight: FontWeight.w800,
@@ -269,7 +296,9 @@ class _BranchStatusScreenState extends State<BranchStatusScreen> {
                               ),
                             ),
                             Text(
-                              'Brgy. ${branch.municipality}',
+                              branch.municipality.isNotEmpty
+                                  ? 'Brgy. ${branch.municipality}'
+                                  : branch.fullName,
                               style: const TextStyle(
                                 fontSize: 12,
                                 color: AdminWebColors.textSecondary,
@@ -279,15 +308,14 @@ class _BranchStatusScreenState extends State<BranchStatusScreen> {
                         ),
                       ),
                       Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 5),
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                         decoration: BoxDecoration(
                           color: statusColor.withValues(alpha: 0.12),
                           borderRadius: BorderRadius.circular(8),
-                          border: Border.all(
-                              color: statusColor.withValues(alpha: 0.35)),
+                          border: Border.all(color: statusColor.withValues(alpha: 0.35)),
                         ),
                         child: Row(
+                          mainAxisSize: MainAxisSize.min,
                           children: [
                             Icon(statusIcon, size: 13, color: statusColor),
                             const SizedBox(width: 4),
@@ -313,12 +341,11 @@ class _BranchStatusScreenState extends State<BranchStatusScreen> {
                           child: Row(
                             children: [
                               const Icon(Icons.person_rounded,
-                                  size: 13,
-                                  color: AdminWebColors.textSecondary),
+                                  size: 13, color: AdminWebColors.textSecondary),
                               const SizedBox(width: 4),
                               Expanded(
                                 child: Text(
-                                  status!.cookName,
+                                  'Cook: ${status!.cookName}',
                                   style: const TextStyle(
                                     fontSize: 11.5,
                                     color: AdminWebColors.textSecondary,
@@ -350,26 +377,21 @@ class _BranchStatusScreenState extends State<BranchStatusScreen> {
   }
 }
 
-class _BranchDef {
-  const _BranchDef({
-    required this.id,
-    required this.name,
-    required this.municipality,
-  });
-  final String id;
-  final String name;
-  final String municipality;
-}
-
 class _BranchLiveStatus {
   const _BranchLiveStatus({
+    required this.branchId,
+    required this.branchName,
     required this.isOpen,
     required this.driverOnWay,
     required this.cookName,
+    required this.driverName,
     this.lastUpdated,
   });
+  final String branchId;
+  final String branchName;
   final bool isOpen;
   final bool driverOnWay;
   final String cookName;
+  final String driverName;
   final DateTime? lastUpdated;
 }

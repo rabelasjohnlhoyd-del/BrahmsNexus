@@ -102,15 +102,46 @@ class _AddBilaoOrderScreenState extends State<AddBilaoOrderScreen> {
 
   bool _validateCurrentStep() {
     if (_currentStep == 1) {
-      if (_nameController.text.trim().isEmpty ||
-          _contactController.text.trim().isEmpty) {
-        _showSnack('Please fill in customer name and contact number.');
+      final name = _nameController.text.trim();
+      final contact = _contactController.text.trim();
+
+      if (name.isEmpty) {
+        _showSnack('Customer name is required.');
         return false;
       }
-      if (_fulfillmentType == BilaoFulfillmentType.directDelivery &&
-          _addressController.text.trim().isEmpty) {
-        _showSnack('Please enter the delivery address.');
+      if (name.length < 2) {
+        _showSnack('Customer name must be at least 2 characters.');
         return false;
+      }
+      if (name.length > 60) {
+        _showSnack('Customer name must not exceed 60 characters.');
+        return false;
+      }
+      if (!RegExp(r"^[a-zA-ZñÑáéíóúÁÉÍÓÚ\s\-'.]+$").hasMatch(name)) {
+        _showSnack('Customer name must only contain letters.');
+        return false;
+      }
+
+      if (contact.isEmpty) {
+        _showSnack('Customer contact number is required.');
+        return false;
+      }
+      final digits = contact.replaceAll(RegExp(r'\D'), '');
+      if (digits.length < 7 || digits.length > 12) {
+        _showSnack('Enter a valid contact number (7 to 12 digits, e.g. 0917 123 4567).');
+        return false;
+      }
+
+      if (_fulfillmentType == BilaoFulfillmentType.directDelivery) {
+        final address = _addressController.text.trim();
+        if (address.isEmpty) {
+          _showSnack('Please enter the delivery address.');
+          return false;
+        }
+        if (address.length < 5) {
+          _showSnack('Delivery address must be at least 5 characters.');
+          return false;
+        }
       }
     }
     if (_currentStep == 2) {
@@ -118,13 +149,44 @@ class _AddBilaoOrderScreenState extends State<AddBilaoOrderScreen> {
         _showSnack('Quantity must be at least 1.');
         return false;
       }
+      if (_qty > 100) {
+        _showSnack('Quantity cannot exceed 100 bilaos per order.');
+        return false;
+      }
     }
     if (_currentStep == 3) {
+      final entered = double.tryParse(_depositController.text.trim()) ?? 0.0;
+      if (entered <= 0) {
+        _showSnack('Please enter a valid deposit or payment amount.');
+        return false;
+      }
       if (_paymentType == PaymentType.downPayment) {
-        final entered = double.tryParse(_depositController.text.trim()) ?? 0.0;
         if (entered < _minDeposit - 0.01) {
           _showSnack(
               'Minimum downpayment is 65% of total (${_peso(_minDeposit)}).');
+          return false;
+        }
+        if (entered > _totalPrice) {
+          _showSnack(
+              'Downpayment cannot exceed the total order amount (${_peso(_totalPrice)}).');
+          return false;
+        }
+      } else {
+        if (entered < _totalPrice - 0.01) {
+          _showSnack(
+              'Full payment must equal the total amount (${_peso(_totalPrice)}).');
+          return false;
+        }
+      }
+
+      if (_paymentMethod == PaymentMethod.gcash) {
+        final ref = _gcashRefController.text.trim();
+        if (ref.isEmpty) {
+          _showSnack('Please provide the GCash reference number for verification.');
+          return false;
+        }
+        if (ref.length < 6 || ref.length > 30) {
+          _showSnack('Enter a valid GCash reference number (e.g. 1002 9384 1928).');
           return false;
         }
       }

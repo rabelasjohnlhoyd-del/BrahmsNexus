@@ -12,13 +12,21 @@ import 'staff_bilao_orders_screen.dart';
 /// tabs (Homepage, Sales, Daily Report, Timer), following iOS Human
 /// Interface Guidelines with real Cupertino widgets.
 ///
-/// Announcements no longer has its own tab — it's been replaced by
-/// the notification bell + profile avatar at the top of every tab
-/// (see widgets/staff_top_actions.dart).
-class StaffShell extends StatelessWidget {
+/// The interactive guided tour (GuidedTourOverlay) is triggered
+/// automatically from [HomepageScreen] on first launch, and continues
+/// to [SalesScreen] via globalKey.currentState?.startTour().
+class StaffShell extends StatefulWidget {
   const StaffShell({super.key});
 
   static final CupertinoTabController tabController = CupertinoTabController();
+  static final GlobalKey salesTabKey = GlobalKey();
+
+  @override
+  State<StaffShell> createState() => _StaffShellState();
+}
+
+class _StaffShellState extends State<StaffShell> {
+  CupertinoTabController get tabController => StaffShell.tabController;
 
   static const _systemBarStyle = SystemUiOverlayStyle(
     statusBarColor: Color(0x00000000),
@@ -76,10 +84,10 @@ class StaffShell extends StatelessWidget {
                         Widget page;
                         switch (index) {
                           case 0:
-                            page = const HomepageScreen();
+                            page = HomepageScreen(key: HomepageScreen.globalKey);
                             break;
                           case 1:
-                            page = const SalesScreen();
+                            page = SalesScreen(key: SalesScreen.globalKey);
                             break;
                           case 2:
                             page = const StaffBilaoOrdersScreen();
@@ -140,6 +148,7 @@ class StaffShell extends StatelessWidget {
                                 label: 'Home',
                               ),
                               _buildNavItem(
+                                key: StaffShell.salesTabKey,
                                 index: 1,
                                 currentIndex: currentIndex,
                                 activeIcon: CupertinoIcons.chart_bar_alt_fill,
@@ -188,14 +197,16 @@ class StaffShell extends StatelessWidget {
     required IconData activeIcon,
     required IconData inactiveIcon,
     required String label,
+    Key? key,
   }) {
     final bool active = index == currentIndex;
 
     return Expanded(
+      key: key,
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: () {
-          tabController.index = index;
+          StaffShell.tabController.index = index;
         },
         child: Column(
           mainAxisSize: MainAxisSize.min,

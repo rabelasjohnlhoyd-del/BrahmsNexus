@@ -1584,6 +1584,79 @@ class FirestoreService {
     }
   }
 
+  /// Records a Branch Cook RFID tap (from ESP32 Unit 2 or simulated fallback).
+  /// This automatically:
+  /// 1. Adds attendance log to [rfid_attendance]
+  /// 2. Updates [branch_status] (isOpen: true/false, driverOnWay: false, cookName, lastUpdated)
+  static Future<bool> processBranchCookRfidTap({
+    required String branchId,
+    required String branchName,
+    required String cookName,
+    required String cookId,
+    required bool isDeployment, // true = opening/arrival, false = closing/departure
+    String rfidTag = 'RFID_TAG',
+    String deviceId = 'esp32_unit_2_portable',
+  }) async {
+    try {
+      final batch = _db.batch();
+
+      // 1. Log attendance
+      final tapRef = _db.collection('rfid_attendance').doc();
+      batch.set(tapRef, {
+        'rfidTag': rfidTag,
+        'employeeId': cookId,
+        'employeeName': cookName,
+        'branchId': branchId,
+        'branchName': branchName,
+        'tapType': isDeployment ? 'deployment_opening' : 'retrieval_closing',
+        'deviceId': deviceId,
+        'timestamp': FieldValue.serverTimestamp(),
+      });
+
+      // 2. Update real-time branch status
+      final statusRef = _db.collection('branch_status').doc(branchId);
+      batch.set(statusRef, {
+        'branchId': branchId,
+        'branchName': branchName,
+        'isOpen': isDeployment, // true if opening, false if closing
+        'driverOnWay': false,
+        'cookName': cookName,
+        'lastUpdated': FieldValue.serverTimestamp(),
+        'lastTapType': isDeployment ? 'deployment_opening' : 'retrieval_closing',
+      }, SetOptions(merge: true));
+
+      await batch.commit();
+      return true;
+    } catch (e) {
+      debugPrint('FirestoreService.processBranchCookRfidTap error: $e');
+      return false;
+    }
+  }
+
+  /// Sets driver on the way status for a branch in real-time
+  static Future<void> setDriverOnTheWay({
+    required String branchId,
+    required String branchName,
+    required String cookName,
+    required String driverName,
+    required bool isDeployment,
+  }) async {
+    try {
+      await _db.collection('branch_status').doc(branchId).set({
+        'branchId': branchId,
+        'branchName': branchName,
+        'driverOnWay': true,
+        // if deployment, branch is not open yet; if retrieval, it remains open until cook taps
+        'isOpen': !isDeployment,
+        'cookName': cookName,
+        'driverName': driverName,
+        'lastUpdated': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    } catch (e) {
+      debugPrint('FirestoreService.setDriverOnTheWay error: $e');
+    }
+  }
+
   // ===========================================================================
   // 6. PRODUCTION KARNE BATCHES & SESSIONS (Warehouse / Commissary)
   // ===========================================================================

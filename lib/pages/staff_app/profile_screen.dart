@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import '../../models/app_user.dart';
 import '../../services/auth_service.dart';
+import '../../services/tutorial_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/staff_button.dart';
 import '../../widgets/staff_card.dart';
@@ -9,7 +10,11 @@ import '../../widgets/staff_section_header.dart';
 import '../../widgets/staff_top_actions.dart';
 import '../../widgets/user_avatar.dart';
 import '../auth/login_screen.dart';
+import '../production_app/cook_task_screen.dart';
+import '../production_app/cutter_portioning_screen.dart';
 import 'edit_profile_screen.dart';
+import 'homepage_screen.dart';
+import 'staff_shell.dart';
 
 /// Opened from the profile avatar at the top of every tab. Shows
 /// the actual logged-in staff member's account details.
@@ -131,6 +136,64 @@ class ProfileScreen extends StatelessWidget {
                           CupertinoIcons.lock_shield, 'Security'),
                       _divider(),
                       _settingsTile(
+                          CupertinoIcons.play_circle, 'System Tutorial', 'Replay', () async {
+                            final isProd = user?.position.toLowerCase().contains('production') ?? false;
+                            if (!context.mounted) return;
+                            // Show confirm/cancel dialog FIRST
+                            final confirmed = await showCupertinoDialog<bool>(
+                              context: context,
+                              builder: (ctx) => CupertinoAlertDialog(
+                                title: const Text('Panoorin Ulit ang Tutorial?'),
+                                content: const Text(
+                                  'Ipapakita muli ang step-by-step guided tour para sa iyong role. Gusto mo bang simulan ngayon?',
+                                ),
+                                actions: [
+                                  CupertinoDialogAction(
+                                    onPressed: () => Navigator.of(ctx).pop(false),
+                                    child: const Text('Huwag Na'),
+                                  ),
+                                  CupertinoDialogAction(
+                                    onPressed: () => Navigator.of(ctx).pop(true),
+                                    isDefaultAction: true,
+                                    child: const Text('Oo, Simulan Na'),
+                                  ),
+                                ],
+                              ),
+                            );
+                            if (confirmed != true) return;
+                            // Reset the relevant flags
+                            if (isProd) {
+                              final tourKey = user!.position.toLowerCase().contains('cook')
+                                  ? 'prod_cook_spotlight'
+                                  : 'cutter_spotlight';
+                              await TutorialService.resetTutorial(tourKey);
+                            } else {
+                              await TutorialService.resetTutorial('cook_home_spotlight');
+                              await TutorialService.resetTutorial('cook_spotlight');
+                            }
+                            if (!context.mounted) return;
+                            // Navigate to work tab (index 0) and start tour directly
+                            if (isProd) {
+                              final isCook = user?.position.toLowerCase().contains('cook') ?? false;
+                              // ProductionShell tab 0 is already the work screen — just call startTour
+                              await Future.delayed(const Duration(milliseconds: 350));
+                              if (context.mounted) {
+                                if (isCook) {
+                                  CookTaskScreen.globalKey.currentState?.startTour();
+                                } else {
+                                  CutterPortioningScreen.globalKey.currentState?.startTour();
+                                }
+                              }
+                            } else {
+                              StaffShell.tabController.index = 0;
+                              await Future.delayed(const Duration(milliseconds: 350));
+                              if (context.mounted) {
+                                HomepageScreen.globalKey.currentState?.startTour();
+                              }
+                            }
+                          }),
+                      _divider(),
+                      _settingsTile(
                           CupertinoIcons.question_circle, 'Support'),
                     ],
                   ),
@@ -226,34 +289,38 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
-  Widget _settingsTile(IconData icon, String label, [String? value]) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      child: Row(
-        children: [
-          Icon(icon, size: 20, color: AppColors.accent),
-          const SizedBox(width: 12),
-          Text(
-            label,
-            style: const TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w600,
-              color: AppColors.textPrimary,
-            ),
-          ),
-          const Spacer(),
-          if (value != null)
+  Widget _settingsTile(IconData icon, String label, [String? value, VoidCallback? onTap]) {
+    return CupertinoButton(
+      padding: EdgeInsets.zero,
+      onPressed: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        child: Row(
+          children: [
+            Icon(icon, size: 20, color: AppColors.accent),
+            const SizedBox(width: 12),
             Text(
-              value,
+              label,
               style: const TextStyle(
-                fontSize: 14,
-                color: AppColors.textSecondary,
+                fontSize: 15,
                 fontWeight: FontWeight.w600,
+                color: AppColors.textPrimary,
               ),
             ),
-          const SizedBox(width: 4),
-          const Icon(CupertinoIcons.chevron_forward, size: 16, color: AppColors.border),
-        ],
+            const Spacer(),
+            if (value != null)
+              Text(
+                value,
+                style: const TextStyle(
+                  fontSize: 14,
+                  color: AppColors.textSecondary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            const SizedBox(width: 4),
+            const Icon(CupertinoIcons.chevron_forward, size: 16, color: AppColors.border),
+          ],
+        ),
       ),
     );
   }

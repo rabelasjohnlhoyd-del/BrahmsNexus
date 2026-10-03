@@ -119,6 +119,41 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
       _messageController.text.trim().isNotEmpty;
 
   Future<void> _confirmSubmit() async {
+    // Validate message field if it's the only data
+    final msg = _messageController.text.trim();
+    if (!_mayoTorn && !_gasEmpty && msg.isEmpty) {
+      showCupertinoDialog<void>(
+        context: context,
+        builder: (ctx) => CupertinoAlertDialog(
+          title: const Text('Nothing to Report'),
+          content: const Text('Please check at least one issue or type a message before sending.'),
+          actions: [
+            CupertinoDialogAction(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+    if (msg.isNotEmpty && msg.replaceAll(RegExp(r'\s'), '').isEmpty) {
+      showCupertinoDialog<void>(
+        context: context,
+        builder: (ctx) => CupertinoAlertDialog(
+          title: const Text('Invalid Message'),
+          content: const Text('Message cannot contain only spaces.'),
+          actions: [
+            CupertinoDialogAction(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
     final confirmed = await showCupertinoDialog<bool>(
       context: context,
       builder: (dialogContext) => CupertinoAlertDialog(
@@ -141,6 +176,7 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
     if (confirmed != true || !mounted) return;
     _submit();
   }
+
 
   Future<void> _submit() async {
     setState(() => _isSubmitting = true);
@@ -288,6 +324,7 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
               controller: _messageController,
               placeholder: 'Type the details here...',
               maxLines: 5,
+              maxLength: 500,
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
                 color: CupertinoColors.white,
@@ -298,6 +335,7 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
               style: const TextStyle(color: AppColors.textPrimary),
               onChanged: (_) => setState(() {}),
             ),
+
             const SizedBox(height: 22),
             
             // DYNAMIC BUTTON LOGIC

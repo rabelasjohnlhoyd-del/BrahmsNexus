@@ -1,5 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../models/branch.dart';
 import '../../models/branch_assignment.dart';
@@ -7,12 +8,15 @@ import '../../models/staff_member.dart';
 import '../../services/assignment_service.dart';
 import '../../services/auth_service.dart';
 import '../../services/notification_service.dart';
+import '../../services/firestore_service.dart';
 import '../../services/supabase_service.dart';
+import '../../services/tutorial_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/driver_card.dart';
 import '../../widgets/driver_nav_bar.dart';
 import '../../widgets/driver_top_actions.dart';
 import '../../widgets/driver_section_header.dart';
+import '../../widgets/guided_tour_overlay.dart';
 
 /// The Transport Mode for the Route — either Deployment (morning pickup)
 /// or Retrieval (evening pickup).
@@ -22,11 +26,15 @@ enum RouteMode { deployment, retrieval }
 class RouteScreen extends StatefulWidget {
   const RouteScreen({super.key});
 
+  /// GlobalKey used by [DriverProfileScreen] to call [RouteScreenState.startTour]
+  /// directly without telling the user to navigate anywhere.
+  static final GlobalKey<RouteScreenState> globalKey = GlobalKey<RouteScreenState>();
+
   @override
-  State<RouteScreen> createState() => _RouteScreenState();
+  State<RouteScreen> createState() => RouteScreenState();
 }
 
-class _RouteScreenState extends State<RouteScreen> {
+class RouteScreenState extends State<RouteScreen> {
   RouteMode _activeMode = RouteMode.deployment;
 
   // Track completed stops for each mode
@@ -38,11 +46,75 @@ class _RouteScreenState extends State<RouteScreen> {
 
   List<Branch> _branches = [];
 
+  // ── Guided Tour Keys (Live Spotlight) ───────────────────────────
+  final GlobalKey _rfidBannerKey = GlobalKey();
+  final GlobalKey _firstStopCardKey = GlobalKey();
+  final GlobalKey _notifyBtnKey = GlobalKey();
+
   @override
   void initState() {
     super.initState();
     _loadData();
     AssignmentService.changeNotifier.addListener(_onAssignmentsChanged);
+    _maybeTriggerGuidedTour();
+  }
+
+  Future<void> _maybeTriggerGuidedTour() async {
+    final seen = await TutorialService.hasSeenTutorial('driver_spotlight');
+    if (!seen && mounted) {
+      await Future.delayed(const Duration(milliseconds: 900));
+      if (!mounted) return;
+      _launchDriverTour();
+    }
+  }
+
+  /// Public entry point — called by [DriverProfileScreen] Replay button
+  /// after the user confirms they want to watch the tour again.
+  void startTour() {
+    if (!mounted) return;
+    _launchDriverTour();
+  }
+
+  void _launchDriverTour() {
+    GuidedTourOverlay.show(
+      context: context,
+      steps: [
+        GuidedTourStep(
+          targetKey: _firstStopCardKey,
+          roleBadge: 'DRIVER ROUTE ONBOARDING',
+          title: '1. Unang Destinasyon (Sequential Route)',
+          instruction: 'PINDUTIN: I-tap ang Stop 1 para magpatuloy.',
+          explanation:
+              'Ito ang iyong unang deployment stop (Brgy. Gatid). Naka-lock ang Stop 2 hangga\'t hindi natatapos ang nauna upang masiguro ang tamang pagkakasunod-sunod.',
+          tip: 'Magsisimula ang ruta sa Main Warehouse kung saan ikinakarga ang mga sariwang karne.',
+        ),
+        GuidedTourStep(
+          targetKey: _notifyBtnKey,
+          roleBadge: 'DRIVER ROUTE ONBOARDING',
+          title: '2. Alerto sa Branch Cook (On The Way)',
+          instruction: 'PINDUTIN: I-tap ang "On the way" button.',
+          explanation:
+              'Pindutin ito bago bumiyahe. Awtomatikong magpapadala ng alert sa cellphone ng branch cook upang makapaghanda siya sa pagdating ng mga supplies.',
+          tip: 'Pindutin ito mga 10-15 minuto bago makarating sa sangay.',
+          onTargetTapped: () {
+            // Haptic only during tour — do NOT open the real confirm dialog
+            // (that would dismiss the overlay and break the flow)
+            HapticFeedback.lightImpact();
+          },
+        ),
+        GuidedTourStep(
+          targetKey: _rfidBannerKey,
+          roleBadge: 'DRIVER ROUTE ONBOARDING',
+          title: '3. RFID Auto-Completion System',
+          instruction: 'PINDUTIN: I-tap ang RFID notice banner upang magpatuloy.',
+          explanation:
+              'WALA NANG DROPPED OFF BUTTON: Pagdating mo sa branch, ipa-tap lang sa Cook ang kanyang RFID card sa portable reader. Kusa nang magbubukas ang tindahan at magiging COMPLETED ang stop!',
+          tip: 'Ang RFID tap ang opisyal na time-in ng branch cook at verification ng supply arrival.',
+        ),
+      ],
+      onCompleted: () => TutorialService.markTutorialSeen('driver_spotlight'),
+      onSkipped: () => TutorialService.markTutorialSeen('driver_spotlight'),
+    );
   }
 
   @override
@@ -234,6 +306,15 @@ class _RouteScreenState extends State<RouteScreen> {
                 staffUsername: staff.username,
                 driverName: driverName,
               );
+              // Update branch_status in Firestore so the owner's Branch Status
+              // overview reflects "DRIVER ON THE WAY" in real-time.
+              await FirestoreService.setDriverOnTheWay(
+                branchId: branch.id,
+                branchName: branch.fullName,
+                cookName: staffName,
+                driverName: driverName,
+                isDeployment: _activeMode == RouteMode.deployment,
+              );
               if (mounted) {
                 messenger.showSnackBar(
                   SnackBar(content: Text('Notified $staffName: "Driver is on the way"')),
@@ -247,133 +328,6 @@ class _RouteScreenState extends State<RouteScreen> {
     );
   }
 
-  void _confirmMarkCompleted(Branch branch, StaffMember? staff) {
-    final messenger = ScaffoldMessenger.of(context);
-    final isDeployment = _activeMode == RouteMode.deployment;
-    final action = isDeployment ? 'Dropped Off' : 'Picked Up';
-    final staffName = staff?.fullName ?? 'Staff';
-
-    showCupertinoDialog(
-      context: context,
-      builder: (dialogCtx) => CupertinoAlertDialog(
-        title: const Text('Status Update'),
-        content: Text('Confirm that $staffName at ${branch.name} is $action?'),
-        actions: [
-          CupertinoDialogAction(
-            onPressed: () => Navigator.pop(dialogCtx),
-            child: const Text('Cancel'),
-          ),
-          CupertinoDialogAction(
-            isDestructiveAction: true,
-            onPressed: () async {
-              Navigator.pop(dialogCtx);
-              setState(() {
-                _currentCompletedSet.add(branch.id);
-              });
-
-              final driverName = AuthService.currentAppUser?.fullName ?? 'Driver';
-              if (isDeployment) {
-                await NotificationService.notifyOwnerStaffDroppedOff(
-                  staffName: staffName,
-                  branchName: branch.fullName,
-                  driverName: driverName,
-                );
-              } else {
-                await NotificationService.notifyOwnerStaffPickedUp(
-                  staffName: staffName,
-                  branchName: branch.fullName,
-                  driverName: driverName,
-                );
-              }
-
-              if (mounted) {
-                messenger.showSnackBar(
-                  SnackBar(content: Text('$action: $staffName at ${branch.name} — Owner notified!')),
-                );
-              }
-            },
-            child: const Text('Yes'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showMapModal() {
-    showCupertinoModalPopup(
-      context: context,
-      barrierDismissible: true,
-      builder: (context) => Container(
-        height: MediaQuery.of(context).size.height * 0.85,
-        width: double.infinity,
-        decoration: const BoxDecoration(
-          color: CupertinoColors.systemBackground,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        child: Column(
-          children: [
-            Center(
-              child: Container(
-                margin: const EdgeInsets.symmetric(vertical: 12),
-                width: 40,
-                height: 5,
-                decoration: BoxDecoration(
-                  color: AppColors.border,
-                  borderRadius: BorderRadius.circular(2.5),
-                ),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Live Route Navigation',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w800,
-                          color: AppColors.textPrimary,
-                          decoration: TextDecoration.none,
-                        ),
-                      ),
-                      Text(
-                        'Visualizing stops and sequence',
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
-                          color: AppColors.textSecondary,
-                          decoration: TextDecoration.none,
-                        ),
-                      ),
-                    ],
-                  ),
-                  CupertinoButton(
-                    padding: EdgeInsets.zero,
-                    onPressed: () => Navigator.pop(context),
-                    child: const Icon(CupertinoIcons.xmark_circle_fill, size: 28, color: AppColors.border),
-                  ),
-                ],
-              ),
-            ),
-            Expanded(
-              child: Stack(
-                children: [
-                  CustomPaint(
-                    painter: _MapPainter(),
-                    size: Size.infinite,
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -502,65 +456,45 @@ class _RouteScreenState extends State<RouteScreen> {
                             ),
                           ],
                         ),
-                        const SizedBox(height: 16),
-                        GestureDetector(
-                          onTap: _showMapModal,
-                          child: Container(
-                            height: 100,
-                            width: double.infinity,
-                            decoration: BoxDecoration(
-                              color: AppColors.accent.withValues(alpha: 0.05),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: AppColors.border),
+                        const SizedBox(height: 14),
+                        // Progress bar
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: LinearProgressIndicator(
+                            value: branches.isEmpty ? 0 : completedCount / branches.length,
+                            minHeight: 8,
+                            backgroundColor: AppColors.border.withValues(alpha: 0.4),
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              allDone ? AppColors.success : AppColors.accent,
                             ),
-                            child: Stack(
-                              children: [
-                                ClipRRect(
-                                  borderRadius: BorderRadius.circular(12),
-                                  child: CustomPaint(
-                                    painter: _MapPainter(),
-                                    size: Size.infinite,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        // RFID info chip
+                        Container(
+                          key: _rfidBannerKey,
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                          decoration: BoxDecoration(
+                            color: AppColors.accent.withValues(alpha: 0.06),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: AppColors.accent.withValues(alpha: 0.15)),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(CupertinoIcons.radiowaves_right, size: 13, color: AppColors.accent),
+                              SizedBox(width: 6),
+                              Flexible(
+                                child: Text(
+                                  'Stops auto-complete when cook taps the RFID unit',
+                                  style: TextStyle(
+                                    fontSize: 11.5,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.accent,
                                   ),
                                 ),
-                                Container(
-                                  decoration: BoxDecoration(
-                                    borderRadius: BorderRadius.circular(12),
-                                    gradient: LinearGradient(
-                                      begin: Alignment.topCenter,
-                                      end: Alignment.bottomCenter,
-                                      colors: [
-                                        CupertinoColors.black.withValues(alpha: 0.0),
-                                        CupertinoColors.black.withValues(alpha: 0.3),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                                Center(
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                                    decoration: BoxDecoration(
-                                      color: CupertinoColors.white,
-                                      borderRadius: BorderRadius.circular(20),
-                                    ),
-                                    child: const Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Icon(CupertinoIcons.map_fill, size: 14, color: AppColors.accent),
-                                        SizedBox(width: 8),
-                                        Text(
-                                          'Open Live Route Map',
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w800,
-                                            color: AppColors.accent,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
+                              ),
+                            ],
                           ),
                         ),
                       ],
@@ -646,6 +580,7 @@ class _RouteScreenState extends State<RouteScreen> {
                               child: Opacity(
                                 opacity: isLocked ? 0.6 : 1.0,
                                 child: DriverCard(
+                                  key: index == 0 ? _firstStopCardKey : null,
                                   padding: const EdgeInsets.all(16),
                                   highlighted: !completed && notified && !isLocked,
                                   borderColor: completed ? AppColors.success.withValues(alpha: 0.2) : null,
@@ -810,58 +745,69 @@ class _RouteScreenState extends State<RouteScreen> {
 
                                     if (!completed) ...[
                                       const SizedBox(height: 16),
-                                      Row(
-                                        children: [
-                                          Expanded(
-                                            child: CupertinoButton(
-                                              padding: EdgeInsets.zero,
-                                              minimumSize: const Size(0, 38),
-                                              color: notified 
-                                                ? AppColors.background 
-                                                : ((isLocked || !hasStaff) ? AppColors.border.withValues(alpha: 0.1) : AppColors.accent.withValues(alpha: 0.1)),
-                                              borderRadius: BorderRadius.circular(12),
-                                              onPressed: (isLocked || !hasStaff) ? null : () => _confirmNotifyStaff(branch, staff),
-                                              child: Row(
-                                                mainAxisAlignment: MainAxisAlignment.center,
-                                                children: [
-                                                  Icon(
-                                                    notified ? CupertinoIcons.bell_fill : CupertinoIcons.bell,
-                                                    size: 14,
-                                                    color: (isLocked || !hasStaff) ? AppColors.border : (notified ? AppColors.textSecondary : AppColors.accent),
-                                                  ),
-                                                  const SizedBox(width: 6),
-                                                  Text(
-                                                    notified ? 'Notified' : (!hasStaff ? 'No Staff' : 'On the way'),
-                                                    style: TextStyle(
-                                                      fontSize: 12,
-                                                      fontWeight: FontWeight.w700,
-                                                      color: (isLocked || !hasStaff) ? AppColors.border : (notified ? AppColors.textSecondary : AppColors.accent),
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            ),
+                                      if (notified)
+                                        // RFID waiting chip — shown after driver taps "On the way"
+                                        Container(
+                                          width: double.infinity,
+                                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                                          decoration: BoxDecoration(
+                                            color: AppColors.warning.withValues(alpha: 0.08),
+                                            borderRadius: BorderRadius.circular(12),
+                                            border: Border.all(color: AppColors.warning.withValues(alpha: 0.3)),
                                           ),
-                                          const SizedBox(width: 10),
-                                          Expanded(
-                                            child: CupertinoButton(
-                                              padding: EdgeInsets.zero,
-                                              minimumSize: const Size(0, 38),
-                                              color: isLocked ? AppColors.border : AppColors.accent,
-                                              borderRadius: BorderRadius.circular(12),
-                                              onPressed: isLocked ? null : () => _confirmMarkCompleted(branch, staff),
-                                              child: Text(
-                                                _activeMode == RouteMode.deployment ? 'Dropped Off' : 'Picked Up',
+                                          child: const Row(
+                                            mainAxisAlignment: MainAxisAlignment.center,
+                                            children: [
+                                              Icon(CupertinoIcons.radiowaves_right, size: 13, color: AppColors.warning),
+                                              SizedBox(width: 6),
+                                              Text(
+                                                'Waiting for Cook RFID Tap',
                                                 style: TextStyle(
                                                   fontSize: 12,
                                                   fontWeight: FontWeight.w700,
-                                                  color: isLocked ? AppColors.textSecondary : CupertinoColors.white,
+                                                  color: AppColors.warning,
                                                 ),
                                               ),
-                                            ),
+                                            ],
                                           ),
-                                        ],
-                                      ),
+                                        )
+                                      else
+                                        // "On the way" button — only shown before driver has notified
+                                        CupertinoButton(
+                                          key: index == 0 ? _notifyBtnKey : null,
+                                          padding: EdgeInsets.zero,
+                                          minimumSize: const Size(double.infinity, 38),
+                                          color: (isLocked || !hasStaff)
+                                              ? AppColors.border.withValues(alpha: 0.1)
+                                              : AppColors.accent.withValues(alpha: 0.1),
+                                          borderRadius: BorderRadius.circular(12),
+                                          onPressed: (isLocked || !hasStaff)
+                                              ? null
+                                              : () => _confirmNotifyStaff(branch, staff),
+                                          child: Row(
+                                            mainAxisAlignment: MainAxisAlignment.center,
+                                            children: [
+                                              Icon(
+                                                CupertinoIcons.bell,
+                                                size: 14,
+                                                color: (isLocked || !hasStaff)
+                                                    ? AppColors.border
+                                                    : AppColors.accent,
+                                              ),
+                                              const SizedBox(width: 6),
+                                              Text(
+                                                !hasStaff ? 'No Staff' : 'On the way',
+                                                style: TextStyle(
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.w700,
+                                                  color: (isLocked || !hasStaff)
+                                                      ? AppColors.border
+                                                      : AppColors.accent,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
                                     ],
                                   ],
                                 ),
@@ -882,47 +828,5 @@ class _RouteScreenState extends State<RouteScreen> {
       ),
     );
   }
-}
-
-class _MapPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final gridPaint = Paint()
-      ..color = AppColors.accent.withValues(alpha: 0.05)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.5;
-
-    for (var i = 0.0; i < size.width; i += 40) {
-      canvas.drawLine(Offset(i, 0), Offset(i, size.height), gridPaint);
-    }
-    for (var i = 0.0; i < size.height; i += 40) {
-      canvas.drawLine(Offset(0, i), Offset(size.width, i), gridPaint);
-    }
-
-    final roadPaint = Paint()
-      ..color = AppColors.accent.withValues(alpha: 0.15)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 8
-      ..strokeCap = StrokeCap.round;
-
-    final roadPath = Path();
-    roadPath.moveTo(0, size.height * 0.4);
-    roadPath.lineTo(size.width * 0.3, size.height * 0.4);
-    roadPath.lineTo(size.width * 0.3, size.height * 0.7);
-    roadPath.lineTo(size.width * 0.8, size.height * 0.7);
-    roadPath.lineTo(size.width * 0.8, size.height * 0.2);
-    roadPath.lineTo(size.width, size.height * 0.2);
-    canvas.drawPath(roadPath, roadPaint);
-
-    final stopPaint = Paint()..color = AppColors.accent;
-    canvas.drawCircle(Offset(size.width * 0.3, size.height * 0.4), 5, stopPaint);
-    canvas.drawCircle(Offset(size.width * 0.8, size.height * 0.7), 5, stopPaint);
-    
-    final currentPosPaint = Paint()..color = const Color(0xFF4285F4);
-    canvas.drawCircle(Offset(size.width * 0.5, size.height * 0.7), 6, currentPosPaint);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 

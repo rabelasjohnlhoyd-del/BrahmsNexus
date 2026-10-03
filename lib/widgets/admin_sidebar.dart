@@ -19,6 +19,7 @@ class AdminSidebar extends StatelessWidget {
     required this.onLogout,
     this.isCollapsed = false,
     this.onToggleCollapse,
+    this.itemKeys,
   });
 
   final List<AdminSidebarItem> items;
@@ -27,6 +28,8 @@ class AdminSidebar extends StatelessWidget {
   final VoidCallback onLogout;
   final bool isCollapsed;
   final VoidCallback? onToggleCollapse;
+  /// Optional per-item GlobalKeys for guided tour spotlighting.
+  final List<GlobalKey?>? itemKeys;
 
   @override
   Widget build(BuildContext context) {
@@ -135,9 +138,11 @@ class AdminSidebar extends StatelessWidget {
               itemBuilder: (context, index) {
                 final item = items[index];
                 final bool isSelected = index == selectedIndex;
+                final Key? itemKey = (itemKeys != null && index < itemKeys!.length) ? itemKeys![index] : null;
 
                 if (isCollapsed) {
                   return Padding(
+                    key: itemKey,
                     padding: const EdgeInsets.only(bottom: 4),
                     child: Tooltip(
                       message: item.label,
@@ -168,6 +173,7 @@ class AdminSidebar extends StatelessWidget {
                 }
 
                 return Padding(
+                  key: itemKey,
                   padding: const EdgeInsets.only(bottom: 3),
                   child: Material(
                     color: isSelected

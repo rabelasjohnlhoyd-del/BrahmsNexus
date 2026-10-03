@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'admin_web_colors.dart';
 import '../../services/auth_service.dart';
 import '../../services/notification_service.dart';
+import '../../services/tutorial_service.dart';
 import '../../widgets/admin_notifications_dialog.dart';
 import '../../widgets/admin_sidebar.dart';
 import '../../widgets/admin_top_bar.dart';
+import '../../widgets/guided_tour_overlay.dart';
 import '../auth/login_screen.dart';
 import 'account_approvals/account_approvals_screen.dart';
 import 'analytics/analytics_screen.dart';
@@ -52,6 +54,84 @@ class AdminWebShellState extends State<AdminWebShell> {
   String? _customTitle;
   List<Widget> _currentActions = [];
   bool _isSidebarCollapsed = false;
+
+  // Sidebar item GlobalKeys — one per item (null = no spotlight for that item)
+  // Indices match _items list: 0=Dashboard, 1=Staff, 2=Approvals, 3=Branch Assignments,
+  // 4=Inventory, 5=Sales&Payroll, 6=Bilao, 7=Employee Reports, 8=Announcements,
+  // 9=DSS Analytics, 10=Branch Management, 11=Activity Log, 12=System Settings
+  final List<GlobalKey?> _sidebarItemKeys = List.generate(13, (i) {
+    // Only create keys for the 4 spotlighted sidebar items
+    if (i == 10 || i == 2 || i == 4 || i == 5) return GlobalKey();
+    return null;
+  });
+
+  GlobalKey get _branchMgmtKey  => _sidebarItemKeys[10]!;
+  GlobalKey get _approvalsKey   => _sidebarItemKeys[2]!;
+  GlobalKey get _inventoryKey   => _sidebarItemKeys[4]!;
+  GlobalKey get _salesPayrollKey => _sidebarItemKeys[5]!;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _maybeShowTutorial();
+    });
+  }
+
+  Future<void> _maybeShowTutorial() async {
+    final seen = await TutorialService.hasSeenTutorial('owner_spotlight');
+    if (!seen && mounted) {
+      await Future.delayed(const Duration(milliseconds: 900));
+      if (!mounted) return;
+      showTutorial();
+    }
+  }
+
+  void showTutorial() {
+    GuidedTourOverlay.show(
+      context: context,
+      steps: [
+        GuidedTourStep(
+          targetKey: _branchMgmtKey,
+          roleBadge: 'OWNER ONBOARDING',
+          title: '1. Branch Status & Live Matrix',
+          instruction: 'I-TAP: Piliin ang Branch Management sa sidebar.',
+          explanation:
+              'Dito makikita ang real-time status ng lahat ng 6 sangay — open/closed, cook attendance, at driver on-the-way alerts. Makikita rin ang RFID logs at live route status per branch.',
+          tip: 'Gamitin ito tuwing umaga upang i-verify na nakapasok ang lahat ng cook sa tamang oras.',
+        ),
+        GuidedTourStep(
+          targetKey: _approvalsKey,
+          roleBadge: 'OWNER ONBOARDING',
+          title: '2. Account Approvals — Staff Applicants',
+          instruction: 'I-TAP: Piliin ang Account Approvals sa sidebar.',
+          explanation:
+              'Lahat ng bagong staff na nag-register ay pumupunta dito bilang "Pending." I-review ang aplikasyon, i-assign sa sangay at posisyon, at i-approve o i-reject. Wala silang access hanggang hindi mo pa na-approve.',
+          tip: 'I-double check ang mobile number at role bago i-approve para maiwasan ang maling access.',
+        ),
+        GuidedTourStep(
+          targetKey: _inventoryKey,
+          roleBadge: 'OWNER ONBOARDING',
+          title: '3. Inventory — Warehouse & Branch Restocking',
+          instruction: 'I-TAP: Piliin ang Inventory sa sidebar.',
+          explanation:
+              'Pamahalaan ang warehouse stock ng karne, packaging, at condiments. Mag-dispatch ng supply sa mga sangay gamit ang transfer records. Lahat ng galaw ng produkto ay naka-log dito.',
+          tip: 'Regular na i-update ang warehouse stock para makita ng production team ang aktwal na karga.',
+        ),
+        GuidedTourStep(
+          targetKey: _salesPayrollKey,
+          roleBadge: 'OWNER ONBOARDING',
+          title: '4. Sales & Payroll — Revenue at Sahod',
+          instruction: 'I-TAP: Piliin ang Sales & Payroll sa sidebar.',
+          explanation:
+              'Suriin ang daily sales bawat sangay, kalkulahin ang komisyon at sahod ng bawat empleyado, at mag-export ng payroll reports para sa accounting.',
+          tip: 'Ang spoilage deductions ay awtomatikong idinaragdag sa payroll computation batay sa mga naiulat na cook.',
+        ),
+      ],
+      onCompleted: () => TutorialService.markTutorialSeen('owner_spotlight'),
+      onSkipped: () => TutorialService.markTutorialSeen('owner_spotlight'),
+    );
+  }
 
   void setActions(List<Widget> actions) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -285,6 +365,7 @@ class AdminWebShellState extends State<AdminWebShell> {
                     items: _items,
                     selectedIndex: _selectedIndex,
                     isCollapsed: _isSidebarCollapsed,
+                    itemKeys: _sidebarItemKeys,
                     onToggleCollapse: () =>
                         setState(() => _isSidebarCollapsed = !_isSidebarCollapsed),
                     onSelect: (index) =>
@@ -423,6 +504,7 @@ class AdminWebShellState extends State<AdminWebShell> {
               child: AdminSidebar(
                 items: _items,
                 selectedIndex: _selectedIndex,
+                itemKeys: _sidebarItemKeys,
                 onToggleCollapse: () => Navigator.of(context).pop(),
                 onSelect: (index) {
                   setState(() {

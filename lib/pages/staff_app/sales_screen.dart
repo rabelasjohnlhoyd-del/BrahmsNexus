@@ -2,7 +2,9 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart' show Colors, Material, InkWell, LinearProgressIndicator, ClipRRect;
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
 import '../../models/branch.dart';
 import '../../models/branch_daily_inventory.dart';
 import '../../models/branch_meat_inventory.dart';
@@ -16,6 +18,8 @@ import '../../services/notification_service.dart';
 import '../../services/supabase_service.dart';
 import '../auth/mock_accounts.dart';
 import '../../theme/app_theme.dart';
+import '../../services/tutorial_service.dart';
+import '../../widgets/guided_tour_overlay.dart';
 import '../../widgets/staff_button.dart';
 import '../../widgets/staff_card.dart';
 import '../../widgets/staff_nav_bar.dart';
@@ -45,11 +49,13 @@ class ShiftTallyItem {
 class SalesScreen extends StatefulWidget {
   const SalesScreen({super.key});
 
+  static final GlobalKey<SalesScreenState> globalKey = GlobalKey<SalesScreenState>();
+
   @override
-  State<SalesScreen> createState() => _SalesScreenState();
+  State<SalesScreen> createState() => SalesScreenState();
 }
 
-class _SalesScreenState extends State<SalesScreen> {
+class SalesScreenState extends State<SalesScreen> {
   BranchDailyInventory? _todayInventory;
   BranchMeatStock? _branchMeatStock;
   SalesRecord? _todaySalesRecord;
@@ -75,6 +81,12 @@ class _SalesScreenState extends State<SalesScreen> {
   final _toyoController = TextEditingController();
   final _mediumController = TextEditingController(); // Medium 300g
   final _b1t1Controller = TextEditingController(); // B1T1 400g
+
+  // ── Guided Tour Keys (Live Spotlight) ───────────────────────────
+  final GlobalKey _posButtonKey = GlobalKey();
+  final GlobalKey _spoilageButtonKey = GlobalKey();
+  final GlobalKey _inventoryMetersKey = GlobalKey();
+  final GlobalKey _closingSalesKey = GlobalKey();
 
   bool _submitted = false;
 
@@ -126,6 +138,79 @@ class _SalesScreenState extends State<SalesScreen> {
     _mayoController.addListener(_onFieldChanged);
     _toyoController.addListener(_onFieldChanged);
     _styroController.addListener(_onFieldChanged);
+    _maybeTriggerGuidedTour();
+  }
+
+  void startTour() {
+    _launchGuidedTour();
+  }
+
+  Future<void> _maybeTriggerGuidedTour() async {
+    final seen = await TutorialService.hasSeenTutorial('cook_spotlight');
+    if (!seen && mounted) {
+      await Future.delayed(const Duration(milliseconds: 700));
+      if (!mounted) return;
+      _launchGuidedTour();
+    }
+  }
+
+  void _launchGuidedTour() {
+    if (!mounted) return;
+    GuidedTourOverlay.show(
+      context: context,
+      steps: [
+        GuidedTourStep(
+          targetKey: _posButtonKey,
+          roleBadge: 'BRANCH COOK ONBOARDING',
+          title: '4. Pagtatala ng Benta (Quick POS)',
+          instruction: 'PINDUTIN: I-tap ang "+1 REGULAR SISIG" button sa ibaba.',
+          explanation:
+              'Sa tuwing may bibili ng Regular Sisig, pindutin ito. Awtomatikong magre-record ng benta (₱130) at mababawasan ang 250g karne at sangkap sa metro.',
+          tip: 'Punch each order in real-time. Huwag ipunin sa dulo ng shift.',
+          onTargetTapped: () {
+            HapticFeedback.lightImpact();
+          },
+        ),
+        GuidedTourStep(
+          targetKey: _spoilageButtonKey,
+          roleBadge: 'BRANCH COOK ONBOARDING',
+          title: '5. Pag-ulat ng Spoilage (Tapon / Panis)',
+          instruction: 'PINDUTIN: I-tap ang "Spoilage" button.',
+          explanation:
+              'Kung may karne na nahulog sa sahig o nasunog, i-report agad dito ang bilang at dahilan upang maging tumpak ang audit.',
+          tip: 'May safety cap: bawal ang negative at may wage deduction penalty kapag nasayang.',
+          onTargetTapped: () {
+            HapticFeedback.lightImpact();
+          },
+        ),
+        GuidedTourStep(
+          targetKey: _inventoryMetersKey,
+          roleBadge: 'BRANCH COOK ONBOARDING',
+          title: '6. Real-Time Inventory Meters',
+          instruction: 'PINDUTIN: I-tap ang metro ng karne upang magpatuloy.',
+          explanation:
+              'Dito mo mababantayan ang natitirang stock ng karne, mayo, toyo, at styro. Mabilis na nagbabago ang kulay kapag papalapit na sa low stock threshold.',
+          tip: 'Maging alerto kapag nagkulay dilaw o pula ang metro ng Regular o Medium meat.',
+          onTargetTapped: () {
+            HapticFeedback.lightImpact();
+          },
+        ),
+        GuidedTourStep(
+          targetKey: _closingSalesKey,
+          roleBadge: 'BRANCH COOK ONBOARDING',
+          title: '7. End of Day Closing Sales & Remittance',
+          instruction: 'PINDUTIN: I-tap ang "Submit Final Closing Sales".',
+          explanation:
+              'Sa pagtatapos ng shift, dito mo isusumite ang final report. Awtomatikong ibabawas ang iyong sweldo at komisyon para sa eksaktong remittance sa driver.',
+          tip: 'I-double check ang bilang bago mag-submit dahil pinal na ang ulat na ito.',
+          onTargetTapped: () {
+            HapticFeedback.lightImpact();
+          },
+        ),
+      ],
+      onCompleted: () => TutorialService.markTutorialSeen('cook_spotlight'),
+      onSkipped: () => TutorialService.markTutorialSeen('cook_spotlight'),
+    );
   }
 
   void _onFieldChanged() {
@@ -575,14 +660,20 @@ class _SalesScreenState extends State<SalesScreen> {
               CupertinoTextField(
                 controller: qtyController,
                 keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                maxLength: 3,
                 placeholder: 'Quantity (e.g. 1)...',
                 style: const TextStyle(fontSize: 13),
+                onChanged: (_) {
+                  if (errorMsg != null) setDialogState(() => errorMsg = null);
+                },
               ),
               const SizedBox(height: 10),
               CupertinoTextField(
                 controller: reasonController,
                 placeholder: 'Reason for spoilage (e.g. dropped on floor)...',
                 maxLines: 2,
+                maxLength: 300,
                 style: const TextStyle(fontSize: 13),
                 onChanged: (_) {
                   if (errorMsg != null) setDialogState(() => errorMsg = null);
@@ -605,11 +696,19 @@ class _SalesScreenState extends State<SalesScreen> {
                 final qty = int.tryParse(qtyController.text.trim()) ?? 0;
                 final reason = reasonController.text.trim();
                 if (qty <= 0) {
-                  setDialogState(() => errorMsg = 'Please enter a valid quantity.');
+                  setDialogState(() => errorMsg = 'Please enter a valid quantity (minimum 1).');
+                  return;
+                }
+                if (qty > 999) {
+                  setDialogState(() => errorMsg = 'Quantity must not exceed 999.');
                   return;
                 }
                 if (reason.isEmpty) {
                   setDialogState(() => errorMsg = 'Please provide a reason for spoilage.');
+                  return;
+                }
+                if (reason.length < 3) {
+                  setDialogState(() => errorMsg = 'Reason must be at least 3 characters.');
                   return;
                 }
 
@@ -623,6 +722,7 @@ class _SalesScreenState extends State<SalesScreen> {
       ),
     );
   }
+
 
   void _processWastageReport(String item, int qty, String reason) async {
     final currentStock = _effectiveStock;
@@ -1000,6 +1100,7 @@ class _SalesScreenState extends State<SalesScreen> {
                     ),
                   const SizedBox(width: 6),
                   CupertinoButton(
+                    key: _spoilageButtonKey,
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     color: AppColors.warning.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(8),
@@ -1027,6 +1128,7 @@ class _SalesScreenState extends State<SalesScreen> {
                   runSpacing: 10,
                   children: [
                     SizedBox(
+                      key: _posButtonKey,
                       width: btnW,
                       child: _buildPosButton(
                         label: '+1 REGULAR SISIG',
@@ -1136,6 +1238,7 @@ class _SalesScreenState extends State<SalesScreen> {
             ),
             const SizedBox(height: 10),
             StaffCard(
+              key: _inventoryMetersKey,
               child: Column(
                 children: [
                   Row(
@@ -1298,6 +1401,7 @@ class _SalesScreenState extends State<SalesScreen> {
               )
             else
               StaffButton(
+                key: _closingSalesKey,
                 label: 'Submit Final Closing Sales',
                 icon: CupertinoIcons.cloud_upload_fill,
                 onPressed: _confirmSubmit,

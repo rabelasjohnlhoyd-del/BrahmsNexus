@@ -92,7 +92,10 @@ class _UpdateStockScreenState extends State<UpdateStockScreen> {
                           ),
                           validator: (v) {
                             if (v == null || v.trim().isEmpty) return 'Required';
-                            if (double.tryParse(v) == null) return 'Must be a number';
+                            final parsed = double.tryParse(v.trim());
+                            if (parsed == null) return 'Must be a number';
+                            if (parsed <= 0) return 'Stock must be greater than 0';
+                            if (parsed > 9999) return 'Stock value is too large (max 9,999 kg)';
                             return null;
                           },
                         ),

@@ -189,10 +189,10 @@ class SupabaseService {
           .select()
           .eq('is_archived', showArchived);
 
-      if (query.trim().isNotEmpty) {
-        final q = query.trim();
+      final cleanQ = query.trim().replaceAll(RegExp(r'[,()"\\]'), '');
+      if (cleanQ.isNotEmpty) {
         queryBuilder = queryBuilder.or(
-          'first_name.ilike.%$q%,last_name.ilike.%$q%,username.ilike.%$q%,position.ilike.%$q%',
+          'first_name.ilike.%$cleanQ%,last_name.ilike.%$cleanQ%,username.ilike.%$cleanQ%,position.ilike.%$cleanQ%',
         );
       }
       if (branchFilter != null && branchFilter != 'All') {

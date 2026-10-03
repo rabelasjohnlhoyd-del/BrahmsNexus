@@ -10,7 +10,12 @@ import 'cutter_inventory_screen.dart';
 
 /// Main shell of the Production app — same floating rounded pill nav pattern
 /// as staff_shell.dart for a consistent look across all mobile apps.
-class ProductionShell extends StatelessWidget {
+///
+/// The interactive guided tour (GuidedTourOverlay) is triggered
+/// automatically from [CookTaskScreen] (Production Cook) and
+/// [CutterPortioningScreen] (Meat Cutter) on first launch — not here
+/// in the shell — so it spotlights the real live widgets.
+class ProductionShell extends StatefulWidget {
   const ProductionShell({
     super.key,
     required this.position,
@@ -19,6 +24,13 @@ class ProductionShell extends StatelessWidget {
   final String position;
 
   static final CupertinoTabController tabController = CupertinoTabController();
+
+  @override
+  State<ProductionShell> createState() => _ProductionShellState();
+}
+
+class _ProductionShellState extends State<ProductionShell> {
+  CupertinoTabController get tabController => ProductionShell.tabController;
 
   static const _systemBarStyle = SystemUiOverlayStyle(
     statusBarColor: Color(0x00000000),
@@ -33,7 +45,7 @@ class ProductionShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isCook = position == 'Production Cook';
+    final isCook = widget.position == 'Production Cook';
     final double bottomPadding = MediaQuery.viewPaddingOf(context).bottom;
 
     return DeactivationGuard(
@@ -74,8 +86,8 @@ class ProductionShell extends StatelessWidget {
                         switch (index) {
                           case 0:
                             page = isCook
-                                ? const CookTaskScreen()
-                                : const CutterPortioningScreen();
+                                ? CookTaskScreen(key: CookTaskScreen.globalKey)
+                                : CutterPortioningScreen(key: CutterPortioningScreen.globalKey);
                             break;
                           case 1:
                             page = isCook
@@ -176,7 +188,7 @@ class ProductionShell extends StatelessWidget {
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: () {
-          tabController.index = index;
+          ProductionShell.tabController.index = index;
         },
         child: Column(
           mainAxisSize: MainAxisSize.min,

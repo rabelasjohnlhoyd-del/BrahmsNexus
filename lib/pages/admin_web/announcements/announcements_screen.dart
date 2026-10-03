@@ -74,7 +74,33 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
 
   Future<void> _postAnnouncement() async {
     final text = _messageController.text.trim();
-    if (text.isEmpty) return;
+    if (text.isEmpty || text.replaceAll(RegExp(r'\s'), '').isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Announcement cannot be blank.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+    if (text.length < 3) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Announcement must be at least 3 characters.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+    if (text.length > 500) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Announcement must not exceed 500 characters.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
 
     setState(() => _isPosting = true);
     _updateShellActions();
@@ -172,6 +198,7 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
                   TextField(
                     controller: _messageController,
                     maxLines: 3,
+                    maxLength: 500,
                     decoration: const InputDecoration(
                       labelText: 'NEW ANNOUNCEMENT',
                       hintText: 'Type your announcement here...',
@@ -183,6 +210,7 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
                       ),
                     ),
                   ),
+
                   const SizedBox(height: 16),
                   LayoutBuilder(
                     builder: (context, constraints) {

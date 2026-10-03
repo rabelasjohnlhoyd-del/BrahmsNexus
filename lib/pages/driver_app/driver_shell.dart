@@ -10,10 +10,21 @@ import 'profile_screen.dart';
 
 /// Main shell of the Driver app — same floating rounded pill nav pattern
 /// as staff_shell.dart for a consistent look across all mobile apps.
-class DriverShell extends StatelessWidget {
+///
+/// The interactive guided tour (GuidedTourOverlay) is triggered
+/// automatically from [RouteScreen] on first launch — not here in
+/// the shell — so it spotlights the real live widgets.
+class DriverShell extends StatefulWidget {
   const DriverShell({super.key});
 
   static final CupertinoTabController tabController = CupertinoTabController();
+
+  @override
+  State<DriverShell> createState() => _DriverShellState();
+}
+
+class _DriverShellState extends State<DriverShell> {
+  CupertinoTabController get tabController => DriverShell.tabController;
 
   static const _systemBarStyle = SystemUiOverlayStyle(
     statusBarColor: Color(0x00000000),
@@ -74,7 +85,7 @@ class DriverShell extends StatelessWidget {
                             page = const DriverHomepageScreen();
                             break;
                           case 1:
-                            page = const RouteScreen();
+                            page = RouteScreen(key: RouteScreen.globalKey);
                             break;
                           case 2:
                             page = const StockTransferScreen();
@@ -190,7 +201,7 @@ class DriverShell extends StatelessWidget {
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: () {
-          tabController.index = index;
+          DriverShell.tabController.index = index;
         },
         child: Column(
           mainAxisSize: MainAxisSize.min,

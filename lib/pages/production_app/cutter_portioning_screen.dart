@@ -1,12 +1,16 @@
 import 'dart:async';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+
 import 'package:intl/intl.dart';
 import '../../models/inventory_batch.dart';
 import '../../services/auth_service.dart';
 import '../../services/firestore_service.dart';
+import '../../services/tutorial_service.dart';
 import '../../services/weather_service.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/guided_tour_overlay.dart';
 import '../../widgets/staff_button.dart';
 import '../../widgets/staff_card.dart';
 import '../../widgets/staff_nav_bar.dart';
@@ -16,11 +20,15 @@ import '../../widgets/staff_top_actions.dart';
 class CutterPortioningScreen extends StatefulWidget {
   const CutterPortioningScreen({super.key});
 
+  /// GlobalKey used by [ProductionProfileScreen] to call [CutterPortioningScreenState.startTour]
+  /// directly after the user confirms Replay.
+  static final GlobalKey<CutterPortioningScreenState> globalKey = GlobalKey<CutterPortioningScreenState>();
+
   @override
-  State<CutterPortioningScreen> createState() => _CutterPortioningScreenState();
+  State<CutterPortioningScreen> createState() => CutterPortioningScreenState();
 }
 
-class _CutterPortioningScreenState extends State<CutterPortioningScreen> {
+class CutterPortioningScreenState extends State<CutterPortioningScreen> {
   final Map<String, int> _targets = {
     '250g': 150,
     '300g': 100,
@@ -41,6 +49,12 @@ class _CutterPortioningScreenState extends State<CutterPortioningScreen> {
   final _remainingNotesController = TextEditingController();
   bool _showSubmitButton = false;
 
+  // ── Guided Tour Keys (Live Spotlight) ───────────────────────────
+  final GlobalKey _targetChipsKey = GlobalKey();
+  final GlobalKey _portionCardKey = GlobalKey();
+  final GlobalKey _meatLeftKey = GlobalKey();
+  final GlobalKey _submitBtnKey = GlobalKey();
+
   bool _isRefreshing = false;
   int _tempC = 28;
   String _condition = 'Partly Cloudy';
@@ -56,6 +70,7 @@ class _CutterPortioningScreenState extends State<CutterPortioningScreen> {
     for (var controller in _controllers.values) {
       controller.addListener(_validateInputs);
     }
+    _maybeTriggerGuidedTour();
     _targetsSub = FirestoreService.watchPortioningTargets().listen((targets) {
       if (mounted) {
         setState(() {
@@ -112,6 +127,67 @@ class _CutterPortioningScreenState extends State<CutterPortioningScreen> {
     });
   }
 
+  Future<void> _maybeTriggerGuidedTour() async {
+    final seen = await TutorialService.hasSeenTutorial('cutter_spotlight');
+    if (!seen && mounted) {
+      await Future.delayed(const Duration(milliseconds: 900));
+      if (!mounted) return;
+      _launchCutterTour();
+    }
+  }
+
+  /// Public entry point — called by [ProductionProfileScreen] Replay button.
+  void startTour() {
+    if (!mounted) return;
+    _launchCutterTour();
+  }
+
+  void _launchCutterTour() {
+    GuidedTourOverlay.show(
+      context: context,
+      steps: [
+        GuidedTourStep(
+          targetKey: _targetChipsKey,
+          roleBadge: 'MEAT CUTTER ONBOARDING',
+          title: '1. Target Portions (400G / 300G / 250G)',
+          instruction: 'PINDUTIN: I-tap ang target summary bar para magpatuloy.',
+          explanation:
+              'Dito nakatala ang kailangang dami ng packs na hihiwain. Unang dapat makumpleto ang 400G B1T1 at 300G Medium bago ilaan ang natitirang karne sa 250G Regular.',
+          tip: 'Kailangang tumugma nang eksakto ang iyong mahiwa sa itinakdang target ng bodega.',
+        ),
+        GuidedTourStep(
+          targetKey: _portionCardKey,
+          roleBadge: 'MEAT CUTTER ONBOARDING',
+          title: '2. Pag-input ng Bilang ng Nahiwa',
+          instruction: 'PINDUTIN: I-tap ang portion input box sa ibaba.',
+          explanation:
+              'Ipasok ang aktwal na bilang ng packs na iyong natimbang at binalot. May live validation ang bawat box kung pasado sa target.',
+          tip: 'Gumamit ng tamang digital scale calibration bago magtala.',
+        ),
+        GuidedTourStep(
+          targetKey: _meatLeftKey,
+          roleBadge: 'MEAT CUTTER ONBOARDING',
+          title: '3. Half-Cooked Meat Scrap at Notes',
+          instruction: 'PINDUTIN: I-tap ang remaining weight card.',
+          explanation:
+              'Kung may natirang karne o trims pagkatapos maabot ang targets, itala ang gramo dito at maglagay ng mandatory note kung bakit ito natira.',
+          tip: 'Mahigkit na bawal mag-iwan ng scrap grams nang walang paliwanag.',
+        ),
+        GuidedTourStep(
+          targetKey: _submitBtnKey,
+          roleBadge: 'MEAT CUTTER ONBOARDING',
+          title: '4. Pagsumite ng Batch sa System',
+          instruction: 'PINDUTIN: I-tap ang "SUBMIT REPORT" button.',
+          explanation:
+              'Pindutin ito upang i-record ang batch sa database at mai-link sa chiller container na ikakarga ng driver para sa sangay.',
+          tip: 'Kapag na-submit na, awtomatikong mag-a-update ang available warehouse inventory.',
+        ),
+      ],
+      onCompleted: () => TutorialService.markTutorialSeen('cutter_spotlight'),
+      onSkipped: () => TutorialService.markTutorialSeen('cutter_spotlight'),
+    );
+  }
+
   Future<void> _fetchLiveWeather({bool force = false}) async {
     final live = await WeatherService.fetchWeather(force: force);
     if (!mounted) return;
@@ -127,6 +203,12 @@ class _CutterPortioningScreenState extends State<CutterPortioningScreen> {
   void _validateInputs() {
     final remainingG = int.tryParse(_meatLeftController.text.trim()) ?? 0;
     final hasNotes = _remainingNotesController.text.trim().isNotEmpty;
+
+    // Reject unreasonably large remaining meat values (> 50,000g = 50 kg)
+    if (remainingG > 50000) {
+      if (_showSubmitButton) setState(() => _showSubmitButton = false);
+      return;
+    }
 
     // All portioning fields must be filled
     bool allFilled = true;
@@ -157,6 +239,7 @@ class _CutterPortioningScreenState extends State<CutterPortioningScreen> {
       setState(() => _showSubmitButton = canSubmit);
     }
   }
+
 
   void _onFieldChanged(String value) {
     setState(() {}); // Rebuild UI immediately to update card colors
@@ -395,6 +478,7 @@ class _CutterPortioningScreenState extends State<CutterPortioningScreen> {
                           ),
                           const Divider(height: 18),
                           Row(
+                            key: _targetChipsKey,
                             mainAxisAlignment: MainAxisAlignment.spaceAround,
                             children: [
                               _targetChip('400G (B1T1)', '${_targets['400g']} pcs'),
@@ -418,7 +502,7 @@ class _CutterPortioningScreenState extends State<CutterPortioningScreen> {
               subtitle: 'Complete 400G and 300G first; all remaining goes to 250G',
             ),
             const SizedBox(height: 14),
-            _buildPortionInputCard('400g'),
+            _buildPortionInputCard('400g', key: _portionCardKey),
             const SizedBox(height: 12),
             _buildPortionInputCard('300g'),
             const SizedBox(height: 12),
@@ -432,6 +516,7 @@ class _CutterPortioningScreenState extends State<CutterPortioningScreen> {
             ),
             const SizedBox(height: 14),
             StaffCard(
+              key: _meatLeftKey,
               padding: const EdgeInsets.all(20),
               highlighted: _meatLeftController.text.trim().isNotEmpty,
               borderColor: _meatLeftController.text.trim().isNotEmpty ? AppColors.accent : null,
@@ -452,6 +537,8 @@ class _CutterPortioningScreenState extends State<CutterPortioningScreen> {
                     controller: _meatLeftController,
                     placeholder: '0 g',
                     keyboardType: TextInputType.number,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    maxLength: 6,
                     onChanged: _onFieldChanged,
                     textAlign: TextAlign.center,
                     style: const TextStyle(
@@ -467,6 +554,7 @@ class _CutterPortioningScreenState extends State<CutterPortioningScreen> {
                       border: Border.all(color: AppColors.border),
                     ),
                   ),
+
                 ],
               ),
             ),
@@ -534,54 +622,62 @@ class _CutterPortioningScreenState extends State<CutterPortioningScreen> {
               ),
             ],
             const SizedBox(height: 12),
-            if (!_showSubmitButton)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 4),
-                child: Builder(builder: (context) {
-                  final c400 = int.tryParse(_controllers['400g']!.text.trim());
-                  final c300 = int.tryParse(_controllers['300g']!.text.trim());
-                  final t400 = _targets['400g'] ?? 0;
-                  final t300 = _targets['300g'] ?? 0;
-                  final remainingG = int.tryParse(_meatLeftController.text.trim()) ?? 0;
-                  final hasNotes = _remainingNotesController.text.trim().isNotEmpty;
+            Container(
+              key: _submitBtnKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (!_showSubmitButton)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      child: Builder(builder: (context) {
+                        final c400 = int.tryParse(_controllers['400g']!.text.trim());
+                        final c300 = int.tryParse(_controllers['300g']!.text.trim());
+                        final t400 = _targets['400g'] ?? 0;
+                        final t300 = _targets['300g'] ?? 0;
+                        final remainingG = int.tryParse(_meatLeftController.text.trim()) ?? 0;
+                        final hasNotes = _remainingNotesController.text.trim().isNotEmpty;
 
-                  final issues = <String>[];
-                  if (_controllers['400g']!.text.trim().isEmpty ||
-                      _controllers['300g']!.text.trim().isEmpty ||
-                      _controllers['250g']!.text.trim().isEmpty) {
-                    issues.add('Fill in all portioning fields.');
-                  }
-                  if (c400 != null && c400 != t400) {
-                    issues.add('400G: must be exactly $t400 pcs.');
-                  }
-                  if (c300 != null && c300 != t300) {
-                    issues.add('300G: must be exactly $t300 pcs.');
-                  }
-                  if (_meatLeftController.text.trim().isEmpty) {
-                    issues.add('Enter the remaining weight.');
-                  }
-                  if (remainingG > 0 && !hasNotes) {
-                    issues.add('Provide a reason for the remaining meat.');
-                  }
+                        final issues = <String>[];
+                        if (_controllers['400g']!.text.trim().isEmpty ||
+                            _controllers['300g']!.text.trim().isEmpty ||
+                            _controllers['250g']!.text.trim().isEmpty) {
+                          issues.add('Fill in all portioning fields.');
+                        }
+                        if (c400 != null && c400 != t400) {
+                          issues.add('400G: must be exactly $t400 pcs.');
+                        }
+                        if (c300 != null && c300 != t300) {
+                          issues.add('300G: must be exactly $t300 pcs.');
+                        }
+                        if (_meatLeftController.text.trim().isEmpty) {
+                          issues.add('Enter the remaining weight.');
+                        }
+                        if (remainingG > 0 && !hasNotes) {
+                          issues.add('Provide a reason for the remaining meat.');
+                        }
 
-                  return Text(
-                    issues.isNotEmpty ? issues.join(' ') : 'Complete all fields.',
-                    style: const TextStyle(
-                      fontSize: 11,
-                      color: AppColors.textSecondary,
-                      fontStyle: FontStyle.italic,
+                        return Text(
+                          issues.isNotEmpty ? issues.join(' ') : 'Complete all fields.',
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: AppColors.textSecondary,
+                            fontStyle: FontStyle.italic,
+                          ),
+                        );
+                      }),
                     ),
-                  );
-                }),
+                  if (_showSubmitButton)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 24),
+                      child: StaffButton(
+                        label: 'SUBMIT REPORT',
+                        onPressed: _submitPortions,
+                      ),
+                    ),
+                ],
               ),
-            if (_showSubmitButton)
-              Padding(
-                padding: const EdgeInsets.only(top: 24),
-                child: StaffButton(
-                  label: 'SUBMIT REPORT',
-                  onPressed: _submitPortions,
-                ),
-              ),
+            ),
             const SizedBox(height: 100),
           ],
         ),
@@ -700,7 +796,7 @@ class _CutterPortioningScreenState extends State<CutterPortioningScreen> {
     );
   }
 
-  Widget _buildPortionInputCard(String size) {
+  Widget _buildPortionInputCard(String size, {Key? key}) {
     final target = _targets[size] ?? 0;
     final controller = _controllers[size]!;
     final current = int.tryParse(controller.text.trim());
@@ -752,6 +848,7 @@ class _CutterPortioningScreenState extends State<CutterPortioningScreen> {
     }
 
     return StaffCard(
+      key: key,
       padding: const EdgeInsets.all(18),
       highlighted: isDone && !isError,
       borderColor: isError ? AppColors.error : (isDone ? AppColors.accent : null),

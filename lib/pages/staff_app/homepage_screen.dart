@@ -19,6 +19,10 @@ import '../../widgets/staff_section_header.dart';
 import '../../widgets/staff_stat_tile.dart';
 import '../../widgets/staff_top_actions.dart';
 import '../../services/weather_service.dart';
+import '../../services/tutorial_service.dart';
+import '../../widgets/guided_tour_overlay.dart';
+import 'sales_screen.dart';
+import 'staff_shell.dart';
 
 /// Homepage tab of the Cook/Staff app:
 /// 1. Shows which branch Owner assigned them to today.
@@ -34,11 +38,13 @@ import '../../services/weather_service.dart';
 class HomepageScreen extends StatefulWidget {
   const HomepageScreen({super.key});
 
+  static final GlobalKey<HomepageScreenState> globalKey = GlobalKey<HomepageScreenState>();
+
   @override
-  State<HomepageScreen> createState() => _HomepageScreenState();
+  State<HomepageScreen> createState() => HomepageScreenState();
 }
 
-class _HomepageScreenState extends State<HomepageScreen> with WidgetsBindingObserver {
+class HomepageScreenState extends State<HomepageScreen> with WidgetsBindingObserver {
   bool _isRefreshing = false;
   bool _isCelsius = true;
   int _coworkersPage = 0;
@@ -388,6 +394,10 @@ class _HomepageScreenState extends State<HomepageScreen> with WidgetsBindingObse
 
   Timer? _midnightTimer;
 
+  // Guided Tour Keys (Branch Cook Onboarding Part A)
+  final GlobalKey _branchStatusKey = GlobalKey();
+  final GlobalKey _verifySectionKey = GlobalKey();
+
   @override
   void initState() {
     super.initState();
@@ -397,6 +407,68 @@ class _HomepageScreenState extends State<HomepageScreen> with WidgetsBindingObse
     _scheduleMidnightRefresh();
     _startWeatherTimer();
     AssignmentService.changeNotifier.addListener(_onAssignmentChanged);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _maybeTriggerCookTour();
+    });
+  }
+
+  void startTour() {
+    _launchCookTour();
+  }
+
+  Future<void> _maybeTriggerCookTour() async {
+    final seen = await TutorialService.hasSeenTutorial('cook_home_spotlight');
+    if (!seen && mounted) {
+      await Future.delayed(const Duration(milliseconds: 700));
+      if (!mounted) return;
+      _launchCookTour();
+    }
+  }
+
+  void _launchCookTour() {
+    if (!mounted) return;
+    GuidedTourOverlay.show(
+      context: context,
+      steps: [
+        GuidedTourStep(
+          targetKey: _branchStatusKey,
+          roleBadge: 'BRANCH COOK ONBOARDING',
+          title: '1. Assigned Branch & Store Status',
+          instruction: 'TINGNAN: I-tap ang branch card upang magpatuloy.',
+          explanation:
+              'Dito makikita ang iyong itinalagang branch (hal. Brgy. Gatid, Sta. Cruz). Kapag nag-tap ka ng iyong RFID sa portable reader ng driver pagdating niya, awtomatikong magiging OPEN ang branch at mai-record ang iyong opisyal na Time-In.',
+          tip: 'Siguraduhing mag-tap ng RFID pagdating ng Driver upang maging bukas ang branch sa system.',
+        ),
+        GuidedTourStep(
+          targetKey: _verifySectionKey,
+          roleBadge: 'BRANCH COOK ONBOARDING',
+          title: '2. Bilangin ang Karga (Supply Verification)',
+          instruction: 'PINDUTIN: I-tap ang Verify header upang magpatuloy.',
+          explanation:
+              'Bago magluto, bilangin nang personal ang kargang natanggap mula sa Driver (Regular, Medium, B1T1, Mayo, Toyo, Styro). Ilagay ang aktwal na bilang dito upang maitugma sa delivery dispatch record.',
+          tip: 'Kung may kulang o sobra, ilagay ang totoong bilang para ma-notify ang Owner at ma-audit nang tama.',
+        ),
+        GuidedTourStep(
+          targetKey: StaffShell.salesTabKey,
+          roleBadge: 'BRANCH COOK ONBOARDING',
+          title: '3. Pumunta sa Sales Tab (Quick POS)',
+          instruction: 'PINDUTIN: I-tap ang "Sales" tab sa ibaba upang buksan ang POS.',
+          explanation:
+              'Dito mo itatala ang bawat benta ng Regular Sisig, Medium, at B1T1 habang dumarating ang customer, at dito rin magsusumite ng pinal na ulat sa pagtatapos ng shift.',
+          tip: 'Pindutin ang Sales tab upang magpatuloy sa POS tutorial.',
+          onTargetTapped: () async {
+            StaffShell.tabController.index = 1;
+            await Future.delayed(const Duration(milliseconds: 350));
+            SalesScreen.globalKey.currentState?.startTour();
+          },
+        ),
+      ],
+      onCompleted: () => TutorialService.markTutorialSeen('cook_home_spotlight'),
+      onSkipped: () {
+        TutorialService.markTutorialSeen('cook_home_spotlight');
+        TutorialService.markTutorialSeen('cook_spotlight');
+      },
+    );
   }
 
   @override
@@ -919,6 +991,7 @@ class _HomepageScreenState extends State<HomepageScreen> with WidgetsBindingObse
             const SizedBox(height: 20),
             // Branch indicator pill
             Container(
+              key: _branchStatusKey,
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
               decoration: BoxDecoration(
                 color: CupertinoColors.white,
@@ -1010,6 +1083,7 @@ class _HomepageScreenState extends State<HomepageScreen> with WidgetsBindingObse
             // Page 1: Mayo | Toyo (top) / Styro | — (bottom)
             // Swipe left: Regular | Medium (top) / B1T1 | — (bottom)
             StaffSectionHeader(
+              key: _verifySectionKey,
               label: isVerified
                   ? 'Verified: Actually Received Counts'
                   : 'Verify: Count What You Actually Received',

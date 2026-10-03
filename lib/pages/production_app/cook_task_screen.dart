@@ -5,8 +5,10 @@ import 'package:intl/intl.dart';
 import '../../models/inventory_batch.dart';
 import '../../services/auth_service.dart';
 import '../../services/firestore_service.dart';
+import '../../services/tutorial_service.dart';
 import '../../services/weather_service.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/guided_tour_overlay.dart';
 import '../../widgets/staff_button.dart';
 import '../../widgets/staff_card.dart';
 import '../../widgets/staff_nav_bar.dart';
@@ -16,14 +18,26 @@ import '../../widgets/staff_top_actions.dart';
 class CookTaskScreen extends StatefulWidget {
   const CookTaskScreen({super.key});
 
+  /// GlobalKey used by [ProductionProfileScreen] to call [CookTaskScreenState.startTour]
+  /// directly after the user confirms Replay.
+  static final GlobalKey<CookTaskScreenState> globalKey = GlobalKey<CookTaskScreenState>();
+
   @override
-  State<CookTaskScreen> createState() => _CookTaskScreenState();
+  State<CookTaskScreen> createState() => CookTaskScreenState();
 }
 
-class _CookTaskScreenState extends State<CookTaskScreen> {
+class CookTaskScreenState extends State<CookTaskScreen> {
   final List<bool> _checkSteps = [false, false, false];
 
-  KarneBatch? _activeBatch;
+  final GlobalKey _batchCardKey = GlobalKey();
+  final GlobalKey _checklistKey = GlobalKey();
+  final GlobalKey _confirmCookingKey = GlobalKey();
+
+  KarneBatch? _activeBatch = KarneBatch(
+    id: 'default',
+    name: 'BATCH #1 - CENTRAL COMMISSARY',
+    totalKilos: 150.0,
+  );
   StreamSubscription<List<KarneBatch>>? _batchesSub;
 
   bool _isRefreshing = false;
@@ -37,6 +51,10 @@ class _CookTaskScreenState extends State<CookTaskScreen> {
   void initState() {
     super.initState();
     _startWeatherTimer();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _maybeTriggerGuidedTour();
+    });
 
     _batchesSub = FirestoreService.watchProductionBatches().listen((batches) {
       if (mounted) {
@@ -55,6 +73,58 @@ class _CookTaskScreenState extends State<CookTaskScreen> {
         });
       }
     });
+  }
+
+  Future<void> _maybeTriggerGuidedTour() async {
+    final seen = await TutorialService.hasSeenTutorial('prod_cook_spotlight');
+    if (!seen && mounted) {
+      await Future.delayed(const Duration(milliseconds: 700));
+      if (!mounted) return;
+      _launchCookTour();
+    }
+  }
+
+  /// Public entry point — called by [ProductionProfileScreen] Replay button.
+  void startTour() {
+    if (!mounted) return;
+    _launchCookTour();
+  }
+
+  void _launchCookTour() {
+    GuidedTourOverlay.show(
+      context: context,
+      steps: [
+        GuidedTourStep(
+          targetKey: _batchCardKey,
+          roleBadge: 'PRODUCTION COOK ONBOARDING',
+          title: '1. Assigned Batch & Target Raw Weight',
+          instruction: 'PINDUTIN: I-tap ang batch card upang suriin ang detalye.',
+          explanation:
+              'Dito nakatala ang aktibong batch mula sa Owner, brand ng karne, target boiling minutes, at kabuuang timbang na dapat lutuin.',
+          tip: 'Sundin ang eksaktong boiling duration para maging pare-pareho ang lambot at kalidad ng karne.',
+        ),
+        GuidedTourStep(
+          targetKey: _checklistKey,
+          roleBadge: 'PRODUCTION COOK ONBOARDING',
+          title: '2. Production Steps Checklist',
+          instruction: 'PINDUTIN: I-tap ang checklist card para magpatuloy.',
+          explanation:
+              'I-tick ang bawat yugto: paghahanda ng hilaw na karne, boiling duration, hanggang sa proper storage bago ibigay sa meat cutter.',
+          tip: 'Standard operating procedure ang pagkumpleto ng checklist bawat batch.',
+        ),
+        GuidedTourStep(
+          targetKey: _confirmCookingKey,
+          roleBadge: 'PRODUCTION COOK ONBOARDING',
+          title: '3. Cooking Confirmation Button',
+          instruction: 'PINDUTIN: I-tap ang confirmation area upang tapusin ang gabay.',
+          explanation:
+              'Kapag tapos na ang pagpapakulo, kumpirmahin ito upang maitalang "COOKED" ang karne. Awtomatikong magpapadala ng alert sa Owner para makapagtakda ng portioning targets para sa meat cutters.',
+          tip: 'Tiyaking naluto nang husto ang karne bago pindutin ang kumpirmasyon.',
+        ),
+      ],
+      onCompleted: () => TutorialService.markTutorialSeen('prod_cook_spotlight'),
+      onSkipped: () => TutorialService.markTutorialSeen('prod_cook_spotlight'),
+    );
   }
 
   void _startWeatherTimer() {
@@ -181,6 +251,7 @@ class _CookTaskScreenState extends State<CookTaskScreen> {
             // ASSIGNED BATCH CARD (MULA KAY OWNER)
             if (_activeBatch != null) ...[
               StaffCard(
+                key: _batchCardKey,
                 padding: const EdgeInsets.all(18),
                 highlighted: _activeBatch!.cookingStatus == 'cooked',
                 borderColor: _activeBatch!.cookingStatus == 'cooked' ? AppColors.success : AppColors.accent,
@@ -312,6 +383,7 @@ class _CookTaskScreenState extends State<CookTaskScreen> {
             ),
             const SizedBox(height: 14),
             StaffCard(
+              key: _checklistKey,
               padding: const EdgeInsets.all(20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -336,67 +408,70 @@ class _CookTaskScreenState extends State<CookTaskScreen> {
               subtitle: 'Confirm once the meat is cooked',
             ),
             const SizedBox(height: 14),
-            Builder(
-              builder: (context) {
-                final bool isCooked = activeSession?.status == 'cooked' ||
-                    activeSession?.status == 'cutting' ||
-                    activeSession?.status == 'completed' ||
-                    _activeBatch?.cookingStatus == 'cooked' ||
-                    _activeBatch?.cookingStatus == 'cutting' ||
-                    _activeBatch?.cookingStatus == 'completed';
+            Container(
+              key: _confirmCookingKey,
+              child: Builder(
+                builder: (context) {
+                  final bool isCooked = activeSession?.status == 'cooked' ||
+                      activeSession?.status == 'cutting' ||
+                      activeSession?.status == 'completed' ||
+                      _activeBatch?.cookingStatus == 'cooked' ||
+                      _activeBatch?.cookingStatus == 'cutting' ||
+                      _activeBatch?.cookingStatus == 'completed';
 
-                return StaffCard(
-                  padding: const EdgeInsets.all(22),
-                  highlighted: isCooked,
-                  borderColor: isCooked ? AppColors.success : AppColors.accent,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      if (isCooked) ...[
-                        Row(
-                          children: [
-                            const Icon(CupertinoIcons.checkmark_circle_fill, color: AppColors.success, size: 24),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text(
-                                    'CONFIRMED: MEAT IS COOKED',
-                                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: AppColors.success),
-                                  ),
-                                  const SizedBox(height: 3),
-                                  Text(
-                                    '${targetCookKilos.toStringAsFixed(1)} KG ($displayBrand) has been cooked. Waiting for portioning targets from the owner.',
-                                    style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
-                                  ),
-                                ],
+                  return StaffCard(
+                    padding: const EdgeInsets.all(22),
+                    highlighted: isCooked,
+                    borderColor: isCooked ? AppColors.success : AppColors.accent,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        if (isCooked) ...[
+                          Row(
+                            children: [
+                              const Icon(CupertinoIcons.checkmark_circle_fill, color: AppColors.success, size: 24),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text(
+                                      'CONFIRMED: MEAT IS COOKED',
+                                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: AppColors.success),
+                                    ),
+                                    const SizedBox(height: 3),
+                                    Text(
+                                      '${targetCookKilos.toStringAsFixed(1)} KG ($displayBrand) has been cooked. Waiting for portioning targets from the owner.',
+                                      style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                                    ),
+                                  ],
+                                ),
                               ),
-                            ),
-                          ],
-                        ),
-                      ] else ...[
-                        const Text(
-                          'COOKING CONFIRMATION',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: AppColors.textSecondary, letterSpacing: 0.8),
-                        ),
-                        const SizedBox(height: 10),
-                        Text(
-                          'Once boiling ${targetCookKilos.toStringAsFixed(1)} KG for $displayBoilingMins minutes is complete, tap the button below to confirm.',
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
-                        ),
-                        const SizedBox(height: 18),
-                        StaffButton(
-                          label: 'CONFIRM COOKING COMPLETE',
-                          onPressed: () => _confirmCookingFinished(targetCookKilos),
-                        ),
+                            ],
+                          ),
+                        ] else ...[
+                          const Text(
+                            'COOKING CONFIRMATION',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: AppColors.textSecondary, letterSpacing: 0.8),
+                          ),
+                          const SizedBox(height: 10),
+                          Text(
+                            'Once boiling ${targetCookKilos.toStringAsFixed(1)} KG for $displayBoilingMins minutes is complete, tap the button below to confirm.',
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
+                          ),
+                          const SizedBox(height: 18),
+                          StaffButton(
+                            label: 'CONFIRM COOKING COMPLETE',
+                            onPressed: () => _confirmCookingFinished(targetCookKilos),
+                          ),
+                        ],
                       ],
-                    ],
-                  ),
-                );
-              },
+                    ),
+                  );
+                },
+              ),
             ),
             const SizedBox(height: 100),
           ],

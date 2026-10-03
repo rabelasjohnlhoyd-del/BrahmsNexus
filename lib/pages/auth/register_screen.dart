@@ -9,6 +9,7 @@ import '../../services/gemini_service.dart';
 import '../../services/supabase_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/mobile_auth_layout.dart';
+import '../../widgets/terms_and_conditions_dialog.dart';
 import 'account_status_screen.dart';
 import 'email_otp_screen.dart';
 import 'login_screen.dart';
@@ -65,6 +66,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
   bool _isSubmitting = false;
+  bool _agreedToTerms = false;
   String? _stepError;
   String? _registerError;
 
@@ -341,6 +343,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
       _registerError = null;
       _stepError = null;
     });
+
+    if (!_agreedToTerms) {
+      setState(() => _registerError = 'Please read and accept the Terms and Conditions to proceed.');
+      return;
+    }
 
     final username = _usernameController.text.trim();
     if (username.isEmpty) {
@@ -1387,6 +1394,59 @@ class _RegisterScreenState extends State<RegisterScreen> {
               ),
             ],
           ),
+        ),
+        const SizedBox(height: 10),
+
+        // Terms & Conditions checkbox
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            SizedBox(
+              width: 24,
+              height: 24,
+              child: Checkbox(
+                value: _agreedToTerms,
+                activeColor: const Color(0xFF8B4513),
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                visualDensity: VisualDensity.compact,
+                onChanged: (val) => setState(() => _agreedToTerms = val ?? false),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: RichText(
+                text: TextSpan(
+                  style: const TextStyle(
+                    fontSize: 12.5,
+                    color: Color(0xFF7A6556),
+                    height: 1.35,
+                  ),
+                  children: [
+                    const TextSpan(text: 'I have read and agree to the '),
+                    WidgetSpan(
+                      alignment: PlaceholderAlignment.baseline,
+                      baseline: TextBaseline.alphabetic,
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(4),
+                        onTap: () => showTermsDialog(context),
+                        child: const Text(
+                          'Terms and Conditions',
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            color: Color(0xFF8B4513),
+                            fontWeight: FontWeight.w700,
+                            height: 1.35,
+                            decoration: TextDecoration.underline,
+                            decorationColor: Color(0xFF8B4513),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
         ),
       ],
     );

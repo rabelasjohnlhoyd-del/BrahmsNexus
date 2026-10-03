@@ -906,8 +906,26 @@ class _AddBilaoOrderSheetState extends State<_AddBilaoOrderSheet> {
         _showError('Pakienter ang pangalan ng customer.');
         return;
       }
+      if (name.length < 2) {
+        _showError('Ang pangalan ng customer ay dapat hindi bababa sa 2 characters.');
+        return;
+      }
+      if (name.length > 60) {
+        _showError('Ang pangalan ng customer ay hindi dapat lumampas sa 60 characters.');
+        return;
+      }
+      if (!RegExp(r"^[a-zA-ZñÑáéíóúÁÉÍÓÚ\s\-'.]+$").hasMatch(name)) {
+        _showError('Ang pangalan ay dapat mga letra lamang.');
+        return;
+      }
+
       if (contact.isEmpty) {
         _showError('Pakienter ang contact number ng customer.');
+        return;
+      }
+      final digits = contact.replaceAll(RegExp(r'\D'), '');
+      if (digits.length < 7 || digits.length > 12) {
+        _showError('Maglagay ng tamang contact number (7 hanggang 12 digits, e.g. 0917 123 4567).');
         return;
       }
     }
@@ -1077,24 +1095,46 @@ class _AddBilaoOrderSheetState extends State<_AddBilaoOrderSheet> {
   // ── Save ──────────────────────────────────────────────────────────────────
 
   Future<void> _save() async {
+    // Validate deposit amount
+    final depositVal = double.tryParse(_depositCtrl.text.trim()) ?? 0.0;
+    if (depositVal <= 0) {
+      _showError('Maglagay ng tamang halaga ng bayad o paunang bayad.');
+      return;
+    }
+
     // Validate payment step
     if (_paymentMethod == PaymentMethod.gcash) {
       if (_gcashPhoto == null) {
         _showError('Pakuha ng photo ng GCash receipt bago mag-submit.');
         return;
       }
-      if (_gcashRefCtrl.text.trim().isEmpty) {
+      final ref = _gcashRefCtrl.text.trim();
+      if (ref.isEmpty) {
         _showError('Pakienter ang GCash Reference Number.');
+        return;
+      }
+      if (ref.length < 6 || ref.length > 30) {
+        _showError('Maglagay ng tamang GCash Reference Number (e.g. 1002 9384 1928).');
         return;
       }
     }
 
     // Validate deposit amount for down payment
     if (_paymentType == PaymentType.downPayment) {
-      final entered = double.tryParse(_depositCtrl.text.trim()) ?? 0.0;
-      if (entered < _minDeposit - 0.01) {
+      if (depositVal < _minDeposit - 0.01) {
         _showError(
             'Ang minimum na downpayment ay 65% ng total (₱${_minDeposit.toStringAsFixed(0)}).');
+        return;
+      }
+      if (depositVal > _total) {
+        _showError(
+            'Ang downpayment ay hindi dapat lumampas sa kabuuang halaga (₱${_total.toStringAsFixed(0)}).');
+        return;
+      }
+    } else {
+      if (depositVal < _total - 0.01) {
+        _showError(
+            'Ang full payment ay dapat katumbas ng buong halaga (₱${_total.toStringAsFixed(0)}).');
         return;
       }
     }
