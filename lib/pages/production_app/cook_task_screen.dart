@@ -14,6 +14,7 @@ import '../../widgets/staff_card.dart';
 import '../../widgets/staff_nav_bar.dart';
 import '../../widgets/staff_section_header.dart';
 import '../../widgets/staff_top_actions.dart';
+import 'production_shell.dart';
 
 class CookTaskScreen extends StatefulWidget {
   const CookTaskScreen({super.key});
@@ -116,10 +117,23 @@ class CookTaskScreenState extends State<CookTaskScreen> {
           targetKey: _confirmCookingKey,
           roleBadge: 'PRODUCTION COOK ONBOARDING',
           title: '3. Cooking Confirmation Button',
-          instruction: 'PINDUTIN: I-tap ang confirmation area upang tapusin ang gabay.',
+          instruction: 'PINDUTIN: I-tap ang confirmation area upang magpatuloy.',
           explanation:
               'Kapag tapos na ang pagpapakulo, kumpirmahin ito upang maitalang "COOKED" ang karne. Awtomatikong magpapadala ng alert sa Owner para makapagtakda ng portioning targets para sa meat cutters.',
           tip: 'Tiyaking naluto nang husto ang karne bago pindutin ang kumpirmasyon.',
+        ),
+        GuidedTourStep(
+          targetKey: ProductionShell.inventoryTabKey,
+          roleBadge: 'PRODUCTION COOK ONBOARDING',
+          title: '4. Pumunta sa Inventory Tab (Ingredient Status)',
+          instruction: 'PINDUTIN: I-tap ang "Inventory" tab sa ibaba.',
+          explanation:
+              'Dito mo makikita ang katayuan ng mga sangkap at pampalasa tulad ng Toyo (1 Gallon), Asin, Paminta, Vetsin, at Laurel, pati na rin ang pagre-request ng mga supply sa Owner.',
+          tip: 'Pindutin ang Inventory tab upang tingnan at mag-request ng mga sangkap.',
+          onTargetTapped: () async {
+            ProductionShell.tabController.index = 1;
+            await Future.delayed(const Duration(milliseconds: 350));
+          },
         ),
       ],
       onCompleted: () => TutorialService.markTutorialSeen('prod_cook_spotlight'),
