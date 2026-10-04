@@ -12,6 +12,7 @@ import '../../widgets/user_avatar.dart';
 import '../auth/login_screen.dart';
 import '../production_app/cook_task_screen.dart';
 import '../production_app/cutter_portioning_screen.dart';
+import '../production_app/production_shell.dart';
 import 'edit_profile_screen.dart';
 import 'homepage_screen.dart';
 import 'staff_shell.dart';
@@ -175,7 +176,7 @@ class ProfileScreen extends StatelessWidget {
                             // Navigate to work tab (index 0) and start tour directly
                             if (isProd) {
                               final isCook = user?.position.toLowerCase().contains('cook') ?? false;
-                              // ProductionShell tab 0 is already the work screen — just call startTour
+                              ProductionShell.tabController.index = 0;
                               await Future.delayed(const Duration(milliseconds: 350));
                               if (context.mounted) {
                                 if (isCook) {

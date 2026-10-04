@@ -24,6 +24,7 @@ class ProductionShell extends StatefulWidget {
   final String position;
 
   static final CupertinoTabController tabController = CupertinoTabController();
+  static final GlobalKey inventoryTabKey = GlobalKey();
 
   @override
   State<ProductionShell> createState() => _ProductionShellState();
@@ -147,6 +148,7 @@ class _ProductionShellState extends State<ProductionShell> {
                                 label: 'Home',
                               ),
                               _buildNavItem(
+                                key: ProductionShell.inventoryTabKey,
                                 index: 1,
                                 currentIndex: currentIndex,
                                 activeIcon: CupertinoIcons.archivebox_fill,
@@ -181,10 +183,12 @@ class _ProductionShellState extends State<ProductionShell> {
     required IconData activeIcon,
     required IconData inactiveIcon,
     required String label,
+    Key? key,
   }) {
     final bool active = index == currentIndex;
 
     return Expanded(
+      key: key,
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: () {

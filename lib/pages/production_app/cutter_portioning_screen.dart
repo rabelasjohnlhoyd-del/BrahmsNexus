@@ -16,6 +16,7 @@ import '../../widgets/staff_card.dart';
 import '../../widgets/staff_nav_bar.dart';
 import '../../widgets/staff_section_header.dart';
 import '../../widgets/staff_top_actions.dart';
+import 'production_shell.dart';
 
 class CutterPortioningScreen extends StatefulWidget {
   const CutterPortioningScreen({super.key});
@@ -181,6 +182,19 @@ class CutterPortioningScreenState extends State<CutterPortioningScreen> {
           explanation:
               'Pindutin ito upang i-record ang batch sa database at mai-link sa chiller container na ikakarga ng driver para sa sangay.',
           tip: 'Kapag na-submit na, awtomatikong mag-a-update ang available warehouse inventory.',
+        ),
+        GuidedTourStep(
+          targetKey: ProductionShell.inventoryTabKey,
+          roleBadge: 'MEAT CUTTER ONBOARDING',
+          title: '5. Pumunta sa Inventory Tab (Packaging Stocks)',
+          instruction: 'PINDUTIN: I-tap ang "Inventory" tab sa ibaba.',
+          explanation:
+              'Dito mo makikita ang katayuan ng packaging supplies tulad ng Plastic Labo (1kg) at Plastic Sando Bag (10kg), pati na rin ang mga tugon ng Owner sa iyong mga request.',
+          tip: 'Pindutin ang Inventory tab upang tingnan ang packaging stocks.',
+          onTargetTapped: () async {
+            ProductionShell.tabController.index = 1;
+            await Future.delayed(const Duration(milliseconds: 350));
+          },
         ),
       ],
       onCompleted: () => TutorialService.markTutorialSeen('cutter_spotlight'),
