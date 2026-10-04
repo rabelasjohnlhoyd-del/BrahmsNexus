@@ -20,6 +20,8 @@ class StaffShell extends StatefulWidget {
 
   static final CupertinoTabController tabController = CupertinoTabController();
   static final GlobalKey salesTabKey = GlobalKey();
+  static final GlobalKey bilaoTabKey = GlobalKey();
+  static final GlobalKey reportTabKey = GlobalKey();
 
   @override
   State<StaffShell> createState() => _StaffShellState();
@@ -90,10 +92,10 @@ class _StaffShellState extends State<StaffShell> {
                             page = SalesScreen(key: SalesScreen.globalKey);
                             break;
                           case 2:
-                            page = const StaffBilaoOrdersScreen();
+                            page = StaffBilaoOrdersScreen(key: StaffBilaoOrdersScreen.globalKey);
                             break;
                           case 3:
-                            page = const DailyReportScreen();
+                            page = DailyReportScreen(key: DailyReportScreen.globalKey);
                             break;
                           default:
                             page = const ProfileScreen(isRootTab: true);
@@ -156,6 +158,7 @@ class _StaffShellState extends State<StaffShell> {
                                 label: 'Sales',
                               ),
                               _buildNavItem(
+                                key: StaffShell.bilaoTabKey,
                                 index: 2,
                                 currentIndex: currentIndex,
                                 activeIcon: CupertinoIcons.bag_fill,
@@ -163,6 +166,7 @@ class _StaffShellState extends State<StaffShell> {
                                 label: 'Bilao',
                               ),
                               _buildNavItem(
+                                key: StaffShell.reportTabKey,
                                 index: 3,
                                 currentIndex: currentIndex,
                                 activeIcon: CupertinoIcons.doc_text_fill,

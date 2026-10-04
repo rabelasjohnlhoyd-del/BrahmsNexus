@@ -20,6 +20,8 @@ import '../auth/mock_accounts.dart';
 import '../../theme/app_theme.dart';
 import '../../services/tutorial_service.dart';
 import '../../widgets/guided_tour_overlay.dart';
+import 'staff_bilao_orders_screen.dart';
+import 'staff_shell.dart';
 import '../../widgets/staff_button.dart';
 import '../../widgets/staff_card.dart';
 import '../../widgets/staff_nav_bar.dart';
@@ -205,6 +207,20 @@ class SalesScreenState extends State<SalesScreen> {
           tip: 'I-double check ang bilang bago mag-submit dahil pinal na ang ulat na ito.',
           onTargetTapped: () {
             HapticFeedback.lightImpact();
+          },
+        ),
+        GuidedTourStep(
+          targetKey: StaffShell.bilaoTabKey,
+          roleBadge: 'BRANCH COOK ONBOARDING',
+          title: '8. Pumunta sa Bilao Orders Tab',
+          instruction: 'PINDUTIN: I-tap ang "Bilao" tab sa ibaba upang magpatuloy sa Bilao Orders tutorial.',
+          explanation:
+              'Dito mo ilalagay at babantayan ang mga advance Bilao package orders para sa iyong branch.',
+          tip: 'Pindutin ang Bilao tab sa ibaba upang magpatuloy sa Bilao tutorial.',
+          onTargetTapped: () async {
+            StaffShell.tabController.index = 2;
+            await Future.delayed(const Duration(milliseconds: 350));
+            (StaffBilaoOrdersScreen.globalKey.currentState as dynamic)?.startTour();
           },
         ),
       ],

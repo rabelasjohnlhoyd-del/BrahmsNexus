@@ -1,5 +1,7 @@
 import 'dart:async';
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart' show Colors, Icons;
+import 'package:flutter/services.dart';
 import '../../models/branch.dart';
 import '../../models/branch_daily_inventory.dart';
 import '../../models/daily_report.dart';
@@ -7,8 +9,10 @@ import '../auth/mock_accounts.dart';
 import '../../services/assignment_service.dart';
 import '../../services/auth_service.dart';
 import '../../services/firestore_service.dart';
+import '../../services/tutorial_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/app_pagination_bar.dart';
+import '../../widgets/guided_tour_overlay.dart';
 import '../../widgets/staff_button.dart';
 import '../../widgets/staff_card.dart';
 import '../../widgets/staff_nav_bar.dart';
@@ -18,11 +22,16 @@ import '../../widgets/staff_top_actions.dart';
 class DailyReportScreen extends StatefulWidget {
   const DailyReportScreen({super.key});
 
+  static final GlobalKey<DailyReportScreenState> globalKey = GlobalKey();
+
   @override
-  State<DailyReportScreen> createState() => _DailyReportScreenState();
+  State<DailyReportScreen> createState() => DailyReportScreenState();
 }
 
-class _DailyReportScreenState extends State<DailyReportScreen> {
+class DailyReportScreenState extends State<DailyReportScreen> {
+  final GlobalKey _quickReportKey = GlobalKey();
+  final GlobalKey _sendButtonKey = GlobalKey();
+  final GlobalKey _recentReportsKey = GlobalKey();
   bool _mayoTorn = false;
   bool _gasEmpty = false;
   final _messageController = TextEditingController();
@@ -237,6 +246,85 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
     );
   }
 
+  void startTour() {
+    if (!mounted) return;
+    GuidedTourOverlay.show(
+      context: context,
+      steps: [
+        GuidedTourStep(
+          targetKey: _quickReportKey,
+          roleBadge: 'BRANCH COOK ONBOARDING',
+          title: '14. Quick Incident & Issue Report',
+          instruction: 'PINDUTIN: Pumili ng usapin o mag-type ng mensahe.',
+          explanation:
+              'Sa tuwing may problema sa branch habang nagluluto (hal. nabutas na mayo, naubusang LPG, o sirang kalan), mag-select ng usapin o mag-type sa box.',
+          tip: 'Ang pag-select ng usapin ay mag-e-enable agad sa Send to Owner button.',
+          onTargetTapped: () {
+            setState(() => _mayoTorn = true);
+            HapticFeedback.lightImpact();
+          },
+        ),
+        GuidedTourStep(
+          targetKey: _sendButtonKey,
+          roleBadge: 'BRANCH COOK ONBOARDING',
+          title: '15. Pagpapadala ng Ulat sa Owner',
+          instruction: 'PINDUTIN: I-tap ang "Send to Owner" button.',
+          explanation:
+              'I-tap ang button na ito upang agad na ma-alertuhan ang telepono ng Owner sa pamamagitan ng real-time notification.',
+          tip: 'Real-time alert sa telepono ni Owner para mabilis maaksyunan.',
+          onTargetTapped: () {
+            HapticFeedback.lightImpact();
+          },
+        ),
+        GuidedTourStep(
+          targetKey: _recentReportsKey,
+          roleBadge: 'BRANCH COOK ONBOARDING',
+          title: '16. Recently Submitted Reports & Owner Replies',
+          instruction: 'TINGNAN: Dito makikita ang mga ulat at sagot ng Owner.',
+          explanation:
+              'Dito mo mababasa ang lahat ng iyong mga naisumiteng report, inventory discrepancy records, at ang mga sagot o tugon ng Owner.',
+          tip: 'I-check dito kung nabasa at na-confirm na ni Owner o Driver ang iyong ulat.',
+          onTargetTapped: () {
+            HapticFeedback.lightImpact();
+          },
+        ),
+      ],
+      onCompleted: () {
+        TutorialService.markTutorialSeen('cook_report_spotlight');
+        _showCompletionDialog();
+      },
+      onSkipped: () {
+        TutorialService.markTutorialSeen('cook_report_spotlight');
+        _showCompletionDialog();
+      },
+    );
+  }
+
+  void _showCompletionDialog() {
+    showCupertinoDialog<void>(
+      context: context,
+      builder: (ctx) => CupertinoAlertDialog(
+        title: const Text('🎉 Onboarding Walkthrough Complete!'),
+        content: const Text(
+          'Magaling! Natapos mo ang buong Branch Cook Walkthrough Tutorial!\n\n'
+          'Na-master mo na ang:\n'
+          '• Home Tab & Inventory Verification\n'
+          '• Quick POS Sales & Spoilage\n'
+          '• Bilao Package Orders\n'
+          '• Quick Reports & Owner Messaging\n\n'
+          'Handa ka nang maglingkod sa Brahms Nexus!',
+        ),
+        actions: [
+          CupertinoDialogAction(
+            isDefaultAction: true,
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Magsimula Na!'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _confirmReportDelivered(DailyReport report) async {
     final confirmed = await showCupertinoDialog<bool>(
       context: context,
@@ -295,24 +383,32 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            const StaffSectionHeader(
-              label: 'Quick Report',
-              icon: CupertinoIcons.exclamationmark_bubble_fill,
-              subtitle: 'Select an issue below, or write your own message',
-              large: true,
-            ),
-            const SizedBox(height: 18),
-            _checklistTile(
-              icon: CupertinoIcons.exclamationmark_bubble_fill,
-              label: 'The mayo we brought got punctured',
-              value: _mayoTorn,
-              onChanged: (v) => setState(() => _mayoTorn = v),
-            ),
-            _checklistTile(
-              icon: CupertinoIcons.flame_fill,
-              label: "We're out of gas (LPG)",
-              value: _gasEmpty,
-              onChanged: (v) => setState(() => _gasEmpty = v),
+            KeyedSubtree(
+              key: _quickReportKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const StaffSectionHeader(
+                    label: 'Quick Report',
+                    icon: CupertinoIcons.exclamationmark_bubble_fill,
+                    subtitle: 'Select an issue below, or write your own message',
+                    large: true,
+                  ),
+                  const SizedBox(height: 18),
+                  _checklistTile(
+                    icon: CupertinoIcons.exclamationmark_bubble_fill,
+                    label: 'The mayo we brought got punctured',
+                    value: _mayoTorn,
+                    onChanged: (v) => setState(() => _mayoTorn = v),
+                  ),
+                  _checklistTile(
+                    icon: CupertinoIcons.flame_fill,
+                    label: "We're out of gas (LPG)",
+                    value: _gasEmpty,
+                    onChanged: (v) => setState(() => _gasEmpty = v),
+                  ),
+                ],
+              ),
             ),
             const SizedBox(height: 18),
             const StaffSectionHeader(
@@ -339,38 +435,27 @@ class _DailyReportScreenState extends State<DailyReportScreen> {
             const SizedBox(height: 22),
             
             // DYNAMIC BUTTON LOGIC
-            if (_canSubmit)
-              SizedBox(
-                width: double.infinity,
-                child: StaffButton(
-                  key: const ValueKey('send_report_btn'),
-                  label: _isSubmitting ? 'Sending...' : 'Send to Owner',
-                  icon: _isSubmitting ? null : CupertinoIcons.paperplane_fill,
-                  onPressed: _isSubmitting ? null : _confirmSubmit,
-                ),
-              )
-            else
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 8),
-                child: Text(
-                  'Note: Please select an issue above or type a message to enable the send button.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: AppColors.textSecondary,
-                    fontSize: 12,
-                    fontStyle: FontStyle.italic,
-                  ),
-                ),
+            SizedBox(
+              key: _sendButtonKey,
+              width: double.infinity,
+              child: StaffButton(
+                label: _isSubmitting ? 'Sending...' : 'Send to Owner',
+                icon: _isSubmitting ? null : CupertinoIcons.paperplane_fill,
+                onPressed: (_isSubmitting || !_canSubmit) ? null : _confirmSubmit,
               ),
+            ),
             const SizedBox(height: 16),
 
             // RECENT SUBMISSIONS BY THIS STAFF/BRANCH
             if (_myRecentReports.isNotEmpty) ...[
               const SizedBox(height: 16),
-              const StaffSectionHeader(
-                label: 'Recently Submitted Reports',
-                icon: CupertinoIcons.clock_fill,
-                subtitle: 'Track your sent reports and Owner responses',
+              KeyedSubtree(
+                key: _recentReportsKey,
+                child: const StaffSectionHeader(
+                  label: 'Recently Submitted Reports',
+                  icon: CupertinoIcons.clock_fill,
+                  subtitle: 'Track your sent reports and Owner responses',
+                ),
               ),
               const SizedBox(height: 12),
               Builder(

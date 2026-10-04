@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../models/bilao_order.dart';
 import '../../models/branch.dart';
@@ -11,10 +12,14 @@ import '../../services/auth_service.dart';
 import '../../services/firestore_service.dart';
 import '../../services/gemini_service.dart';
 import '../../services/supabase_service.dart';
+import '../../services/tutorial_service.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/guided_tour_overlay.dart';
 import '../../widgets/staff_card.dart';
 import '../../widgets/staff_nav_bar.dart';
 import '../../widgets/staff_top_actions.dart';
+import 'daily_report_screen.dart';
+import 'staff_shell.dart';
 
 /// Screen for Branch Staff to monitor Bilao Orders assigned to or waiting
 /// at their specific branch location.
@@ -31,15 +36,54 @@ class StaffBilaoOrdersScreen extends StatefulWidget {
     this.isRootTab = true,
   });
 
+  static final GlobalKey<StaffBilaoOrdersScreenState> globalKey = GlobalKey();
+
   final String? branchId;
   final String? branchName;
   final bool isRootTab;
 
   @override
-  State<StaffBilaoOrdersScreen> createState() => _StaffBilaoOrdersScreenState();
+  State<StaffBilaoOrdersScreen> createState() => StaffBilaoOrdersScreenState();
 }
 
-class _StaffBilaoOrdersScreenState extends State<StaffBilaoOrdersScreen> {
+class StaffBilaoOrdersScreenState extends State<StaffBilaoOrdersScreen> {
+  final GlobalKey _plusButtonKey = GlobalKey();
+  final GlobalKey _filterTabsKey = GlobalKey();
+
+  void startTour() {
+    if (!mounted) return;
+    GuidedTourOverlay.show(
+      context: context,
+      steps: [
+        GuidedTourStep(
+          targetKey: _filterTabsKey,
+          roleBadge: 'BRANCH COOK ONBOARDING',
+          title: '9. Bilao Orders Overview & Filters',
+          instruction: 'PINDUTIN: I-tap ang "Pickup" o "Kitchen" filter tab.',
+          explanation:
+              'Dito mo makikita ang mga Bilao Orders para sa iyong branch. Naka-filter ang mga ito bilang Pickup (handa nang kunin), Kitchen (isinaalang-alang sa pagluluto), at Done.',
+          tip: 'I-tap ang mga filter para mabilis mahanap ang order ng customer.',
+          onTargetTapped: () {
+            HapticFeedback.lightImpact();
+          },
+        ),
+        GuidedTourStep(
+          targetKey: _plusButtonKey,
+          roleBadge: 'BRANCH COOK ONBOARDING',
+          title: '10. Pagtatala ng Bagong Bilao Order',
+          instruction: 'PINDUTIN: I-tap ang Plus (+) button sa kanang itaas.',
+          explanation:
+              'Kapag may customer na umorder ng Bilao sa iyong branch, i-tap ang Plus (+) button upang buksan ang Bagong Bilao Order form.',
+          tip: 'Pindutin ang Plus (+) button upang buksan ang form at magpatuloy.',
+          onTargetTapped: () {
+            _showAddOrderSheet(isTourMode: true);
+          },
+        ),
+      ],
+      onCompleted: () => TutorialService.markTutorialSeen('bilao_spotlight'),
+      onSkipped: () => TutorialService.markTutorialSeen('bilao_spotlight'),
+    );
+  }
   StreamSubscription<List<BilaoOrder>>? _ordersSub;
   final List<BilaoOrder> _orders = [];
   bool _isLoading = true;
@@ -198,7 +242,7 @@ class _StaffBilaoOrdersScreenState extends State<StaffBilaoOrdersScreen> {
 
   // ── Add Order Sheet ─────────────────────────────────────────────────────────
 
-  void _showAddOrderSheet() {
+  void _showAddOrderSheet({bool isTourMode = false}) {
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -207,6 +251,7 @@ class _StaffBilaoOrdersScreenState extends State<StaffBilaoOrdersScreen> {
       builder: (_) => _AddBilaoOrderSheet(
         branchId: _currentBranchId,
         branchName: _currentBranchName,
+        isTourMode: isTourMode,
       ),
     );
   }
@@ -454,6 +499,7 @@ class _StaffBilaoOrdersScreenState extends State<StaffBilaoOrdersScreen> {
                   ),
                   // + Add Order button
                   CupertinoButton(
+                    key: _plusButtonKey,
                     padding: EdgeInsets.zero,
                     onPressed: _showAddOrderSheet,
                     child: Container(
@@ -483,6 +529,7 @@ class _StaffBilaoOrdersScreenState extends State<StaffBilaoOrdersScreen> {
                   ),
                   const SizedBox(height: 10),
                   SizedBox(
+                    key: _filterTabsKey,
                     width: double.infinity,
                     child: CupertinoSlidingSegmentedControl<int>(
                       groupValue: _tabIndex,
@@ -763,16 +810,23 @@ class _AddBilaoOrderSheet extends StatefulWidget {
   const _AddBilaoOrderSheet({
     required this.branchId,
     required this.branchName,
+    this.isTourMode = false,
   });
 
   final String branchId;
   final String branchName;
+  final bool isTourMode;
 
   @override
   State<_AddBilaoOrderSheet> createState() => _AddBilaoOrderSheetState();
 }
 
 class _AddBilaoOrderSheetState extends State<_AddBilaoOrderSheet> {
+  // ── Tour Keys ─────────────────────────────────────────────────────────────
+  final GlobalKey _step0NextKey = GlobalKey();
+  final GlobalKey _step1NextKey = GlobalKey();
+  final GlobalKey _step2SaveKey = GlobalKey();
+
   // ── Controllers ──────────────────────────────────────────────────────────
   final _nameCtrl     = TextEditingController();
   final _contactCtrl  = TextEditingController();
@@ -796,6 +850,99 @@ class _AddBilaoOrderSheetState extends State<_AddBilaoOrderSheet> {
   XFile? _gcashPhoto;
   bool   _isOcrLoading = false;
   String _ocrError     = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _depositCtrl.text = _total.toStringAsFixed(0);
+    if (widget.isTourMode) {
+      _nameCtrl.text = 'Juan Dela Cruz';
+      _contactCtrl.text = '09123456789';
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _launchSheetTourStep0();
+      });
+    }
+  }
+
+  void _launchSheetTourStep0() {
+    if (!mounted) return;
+    GuidedTourOverlay.show(
+      context: context,
+      steps: [
+        GuidedTourStep(
+          targetKey: _step0NextKey,
+          roleBadge: 'BRANCH COOK ONBOARDING',
+          title: '11. Impormasyon ng Customer',
+          instruction: 'PINDUTIN: I-tap ang "Susunod" button.',
+          explanation:
+              'Lagyan ng Customer Name at Contact Number ang mga field. Kapag may laman na, mai-unlock ang Susunod button.',
+          tip: 'Pindutin ang Susunod button upang lumipat sa susunod na hakbang.',
+          onTargetTapped: () async {
+            if (_step == 0) {
+              setState(() => _step = 1);
+            }
+            await Future.delayed(const Duration(milliseconds: 350));
+            _launchSheetTourStep1();
+          },
+        ),
+      ],
+      onCompleted: () {},
+      onSkipped: () => TutorialService.markTutorialSeen('bilao_spotlight'),
+    );
+  }
+
+  void _launchSheetTourStep1() {
+    if (!mounted) return;
+    GuidedTourOverlay.show(
+      context: context,
+      steps: [
+        GuidedTourStep(
+          targetKey: _step1NextKey,
+          roleBadge: 'BRANCH COOK ONBOARDING',
+          title: '12. Detalye ng Package at Schedule',
+          instruction: 'PINDUTIN: I-tap ang "Susunod" button.',
+          explanation:
+              'Pumili ng Bilao Size (Small, Medium, Large), Quantity, at i-set ang petsa at oras kung kailan ito kukunin ng customer.',
+          tip: 'Pindutin ang Susunod button upang magpatuloy sa Payment screen.',
+          onTargetTapped: () async {
+            if (_step == 1) {
+              setState(() => _step = 2);
+            }
+            await Future.delayed(const Duration(milliseconds: 350));
+            _launchSheetTourStep2();
+          },
+        ),
+      ],
+      onCompleted: () {},
+      onSkipped: () => TutorialService.markTutorialSeen('bilao_spotlight'),
+    );
+  }
+
+  void _launchSheetTourStep2() {
+    if (!mounted) return;
+    GuidedTourOverlay.show(
+      context: context,
+      steps: [
+        GuidedTourStep(
+          targetKey: _step2SaveKey,
+          roleBadge: 'BRANCH COOK ONBOARDING',
+          title: '13. Paraan ng Bayad at Pag-save',
+          instruction: 'PINDUTIN: I-tap ang "I-save ang Order" button.',
+          explanation:
+              'Pumili ng Paraan ng Bayad (Cash o GCash) at Uri ng Bayad (Full Payment o Downpayment). I-tap ang button upang i-save ang order at lumipat sa Report tutorial.',
+          tip: 'Pindutin ang I-save ang Order button upang tapusin ang Bilao tutorial.',
+          onTargetTapped: () async {
+            if (mounted) Navigator.of(context).pop();
+            StaffShell.tabController.index = 3;
+            await Future.delayed(const Duration(milliseconds: 400));
+            (DailyReportScreen.globalKey.currentState as dynamic)?.startTour();
+          },
+        ),
+      ],
+      onCompleted: () => TutorialService.markTutorialSeen('bilao_spotlight'),
+      onSkipped: () => TutorialService.markTutorialSeen('bilao_spotlight'),
+    );
+  }
 
   // ── Computed ──────────────────────────────────────────────────────────────
 
@@ -877,13 +1024,6 @@ class _AddBilaoOrderSheetState extends State<_AddBilaoOrderSheet> {
       );
 
   // ── Lifecycle ─────────────────────────────────────────────────────────────
-
-  @override
-  void initState() {
-    super.initState();
-    // Initialise deposit to full payment amount
-    _depositCtrl.text = _total.toStringAsFixed(0);
-  }
 
   @override
   void dispose() {
@@ -2123,6 +2263,7 @@ class _AddBilaoOrderSheetState extends State<_AddBilaoOrderSheet> {
                           child: GestureDetector(
                             onTap: _step < 2 ? _nextStep : _save,
                             child: Container(
+                              key: _step == 0 ? _step0NextKey : (_step == 1 ? _step1NextKey : _step2SaveKey),
                               height: 46,
                               alignment: Alignment.center,
                               decoration: BoxDecoration(
