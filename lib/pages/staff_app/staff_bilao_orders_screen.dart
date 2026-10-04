@@ -11,6 +11,7 @@ import '../../services/assignment_service.dart';
 import '../../services/auth_service.dart';
 import '../../services/firestore_service.dart';
 import '../../services/gemini_service.dart';
+import '../../services/input_validators.dart';
 import '../../services/supabase_service.dart';
 import '../../services/tutorial_service.dart';
 import '../../theme/app_theme.dart';
@@ -851,6 +852,11 @@ class _AddBilaoOrderSheetState extends State<_AddBilaoOrderSheet> {
   bool   _isOcrLoading = false;
   String _ocrError     = '';
 
+  // Inline Validation Errors
+  String? _nameError;
+  String? _contactError;
+  String? _notesError;
+
   @override
   void initState() {
     super.initState();
@@ -970,10 +976,18 @@ class _AddBilaoOrderSheetState extends State<_AddBilaoOrderSheet> {
     String? hint,
     IconData? icon,
     bool readOnly = false,
+    String? errorText,
   }) =>
       InputDecoration(
         labelText: label,
         hintText: hint,
+        errorText: errorText,
+        errorStyle: const TextStyle(
+          fontSize: 10.5,
+          fontWeight: FontWeight.w600,
+          color: AppColors.error,
+          decoration: TextDecoration.none,
+        ),
         isDense: true,
         labelStyle: TextStyle(
           fontSize: 12,
@@ -1040,33 +1054,39 @@ class _AddBilaoOrderSheetState extends State<_AddBilaoOrderSheet> {
 
   void _nextStep() {
     if (_step == 0) {
-      final name    = _nameCtrl.text.trim();
-      final contact = _contactCtrl.text.trim();
-      if (name.isEmpty) {
-        _showError('Pakienter ang pangalan ng customer.');
+      final nameErr = InputValidators.validateCustomerName(_nameCtrl.text, label: 'Pangalan ng customer');
+      final contactErr = InputValidators.validatePhilippinePhone(_contactCtrl.text, label: 'Contact number ng customer');
+      setState(() {
+        _nameError = nameErr;
+        _contactError = contactErr;
+      });
+      if (nameErr != null) {
+        _showError(nameErr);
         return;
       }
-      if (name.length < 2) {
-        _showError('Ang pangalan ng customer ay dapat hindi bababa sa 2 characters.');
+      if (contactErr != null) {
+        _showError(contactErr);
         return;
       }
-      if (name.length > 60) {
-        _showError('Ang pangalan ng customer ay hindi dapat lumampas sa 60 characters.');
-        return;
-      }
-      if (!RegExp(r"^[a-zA-ZñÑáéíóúÁÉÍÓÚ\s\-'.]+$").hasMatch(name)) {
-        _showError('Ang pangalan ay dapat mga letra lamang.');
-        return;
-      }
-
-      if (contact.isEmpty) {
-        _showError('Pakienter ang contact number ng customer.');
-        return;
-      }
-      final digits = contact.replaceAll(RegExp(r'\D'), '');
-      if (digits.length < 7 || digits.length > 12) {
-        _showError('Maglagay ng tamang contact number (7 hanggang 12 digits, e.g. 0917 123 4567).');
-        return;
+    } else if (_step == 1) {
+      final notes = _notesCtrl.text.trim();
+      if (notes.isNotEmpty) {
+        final notesResult = InputValidators.validateMessage(
+          notes,
+          fieldName: 'Notes',
+          required: false,
+          minLength: 10,
+          maxLength: 300,
+        );
+        setState(() {
+          _notesError = notesResult.isValid ? null : notesResult.errorMessage;
+        });
+        if (!notesResult.isValid) {
+          _showError(notesResult.errorMessage!);
+          return;
+        }
+      } else {
+        setState(() => _notesError = null);
       }
     }
     if (_step < 2) setState(() => _step++);
@@ -1235,6 +1255,34 @@ class _AddBilaoOrderSheetState extends State<_AddBilaoOrderSheet> {
   // ── Save ──────────────────────────────────────────────────────────────────
 
   Future<void> _save() async {
+    final nameErr = InputValidators.validateCustomerName(_nameCtrl.text, label: 'Pangalan ng customer');
+    if (nameErr != null) {
+      _showError(nameErr);
+      return;
+    }
+    final contactErr = InputValidators.validatePhilippinePhone(_contactCtrl.text, label: 'Contact number ng customer');
+    if (contactErr != null) {
+      _showError(contactErr);
+      return;
+    }
+
+    final rawNotes = _notesCtrl.text.trim();
+    String? sanitizedNotes;
+    if (rawNotes.isNotEmpty) {
+      final notesResult = InputValidators.validateMessage(
+        rawNotes,
+        fieldName: 'Notes',
+        required: false,
+        minLength: 10,
+        maxLength: 300,
+      );
+      if (!notesResult.isValid) {
+        _showError(notesResult.errorMessage!);
+        return;
+      }
+      sanitizedNotes = notesResult.sanitizedText;
+    }
+
     // Validate deposit amount
     final depositVal = double.tryParse(_depositCtrl.text.trim()) ?? 0.0;
     if (depositVal <= 0) {
@@ -1268,13 +1316,18 @@ class _AddBilaoOrderSheetState extends State<_AddBilaoOrderSheet> {
       }
       if (depositVal > _total) {
         _showError(
-            'Ang downpayment ay hindi dapat lumampas sa kabuuang halaga (₱${_total.toStringAsFixed(0)}).');
+            'Ang downpayment ay hindi dapat lumampas sa kabuuang presyo ng order (₱${_total.toStringAsFixed(0)}).');
         return;
       }
     } else {
       if (depositVal < _total - 0.01) {
         _showError(
             'Ang full payment ay dapat katumbas ng buong halaga (₱${_total.toStringAsFixed(0)}).');
+        return;
+      }
+      if (depositVal > _total) {
+        _showError(
+            'Ang bayad ay hindi dapat lumampas sa kabuuang halaga (₱${_total.toStringAsFixed(0)}).');
         return;
       }
     }
@@ -1308,9 +1361,7 @@ class _AddBilaoOrderSheetState extends State<_AddBilaoOrderSheet> {
         pickupBranchId:    widget.branchId,
         pickupBranchName:  widget.branchName,
         deliveryAddress:   '',
-        notes:             _notesCtrl.text.trim().isEmpty
-                               ? null
-                               : _notesCtrl.text.trim(),
+        notes:             sanitizedNotes,
         depositAmount:     depositAmt,
         preparationStatus: PreparationStatus.pending,
         deliveryStatus:    DeliveryStatus.forDelivery,
@@ -1499,23 +1550,45 @@ class _AddBilaoOrderSheetState extends State<_AddBilaoOrderSheet> {
         TextFormField(
           controller: _nameCtrl,
           textCapitalization: TextCapitalization.words,
+          maxLength: 60,
           style: _fieldTextStyle,
+          onChanged: (val) {
+            if (_nameError != null) {
+              setState(() {
+                _nameError = InputValidators.validateCustomerName(val, label: 'Pangalan ng customer');
+              });
+            }
+          },
           decoration: _dec(
             label: 'Customer Name',
             hint: 'e.g. Juan Dela Cruz',
             icon: Icons.person_outline_rounded,
-          ),
+            errorText: _nameError,
+          ).copyWith(counterText: ''),
         ),
         const SizedBox(height: 10),
         TextFormField(
           controller: _contactCtrl,
           keyboardType: TextInputType.phone,
+          maxLength: 11,
+          inputFormatters: [
+            FilteringTextInputFormatter.digitsOnly,
+            LengthLimitingTextInputFormatter(11),
+          ],
           style: _fieldTextStyle,
+          onChanged: (val) {
+            if (_contactError != null) {
+              setState(() {
+                _contactError = InputValidators.validatePhilippinePhone(val, label: 'Contact number ng customer');
+              });
+            }
+          },
           decoration: _dec(
             label: 'Contact Number',
-            hint: '09XX XXX XXXX',
+            hint: '09XXXXXXXXX',
             icon: Icons.phone_outlined,
-          ),
+            errorText: _contactError,
+          ).copyWith(counterText: ''),
         ),
       ],
     );
@@ -1721,11 +1794,46 @@ class _AddBilaoOrderSheetState extends State<_AddBilaoOrderSheet> {
         TextFormField(
           controller: _notesCtrl,
           maxLines: 2,
+          maxLength: 300,
+          inputFormatters: [
+            LengthLimitingTextInputFormatter(300),
+          ],
           style: _fieldTextStyle,
+          onChanged: (val) {
+            final trimmed = val.trim();
+            if (trimmed.isEmpty) {
+              if (_notesError != null) setState(() => _notesError = null);
+              return;
+            }
+            final res = InputValidators.validateMessage(
+              trimmed,
+              fieldName: 'Notes',
+              required: false,
+              minLength: 10,
+              maxLength: 300,
+            );
+            if (_notesError != null || !res.isValid) {
+              setState(() {
+                _notesError = res.isValid ? null : res.errorMessage;
+              });
+            } else {
+              setState(() {});
+            }
+          },
           decoration: _dec(
             label: 'Notes (optional)',
             hint: 'e.g. Special instructions...',
             icon: Icons.notes_rounded,
+            errorText: _notesError,
+          ).copyWith(
+            counterText: '${_notesCtrl.text.length}/300 characters',
+            counterStyle: TextStyle(
+              fontSize: 10.5,
+              fontWeight: FontWeight.w600,
+              color: _notesCtrl.text.length >= 300
+                  ? AppColors.error
+                  : const Color(0xFF9E8B7E),
+            ),
           ),
         ),
       ],
@@ -1919,6 +2027,21 @@ class _AddBilaoOrderSheetState extends State<_AddBilaoOrderSheet> {
             controller: _depositCtrl,
             keyboardType: TextInputType.number,
             style: _fieldTextStyle,
+            inputFormatters: [
+              FilteringTextInputFormatter.digitsOnly,
+              TextInputFormatter.withFunction((oldValue, newValue) {
+                if (newValue.text.isEmpty) return newValue;
+                final val = double.tryParse(newValue.text) ?? 0;
+                if (val > _total) {
+                  final clamped = _total.toStringAsFixed(0);
+                  return newValue.copyWith(
+                    text: clamped,
+                    selection: TextSelection.collapsed(offset: clamped.length),
+                  );
+                }
+                return newValue;
+              }),
+            ],
             onChanged: (_) => setState(() {}),
             decoration: _dec(
               label: 'Downpayment (min. 65%)',
@@ -1928,7 +2051,7 @@ class _AddBilaoOrderSheetState extends State<_AddBilaoOrderSheet> {
           ),
           const SizedBox(height: 4),
           Text(
-            'Minimum: \u20b1${_minDeposit.toStringAsFixed(0)} (65% ng \u20b1${_total.toStringAsFixed(0)})',
+            'Minimum: \u20b1${_minDeposit.toStringAsFixed(0)} (65% ng \u20b1${_total.toStringAsFixed(0)}) \u2022 Maximum: \u20b1${_total.toStringAsFixed(0)}',
             style: const TextStyle(
               fontSize: 10,
               fontWeight: FontWeight.w600,

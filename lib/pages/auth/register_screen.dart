@@ -1,6 +1,7 @@
-import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../data/philippine_address_data.dart';
 import '../../models/account_status.dart';
 import '../../models/user_role.dart';
@@ -47,6 +48,24 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
 
+  final _contactFocusNode = FocusNode();
+  final _usernameFocusNode = FocusNode();
+  final _emailFocusNode = FocusNode();
+
+  String? _phoneValidationError;
+  String? _usernameValidationError;
+  String? _emailValidationError;
+  bool _isCheckingPhone = false;
+  bool _isCheckingUsername = false;
+  bool _isCheckingEmail = false;
+
+  bool get _isDriver => _selectedPosition == 'Driver';
+  int get _finalStepIndex => _isDriver ? 3 : 2;
+
+  List<String> get _stepTitles => _isDriver
+      ? ['Personal', 'License', 'Address', 'Account']
+      : ['Personal', 'Address', 'Account'];
+
   DateTime? _selectedBirthDate;
   String _selectedPosition = 'Branch Cook';
 
@@ -61,7 +80,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
   GeminiPhotoLicenseResult? _photoLicenseResult;
   final ImagePicker _imagePicker = ImagePicker();
 
-  String _selectedRoleString = 'Staff';
   String? _selectedSuffix;
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
@@ -69,6 +87,55 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool _agreedToTerms = false;
   String? _stepError;
   String? _registerError;
+
+  @override
+  void initState() {
+    super.initState();
+    _firstNameController.addListener(_onFieldChanged);
+    _lastNameController.addListener(_onFieldChanged);
+    _middleNameController.addListener(_onFieldChanged);
+    _contactController.addListener(() {
+      if (_phoneValidationError != null) {
+        setState(() => _phoneValidationError = null);
+      }
+      final raw = _contactController.text.trim();
+      if (raw.length == 11 && raw.startsWith('09')) {
+        _checkPhoneUniqueness();
+      }
+      _onFieldChanged();
+    });
+    _streetController.addListener(_onFieldChanged);
+    _usernameController.addListener(() {
+      if (_usernameValidationError != null) {
+        setState(() => _usernameValidationError = null);
+      }
+      _onFieldChanged();
+    });
+    _emailController.addListener(() {
+      if (_emailValidationError != null) {
+        setState(() => _emailValidationError = null);
+      }
+      _onFieldChanged();
+    });
+
+    _contactFocusNode.addListener(() {
+      if (!_contactFocusNode.hasFocus) {
+        _checkPhoneUniqueness();
+      }
+    });
+    _usernameFocusNode.addListener(() {
+      if (!_usernameFocusNode.hasFocus) {
+        _checkUsernameUniqueness();
+      }
+    });
+    _emailFocusNode.addListener(() {
+      if (!_emailFocusNode.hasFocus) {
+        _checkEmailUniqueness();
+      }
+    });
+
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadFormCache());
+  }
 
   @override
   void dispose() {
@@ -84,7 +151,69 @@ class _RegisterScreenState extends State<RegisterScreen> {
     _streetController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
+    _contactFocusNode.dispose();
+    _usernameFocusNode.dispose();
+    _emailFocusNode.dispose();
     super.dispose();
+  }
+
+  Future<void> _checkPhoneUniqueness() async {
+    final raw = _contactController.text.trim();
+    if (raw.length != 11 || !raw.startsWith('09') || !RegExp(r'^[0-9]+$').hasMatch(raw)) {
+      return;
+    }
+    setState(() => _isCheckingPhone = true);
+    final normalized = _normalizePhPhone(raw);
+    final exists = await SupabaseService.isPhoneRegistered(normalized);
+    if (!mounted) return;
+    setState(() {
+      _isCheckingPhone = false;
+      if (exists) {
+        _phoneValidationError = 'Mobile number already exists.';
+      } else {
+        _phoneValidationError = null;
+      }
+    });
+  }
+
+  Future<void> _checkUsernameUniqueness() async {
+    final username = _usernameController.text.trim().toLowerCase();
+    if (username.length < 5 || username.length > 30) {
+      return;
+    }
+    if (!RegExp(r'^[a-z0-9_.]+$').hasMatch(username)) {
+      return;
+    }
+    setState(() => _isCheckingUsername = true);
+    final exists = await SupabaseService.isUsernameRegistered(username);
+    if (!mounted) return;
+    setState(() {
+      _isCheckingUsername = false;
+      if (exists) {
+        _usernameValidationError = 'Username already exists.';
+      } else {
+        _usernameValidationError = null;
+      }
+    });
+  }
+
+  Future<void> _checkEmailUniqueness() async {
+    final email = _emailController.text.trim().toLowerCase();
+    final emailRegex = RegExp(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$');
+    if (!emailRegex.hasMatch(email)) {
+      return;
+    }
+    setState(() => _isCheckingEmail = true);
+    final exists = await SupabaseService.isEmailRegistered(email);
+    if (!mounted) return;
+    setState(() {
+      _isCheckingEmail = false;
+      if (exists) {
+        _emailValidationError = 'Email address already exists.';
+      } else {
+        _emailValidationError = null;
+      }
+    });
   }
 
   void _setBirthDate(DateTime birthDate) {
@@ -105,13 +234,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   Future<void> _pickBirthDate() async {
     final now = DateTime.now();
-    final initialDate = _selectedBirthDate ?? DateTime(now.year - 20, now.month, now.day);
-    final firstDate = DateTime(now.year - 80, 1, 1);
-    final lastDate = DateTime(now.year - 1, 12, 31);
+    // Max: must be born by 2008 (18+ in 2026) — Dec 31, 2008
+    final lastDate = DateTime(2008, 12, 31);
+    // Min: born as early as 1961
+    final firstDate = DateTime(1961, 1, 1);
+    final initialDate = _selectedBirthDate != null
+        ? (_selectedBirthDate!.isBefore(lastDate) ? _selectedBirthDate! : lastDate)
+        : DateTime(1995, 1, 1);
 
     final picked = await showDatePicker(
       context: context,
-      initialDate: initialDate.isAfter(lastDate) ? lastDate : initialDate,
+      initialDate: initialDate,
       firstDate: firstDate,
       lastDate: lastDate,
       helpText: 'Select Date of Birth',
@@ -130,43 +263,89 @@ class _RegisterScreenState extends State<RegisterScreen> {
       },
     );
 
-    if (picked != null) {
-      _setBirthDate(picked);
+    if (picked == null || !mounted) return;
+
+    // If born in 1961–1979 (very senior), show a confirmation dialog
+    if (picked.year <= 1979) {
+      final age = now.year - picked.year - ((now.month < picked.month || (now.month == picked.month && now.day < picked.day)) ? 1 : 0);
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Kumpirmasyon sa Edad'),
+          content: Text(
+            'Ang napili mong taon ng kapanganakan ay ${picked.year} ($age taong gulang). Kumpirmahin na ikaw ay may kakayahan at handang magtrabaho pa.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('Kanselahin'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: const Text(
+                'Oo, Handa at May Kakayahan',
+                style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF8B4513)),
+              ),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true) return;
     }
+
+    _setBirthDate(picked);
+    _onFieldChanged();
   }
 
   String? _validatePhilippinePhone(String? value) {
     if (value == null || value.trim().isEmpty) {
-      return 'Philippine contact number is required.';
+      return 'Mobile number is required.';
     }
-    final raw = value.trim().replaceAll(RegExp(r'[\s\-]'), '');
-    final phRegex = RegExp(r'^(09|\+639)\d{9}$');
-    if (!phRegex.hasMatch(raw)) {
-      return 'Enter a valid Philippine mobile number (e.g. 0917 123 4567 or +639171234567).';
+    if (value.contains(' ')) {
+      return 'Mobile number must not contain spaces.';
+    }
+    if (!value.startsWith('09')) {
+      return 'Mobile number must start with 09 (e.g. 09171234567).';
+    }
+    if (value.length != 11 || !RegExp(r'^[0-9]+$').hasMatch(value)) {
+      return 'Mobile number must be exactly 11 numeric digits.';
+    }
+    // Hanggang 3 lang ang pwedeng consecutive identical digits (bawal 4 o higit pa)
+    if (RegExp(r'(.)\1{3,}').hasMatch(value)) {
+      return 'Mobile number cannot have more than 3 consecutive identical digits.';
     }
     return null;
   }
 
   String _normalizePhPhone(String phone) {
-    var p = phone.trim().replaceAll(RegExp(r'[\s\-]'), '');
-    if (p.startsWith('+639')) {
-      p = '09${p.substring(4)}';
-    }
-    return p;
+    return phone.trim().replaceAll(RegExp(r'[\s]'), '');
   }
 
-  String? _validateName(String? value, String label) {
+  String? _validateName(String? value, String label, {bool required = true}) {
     if (value == null || value.trim().isEmpty) {
-      return '$label is required.';
+      return required ? '$label is required.' : null;
     }
-    if (value.trim().length < 2) {
+    final trimmed = value.trim();
+    if (trimmed.length < 2) {
       return '$label must be at least 2 characters.';
     }
-    final nameRegex = RegExp(r"^[a-zA-ZñÑáéíóúÁÉÍÓÚ\s\-'.]+$");
-    if (!nameRegex.hasMatch(value.trim())) {
-      return '$label must only contain letters.';
+    if (trimmed.length > 50) {
+      return '$label must not exceed 50 characters.';
+    }
+    if (value.contains(' ')) {
+      return '$label must not contain spaces in between letters.';
+    }
+    final nameRegex = RegExp(r'^[a-zA-ZñÑáéíóúÁÉÍÓÚ]+$');
+    if (!nameRegex.hasMatch(trimmed)) {
+      return '$label must contain letters only (no numbers, symbols, or special characters).';
     }
     return null;
+  }
+
+  String _normalizeName(String text) {
+    final trimmed = text.trim();
+    if (trimmed.isEmpty) return '';
+    return trimmed[0].toUpperCase() + (trimmed.length > 1 ? trimmed.substring(1).toLowerCase() : '');
   }
 
   void _updateFullAddress() {
@@ -185,6 +364,83 @@ class _RegisterScreenState extends State<RegisterScreen> {
     setState(() {
       _addressController.text = parts.join(', ');
     });
+    _onFieldChanged();
+  }
+
+  // ── Form Cache ───────────────────────────────────────────────
+  static const _cachePrefix = 'reg_cache_';
+
+  void _onFieldChanged() {
+    _saveFormCache();
+  }
+
+  Future<void> _saveFormCache() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('${_cachePrefix}firstName', _firstNameController.text);
+    await prefs.setString('${_cachePrefix}lastName', _lastNameController.text);
+    await prefs.setString('${_cachePrefix}middleName', _middleNameController.text);
+    await prefs.setString('${_cachePrefix}birthDate', _birthDateController.text);
+    await prefs.setString('${_cachePrefix}contact', _contactController.text);
+    await prefs.setString('${_cachePrefix}position', _selectedPosition);
+    await prefs.setString('${_cachePrefix}suffix', _selectedSuffix ?? '');
+    await prefs.setString('${_cachePrefix}street', _streetController.text);
+    await prefs.setString('${_cachePrefix}province', _selectedProvince);
+    await prefs.setString('${_cachePrefix}city', _selectedCity ?? '');
+    await prefs.setString('${_cachePrefix}barangay', _selectedBarangay ?? '');
+    await prefs.setString('${_cachePrefix}username', _usernameController.text);
+    await prefs.setString('${_cachePrefix}email', _emailController.text);
+  }
+
+  Future<void> _loadFormCache() async {
+    final prefs = await SharedPreferences.getInstance();
+    final fn = prefs.getString('${_cachePrefix}firstName') ?? '';
+    final ln = prefs.getString('${_cachePrefix}lastName') ?? '';
+    final mn = prefs.getString('${_cachePrefix}middleName') ?? '';
+    final bd = prefs.getString('${_cachePrefix}birthDate') ?? '';
+    final ct = prefs.getString('${_cachePrefix}contact') ?? '';
+    final pos = prefs.getString('${_cachePrefix}position') ?? 'Branch Cook';
+    final suf = prefs.getString('${_cachePrefix}suffix') ?? '';
+    final st = prefs.getString('${_cachePrefix}street') ?? '';
+    final prov = prefs.getString('${_cachePrefix}province') ?? 'Laguna';
+    final city = prefs.getString('${_cachePrefix}city') ?? '';
+    final brgy = prefs.getString('${_cachePrefix}barangay') ?? '';
+    final uname = prefs.getString('${_cachePrefix}username') ?? '';
+    final eml = prefs.getString('${_cachePrefix}email') ?? '';
+    setState(() {
+      _firstNameController.text = fn;
+      _lastNameController.text = ln;
+      _middleNameController.text = mn;
+      _birthDateController.text = bd;
+      if (bd.isNotEmpty) {
+        _selectedBirthDate = DateTime.tryParse(bd);
+        if (_selectedBirthDate != null) {
+          final now = DateTime.now();
+          int age = now.year - _selectedBirthDate!.year;
+          if (now.month < _selectedBirthDate!.month ||
+              (now.month == _selectedBirthDate!.month && now.day < _selectedBirthDate!.day)) {
+            age--;
+          }
+          _ageController.text = age.toString();
+        }
+      }
+      _contactController.text = ct;
+      _selectedPosition = pos;
+      _selectedSuffix = suf.isEmpty ? null : suf;
+      _streetController.text = st;
+      _selectedProvince = prov;
+      _selectedCity = city.isEmpty ? null : city;
+      _selectedBarangay = brgy.isEmpty ? null : brgy;
+      _usernameController.text = uname;
+      _emailController.text = eml;
+    });
+  }
+
+  Future<void> _clearFormCache() async {
+    final prefs = await SharedPreferences.getInstance();
+    final keys = prefs.getKeys().where((k) => k.startsWith(_cachePrefix)).toList();
+    for (final k in keys) {
+      await prefs.remove(k);
+    }
   }
 
   Future<void> _pickLicensePhoto(ImageSource source) async {
@@ -254,7 +510,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       }
 
       if (_middleNameController.text.trim().isNotEmpty) {
-        final mNameErr = _validateName(_middleNameController.text, 'Middle name');
+        final mNameErr = _validateName(_middleNameController.text, 'Middle name', required: false);
         if (mNameErr != null) {
           setState(() => _stepError = mNameErr);
           return;
@@ -265,20 +521,23 @@ class _RegisterScreenState extends State<RegisterScreen> {
         setState(() => _stepError = 'Please select your Date of Birth.');
         return;
       }
-
-      final age = int.tryParse(_ageController.text.trim());
-      if (age == null) {
-        setState(() => _stepError = 'Invalid birthdate. Please select your date of birth.');
+      // Age is computed from birth date directly — no longer from _ageController
+      final now = DateTime.now();
+      int age = now.year - _selectedBirthDate!.year;
+      if (now.month < _selectedBirthDate!.month ||
+          (now.month == _selectedBirthDate!.month && now.day < _selectedBirthDate!.day)) {
+        age--;
+      }
+      if (age < 18 || _selectedBirthDate!.year > 2008) {
+        setState(() => _stepError =
+            'Bawal ang minor (ipinanganak noong 2009 pataas). Dapat ay 18 taong gulang pataas (ipinanganak 2008 o mas maaga).');
         return;
       }
-      if (age < 18) {
-        setState(() => _stepError = 'Applicant must be at least 18 years old (Calculated age: $age).');
+      if (_selectedBirthDate!.year < 1961) {
+        setState(() => _stepError = 'Ang pinakamababang taon ng kapanganakan ay 1961.');
         return;
       }
-      if (age > 80) {
-        setState(() => _stepError = 'Applicant must be at most 80 years old (Calculated age: $age).');
-        return;
-      }
+      // _ageController kept in sync by _setBirthDate
 
       final phoneErr = _validatePhilippinePhone(_contactController.text);
       if (phoneErr != null) {
@@ -286,43 +545,103 @@ class _RegisterScreenState extends State<RegisterScreen> {
         return;
       }
 
+      // Use cached uniqueness result if already checked
+      if (_phoneValidationError != null) {
+        setState(() => _stepError = _phoneValidationError);
+        return;
+      }
+
       final normalizedPhone = _normalizePhPhone(_contactController.text);
       final phoneRegistered = await SupabaseService.isPhoneRegistered(normalizedPhone);
+      if (!mounted) return;
       if (phoneRegistered) {
         setState(() => _stepError = 'This mobile number is already registered.');
         return;
       }
 
+      await _saveFormCache();
       setState(() => _currentStep = 1);
-    } else if (_currentStep == 1) {
-      if (_selectedCity == null || _selectedCity!.isEmpty) {
-        setState(() => _stepError = 'Please select your city or municipality.');
-        return;
-      }
-      if (_selectedBarangay == null || _selectedBarangay!.isEmpty) {
-        setState(() => _stepError = 'Please select your barangay.');
-        return;
-      }
-      if (_streetController.text.trim().isEmpty) {
-        setState(() => _stepError = 'Please enter your street name or house number.');
-        return;
-      }
-      if (_streetController.text.trim().length < 3) {
-        setState(() => _stepError = 'Street address must be at least 3 characters.');
-        return;
-      }
 
-      if (_selectedRoleString == 'Driver') {
-        if (_photoLicenseResult == null || !_photoLicenseResult!.isValid) {
-          setState(() => _stepError =
-              'Driver applicants must upload a clear photo of their Driver\'s License.');
-          return;
-        }
+    } else if (_currentStep == 1 && _isDriver) {
+      // Driver Step 1 → License validation
+      if (_licenseImageBytes == null) {
+        setState(() => _stepError = 'Please upload a photo of your Driver\'s License to continue.');
+        return;
       }
-
+      if (_isAnalyzingPhoto) {
+        setState(() => _stepError = 'Please wait while we verify your license photo.');
+        return;
+      }
+      if (_photoLicenseResult == null || !_photoLicenseResult!.isValid) {
+        setState(() => _stepError =
+            'License verification failed. Please upload a clear, valid Driver\'s License photo.');
+        return;
+      }
+      await _saveFormCache();
       setState(() => _currentStep = 2);
+
+    } else if (_currentStep == 1 && !_isDriver) {
+      // Staff Step 1 → Address validation
+      if (!_validateAddressFields()) return;
+      await _saveFormCache();
+      setState(() => _currentStep = 2);
+
+    } else if (_currentStep == 2 && _isDriver) {
+      // Driver Step 2 → Address validation
+      if (!_validateAddressFields()) return;
+      await _saveFormCache();
+      setState(() => _currentStep = 3);
     }
   }
+
+  /// Validates address fields and sets _stepError if invalid.
+  /// Returns true if valid, false otherwise.
+  bool _validateAddressFields() {
+    if (_selectedCity == null || _selectedCity!.isEmpty) {
+      setState(() => _stepError = 'Please select your city or municipality.');
+      return false;
+    }
+    if (_selectedBarangay == null || _selectedBarangay!.isEmpty) {
+      setState(() => _stepError = 'Please select your barangay.');
+      return false;
+    }
+    final street = _streetController.text.trim();
+    if (street.isEmpty) {
+      setState(() => _stepError = 'Street and House No. is required.');
+      return false;
+    }
+    if (street.length < 3) {
+      setState(() => _stepError = 'Street address must be at least 3 characters.');
+      return false;
+    }
+    if (street.length > 100) {
+      setState(() => _stepError = 'Street address must not exceed 100 characters.');
+      return false;
+    }
+    if (!RegExp(r"^[a-zA-Z0-9\s.,\-/#']+$").hasMatch(street)) {
+      setState(() => _stepError = 'Street address contains invalid characters.');
+      return false;
+    }
+    // Hindi dapat puro numbers
+    if (RegExp(r'^[0-9\s.,\-/#]+$').hasMatch(street) && !RegExp(r'[a-zA-Z]').hasMatch(street)) {
+      setState(() => _stepError = 'Street address cannot be numbers or symbols only. Please include a street name.');
+      return false;
+    }
+    // Hindi dapat puro special characters
+    if (!RegExp(r'[a-zA-Z0-9]').hasMatch(street)) {
+      setState(() => _stepError = 'Please enter a valid street address.');
+      return false;
+    }
+    // Reject obvious invalid inputs
+    final streetLower = street.toLowerCase();
+    if (streetLower == 'asdf' || streetLower == 'qwerty' || streetLower == 'none' ||
+        streetLower == 'n/a' || streetLower.contains('---')) {
+      setState(() => _stepError = 'Please enter a valid, realistic street address.');
+      return false;
+    }
+    return true;
+  }
+
 
   void _prevStep() {
     FocusScope.of(context).unfocus();
@@ -349,36 +668,45 @@ class _RegisterScreenState extends State<RegisterScreen> {
       return;
     }
 
-    final username = _usernameController.text.trim();
+    final username = _usernameController.text.trim().toLowerCase();
     if (username.isEmpty) {
       setState(() => _registerError = 'Please enter a username.');
       return;
     }
-    if (username.length < 3) {
-      setState(() => _registerError = 'Username must be at least 3 characters.');
+    if (username.length < 5) {
+      setState(() => _registerError = 'Username must be at least 5 characters.');
       return;
     }
-    if (username.length > 20) {
-      setState(() => _registerError = 'Username must not exceed 20 characters.');
+    if (username.length > 30) {
+      setState(() => _registerError = 'Username must not exceed 30 characters.');
       return;
     }
-    if (username.contains(' ')) {
-      setState(() => _registerError = 'Username must not contain spaces.');
+    // Letters, numbers, underscore, period only
+    if (!RegExp(r'^[a-z0-9_.]+$').hasMatch(username)) {
+      setState(() => _registerError = 'Username can only contain letters, numbers, underscores (_), and periods (.).');
       return;
     }
-    final usernameRegex = RegExp(r'^[a-zA-Z0-9_.]+$');
-    if (!usernameRegex.hasMatch(username)) {
-      setState(() => _registerError = 'Username can only contain letters, numbers, underscores, and dots.');
+    // Cannot start or end with _ or .
+    if (RegExp(r'^[_.]|[_.]$').hasMatch(username)) {
+      setState(() => _registerError = 'Username cannot start or end with underscore or period.');
       return;
     }
-
+    // No consecutive special chars (.. or __)
+    if (RegExp(r'[_.]{2,}').hasMatch(username)) {
+      setState(() => _registerError = 'Username cannot have consecutive periods or underscores.');
+      return;
+    }
+    if (_usernameValidationError != null) {
+      setState(() => _registerError = _usernameValidationError);
+      return;
+    }
     final isUsernameTaken = await SupabaseService.isUsernameRegistered(username);
     if (isUsernameTaken) {
       setState(() => _registerError = 'This username is already taken. Please choose another.');
       return;
     }
 
-    final email = _emailController.text.trim();
+    final email = _emailController.text.trim().toLowerCase();
     final emailRegex = RegExp(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$');
     if (email.isEmpty) {
       setState(() => _registerError = 'Please enter your email address.');
@@ -389,6 +717,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
       return;
     }
 
+    if (_emailValidationError != null) {
+      setState(() => _registerError = _emailValidationError);
+      return;
+    }
     final isEmailTaken = await SupabaseService.isEmailRegistered(email);
     if (isEmailTaken) {
       setState(() => _registerError = 'This email address is already registered.');
@@ -396,27 +728,68 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
 
     final password = _passwordController.text;
-    final passwordError = AuthService.validateStrongPassword(password);
-    if (passwordError != null) {
-      setState(() => _registerError = passwordError);
+    if (password.isEmpty) {
+      setState(() => _registerError = 'Password is required.');
       return;
     }
-
+    if (password.length < 8) {
+      setState(() => _registerError = 'Password must be at least 8 characters.');
+      return;
+    }
+    if (password.length > 64) {
+      setState(() => _registerError = 'Password must not exceed 64 characters.');
+      return;
+    }
+    if (password.contains(' ')) {
+      setState(() => _registerError = 'Password must not contain spaces.');
+      return;
+    }
+    if (!RegExp(r'[A-Z]').hasMatch(password)) {
+      setState(() => _registerError = 'Password must contain at least one uppercase letter (A-Z).');
+      return;
+    }
+    if (!RegExp(r'[a-z]').hasMatch(password)) {
+      setState(() => _registerError = 'Password must contain at least one lowercase letter (a-z).');
+      return;
+    }
+    if (!RegExp(r'[0-9]').hasMatch(password)) {
+      setState(() => _registerError = 'Password must contain at least one number (0-9).');
+      return;
+    }
+    if (!RegExp(r'[!@#$%^&*(),.?":{}|<>\-_=+\\[\]~`/]').hasMatch(password)) {
+      setState(() => _registerError = 'Password must contain at least one special character.');
+      return;
+    }
+    // Must not contain username (case-insensitive)
+    if (password.toLowerCase().contains(username.toLowerCase())) {
+      setState(() => _registerError = 'Password must not contain your username.');
+      return;
+    }
+    // Must not contain email local part (before @)
+    final emailLocal = email.split('@').first;
+    if (emailLocal.isNotEmpty && password.toLowerCase().contains(emailLocal.toLowerCase())) {
+      setState(() => _registerError = 'Password must not contain your email address.');
+      return;
+    }
     if (password != _confirmPasswordController.text) {
       setState(() => _registerError = 'Passwords do not match.');
       return;
     }
 
+    final normFirst = _normalizeName(_firstNameController.text);
+    final normMiddle = _middleNameController.text.trim().isNotEmpty
+        ? _normalizeName(_middleNameController.text)
+        : '';
+    final normLast = _normalizeName(_lastNameController.text);
     final fullName = [
-      _firstNameController.text.trim(),
-      if (_middleNameController.text.trim().isNotEmpty)
-        _middleNameController.text.trim(),
-      _lastNameController.text.trim(),
+      normFirst,
+      if (normMiddle.isNotEmpty) normMiddle,
+      normLast,
       if (_selectedSuffix != null && _selectedSuffix!.isNotEmpty) _selectedSuffix!,
     ].join(' ');
 
     final normalizedPhone = _normalizePhPhone(_contactController.text);
-    final targetPosition = _selectedRoleString == 'Driver' ? 'Driver' : _selectedPosition;
+    final targetPosition = _selectedPosition;
 
     setState(() => _isSubmitting = true);
 
@@ -438,17 +811,18 @@ class _RegisterScreenState extends State<RegisterScreen> {
               email: email,
               age: _ageController.text.trim(),
               address: _addressController.text.trim(),
-              driverLicenseNumber: _photoLicenseResult?.licenseNumber ?? '',
-              driverLicenseExpiry: _photoLicenseResult?.expiryDate ?? '',
-              isLicenseVerified: _selectedRoleString == 'Driver' && _photoLicenseResult?.isValid == true,
+              driverLicenseNumber: _selectedPosition == 'Driver' ? (_photoLicenseResult?.licenseNumber ?? '') : '',
+              driverLicenseExpiry: _selectedPosition == 'Driver' ? (_photoLicenseResult?.expiryDate ?? '') : '',
+              isLicenseVerified: _selectedPosition == 'Driver' && _photoLicenseResult?.isValid == true,
               isEmailVerified: true,
               isPhoneVerified: false,
-              firstName: _firstNameController.text.trim(),
-              middleName: _middleNameController.text.trim(),
-              lastName: _lastNameController.text.trim(),
+              firstName: normFirst,
+              middleName: normMiddle,
+              lastName: normLast,
             );
 
             if (error == null) {
+              await _clearFormCache();
               if (!mounted || !context.mounted) return error;
               Navigator.of(context).pushAndRemoveUntil(
                 PageRouteBuilder(
@@ -568,8 +942,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 _buildErrorBanner(_stepError!),
               ],
 
-              // Submission Error Banner (on Step 3)
-              if (_currentStep == 2 && _registerError != null) ...[
+              // Submission Error Banner (on final step)
+              if (_currentStep == _finalStepIndex && _registerError != null) ...[
                 const SizedBox(height: 12),
                 _buildErrorBanner(_registerError!),
               ],
@@ -646,15 +1020,30 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
 
   String _getStepSubtitle() {
-    switch (_currentStep) {
-      case 0:
-        return 'Step 1 of 3: Personal Details';
-      case 1:
-        return 'Step 2 of 3: Address & Verification';
-      case 2:
-        return 'Step 3 of 3: Account Credentials';
-      default:
-        return '';
+    if (_isDriver) {
+      switch (_currentStep) {
+        case 0:
+          return 'Step 1 of 4: Personal Details';
+        case 1:
+          return 'Step 2 of 4: Driver\'s License';
+        case 2:
+          return 'Step 3 of 4: Home Address';
+        case 3:
+          return 'Step 4 of 4: Account Credentials';
+        default:
+          return '';
+      }
+    } else {
+      switch (_currentStep) {
+        case 0:
+          return 'Step 1 of 3: Personal Details';
+        case 1:
+          return 'Step 2 of 3: Home Address';
+        case 2:
+          return 'Step 3 of 3: Account Credentials';
+        default:
+          return '';
+      }
     }
   }
 
@@ -665,10 +1054,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
     String? hint,
     Widget? prefixIcon,
     Widget? suffixIcon,
+    String? errorText,
   }) {
     return InputDecoration(
       labelText: label,
       hintText: hint,
+      errorText: errorText,
+      errorStyle: const TextStyle(
+        fontSize: 11,
+        fontWeight: FontWeight.w600,
+        color: AppColors.error,
+      ),
       labelStyle: const TextStyle(
         fontSize: 12.5,
         fontWeight: FontWeight.w600,
@@ -695,6 +1091,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
         borderRadius: BorderRadius.circular(10),
         borderSide: const BorderSide(color: AppColors.accent, width: 1.5),
       ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: const BorderSide(color: AppColors.error, width: 1.2),
+      ),
+      focusedErrorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: const BorderSide(color: AppColors.error, width: 1.5),
+      ),
     );
   }
 
@@ -716,7 +1120,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   // STEPPER PROGRESS BAR
   // ─────────────────────────────────────────────────────────────
   Widget _buildStepIndicator() {
-    final steps = ['Personal', 'Address', 'Account'];
+    final steps = _stepTitles;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
@@ -733,7 +1137,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
             return Expanded(
               child: Container(
                 height: 2,
-                margin: const EdgeInsets.symmetric(horizontal: 6),
+                margin: EdgeInsets.symmetric(horizontal: _isDriver ? 4 : 6),
                 decoration: BoxDecoration(
                   color: isPassed ? const Color(0xFF8B4513) : const Color(0xFFE2D4C5),
                   borderRadius: BorderRadius.circular(2),
@@ -753,8 +1157,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Container(
-                  width: 20,
-                  height: 20,
+                  width: _isDriver ? 18 : 20,
+                  height: _isDriver ? 18 : 20,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     color: isCompleted || isCurrent ? const Color(0xFF8B4513) : Colors.white,
@@ -765,22 +1169,22 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   ),
                   child: Center(
                     child: isCompleted
-                        ? const Icon(Icons.check, size: 11, color: Colors.white)
+                        ? Icon(Icons.check, size: _isDriver ? 10 : 11, color: Colors.white)
                         : Text(
                             '${stepIndex + 1}',
                             style: TextStyle(
-                              fontSize: 10,
+                              fontSize: _isDriver ? 9 : 10,
                               fontWeight: FontWeight.w800,
                               color: isCurrent ? Colors.white : const Color(0xFF7A6556),
                             ),
                           ),
                   ),
                 ),
-                const SizedBox(width: 6),
+                SizedBox(width: _isDriver ? 4 : 6),
                 Text(
                   steps[stepIndex],
                   style: TextStyle(
-                    fontSize: 11.5,
+                    fontSize: _isDriver ? 10.5 : 11.5,
                     fontWeight: isCurrent ? FontWeight.w800 : FontWeight.w600,
                     color: isCurrent
                         ? const Color(0xFF24140B)
@@ -798,15 +1202,30 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   Widget _buildCurrentStepContent() {
-    switch (_currentStep) {
-      case 0:
-        return _buildStep1Personal();
-      case 1:
-        return _buildStep2AddressAndRole();
-      case 2:
-        return _buildStep3Account();
-      default:
-        return const SizedBox.shrink();
+    if (_isDriver) {
+      switch (_currentStep) {
+        case 0:
+          return _buildStep1Personal();
+        case 1:
+          return _buildStepDriverLicense();
+        case 2:
+          return _buildStepAddress();
+        case 3:
+          return _buildStep3Account();
+        default:
+          return const SizedBox.shrink();
+      }
+    } else {
+      switch (_currentStep) {
+        case 0:
+          return _buildStep1Personal();
+        case 1:
+          return _buildStepAddress();
+        case 2:
+          return _buildStep3Account();
+        default:
+          return const SizedBox.shrink();
+      }
     }
   }
 
@@ -820,60 +1239,59 @@ class _RegisterScreenState extends State<RegisterScreen> {
       children: [
         const Text('ROLE & POSITION', style: _sectionLabelStyle),
         const SizedBox(height: 8),
-        SegmentedButton<String>(
-          segments: const [
-            ButtonSegment(
-              value: 'Staff',
-              label: Text('Staff / Cook'),
-              icon: Icon(Icons.badge_outlined, size: 16),
-            ),
-            ButtonSegment(
-              value: 'Driver',
-              label: Text('Driver'),
-              icon: Icon(Icons.local_shipping_outlined, size: 16),
-            ),
-          ],
-          selected: {_selectedRoleString},
-          onSelectionChanged: (value) {
-            setState(() {
-              _selectedRoleString = value.first;
-              _stepError = null;
-            });
-          },
-          style: SegmentedButton.styleFrom(
-            selectedBackgroundColor: const Color(0xFF8B4513),
-            selectedForegroundColor: Colors.white,
-            backgroundColor: Colors.white,
-            foregroundColor: const Color(0xFF24140B),
-            side: const BorderSide(color: Color(0xFFDCCFC3)),
-            visualDensity: VisualDensity.compact,
-            textStyle: const TextStyle(
-              fontSize: 12.5,
-              fontWeight: FontWeight.w700,
-            ),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            color: const Color(0xFFFAF7F2),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: const Color(0xFFE8DED3)),
+          ),
+          child: Row(
+            children: const [
+              Icon(Icons.badge_outlined, size: 18, color: Color(0xFF8B4513)),
+              SizedBox(width: 8),
+              Text(
+                'Role: Staff',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF24140B),
+                ),
+              ),
+            ],
           ),
         ),
-        if (_selectedRoleString == 'Staff') ...[
-          const SizedBox(height: 12),
-          DropdownButtonFormField<String>(
-            initialValue: _selectedPosition,
-            style: _fieldTextStyle,
-            decoration: _fieldDecoration(
-              label: 'Position',
-              prefixIcon: const Icon(Icons.work_outline_rounded, size: 19),
-            ),
-            isExpanded: true,
-            items: const [
-              DropdownMenuItem(value: 'Branch Cook', child: Text('Branch Cook')),
-              DropdownMenuItem(value: 'Floating Cook', child: Text('Floating Cook')),
-              DropdownMenuItem(value: 'Production Cook', child: Text('Production Cook')),
-              DropdownMenuItem(value: 'Production Meat Cutter', child: Text('Production Meat Cutter')),
-            ],
-            onChanged: (val) {
-              if (val != null) setState(() => _selectedPosition = val);
-            },
+        const SizedBox(height: 12),
+        DropdownButtonFormField<String>(
+          initialValue: _selectedPosition,
+          style: _fieldTextStyle,
+          decoration: _fieldDecoration(
+            label: 'Position',
+            prefixIcon: const Icon(Icons.work_outline_rounded, size: 19),
           ),
-        ],
+          isExpanded: true,
+          items: const [
+            DropdownMenuItem(value: 'Branch Cook', child: Text('Branch Cook')),
+            DropdownMenuItem(value: 'Production Cook', child: Text('Production Cook')),
+            DropdownMenuItem(value: 'Production Meat Cutter', child: Text('Production Meat Cutter')),
+            DropdownMenuItem(value: 'Driver', child: Text('Driver')),
+          ],
+          onChanged: (val) {
+            if (val != null) {
+              setState(() {
+                final wasDriver = _selectedPosition == 'Driver';
+                _selectedPosition = val;
+                _stepError = null;
+                // Reset license data when switching away from Driver
+                if (wasDriver && val != 'Driver') {
+                  _licenseImageBytes = null;
+                  _photoLicenseResult = null;
+                }
+              });
+              _onFieldChanged();
+            }
+          },
+        ),
         const SizedBox(height: 16),
 
         const Text('FULL NAME', style: _sectionLabelStyle),
@@ -939,7 +1357,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   DropdownMenuItem(value: 'IV', child: Text('IV', style: _fieldTextStyle)),
                   DropdownMenuItem(value: 'V', child: Text('V', style: _fieldTextStyle)),
                 ],
-                onChanged: (value) => setState(() => _selectedSuffix = value),
+                onChanged: (value) {
+                  setState(() => _selectedSuffix = value);
+                  _onFieldChanged();
+                },
               ),
             ),
           ],
@@ -948,54 +1369,227 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
         const Text('BIRTHDATE & CONTACT', style: _sectionLabelStyle),
         const SizedBox(height: 8),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              flex: 3,
-              child: InkWell(
-                onTap: _pickBirthDate,
-                borderRadius: BorderRadius.circular(10),
-                child: IgnorePointer(
-                  child: TextFormField(
-                    controller: _birthDateController,
-                    style: _fieldTextStyle,
-                    decoration: _fieldDecoration(
-                      label: 'Date of Birth',
-                      hint: 'YYYY-MM-DD',
-                      prefixIcon: const Icon(Icons.cake_outlined, size: 19),
-                      suffixIcon: const Icon(Icons.calendar_month_outlined, size: 19, color: Color(0xFF8B4513)),
-                    ),
-                  ),
-                ),
+        InkWell(
+          onTap: _pickBirthDate,
+          borderRadius: BorderRadius.circular(10),
+          child: IgnorePointer(
+            child: TextFormField(
+              controller: _birthDateController,
+              style: _fieldTextStyle,
+              decoration: _fieldDecoration(
+                label: 'Date of Birth',
+                hint: 'YYYY-MM-DD',
+                prefixIcon: const Icon(Icons.cake_outlined, size: 19),
+                suffixIcon: const Icon(Icons.calendar_month_outlined, size: 19, color: Color(0xFF8B4513)),
               ),
             ),
-            const SizedBox(width: 10),
-            Expanded(
-              flex: 2,
-              child: TextFormField(
-                controller: _ageController,
-                readOnly: true,
-                style: _fieldTextStyle.copyWith(fontWeight: FontWeight.bold),
-                decoration: _fieldDecoration(
-                  label: 'Age',
-                  hint: 'Auto',
-                  prefixIcon: const Icon(Icons.numbers_rounded, size: 18),
-                ),
-              ),
-            ),
-          ],
+          ),
         ),
         const SizedBox(height: 16),
         TextFormField(
           controller: _contactController,
+          focusNode: _contactFocusNode,
           keyboardType: TextInputType.phone,
           textInputAction: TextInputAction.next,
+          maxLength: 11,
+          inputFormatters: [
+            FilteringTextInputFormatter.digitsOnly,
+            LengthLimitingTextInputFormatter(11),
+          ],
           style: _fieldTextStyle,
           decoration: _fieldDecoration(
             label: 'Mobile Number',
-            hint: '0917 123 4567',
+            hint: '09XXXXXXXXX',
             prefixIcon: const Icon(Icons.phone_iphone_outlined, size: 19),
+            suffixIcon: _isCheckingPhone
+                ? const Padding(
+                    padding: EdgeInsets.all(12),
+                    child: SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.accent),
+                    ),
+                  )
+                : (_phoneValidationError != null
+                    ? const Icon(Icons.error_outline, size: 19, color: AppColors.error)
+                    : null),
+            errorText: _phoneValidationError,
+          ).copyWith(counterText: ''),
+        ),
+      ],
+    );
+  }
+
+
+  // ─────────────────────────────────────────────────────────────
+  // DRIVER LICENSE STEP (Driver Step 2)
+  // ─────────────────────────────────────────────────────────────
+  Widget _buildStepDriverLicense() {
+    return Column(
+      key: const ValueKey('step_driver_license'),
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const Text('DRIVER\'S LICENSE', style: _sectionLabelStyle),
+        const SizedBox(height: 4),
+        const Text(
+          'Take or upload a clear photo of your Driver\'s License. It will be verified via AI.',
+          style: TextStyle(fontSize: 13, color: Color(0xFF7A6556), height: 1.35),
+        ),
+        const SizedBox(height: 12),
+
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: _photoLicenseResult?.isValid == true
+                  ? AppColors.success.withValues(alpha: 0.5)
+                  : (_photoLicenseResult != null && !_photoLicenseResult!.isValid)
+                      ? AppColors.error.withValues(alpha: 0.5)
+                      : const Color(0xFFDCCFC3),
+              width: 1.2,
+            ),
+          ),
+          child: Column(
+            children: [
+              if (_licenseImageBytes != null) ...[
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(6),
+                  child: Stack(
+                    alignment: Alignment.topRight,
+                    children: [
+                      Image.memory(
+                        _licenseImageBytes!,
+                        height: 140,
+                        width: double.infinity,
+                        fit: BoxFit.cover,
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.all(6),
+                        child: CircleAvatar(
+                          radius: 13,
+                          backgroundColor: Colors.black.withValues(alpha: 0.6),
+                          child: IconButton(
+                            padding: EdgeInsets.zero,
+                            icon: const Icon(Icons.refresh, size: 14, color: Colors.white),
+                            onPressed: _isAnalyzingPhoto
+                                ? null
+                                : () => _pickLicensePhoto(ImageSource.camera),
+                            tooltip: 'Retake',
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 8),
+              ],
+
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: _isAnalyzingPhoto
+                          ? null
+                          : () => _pickLicensePhoto(ImageSource.camera),
+                      icon: const Icon(Icons.camera_alt_outlined, size: 15),
+                      label: const Text('Take Photo', style: TextStyle(fontSize: 11.5)),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: const Color(0xFF24140B),
+                        side: const BorderSide(color: Color(0xFFDCCFC3)),
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: _isAnalyzingPhoto
+                          ? null
+                          : () => _pickLicensePhoto(ImageSource.gallery),
+                      icon: const Icon(Icons.photo_library_outlined, size: 15),
+                      label: const Text('Upload File', style: TextStyle(fontSize: 11.5)),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: const Color(0xFF24140B),
+                        side: const BorderSide(color: Color(0xFFDCCFC3)),
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+
+              if (_isAnalyzingPhoto) ...[
+                const SizedBox(height: 8),
+                Row(
+                  children: const [
+                    SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Verifying license...',
+                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF8B4513)),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+
+              if (!_isAnalyzingPhoto && _photoLicenseResult != null) ...[
+                const SizedBox(height: 8),
+                if (_photoLicenseResult!.isValid)
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: AppColors.success.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: AppColors.success.withValues(alpha: 0.3)),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.verified_rounded, color: AppColors.success, size: 16),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            'LTO License Verified: ${_photoLicenseResult!.licenseNumber}',
+                            style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: AppColors.success),
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                else
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: AppColors.error.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: AppColors.error.withValues(alpha: 0.3)),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(Icons.error_outline_rounded, color: AppColors.error, size: 15),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            _photoLicenseResult!.rejectionReason,
+                            style: const TextStyle(fontSize: 11, color: AppColors.error),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ],
           ),
         ),
       ],
@@ -1003,11 +1597,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   // ─────────────────────────────────────────────────────────────
-  // STEP 2: ADDRESS & ROLE VERIFICATION
+  // ADDRESS STEP (Staff Step 2 / Driver Step 3)
   // ─────────────────────────────────────────────────────────────
-  Widget _buildStep2AddressAndRole() {
+  Widget _buildStepAddress() {
     return Column(
-      key: const ValueKey('step_2_address'),
+      key: const ValueKey('step_address'),
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         const Text('HOME ADDRESS', style: _sectionLabelStyle),
@@ -1120,174 +1714,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
             ),
           ),
         ],
-
-        // Driver LTO AI Verification Section
-        if (_selectedRoleString == 'Driver') ...[
-          const SizedBox(height: 16),
-          const Text('DRIVER\'S LICENSE', style: _sectionLabelStyle),
-          const SizedBox(height: 4),
-          const Text(
-            'Take or upload a clear photo of your Driver\'s License.',
-            style: TextStyle(fontSize: 13, color: Color(0xFF7A6556), height: 1.35),
-          ),
-          const SizedBox(height: 8),
-
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(
-                color: _photoLicenseResult?.isValid == true
-                    ? AppColors.success.withValues(alpha: 0.5)
-                    : (_photoLicenseResult != null && !_photoLicenseResult!.isValid)
-                        ? AppColors.error.withValues(alpha: 0.5)
-                        : const Color(0xFFDCCFC3),
-                width: 1.2,
-              ),
-            ),
-            child: Column(
-              children: [
-                if (_licenseImageBytes != null) ...[
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(6),
-                    child: Stack(
-                      alignment: Alignment.topRight,
-                      children: [
-                        Image.memory(
-                          _licenseImageBytes!,
-                          height: 120,
-                          width: double.infinity,
-                          fit: BoxFit.cover,
-                        ),
-                        Padding(
-                          padding: const EdgeInsets.all(6),
-                          child: CircleAvatar(
-                            radius: 13,
-                            backgroundColor: Colors.black.withValues(alpha: 0.6),
-                            child: IconButton(
-                              padding: EdgeInsets.zero,
-                              icon: const Icon(Icons.refresh, size: 14, color: Colors.white),
-                              onPressed: _isAnalyzingPhoto
-                                  ? null
-                                  : () => _pickLicensePhoto(ImageSource.camera),
-                              tooltip: 'Retake',
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                ],
-
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: _isAnalyzingPhoto
-                            ? null
-                            : () => _pickLicensePhoto(ImageSource.camera),
-                        icon: const Icon(Icons.camera_alt_outlined, size: 15),
-                        label: const Text('Take Photo', style: TextStyle(fontSize: 11.5)),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: const Color(0xFF24140B),
-                          side: const BorderSide(color: Color(0xFFDCCFC3)),
-                          padding: const EdgeInsets.symmetric(vertical: 8),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: _isAnalyzingPhoto
-                            ? null
-                            : () => _pickLicensePhoto(ImageSource.gallery),
-                        icon: const Icon(Icons.photo_library_outlined, size: 15),
-                        label: const Text('Upload File', style: TextStyle(fontSize: 11.5)),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: const Color(0xFF24140B),
-                          side: const BorderSide(color: Color(0xFFDCCFC3)),
-                          padding: const EdgeInsets.symmetric(vertical: 8),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-
-                if (_isAnalyzingPhoto) ...[
-                  const SizedBox(height: 8),
-                  Row(
-                    children: const [
-                      SizedBox(
-                        width: 14,
-                        height: 14,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      ),
-                      SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'Verifying license...',
-                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF8B4513)),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-
-                if (!_isAnalyzingPhoto && _photoLicenseResult != null) ...[
-                  const SizedBox(height: 8),
-                  if (_photoLicenseResult!.isValid)
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: AppColors.success.withValues(alpha: 0.08),
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: AppColors.success.withValues(alpha: 0.3)),
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.verified_rounded, color: AppColors.success, size: 16),
-                          const SizedBox(width: 6),
-                          Expanded(
-                            child: Text(
-                              'LTO License Verified: ${_photoLicenseResult!.licenseNumber}',
-                              style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: AppColors.success),
-                            ),
-                          ),
-                        ],
-                      ),
-                    )
-                  else
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: AppColors.error.withValues(alpha: 0.08),
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: AppColors.error.withValues(alpha: 0.3)),
-                      ),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Icon(Icons.error_outline_rounded, color: AppColors.error, size: 15),
-                          const SizedBox(width: 6),
-                          Expanded(
-                            child: Text(
-                              _photoLicenseResult!.rejectionReason,
-                              style: const TextStyle(fontSize: 11, color: AppColors.error),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                ],
-              ],
-            ),
-          ),
-        ],
       ],
     );
   }
@@ -1305,18 +1731,33 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
         TextFormField(
           controller: _usernameController,
+          focusNode: _usernameFocusNode,
           textInputAction: TextInputAction.next,
           style: _fieldTextStyle,
           decoration: _fieldDecoration(
             label: 'Username',
             hint: 'Choose a login username',
             prefixIcon: const Icon(Icons.alternate_email_rounded, size: 19),
+            suffixIcon: _isCheckingUsername
+                ? const Padding(
+                    padding: EdgeInsets.all(12),
+                    child: SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.accent),
+                    ),
+                  )
+                : (_usernameValidationError != null
+                    ? const Icon(Icons.error_outline, size: 19, color: AppColors.error)
+                    : null),
+            errorText: _usernameValidationError,
           ),
         ),
         const SizedBox(height: 16),
 
         TextFormField(
           controller: _emailController,
+          focusNode: _emailFocusNode,
           keyboardType: TextInputType.emailAddress,
           textInputAction: TextInputAction.next,
           style: _fieldTextStyle,
@@ -1324,6 +1765,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
             label: 'Email Address',
             hint: 'name@example.com',
             prefixIcon: const Icon(Icons.email_outlined, size: 19),
+            suffixIcon: _isCheckingEmail
+                ? const Padding(
+                    padding: EdgeInsets.all(12),
+                    child: SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.accent),
+                    ),
+                  )
+                : (_emailValidationError != null
+                    ? const Icon(Icons.error_outline, size: 19, color: AppColors.error)
+                    : null),
+            errorText: _emailValidationError,
           ),
         ),
         const SizedBox(height: 16),
@@ -1454,6 +1908,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   // ─────────────────────────────────────────────────────────────
   Widget _buildStepButtons() {
     if (_currentStep == 0) {
+      final nextLabel = _isDriver ? 'Continue to License' : 'Continue to Address';
       return SizedBox(
         height: 48,
         child: ElevatedButton(
@@ -1464,9 +1919,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
             elevation: 0,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
           ),
-          child: const Text(
-            'Continue to Address',
-            style: TextStyle(
+          child: Text(
+            nextLabel,
+            style: const TextStyle(
               fontWeight: FontWeight.w800,
               fontSize: 14.5,
               letterSpacing: 0.3,
@@ -1476,7 +1931,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
       );
     }
 
-    if (_currentStep == 1) {
+    if (_currentStep < _finalStepIndex) {
+      String nextLabel = 'Continue';
+      if (_isDriver) {
+        if (_currentStep == 1) nextLabel = 'Continue to Address';
+        if (_currentStep == 2) nextLabel = 'Continue to Account';
+      } else {
+        if (_currentStep == 1) nextLabel = 'Continue to Account';
+      }
+
       return Row(
         children: [
           Expanded(
@@ -1513,9 +1976,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   elevation: 0,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 ),
-                child: const Text(
-                  'Continue',
-                  style: TextStyle(
+                child: Text(
+                  nextLabel,
+                  style: const TextStyle(
                     fontWeight: FontWeight.w800,
                     fontSize: 14.5,
                     letterSpacing: 0.3,
@@ -1528,7 +1991,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       );
     }
 
-    // Step 2 (Final submission)
+    // Final step submission (_currentStep == _finalStepIndex)
     return Row(
       children: [
         SizedBox(

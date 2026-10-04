@@ -16,8 +16,9 @@ import '../../services/auth_service.dart';
 import '../../services/firestore_service.dart';
 import '../../services/notification_service.dart';
 import '../../services/supabase_service.dart';
-import '../auth/mock_accounts.dart';
 import '../../theme/app_theme.dart';
+import '../../services/input_validators.dart';
+import '../auth/mock_accounts.dart';
 import '../../services/tutorial_service.dart';
 import '../../widgets/guided_tour_overlay.dart';
 import 'staff_bilao_orders_screen.dart';
@@ -676,9 +677,12 @@ class SalesScreenState extends State<SalesScreen> {
               CupertinoTextField(
                 controller: qtyController,
                 keyboardType: TextInputType.number,
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                maxLength: 3,
-                placeholder: 'Quantity (e.g. 1)...',
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  LengthLimitingTextInputFormatter(2),
+                ],
+                maxLength: 2,
+                placeholder: 'Quantity (1 - 10)...',
                 style: const TextStyle(fontSize: 13),
                 onChanged: (_) {
                   if (errorMsg != null) setDialogState(() => errorMsg = null);
@@ -687,16 +691,49 @@ class SalesScreenState extends State<SalesScreen> {
               const SizedBox(height: 10),
               CupertinoTextField(
                 controller: reasonController,
-                placeholder: 'Reason for spoilage (e.g. dropped on floor)...',
-                maxLines: 2,
+                placeholder: 'Reason for spoilage (min. 10, max 300 chars)...',
+                maxLines: 3,
                 maxLength: 300,
+                inputFormatters: [
+                  LengthLimitingTextInputFormatter(300),
+                ],
                 style: const TextStyle(fontSize: 13),
-                onChanged: (_) {
-                  if (errorMsg != null) setDialogState(() => errorMsg = null);
+                onChanged: (val) {
+                  setDialogState(() {
+                    final trimmed = val.trim();
+                    if (trimmed.isEmpty) {
+                      errorMsg = null;
+                    } else {
+                      final res = InputValidators.validateMessage(
+                        trimmed,
+                        fieldName: 'Reason for spoilage',
+                        required: true,
+                        minLength: 10,
+                        maxLength: 300,
+                      );
+                      errorMsg = res.isValid ? null : res.errorMessage;
+                    }
+                  });
                 },
               ),
+              const SizedBox(height: 4),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  Text(
+                    '${reasonController.text.length}/300 characters',
+                    style: TextStyle(
+                      fontSize: 10.5,
+                      color: reasonController.text.length >= 300
+                          ? CupertinoColors.destructiveRed
+                          : CupertinoColors.secondaryLabel,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
               if (errorMsg != null) ...[
-                const SizedBox(height: 6),
+                const SizedBox(height: 4),
                 Text(errorMsg!, style: const TextStyle(color: CupertinoColors.destructiveRed, fontSize: 11.5)),
               ],
             ],
@@ -710,26 +747,28 @@ class SalesScreenState extends State<SalesScreen> {
               isDestructiveAction: true,
               onPressed: () async {
                 final qty = int.tryParse(qtyController.text.trim()) ?? 0;
-                final reason = reasonController.text.trim();
-                if (qty <= 0) {
-                  setDialogState(() => errorMsg = 'Please enter a valid quantity (minimum 1).');
+                final rawReason = reasonController.text;
+
+                if (qty < 1 || qty > 10) {
+                  setDialogState(() => errorMsg = 'Ang quantity ng spoilage ay dapat mula 1 hanggang 10 lamang.');
                   return;
                 }
-                if (qty > 999) {
-                  setDialogState(() => errorMsg = 'Quantity must not exceed 999.');
-                  return;
-                }
-                if (reason.isEmpty) {
-                  setDialogState(() => errorMsg = 'Please provide a reason for spoilage.');
-                  return;
-                }
-                if (reason.length < 3) {
-                  setDialogState(() => errorMsg = 'Reason must be at least 3 characters.');
+
+                final reasonResult = InputValidators.validateMessage(
+                  rawReason,
+                  fieldName: 'Reason for spoilage',
+                  required: true,
+                  minLength: 10,
+                  maxLength: 300,
+                );
+
+                if (!reasonResult.isValid) {
+                  setDialogState(() => errorMsg = reasonResult.errorMessage);
                   return;
                 }
 
                 Navigator.of(ctx).pop();
-                _processWastageReport(selectedItem, qty, reason);
+                _processWastageReport(selectedItem, qty, reasonResult.sanitizedText);
               },
               child: const Text('Report Spoilage'),
             ),

@@ -627,6 +627,36 @@ class HomepageScreenState extends State<HomepageScreen> with WidgetsBindingObser
     super.dispose();
   }
 
+  int get _allocatedMayo => _inventory.allocated.mayo > 0 ? _inventory.allocated.mayo : 40;
+  int get _allocatedToyo => _inventory.allocated.toyo > 0 ? _inventory.allocated.toyo : 10;
+  int get _allocatedStyro => _inventory.allocated.styro > 0 ? _inventory.allocated.styro : 40;
+  int get _allocatedRegular => 20;
+  int get _allocatedMedium => 10;
+  int get _allocatedB1t1 => 10;
+
+  int get _maxMayo => _allocatedMayo + 5;
+  int get _maxToyo => _allocatedToyo + 5;
+  int get _maxStyro => _allocatedStyro + 5;
+  int get _maxRegular => _allocatedRegular + 5;
+  int get _maxMedium => _allocatedMedium + 5;
+  int get _maxB1t1 => _allocatedB1t1 + 5;
+
+  bool get _countsWithinMax {
+    final reg = int.tryParse(_karneController.text.trim()) ?? 0;
+    final med = int.tryParse(_mediumController.text.trim()) ?? 0;
+    final b1t1 = int.tryParse(_b1t1Controller.text.trim()) ?? 0;
+    final mayo = int.tryParse(_mayoController.text.trim()) ?? 0;
+    final toyo = int.tryParse(_toyoController.text.trim()) ?? 0;
+    final styro = int.tryParse(_styroController.text.trim()) ?? 0;
+
+    return reg <= _maxRegular &&
+        med <= _maxMedium &&
+        b1t1 <= _maxB1t1 &&
+        mayo <= _maxMayo &&
+        toyo <= _maxToyo &&
+        styro <= _maxStyro;
+  }
+
   bool get _hasEnteredCount =>
       _karneController.text.isNotEmpty &&
       _mediumController.text.isNotEmpty &&
@@ -637,13 +667,12 @@ class HomepageScreenState extends State<HomepageScreen> with WidgetsBindingObser
 
   bool get _countsMatch {
     if (!_hasEnteredCount) return false;
-    final a = _inventory.allocated;
-    const regTarget = 20;
-    const medTarget = 10;
-    const b1t1Target = 10;
-    final mayoTarget = a.mayo > 0 ? a.mayo : 40;
-    final styroTarget = a.styro > 0 ? a.styro : 40;
-    final toyoTarget = a.toyo > 0 ? a.toyo : 10;
+    final regTarget = _allocatedRegular;
+    final medTarget = _allocatedMedium;
+    final b1t1Target = _allocatedB1t1;
+    final mayoTarget = _allocatedMayo;
+    final styroTarget = _allocatedStyro;
+    final toyoTarget = _allocatedToyo;
 
     final regEntered = int.tryParse(_karneController.text) ?? -1;
     final medEntered = int.tryParse(_mediumController.text) ?? -1;
@@ -697,6 +726,10 @@ class HomepageScreenState extends State<HomepageScreen> with WidgetsBindingObser
   }
 
   void _confirm() {
+    if (!_countsWithinMax) {
+      _showToast('Hindi maaaring lumagpas sa Allocated + 5 ang bawat item.');
+      return;
+    }
     showCupertinoDialog(
       context: context,
       builder: (context) => CupertinoAlertDialog(
@@ -711,6 +744,7 @@ class HomepageScreenState extends State<HomepageScreen> with WidgetsBindingObser
             isDefaultAction: true,
             onPressed: () async {
               Navigator.pop(context);
+              if (!_countsWithinMax) return;
               final actualMayo = int.tryParse(_mayoController.text) ?? 0;
               final actualToyo = int.tryParse(_toyoController.text) ?? 0;
               final actualStyro = int.tryParse(_styroController.text) ?? 0;
@@ -766,6 +800,10 @@ class HomepageScreenState extends State<HomepageScreen> with WidgetsBindingObser
   }
 
   Future<void> _showDenyDialog() async {
+    if (!_countsWithinMax) {
+      _showToast('Hindi maaaring lumagpas sa Allocated + 5 ang bawat item.');
+      return;
+    }
     _discrepancyController.clear();
     await showCupertinoDialog<void>(
       context: context,
@@ -1124,12 +1162,13 @@ class HomepageScreenState extends State<HomepageScreen> with WidgetsBindingObser
             LayoutBuilder(
               builder: (ctx, constraints) {
                 final cardW = (constraints.maxWidth - 12) / 2;
-                Widget itile(String label, TextEditingController ctrl) => SizedBox(
+                Widget itile(String label, TextEditingController ctrl, {int? max}) => SizedBox(
                   width: cardW,
                   child: StaffInputTile(
                     label: label,
                     controller: ctrl,
                     enabled: !isVerified,
+                    max: max,
                     onChanged: () => setState(() {}),
                   ),
                 );
@@ -1140,19 +1179,19 @@ class HomepageScreenState extends State<HomepageScreen> with WidgetsBindingObser
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Row(children: [
-                        itile('Mayo', _mayoController),
+                        itile('Mayo', _mayoController, max: _maxMayo),
                         const SizedBox(width: 12),
-                        itile('Toyo', _toyoController),
+                        itile('Toyo', _toyoController, max: _maxToyo),
                         const SizedBox(width: 12),
-                        itile('Medium', _mediumController),
+                        itile('Medium', _mediumController, max: _maxMedium),
                       ]),
                       const SizedBox(height: 12),
                       Row(children: [
-                        itile('Styro', _styroController),
+                        itile('Styro', _styroController, max: _maxStyro),
                         const SizedBox(width: 12),
-                        itile('Regular', _karneController),
+                        itile('Regular', _karneController, max: _maxRegular),
                         const SizedBox(width: 12),
-                        itile('B1T1', _b1t1Controller),
+                        itile('B1T1', _b1t1Controller, max: _maxB1t1),
                       ]),
                     ],
                   ),
@@ -1212,23 +1251,54 @@ class HomepageScreenState extends State<HomepageScreen> with WidgetsBindingObser
               ),
             ),
             const SizedBox(height: 14),
+            // Max exceeded warning
+            if (_hasEnteredCount && !_countsWithinMax && status == InventoryVerificationStatus.pending) ...[
+              Container(
+                margin: const EdgeInsets.only(bottom: 10),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.error.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: AppColors.error.withValues(alpha: 0.35)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(CupertinoIcons.exclamationmark_triangle_fill, color: AppColors.error, size: 16),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Lumagpas ang bilang sa limit (Allocated + 5 kada item: Mayo max $_maxMayo, Toyo max $_maxToyo, Styro max $_maxStyro, Regular max $_maxRegular, Medium max $_maxMedium, B1T1 max $_maxB1t1).',
+                        style: const TextStyle(fontSize: 11.5, color: AppColors.error, fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
             // DYNAMIC CONFIRM/DENY BUTTON
             if (_hasEnteredCount && status == InventoryVerificationStatus.pending)
               SizedBox(
                 width: double.infinity,
-                child: _countsMatch
-                    ? StaffButton(
-                        label: 'Confirm Inventory',
-                        icon: CupertinoIcons.checkmark_alt,
-                        color: AppColors.success,
-                        onPressed: _confirm,
-                      )
-                    : StaffButton(
-                        label: 'Report Discrepancy (Deny)',
-                        icon: CupertinoIcons.xmark,
+                child: !_countsWithinMax
+                    ? const StaffButton(
+                        label: 'Exceeded Maximum Allowed Count',
+                        icon: CupertinoIcons.exclamationmark_circle,
                         color: AppColors.error,
-                        onPressed: _showDenyDialog,
-                      ),
+                        onPressed: null,
+                      )
+                    : _countsMatch
+                        ? StaffButton(
+                            label: 'Confirm Inventory',
+                            icon: CupertinoIcons.checkmark_alt,
+                            color: AppColors.success,
+                            onPressed: _confirm,
+                          )
+                        : StaffButton(
+                            label: 'Report Discrepancy (Deny)',
+                            icon: CupertinoIcons.xmark,
+                            color: AppColors.error,
+                            onPressed: _showDenyDialog,
+                          ),
               ),
             if (!_hasEnteredCount && status == InventoryVerificationStatus.pending)
               const Padding(

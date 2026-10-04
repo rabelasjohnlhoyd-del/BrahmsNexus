@@ -1,4 +1,5 @@
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 import '../theme/app_theme.dart';
 
 /// Small labeled badge (initial letter in a circle) used at the top of
@@ -144,6 +145,7 @@ class StaffInputTile extends StatefulWidget {
     this.enabled = true,
     this.step = 1,
     this.evenOnly = false,
+    this.max,
   });
 
   final String label;
@@ -152,6 +154,7 @@ class StaffInputTile extends StatefulWidget {
   final bool enabled;
   final int step;
   final bool evenOnly;
+  final int? max;
 
   @override
   State<StaffInputTile> createState() => _StaffInputTileState();
@@ -175,8 +178,25 @@ class _StaffInputTileState extends State<StaffInputTile> {
   }
 
   void _handleFocusChange() {
-    if (!_focusNode.hasFocus && widget.evenOnly) {
-      _snapToEven();
+    if (!_focusNode.hasFocus) {
+      if (widget.evenOnly) {
+        _snapToEven();
+      }
+      if (widget.max != null) {
+        _clampToMax();
+      }
+    }
+  }
+
+  void _clampToMax() {
+    if (widget.max == null) return;
+    final text = widget.controller.text.trim();
+    if (text.isEmpty) return;
+    final val = int.tryParse(text);
+    if (val != null && val > widget.max!) {
+      widget.controller.text = '${widget.max!}';
+      setState(() {});
+      widget.onChanged();
     }
   }
 
@@ -195,26 +215,31 @@ class _StaffInputTileState extends State<StaffInputTile> {
   void _step(int delta) {
     if (!widget.enabled) return;
     int current = int.tryParse(widget.controller.text) ?? 0;
+    if (delta > 0 && widget.max != null && current >= widget.max!) {
+      return;
+    }
     int next = current + delta;
     if (widget.evenOnly && next % 2 != 0) {
       next = delta > 0 ? (next + 1) : (next - 1);
     }
-    next = next.clamp(0, 999999);
+    final maxLimit = widget.max ?? 999999;
+    next = next.clamp(0, maxLimit);
     setState(() {
       widget.controller.text = '$next';
     });
     widget.onChanged();
   }
 
-  Widget _stepperButton(IconData icon, VoidCallback onTap) {
+  Widget _stepperButton(IconData icon, VoidCallback? onTap) {
+    final isClickable = widget.enabled && onTap != null;
     return GestureDetector(
-      onTap: widget.enabled ? onTap : null,
+      onTap: isClickable ? onTap : null,
       child: Container(
         width: 22,
         height: 18,
         alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: widget.enabled
+          color: isClickable
               ? AppColors.background
               : AppColors.background.withValues(alpha: 0.35),
           borderRadius: BorderRadius.circular(5),
@@ -222,7 +247,7 @@ class _StaffInputTileState extends State<StaffInputTile> {
         child: Icon(
           icon,
           size: 12,
-          color: widget.enabled
+          color: isClickable
               ? AppColors.accent
               : AppColors.textSecondary.withValues(alpha: 0.35),
         ),
@@ -235,6 +260,10 @@ class _StaffInputTileState extends State<StaffInputTile> {
     final hasValue = widget.controller.text.isNotEmpty;
     final parsedVal = int.tryParse(widget.controller.text.trim());
     final isOddError = widget.evenOnly && parsedVal != null && parsedVal % 2 != 0;
+    final isMaxError = widget.max != null && parsedVal != null && parsedVal > widget.max!;
+    final hasError = isOddError || isMaxError;
+    final canStepUp = widget.max == null || (parsedVal ?? 0) < widget.max!;
+    final canStepDown = (parsedVal ?? 0) > 0;
 
     return Container(
       padding: const EdgeInsets.all(14),
@@ -244,15 +273,15 @@ class _StaffInputTileState extends State<StaffInputTile> {
         border: Border.all(
           color: !widget.enabled
               ? AppColors.border.withValues(alpha: 0.6)
-              : (isOddError
+              : (hasError
                   ? AppColors.error
                   : (hasValue ? AppColors.accent.withValues(alpha: 0.5) : AppColors.border)),
-          width: (hasValue || isOddError) && widget.enabled ? 1.3 : 1,
+          width: (hasValue || hasError) && widget.enabled ? 1.3 : 1,
         ),
         boxShadow: widget.enabled
             ? [
                 BoxShadow(
-                  color: (isOddError ? AppColors.error : AppColors.accentDark).withValues(alpha: 0.06),
+                  color: (hasError ? AppColors.error : AppColors.accentDark).withValues(alpha: 0.06),
                   blurRadius: 10,
                   offset: const Offset(0, 3),
                 ),
@@ -263,7 +292,17 @@ class _StaffInputTileState extends State<StaffInputTile> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _TileHeader(label: widget.label),
-          if (isOddError) ...[
+          if (isMaxError) ...[
+            const SizedBox(height: 2),
+            Text(
+              'Max allowed: ${widget.max}',
+              style: const TextStyle(
+                color: AppColors.error,
+                fontSize: 9.5,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ] else if (isOddError) ...[
             const SizedBox(height: 2),
             const Text(
               'Even numbers only (0, 2, 4...)',
@@ -271,6 +310,16 @@ class _StaffInputTileState extends State<StaffInputTile> {
                 color: AppColors.error,
                 fontSize: 9.5,
                 fontWeight: FontWeight.w700,
+              ),
+            ),
+          ] else if (widget.max != null) ...[
+            const SizedBox(height: 2),
+            Text(
+              'Max: ${widget.max}',
+              style: const TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 9.5,
+                fontWeight: FontWeight.w600,
               ),
             ),
           ],
@@ -284,13 +333,31 @@ class _StaffInputTileState extends State<StaffInputTile> {
                   enabled: widget.enabled,
                   readOnly: !widget.enabled,
                   keyboardType: TextInputType.number,
+                  inputFormatters: [
+                    FilteringTextInputFormatter.digitsOnly,
+                    if (widget.max != null) ...[
+                      LengthLimitingTextInputFormatter('${widget.max}'.length + 1),
+                      TextInputFormatter.withFunction((oldValue, newValue) {
+                        if (newValue.text.isEmpty) return newValue;
+                        final val = int.tryParse(newValue.text);
+                        if (val != null && val > widget.max!) {
+                          final clamped = '${widget.max!}';
+                          return TextEditingValue(
+                            text: clamped,
+                            selection: TextSelection.collapsed(offset: clamped.length),
+                          );
+                        }
+                        return newValue;
+                      }),
+                    ],
+                  ],
                   placeholder: '0',
                   textAlign: TextAlign.center,
                   padding: const EdgeInsets.symmetric(vertical: 11),
                   decoration: BoxDecoration(
                     color: !widget.enabled
                         ? const Color(0xFFEEEEEE)
-                        : (isOddError
+                        : (hasError
                             ? AppColors.error.withValues(alpha: 0.08)
                             : (hasValue
                                 ? AppColors.accent.withValues(alpha: 0.08)
@@ -302,19 +369,28 @@ class _StaffInputTileState extends State<StaffInputTile> {
                     fontWeight: FontWeight.w700,
                     color: !widget.enabled
                         ? AppColors.textSecondary
-                        : (isOddError ? AppColors.error : AppColors.textPrimary),
+                        : (hasError ? AppColors.error : AppColors.textPrimary),
                   ),
                   onChanged: widget.enabled
-                      ? (_) {
+                      ? (val) {
+                          if (widget.max != null) {
+                            final parsed = int.tryParse(val.trim());
+                            if (parsed != null && parsed > widget.max!) {
+                              widget.controller.text = '${widget.max!}';
+                              widget.controller.selection = TextSelection.collapsed(offset: widget.controller.text.length);
+                            }
+                          }
                           setState(() {});
                           widget.onChanged();
                         }
                       : null,
                   onSubmitted: (_) {
                     if (widget.evenOnly) _snapToEven();
+                    if (widget.max != null) _clampToMax();
                   },
                   onEditingComplete: () {
                     if (widget.evenOnly) _snapToEven();
+                    if (widget.max != null) _clampToMax();
                   },
                 ),
               ),
@@ -322,9 +398,9 @@ class _StaffInputTileState extends State<StaffInputTile> {
               Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  _stepperButton(CupertinoIcons.chevron_up, () => _step(widget.step)),
+                  _stepperButton(CupertinoIcons.chevron_up, canStepUp ? () => _step(widget.step) : null),
                   const SizedBox(height: 4),
-                  _stepperButton(CupertinoIcons.chevron_down, () => _step(-widget.step)),
+                  _stepperButton(CupertinoIcons.chevron_down, canStepDown ? () => _step(-widget.step) : null),
                 ],
               ),
             ],

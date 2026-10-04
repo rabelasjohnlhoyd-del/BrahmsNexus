@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'package:flutter/cupertino.dart';
-import 'package:flutter/material.dart' show Colors, Icons;
 import 'package:flutter/services.dart';
 import '../../models/branch.dart';
 import '../../models/branch_daily_inventory.dart';
@@ -11,6 +10,7 @@ import '../../services/auth_service.dart';
 import '../../services/firestore_service.dart';
 import '../../services/tutorial_service.dart';
 import '../../theme/app_theme.dart';
+import '../../services/input_validators.dart';
 import '../../widgets/app_pagination_bar.dart';
 import '../../widgets/guided_tour_overlay.dart';
 import '../../widgets/staff_button.dart';
@@ -122,15 +122,27 @@ class DailyReportScreenState extends State<DailyReportScreen> {
     super.dispose();
   }
 
-  bool get _canSubmit =>
-      _mayoTorn ||
-      _gasEmpty ||
-      _messageController.text.trim().isNotEmpty;
+  bool get _canSubmit {
+    final hasIssue = _mayoTorn || _gasEmpty;
+    final msg = _messageController.text.trim();
+    if (!hasIssue && msg.isEmpty) return false;
+    if (msg.isNotEmpty) {
+      final res = InputValidators.validateMessage(
+        msg,
+        fieldName: 'Additional Message',
+        required: !hasIssue,
+        minLength: 10,
+        maxLength: 300,
+      );
+      if (!res.isValid) return false;
+    }
+    return true;
+  }
 
   Future<void> _confirmSubmit() async {
-    // Validate message field if it's the only data
+    final hasIssue = _mayoTorn || _gasEmpty;
     final msg = _messageController.text.trim();
-    if (!_mayoTorn && !_gasEmpty && msg.isEmpty) {
+    if (!hasIssue && msg.isEmpty) {
       showCupertinoDialog<void>(
         context: context,
         builder: (ctx) => CupertinoAlertDialog(
@@ -146,21 +158,31 @@ class DailyReportScreenState extends State<DailyReportScreen> {
       );
       return;
     }
-    if (msg.isNotEmpty && msg.replaceAll(RegExp(r'\s'), '').isEmpty) {
-      showCupertinoDialog<void>(
-        context: context,
-        builder: (ctx) => CupertinoAlertDialog(
-          title: const Text('Invalid Message'),
-          content: const Text('Message cannot contain only spaces.'),
-          actions: [
-            CupertinoDialogAction(
-              onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text('OK'),
-            ),
-          ],
-        ),
+
+    if (msg.isNotEmpty) {
+      final res = InputValidators.validateMessage(
+        msg,
+        fieldName: 'Additional Message',
+        required: !hasIssue,
+        minLength: 10,
+        maxLength: 300,
       );
-      return;
+      if (!res.isValid) {
+        showCupertinoDialog<void>(
+          context: context,
+          builder: (ctx) => CupertinoAlertDialog(
+            title: const Text('Invalid Message'),
+            content: Text(res.errorMessage ?? 'Please enter a valid message.'),
+            actions: [
+              CupertinoDialogAction(
+                onPressed: () => Navigator.of(ctx).pop(),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        );
+        return;
+      }
     }
 
     final confirmed = await showCupertinoDialog<bool>(
@@ -195,7 +217,14 @@ class DailyReportScreenState extends State<DailyReportScreen> {
     if (_gasEmpty) parts.add("We're out of gas (LPG)");
     final msg = _messageController.text.trim();
     if (msg.isNotEmpty) {
-      parts.add(msg);
+      final res = InputValidators.validateMessage(
+        msg,
+        fieldName: 'Additional Message',
+        required: false,
+        minLength: 10,
+        maxLength: 300,
+      );
+      parts.add(res.sanitizedText.isNotEmpty ? res.sanitizedText : msg);
     }
     final content = parts.isEmpty ? 'Normal operational report.' : parts.join('\n');
 
@@ -420,30 +449,85 @@ class DailyReportScreenState extends State<DailyReportScreen> {
               controller: _messageController,
               placeholder: 'Type the details here...',
               maxLines: 5,
-              maxLength: 500,
+              maxLength: 300,
+              inputFormatters: [
+                LengthLimitingTextInputFormatter(300),
+              ],
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
                 color: CupertinoColors.white,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.border),
+                border: Border.all(
+                  color: (_messageController.text.trim().isNotEmpty &&
+                          !InputValidators.validateMessage(
+                            _messageController.text,
+                            fieldName: 'Message',
+                            required: false,
+                            minLength: 10,
+                            maxLength: 300,
+                          ).isValid)
+                      ? AppColors.error
+                      : AppColors.border,
+                ),
               ),
               placeholderStyle: const TextStyle(color: AppColors.textSecondary),
               style: const TextStyle(color: AppColors.textPrimary),
               onChanged: (_) => setState(() {}),
             ),
-
-            const SizedBox(height: 22),
-            
-            // DYNAMIC BUTTON LOGIC
-            SizedBox(
-              key: _sendButtonKey,
-              width: double.infinity,
-              child: StaffButton(
-                label: _isSubmitting ? 'Sending...' : 'Send to Owner',
-                icon: _isSubmitting ? null : CupertinoIcons.paperplane_fill,
-                onPressed: (_isSubmitting || !_canSubmit) ? null : _confirmSubmit,
+            const SizedBox(height: 4),
+            Align(
+              alignment: Alignment.centerRight,
+              child: Text(
+                '${_messageController.text.length} / 300 characters',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: _messageController.text.length >= 300
+                      ? AppColors.error
+                      : AppColors.textSecondary,
+                ),
               ),
             ),
+            if (_messageController.text.trim().isNotEmpty) ...[
+              Builder(builder: (context) {
+                final validation = InputValidators.validateMessage(
+                  _messageController.text,
+                  fieldName: 'Message',
+                  required: false,
+                  minLength: 10,
+                  maxLength: 300,
+                );
+                if (!validation.isValid && validation.errorMessage != null) {
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 6, left: 4),
+                    child: Text(
+                      validation.errorMessage!,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.error,
+                      ),
+                    ),
+                  );
+                }
+                return const SizedBox.shrink();
+              }),
+            ],
+
+            if (_mayoTorn || _gasEmpty || _messageController.text.trim().isNotEmpty) ...[
+              const SizedBox(height: 22),
+              
+              // DYNAMIC BUTTON LOGIC
+              SizedBox(
+                key: _sendButtonKey,
+                width: double.infinity,
+                child: StaffButton(
+                  label: _isSubmitting ? 'Sending...' : 'Send to Owner',
+                  icon: _isSubmitting ? null : CupertinoIcons.paperplane_fill,
+                  onPressed: (_isSubmitting || !_canSubmit) ? null : _confirmSubmit,
+                ),
+              ),
+            ],
             const SizedBox(height: 16),
 
             // RECENT SUBMISSIONS BY THIS STAFF/BRANCH
