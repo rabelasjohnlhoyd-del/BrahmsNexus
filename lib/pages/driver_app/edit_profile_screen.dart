@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../services/auth_service.dart';
+import '../../services/rate_limiter.dart';
 import '../../services/supabase_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/address_edit_dialog.dart';
@@ -365,36 +366,55 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   }
 
   Future<void> _handleSave() async {
+    if (_isSaving) return;
+
+    if (!RateLimiter.tryAction(
+      key: 'profile_save_${AuthService.currentUserId}',
+      cooldown: const Duration(seconds: 10),
+    )) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please wait a moment before saving again.'),
+          backgroundColor: AppColors.accent,
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+
     setState(() => _isSaving = true);
-    final normalizedPhone = _normalizePhPhone(_phoneController.text.trim());
-    final newUsername = _usernameController.text.trim();
-    final newEmail = _emailController.text.trim();
-    final newAddress = _currentAddress.trim();
+    try {
+      final normalizedPhone = _normalizePhPhone(_phoneController.text.trim());
+      final newUsername = _usernameController.text.trim();
+      final newEmail = _emailController.text.trim();
+      final newAddress = _currentAddress.trim();
 
-    await AuthService.updateProfile(
-      username: newUsername,
-      contactNumber: normalizedPhone,
-      email: newEmail,
-      address: newAddress,
-      photoUrl: _currentPhotoUrl,
-    );
+      await AuthService.updateProfile(
+        username: newUsername,
+        contactNumber: normalizedPhone,
+        email: newEmail,
+        address: newAddress,
+        photoUrl: _currentPhotoUrl,
+      );
 
-    if (!mounted) return;
-    setState(() {
-      _currentPhone = normalizedPhone;
-      _phoneController.text = normalizedPhone;
-      _currentEmail = newEmail;
-      _currentUsername = newUsername;
-      _currentAddress = newAddress;
-      _isSaving = false;
-      _editingField = null;
-    });
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Profile updated successfully!'),
-        backgroundColor: AppColors.success,
-      ),
-    );
+      if (!mounted) return;
+      setState(() {
+        _currentPhone = normalizedPhone;
+        _phoneController.text = normalizedPhone;
+        _currentEmail = newEmail;
+        _currentUsername = newUsername;
+        _currentAddress = newAddress;
+        _editingField = null;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Profile updated successfully!'),
+          backgroundColor: AppColors.success,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
   }
 
   @override

@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../config/gemini_config.dart';
+import 'rate_limiter.dart';
 
 /// Result from Gemini AI Address Validation
 class GeminiAddressResult {
@@ -379,6 +380,11 @@ Raw JSON only.
     final clean = query.trim();
     if (clean.length < 2) return [];
 
+    // Nominatim usage policy: max 1 req/sec. Debounce at 400ms to avoid hammering.
+    if (!RateLimiter.tryAction(key: 'nominatim_address', cooldown: const Duration(milliseconds: 400))) {
+      return _smartFallbackSuggestions(clean);
+    }
+
     try {
       final url = Uri.parse(
         'https://nominatim.openstreetmap.org/search?q=${Uri.encodeComponent(clean)}&countrycodes=ph&format=json&limit=5',
@@ -452,6 +458,15 @@ Raw JSON only.
         isDriverLicense: false,
         rejectionReason:
             'AI verification is not set up. Please contact the administrator to configure the Gemini API key before registering as a driver.',
+      );
+    }
+
+    // Gemini Vision is a paid, latency-sensitive call — enforce 10s cooldown per upload.
+    if (!RateLimiter.tryAction(key: 'gemini_license_photo', cooldown: const Duration(seconds: 10))) {
+      return const GeminiPhotoLicenseResult(
+        isValid: false,
+        isDriverLicense: false,
+        rejectionReason: 'Please wait 10 seconds before uploading another license photo.',
       );
     }
 
@@ -685,6 +700,14 @@ Respond ONLY with raw JSON (do not include markdown codeblocks or quotes):
       return const GeminiGcashResult(
         success: false,
         errorMessage: 'Hindi naka-configure ang AI. I-manual input na lang ang Ref No. at Amount.',
+      );
+    }
+
+    // Prevent OCR abuse — enforce 5s cooldown between receipt scans.
+    if (!RateLimiter.tryAction(key: 'gemini_gcash_ocr', cooldown: const Duration(seconds: 5))) {
+      return const GeminiGcashResult(
+        success: false,
+        errorMessage: 'Please wait a moment before scanning another receipt.',
       );
     }
 

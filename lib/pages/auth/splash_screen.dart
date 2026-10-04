@@ -511,7 +511,7 @@ class _PureLetterBPainter extends CustomPainter {
     final metrics = fullPath.computeMetrics().toList();
     if (metrics.isEmpty) return;
 
-    final totalLength = metrics.fold(0.0, (sum, m) => sum + m.length);
+    final totalLength = metrics.fold(0.0, (acc, m) => acc + m.length);
     final currentDrawLength = totalLength * progress;
 
     double remaining = currentDrawLength;

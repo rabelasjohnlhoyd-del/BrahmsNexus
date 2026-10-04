@@ -93,6 +93,12 @@ class SalesScreenState extends State<SalesScreen> {
 
   bool _submitted = false;
 
+  // ── Rate Limiting & Debounce ─────────────────────────────────────────────
+  bool _isPunching = false;
+  bool _isUndoing = false;
+  int _spoilageReportsThisShift = 0;
+  static const int _maxSpoilagePerShift = 5;
+
   int get _allocatedRegular => _effectiveStock.regular250gTotal;
   int get _allocatedMedium => _effectiveStock.medium300gTotal;
   int get _allocatedB1t1 => _effectiveStock.b1t1_400gTotal;
@@ -394,87 +400,94 @@ class SalesScreenState extends State<SalesScreen> {
     required int toyoDeduct,
     required int styroDeduct,
   }) async {
-    if (_submitted) return;
+    if (_submitted || _isPunching) return;
+    setState(() => _isPunching = true);
 
-    if (!_isInventoryVerified) {
-      showCupertinoDialog<void>(
-        context: context,
-        builder: (context) => CupertinoAlertDialog(
-          title: const Text('Inventory Verification Required'),
-          content: const Text(
-            'Please complete "Verify: Count What You Actually Received" on the Home tab before punching sales.',
-          ),
-          actions: [
-            CupertinoDialogAction(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('OK'),
+    try {
+      if (!_isInventoryVerified) {
+        showCupertinoDialog<void>(
+          context: context,
+          builder: (context) => CupertinoAlertDialog(
+            title: const Text('Inventory Verification Required'),
+            content: const Text(
+              'Please complete "Verify: Count What You Actually Received" on the Home tab before punching sales.',
             ),
-          ],
-        ),
+            actions: [
+              CupertinoDialogAction(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        );
+        return;
+      }
+
+      final currentStock = _effectiveStock;
+
+      if (regDeduct > 0 && currentStock.regular250gRemaining < regDeduct) {
+        _showOutOfStockDialog('Regular Meat (250g)');
+        return;
+      }
+      if (medDeduct > 0 && currentStock.medium300gRemaining < medDeduct) {
+        _showOutOfStockDialog('Medium Meat (300g)');
+        return;
+      }
+      if (b1t1Deduct > 0 && currentStock.b1t1_400gRemaining < b1t1Deduct) {
+        _showOutOfStockDialog('B1T1 Meat (400g)');
+        return;
+      }
+      if (mayoDeduct > 0 && currentStock.mayoRemaining < mayoDeduct) {
+        _showOutOfStockDialog('Mayo');
+        return;
+      }
+      if (toyoDeduct > 0 && currentStock.toyoRemaining < toyoDeduct) {
+        _showOutOfStockDialog('Toyo');
+        return;
+      }
+      if (styroDeduct > 0 && currentStock.styroRemaining < styroDeduct) {
+        _showOutOfStockDialog('Styro');
+        return;
+      }
+
+      final updatedStock = currentStock.copyWith(
+        regular250gRemaining: (currentStock.regular250gRemaining - regDeduct).clamp(0, 999),
+        medium300gRemaining: (currentStock.medium300gRemaining - medDeduct).clamp(0, 999),
+        b1t1_400gRemaining: (currentStock.b1t1_400gRemaining - b1t1Deduct).clamp(0, 999),
+        mayoRemaining: (currentStock.mayoRemaining - mayoDeduct).clamp(0, 999),
+        toyoRemaining: (currentStock.toyoRemaining - toyoDeduct).clamp(0, 999),
+        styroRemaining: (currentStock.styroRemaining - styroDeduct).clamp(0, 999),
       );
-      return;
-    }
 
-    final currentStock = _effectiveStock;
+      setState(() {
+        _branchMeatStock = updatedStock;
+        _syncControllersWithStock(updatedStock);
+        if (category == 'reg_sisig') _countRegSisig++;
+        if (category == 'reg_bagnet') _countRegBagnet++;
+        if (category == 'med_sisig') _countMedSisig++;
+        if (category == 'med_bagnet') _countMedBagnet++;
+        if (category == 'b1t1_sisig_bagnet') _countB1t1SisigBagnet++;
+        if (category == 'b1t1_bagnet_bagnet') _countB1t1BagnetBagnet++;
 
-    if (regDeduct > 0 && currentStock.regular250gRemaining < regDeduct) {
-      _showOutOfStockDialog('Regular Meat (250g)');
-      return;
-    }
-    if (medDeduct > 0 && currentStock.medium300gRemaining < medDeduct) {
-      _showOutOfStockDialog('Medium Meat (300g)');
-      return;
-    }
-    if (b1t1Deduct > 0 && currentStock.b1t1_400gRemaining < b1t1Deduct) {
-      _showOutOfStockDialog('B1T1 Meat (400g)');
-      return;
-    }
-    if (mayoDeduct > 0 && currentStock.mayoRemaining < mayoDeduct) {
-      _showOutOfStockDialog('Mayo');
-      return;
-    }
-    if (toyoDeduct > 0 && currentStock.toyoRemaining < toyoDeduct) {
-      _showOutOfStockDialog('Toyo');
-      return;
-    }
-    if (styroDeduct > 0 && currentStock.styroRemaining < styroDeduct) {
-      _showOutOfStockDialog('Styro');
-      return;
-    }
+        _tallyHistory.insert(
+          0,
+          ShiftTallyItem(
+            id: DateTime.now().millisecondsSinceEpoch.toString(),
+            name: name,
+            price: price,
+            timestamp: DateTime.now(),
+            category: category,
+          ),
+        );
+      });
 
-    final updatedStock = currentStock.copyWith(
-      regular250gRemaining: (currentStock.regular250gRemaining - regDeduct).clamp(0, 999),
-      medium300gRemaining: (currentStock.medium300gRemaining - medDeduct).clamp(0, 999),
-      b1t1_400gRemaining: (currentStock.b1t1_400gRemaining - b1t1Deduct).clamp(0, 999),
-      mayoRemaining: (currentStock.mayoRemaining - mayoDeduct).clamp(0, 999),
-      toyoRemaining: (currentStock.toyoRemaining - toyoDeduct).clamp(0, 999),
-      styroRemaining: (currentStock.styroRemaining - styroDeduct).clamp(0, 999),
-    );
-
-    setState(() {
-      _branchMeatStock = updatedStock;
-      _syncControllersWithStock(updatedStock);
-      if (category == 'reg_sisig') _countRegSisig++;
-      if (category == 'reg_bagnet') _countRegBagnet++;
-      if (category == 'med_sisig') _countMedSisig++;
-      if (category == 'med_bagnet') _countMedBagnet++;
-      if (category == 'b1t1_sisig_bagnet') _countB1t1SisigBagnet++;
-      if (category == 'b1t1_bagnet_bagnet') _countB1t1BagnetBagnet++;
-
-      _tallyHistory.insert(
-        0,
-        ShiftTallyItem(
-          id: DateTime.now().millisecondsSinceEpoch.toString(),
-          name: name,
-          price: price,
-          timestamp: DateTime.now(),
-          category: category,
-        ),
-      );
-    });
-
-    await FirestoreService.saveBranchMeatStock(updatedStock);
-    await _saveTallyToCache();
+      await FirestoreService.saveBranchMeatStock(updatedStock);
+      await _saveTallyToCache();
+    } finally {
+      // 350ms cooldown prevents accidental fast double-taps while keeping UI responsive
+      await Future.delayed(const Duration(milliseconds: 350));
+      if (mounted) setState(() => _isPunching = false);
+    }
   }
 
   Future<void> _saveTallyToCache() async {
@@ -534,51 +547,76 @@ class SalesScreenState extends State<SalesScreen> {
   }
 
   void _undoLastOrder() async {
-    if (_tallyHistory.isEmpty || _submitted) return;
+    if (_tallyHistory.isEmpty || _submitted || _isUndoing) return;
+    setState(() => _isUndoing = true);
 
-    final last = _tallyHistory.removeAt(0);
-    final currentStock = _effectiveStock;
+    try {
+      final last = _tallyHistory.removeAt(0);
+      final currentStock = _effectiveStock;
 
-    int addReg = 0, addMed = 0, addB1t1 = 0, addMayo = 0, addToyo = 0, addStyro = 0;
-    if (last.category == 'reg_sisig') {
-      _countRegSisig--;
-      addReg = 1; addMayo = 1; addStyro = 1;
-    } else if (last.category == 'reg_bagnet') {
-      _countRegBagnet--;
-      addReg = 1; addToyo = 1; addStyro = 1;
-    } else if (last.category == 'med_sisig') {
-      _countMedSisig--;
-      addMed = 1; addMayo = 1; addStyro = 1;
-    } else if (last.category == 'med_bagnet') {
-      _countMedBagnet--;
-      addMed = 1; addToyo = 1; addStyro = 1;
-    } else if (last.category == 'b1t1_sisig_bagnet') {
-      _countB1t1SisigBagnet--;
-      addB1t1 = 1; addMayo = 1; addToyo = 1; addStyro = 2;
-    } else if (last.category == 'b1t1_bagnet_bagnet') {
-      _countB1t1BagnetBagnet--;
-      addB1t1 = 1; addToyo = 2; addStyro = 2;
+      int addReg = 0, addMed = 0, addB1t1 = 0, addMayo = 0, addToyo = 0, addStyro = 0;
+      if (last.category == 'reg_sisig') {
+        _countRegSisig--;
+        addReg = 1; addMayo = 1; addStyro = 1;
+      } else if (last.category == 'reg_bagnet') {
+        _countRegBagnet--;
+        addReg = 1; addToyo = 1; addStyro = 1;
+      } else if (last.category == 'med_sisig') {
+        _countMedSisig--;
+        addMed = 1; addMayo = 1; addStyro = 1;
+      } else if (last.category == 'med_bagnet') {
+        _countMedBagnet--;
+        addMed = 1; addToyo = 1; addStyro = 1;
+      } else if (last.category == 'b1t1_sisig_bagnet') {
+        _countB1t1SisigBagnet--;
+        addB1t1 = 1; addMayo = 1; addToyo = 1; addStyro = 2;
+      } else if (last.category == 'b1t1_bagnet_bagnet') {
+        _countB1t1BagnetBagnet--;
+        addB1t1 = 1; addToyo = 2; addStyro = 2;
+      }
+
+      final restoredStock = currentStock.copyWith(
+        regular250gRemaining: (currentStock.regular250gRemaining + addReg).clamp(0, currentStock.regular250gTotal),
+        medium300gRemaining: (currentStock.medium300gRemaining + addMed).clamp(0, currentStock.medium300gTotal),
+        b1t1_400gRemaining: (currentStock.b1t1_400gRemaining + addB1t1).clamp(0, currentStock.b1t1_400gTotal),
+        mayoRemaining: (currentStock.mayoRemaining + addMayo).clamp(0, currentStock.mayoTotal),
+        toyoRemaining: (currentStock.toyoRemaining + addToyo).clamp(0, currentStock.toyoTotal),
+        styroRemaining: (currentStock.styroRemaining + addStyro).clamp(0, currentStock.styroTotal),
+      );
+
+      setState(() {
+        _branchMeatStock = restoredStock;
+        _syncControllersWithStock(restoredStock);
+      });
+
+      await FirestoreService.saveBranchMeatStock(restoredStock);
+      await _saveTallyToCache();
+    } finally {
+      await Future.delayed(const Duration(milliseconds: 600));
+      if (mounted) setState(() => _isUndoing = false);
     }
-
-    final restoredStock = currentStock.copyWith(
-      regular250gRemaining: (currentStock.regular250gRemaining + addReg).clamp(0, currentStock.regular250gTotal),
-      medium300gRemaining: (currentStock.medium300gRemaining + addMed).clamp(0, currentStock.medium300gTotal),
-      b1t1_400gRemaining: (currentStock.b1t1_400gRemaining + addB1t1).clamp(0, currentStock.b1t1_400gTotal),
-      mayoRemaining: (currentStock.mayoRemaining + addMayo).clamp(0, currentStock.mayoTotal),
-      toyoRemaining: (currentStock.toyoRemaining + addToyo).clamp(0, currentStock.toyoTotal),
-      styroRemaining: (currentStock.styroRemaining + addStyro).clamp(0, currentStock.styroTotal),
-    );
-
-    setState(() {
-      _branchMeatStock = restoredStock;
-      _syncControllersWithStock(restoredStock);
-    });
-
-    await FirestoreService.saveBranchMeatStock(restoredStock);
-    await _saveTallyToCache();
   }
 
   void _showWastageDialog() {
+    if (_spoilageReportsThisShift >= _maxSpoilagePerShift) {
+      showCupertinoDialog<void>(
+        context: context,
+        builder: (ctx) => CupertinoAlertDialog(
+          title: const Text('Report Limit Reached'),
+          content: Text(
+            'Maximum $_maxSpoilagePerShift spoilage reports allowed per shift.\n\nIf you have additional spoilage to record, please contact management or the Owner directly.',
+          ),
+          actions: [
+            CupertinoDialogAction(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
     String selectedItem = 'Regular Meat (250g)';
     final qtyController = TextEditingController(text: '1');
     final reasonController = TextEditingController();
@@ -821,6 +859,9 @@ class SalesScreenState extends State<SalesScreen> {
     });
 
     await FirestoreService.saveBranchMeatStock(updatedStock);
+    if (mounted) {
+      setState(() => _spoilageReportsThisShift++);
+    }
 
     NotificationService.sendNotification(
       title: '⚠️ Spoilage / Wastage Report — $_currentBranchName',

@@ -2,12 +2,12 @@ import 'dart:async';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import '../../models/branch.dart';
-import '../../models/branch_daily_inventory.dart';
 import '../../models/daily_report.dart';
 import '../auth/mock_accounts.dart';
 import '../../services/assignment_service.dart';
 import '../../services/auth_service.dart';
 import '../../services/firestore_service.dart';
+import '../../services/rate_limiter.dart';
 import '../../services/tutorial_service.dart';
 import '../../theme/app_theme.dart';
 import '../../services/input_validators.dart';
@@ -40,15 +40,9 @@ class DailyReportScreenState extends State<DailyReportScreen> {
   String _currentBranchId = 'br1';
   String _currentBranchName = 'Brgy. Gatid, Sta. Cruz';
   StreamSubscription<List<DailyReport>>? _reportsSub;
-  StreamSubscription<BranchDailyInventory?>? _inventorySub;
-  BranchDailyInventory? _todayInventory;
   final List<DailyReport> _myRecentReports = [];
   int _currentPage = 0;
   static const int _pageSize = 5;
-
-  bool get _isInventoryVerified =>
-      _todayInventory != null &&
-      _todayInventory!.status != InventoryVerificationStatus.pending;
 
   @override
   void initState() {
@@ -98,26 +92,12 @@ class DailyReportScreenState extends State<DailyReportScreen> {
       _currentBranchId = matchedBranch!.id;
       _currentBranchName = matchedBranch.fullName;
     });
-
-    _inventorySub?.cancel();
-    _inventorySub = FirestoreService.watchTodayBranchInventory(
-      branchId: matchedBranch.id,
-      branchName: matchedBranch.fullName,
-      date: DateTime.now(),
-    ).listen((inv) {
-      if (mounted) {
-        setState(() {
-          _todayInventory = inv;
-        });
-      }
-    });
   }
 
   @override
   void dispose() {
     AssignmentService.changeNotifier.removeListener(_onAssignmentChanged);
     _reportsSub?.cancel();
-    _inventorySub?.cancel();
     _messageController.dispose();
     super.dispose();
   }
@@ -210,6 +190,28 @@ class DailyReportScreenState extends State<DailyReportScreen> {
 
 
   Future<void> _submit() async {
+    final reportKey = 'daily_report_${AuthService.currentUserId}_$_currentBranchId';
+    if (!RateLimiter.tryAction(key: reportKey, cooldown: const Duration(minutes: 15))) {
+      final secs = RateLimiter.remainingCooldownSeconds(reportKey);
+      final mins = (secs / 60).ceil();
+      showCupertinoDialog<void>(
+        context: context,
+        builder: (ctx) => CupertinoAlertDialog(
+          title: const Text('Report Already Sent'),
+          content: Text(
+            'You recently sent a report. To prevent spamming the Owner, please wait $mins minute(s) before sending another report.',
+          ),
+          actions: [
+            CupertinoDialogAction(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
     setState(() => _isSubmitting = true);
 
     final parts = <String>[];

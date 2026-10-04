@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../services/auth_service.dart';
+import '../../services/rate_limiter.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/auth_brand_mark.dart';
 import '../../widgets/auth_card.dart';
@@ -35,6 +36,10 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
   Timer? _resendTimer;
   int _resendCountdown = 60;
+  int _otpAttempts = 0;
+  int _resendCount = 0;
+  static const int _maxOtpAttempts = 5;
+  static const int _maxResends = 3;
 
   @override
   void dispose() {
@@ -78,6 +83,14 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
   Future<void> _handleFindAccountAndSendOtp() async {
     FocusScope.of(context).unfocus();
+
+    // Rate-limit account lookup to prevent enumeration attacks
+    if (!RateLimiter.tryAction(key: 'fp_lookup', cooldown: const Duration(seconds: 5))) {
+      final secs = RateLimiter.remainingCooldownSeconds('fp_lookup');
+      setState(() => _errorMessage = 'Please wait ${secs}s before searching again.');
+      return;
+    }
+
     final input = _identifierController.text.trim();
     if (input.isEmpty) {
       setState(() => _errorMessage = 'Ilagay ang iyong Email address o Username.');
@@ -124,6 +137,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         _targetFullName = fullName;
         _currentStep = 1;
         _errorMessage = null;
+        _otpAttempts = 0;
       });
       _startResendTimer();
     } catch (e) {
@@ -141,6 +155,13 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
   Future<void> _handleVerifyOtp() async {
     FocusScope.of(context).unfocus();
+
+    // Enforce OTP attempt limit (prevent brute-forcing 6-digit code)
+    if (_otpAttempts >= _maxOtpAttempts) {
+      setState(() => _errorMessage = 'Maximum verification attempts reached ($_maxOtpAttempts). Please request a new code.');
+      return;
+    }
+
     final code = _otpController.text.trim();
     if (code.length < 6) {
       setState(() => _errorMessage = 'Ilagay ang kumpletong 6-digit verification code.');
@@ -162,7 +183,11 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       if (!isValid) {
         setState(() {
           _isLoading = false;
-          _errorMessage = 'Maling verification code o expired na ito. Subukan muli.';
+          _otpAttempts++;
+          final remaining = _maxOtpAttempts - _otpAttempts;
+          _errorMessage = remaining > 0
+              ? 'Maling verification code o expired na ito. ($remaining attempt${remaining == 1 ? "" : "s"} remaining)'
+              : 'Maximum attempts reached ($_maxOtpAttempts). Please request a new code.';
         });
         return;
       }
@@ -183,11 +208,19 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
   Future<void> _handleResendOtp() async {
     if (_resendCountdown > 0 || _targetEmail == null) return;
+
+    if (_resendCount >= _maxResends) {
+      setState(() => _errorMessage = 'Maximum resend limit reached (${_maxResends}x). Please restart the recovery process.');
+      return;
+    }
+
     setState(() => _errorMessage = null);
     AuthService.sendPasswordResetEmail(email: _targetEmail!).catchError((_) => false);
     final sent = await AuthService.sendPasswordResetOtp(email: _targetEmail!);
     if (!mounted) return;
     if (sent) {
+      _resendCount++;
+      _otpAttempts = 0;
       _startResendTimer();
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../models/announcement.dart';
 import '../../../services/firestore_service.dart';
 import '../../../services/notification_service.dart';
+import '../../../services/rate_limiter.dart';
 import '../admin_web_colors.dart';
 import '../admin_web_shell.dart';
 import '../admin_web_widgets/glass_card.dart';
@@ -73,6 +74,8 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
   }
 
   Future<void> _postAnnouncement() async {
+    if (_isPosting) return;
+
     final text = _messageController.text.trim();
     if (text.isEmpty || text.replaceAll(RegExp(r'\s'), '').isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -102,47 +105,66 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
       return;
     }
 
+    if (!RateLimiter.tryAction(
+      key: 'admin_announcement_post',
+      cooldown: const Duration(seconds: 15),
+    )) {
+      final secs = RateLimiter.remainingCooldownSeconds('admin_announcement_post');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Please wait ${secs}s before posting another announcement.'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
     setState(() => _isPosting = true);
     _updateShellActions();
 
-    final docId = await FirestoreService.postAnnouncement(
-      text,
-      targetPosition: _selectedTargetPosition,
-    );
-    await NotificationService.notifyStaffAndDriversOfAnnouncement(
-      messageContent: text,
-      targetPosition: _selectedTargetPosition,
-    );
-
-    final preview = text.length > 50 ? '${text.substring(0, 50)}...' : text;
-    FirestoreService.logActivity(
-      actor: 'Admin',
-      role: 'Admin',
-      action: 'Published new branch announcement',
-      detail: 'Target: $_selectedTargetPosition · "$preview"',
-      type: 'System',
-    ).catchError((_) {});
-
-    if (!mounted) return;
-
-    setState(() {
-      _announcements.insert(
-        0,
-        Announcement(
-          id: docId ?? 'an${DateTime.now().millisecondsSinceEpoch}',
-          messageContent: text,
-          datePosted: DateTime.now(),
-          targetPosition: _selectedTargetPosition,
-        ),
+    try {
+      final docId = await FirestoreService.postAnnouncement(
+        text,
+        targetPosition: _selectedTargetPosition,
       );
-      _messageController.clear();
-      _isPosting = false;
-    });
-    _updateShellActions();
+      await NotificationService.notifyStaffAndDriversOfAnnouncement(
+        messageContent: text,
+        targetPosition: _selectedTargetPosition,
+      );
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Announcement posted!')),
-    );
+      final preview = text.length > 50 ? '${text.substring(0, 50)}...' : text;
+      FirestoreService.logActivity(
+        actor: 'Admin',
+        role: 'Admin',
+        action: 'Published new branch announcement',
+        detail: 'Target: $_selectedTargetPosition · "$preview"',
+        type: 'System',
+      ).catchError((_) {});
+
+      if (!mounted) return;
+
+      setState(() {
+        _announcements.insert(
+          0,
+          Announcement(
+            id: docId ?? 'an${DateTime.now().millisecondsSinceEpoch}',
+            messageContent: text,
+            datePosted: DateTime.now(),
+            targetPosition: _selectedTargetPosition,
+          ),
+        );
+        _messageController.clear();
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Announcement posted!')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isPosting = false);
+        _updateShellActions();
+      }
+    }
   }
 
   void _deleteAnnouncement(String id) {

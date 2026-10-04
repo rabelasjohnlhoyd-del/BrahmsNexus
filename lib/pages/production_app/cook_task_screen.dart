@@ -42,6 +42,7 @@ class CookTaskScreenState extends State<CookTaskScreen> {
   StreamSubscription<List<KarneBatch>>? _batchesSub;
 
   bool _isRefreshing = false;
+  bool _isConfirmingCook = false;
   int _tempC = 28;
   String _condition = 'Partly Cloudy';
   IconData _weatherIcon = CupertinoIcons.cloud_sun_fill;
@@ -182,6 +183,7 @@ class CookTaskScreenState extends State<CookTaskScreen> {
   }
 
   void _confirmCookingFinished(double targetCookKilos) {
+    if (_isConfirmingCook) return;
     final batch = _activeBatch;
     final messenger = ScaffoldMessenger.of(context);
 
@@ -196,35 +198,41 @@ class CookTaskScreenState extends State<CookTaskScreen> {
             isDestructiveAction: true,
             onPressed: () async {
               Navigator.pop(dialogCtx);
-              final user = AuthService.currentUser;
-              final empName = user?.fullName.isNotEmpty == true ? user!.fullName : AuthService.currentUsername;
+              if (!mounted || _isConfirmingCook) return;
+              setState(() => _isConfirmingCook = true);
+              try {
+                final user = AuthService.currentUser;
+                final empName = user?.fullName.isNotEmpty == true ? user!.fullName : AuthService.currentUsername;
 
-              bool ok = false;
-              if (batch != null && batch.id != 'default') {
-                ok = await FirestoreService.submitCookBatchReport(
-                  batchId: batch.id,
-                  batchName: batch.name,
-                  cookedKilos: targetCookKilos,
-                  cookName: empName,
-                );
-              } else {
-                ok = true;
-              }
-
-              if (mounted) {
-                messenger.showSnackBar(
-                  SnackBar(
-                    content: Text(ok
-                        ? 'Cooking confirmed! The owner will be notified to set portion targets.'
-                        : 'Error submitting report. Please try again.'),
-                    backgroundColor: ok ? AppColors.success : AppColors.error,
-                  ),
-                );
-                if (ok) {
-                  setState(() {
-                    _checkSteps.fillRange(0, 3, true);
-                  });
+                bool ok = false;
+                if (batch != null && batch.id != 'default') {
+                  ok = await FirestoreService.submitCookBatchReport(
+                    batchId: batch.id,
+                    batchName: batch.name,
+                    cookedKilos: targetCookKilos,
+                    cookName: empName,
+                  );
+                } else {
+                  ok = true;
                 }
+
+                if (mounted) {
+                  messenger.showSnackBar(
+                    SnackBar(
+                      content: Text(ok
+                          ? 'Cooking confirmed! The owner will be notified to set portion targets.'
+                          : 'Error submitting report. Please try again.'),
+                      backgroundColor: ok ? AppColors.success : AppColors.error,
+                    ),
+                  );
+                  if (ok) {
+                    setState(() {
+                      _checkSteps.fillRange(0, 3, true);
+                    });
+                  }
+                }
+              } finally {
+                if (mounted) setState(() => _isConfirmingCook = false);
               }
             },
             child: const Text('Confirm'),

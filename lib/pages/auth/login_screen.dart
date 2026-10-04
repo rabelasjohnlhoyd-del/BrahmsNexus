@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import '../../models/account_status.dart';
@@ -5,6 +6,7 @@ import '../../models/app_user.dart';
 import '../../models/user_role.dart';
 import 'mock_accounts.dart';
 import '../../services/auth_service.dart';
+import '../../services/rate_limiter.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/auth_admin_layout.dart';
 import '../../widgets/auth_brand_mark.dart';
@@ -36,10 +38,49 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _isLoading = false;
   String? _authError;
 
+  // ── Rate Limiting & Brute Force Lockout ──────────────────────────────────
+  Duration _lockoutRemaining = Duration.zero;
+  Timer? _lockoutTimer;
+
   @override
   void initState() {
     super.initState();
     _loadSavedPreferences();
+    _checkLockoutStatus();
+  }
+
+  Future<void> _checkLockoutStatus() async {
+    final remaining = await RateLimiter.loginLockoutRemaining();
+    if (!mounted) return;
+    if (remaining > Duration.zero) {
+      setState(() {
+        _lockoutRemaining = remaining;
+        final minutes = remaining.inMinutes;
+        final seconds = remaining.inSeconds % 60;
+        _authError = 'Account temporarily locked. Please wait ${minutes}m ${seconds}s before trying again.';
+      });
+      _startLockoutCountdown();
+    }
+  }
+
+  void _startLockoutCountdown() {
+    _lockoutTimer?.cancel();
+    _lockoutTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      final remaining = _lockoutRemaining - const Duration(seconds: 1);
+      if (remaining <= Duration.zero) {
+        timer.cancel();
+        setState(() {
+          _lockoutRemaining = Duration.zero;
+          _authError = null;
+        });
+      } else {
+        setState(() => _lockoutRemaining = remaining);
+      }
+    });
   }
 
   Future<void> _loadSavedPreferences() async {
@@ -56,6 +97,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   void dispose() {
+    _lockoutTimer?.cancel();
     _usernameController.dispose();
     _passwordController.dispose();
     super.dispose();
@@ -83,6 +125,20 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Future<void> _handleLogin() async {
     FocusScope.of(context).unfocus();
+
+    // Check persistent login lockout
+    final lockout = await RateLimiter.loginLockoutRemaining();
+    if (lockout > Duration.zero) {
+      final minutes = lockout.inMinutes;
+      final seconds = lockout.inSeconds % 60;
+      setState(() {
+        _lockoutRemaining = lockout;
+        _authError = 'Account temporarily locked. Please wait ${minutes}m ${seconds}s before trying again.';
+      });
+      _startLockoutCountdown();
+      return;
+    }
+
     setState(() => _authError = null);
 
     if (!_formKey.currentState!.validate()) return;
@@ -156,6 +212,7 @@ class _LoginScreenState extends State<LoginScreen> {
         }
         if (!mounted) return;
         setState(() => _isLoading = false);
+        await RateLimiter.clearLoginFailures();
         _navigateToRole(liveUser);
         return;
       }
@@ -172,9 +229,22 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _isLoading = false);
 
     if (user == null) {
-      setState(() {
-        _authError = signInError ?? 'Invalid username or password';
-      });
+      final remaining = await RateLimiter.recordLoginFailure();
+      if (!mounted) return;
+      if (remaining == null) {
+        final lockoutDuration = await RateLimiter.loginLockoutRemaining();
+        if (mounted) {
+          setState(() {
+            _lockoutRemaining = lockoutDuration;
+            _authError = 'Account temporarily locked after too many failed attempts. Please try again in 30 minutes.';
+          });
+          _startLockoutCountdown();
+        }
+      } else {
+        setState(() {
+          _authError = '${signInError ?? "Invalid username or password"} ($remaining attempt${remaining == 1 ? "" : "s"} remaining before lockout)';
+        });
+      }
       return;
     }
 
@@ -205,6 +275,7 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
 
+    await RateLimiter.clearLoginFailures();
     _navigateToRole(user);
   }
 

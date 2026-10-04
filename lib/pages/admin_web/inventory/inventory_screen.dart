@@ -27,7 +27,7 @@ class InventoryScreen extends StatefulWidget {
 class _InventoryScreenState extends State<InventoryScreen>
     with SingleTickerProviderStateMixin {
   late final TabController _tabController =
-      TabController(length: 4, vsync: this, initialIndex: widget.initialTab.clamp(0, 3));
+      TabController(length: 5, vsync: this, initialIndex: widget.initialTab.clamp(0, 4));
 
   StreamSubscription<List<KarneBatch>>? _batchesSub;
   StreamSubscription<List<BranchMeatStock>>? _meatStocksSub;
@@ -432,6 +432,7 @@ class _InventoryScreenState extends State<InventoryScreen>
             tabs: [
               const Tab(text: 'Main Warehouse'),
               const Tab(text: 'Branch Allocation'),
+              const Tab(text: 'Transfer Logs'),
               Tab(
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
@@ -464,6 +465,7 @@ class _InventoryScreenState extends State<InventoryScreen>
               children: [
                 _buildWarehouseTab(),
                 _buildBranchStockTab(),
+                _buildTransferLogsTab(),
                 _buildSupplyRequestsTab(),
                 MonthlyFinancialsScreen(karneBatches: _karneBatches),
               ],

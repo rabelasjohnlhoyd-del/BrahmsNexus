@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../services/auth_service.dart';
+import '../../services/rate_limiter.dart';
 import '../../services/supabase_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/address_edit_dialog.dart';
@@ -359,6 +360,18 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   }
 
   Future<void> _handleSave() async {
+    final saveKey = 'save_profile_${AuthService.currentUserId}';
+    if (!RateLimiter.tryAction(key: saveKey, cooldown: const Duration(seconds: 10))) {
+      final secs = RateLimiter.remainingCooldownSeconds(saveKey);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Please wait ${secs}s before saving profile changes again.'),
+          backgroundColor: AppColors.accent,
+        ),
+      );
+      return;
+    }
+
     setState(() => _isSaving = true);
     final normalizedPhone = _normalizePhPhone(_phoneController.text.trim());
     final newUsername = _usernameController.text.trim();

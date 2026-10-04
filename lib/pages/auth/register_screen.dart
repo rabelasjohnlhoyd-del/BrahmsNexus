@@ -658,6 +658,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   Future<void> _handleRegister() async {
     FocusScope.of(context).unfocus();
+    if (_isSubmitting) return;
     setState(() {
       _registerError = null;
       _stepError = null;

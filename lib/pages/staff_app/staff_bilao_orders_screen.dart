@@ -1255,6 +1255,7 @@ class _AddBilaoOrderSheetState extends State<_AddBilaoOrderSheet> {
   // ── Save ──────────────────────────────────────────────────────────────────
 
   Future<void> _save() async {
+    if (_isSaving) return;
     final nameErr = InputValidators.validateCustomerName(_nameCtrl.text, label: 'Pangalan ng customer');
     if (nameErr != null) {
       _showError(nameErr);

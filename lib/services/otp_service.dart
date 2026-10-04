@@ -23,8 +23,9 @@ class OtpService {
   // In-memory cache of recent email OTPs for instant validation & dev fallback
   static final Map<String, _EmailOtpEntry> _recentEmailOtps = {};
 
-  // Standard development / offline test code
-  static const String devUniversalCode = '123456';
+  /// Universal test bypass — **only active in debug builds**.
+  /// Automatically disabled in release/profile mode via [kDebugMode].
+  static String? get devUniversalCode => kDebugMode ? '123456' : null;
 
   // ===========================================================================
   // 1. EMAIL OTP VERIFICATION
@@ -78,8 +79,8 @@ class OtpService {
     final cleanEmail = email.trim().toLowerCase();
     final cleanCode = enteredCode.trim();
 
-    // 1. Dev test bypass
-    if (cleanCode == devUniversalCode) {
+    // 1. Dev test bypass (only allowed in debug builds)
+    if (kDebugMode && devUniversalCode != null && cleanCode == devUniversalCode) {
       return true;
     }
 
@@ -190,8 +191,8 @@ class OtpService {
     final cleanEmail = email.trim().toLowerCase();
     final cleanCode = enteredCode.trim();
 
-    // 1. Dev test bypass
-    if (cleanCode == devUniversalCode) {
+    // 1. Dev test bypass (only allowed in debug builds)
+    if (kDebugMode && devUniversalCode != null && cleanCode == devUniversalCode) {
       return true;
     }
 

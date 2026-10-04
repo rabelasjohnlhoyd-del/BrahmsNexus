@@ -58,6 +58,7 @@ class CutterPortioningScreenState extends State<CutterPortioningScreen> {
 
   bool _isRefreshing = false;
   int _tempC = 28;
+  bool _isSubmittingPortions = false;
   String _condition = 'Partly Cloudy';
   IconData _weatherIcon = CupertinoIcons.cloud_sun_fill;
   String _liveLocation = '';
@@ -214,6 +215,19 @@ class CutterPortioningScreenState extends State<CutterPortioningScreen> {
     });
   }
 
+  int get _ideal250 {
+    final t400Actual = _targets['400g'] ?? 0;
+    final t300Actual = _targets['300g'] ?? 0;
+    if (_activeBatch != null && _activeBatch!.sessions.isNotEmpty) {
+      final session = _activeBatch!.sessions.lastWhere(
+        (s) => s.status == 'cutting' || s.status == 'cooked',
+        orElse: () => _activeBatch!.sessions.last,
+      );
+      return (session.kota - t400Actual - t300Actual).clamp(0, 9999);
+    }
+    return _targets['250g'] ?? 0;
+  }
+
   void _validateInputs() {
     final remainingG = int.tryParse(_meatLeftController.text.trim()) ?? 0;
     final hasNotes = _remainingNotesController.text.trim().isNotEmpty;
@@ -244,10 +258,15 @@ class CutterPortioningScreenState extends State<CutterPortioningScreen> {
     final exact400 = c400 != null && c400 == t400;
     final exact300 = c300 != null && c300 == t300;
 
+    // 250G must be > 0 and not exceed ideal + 100
+    final c250 = int.tryParse(_controllers['250g']!.text.trim());
+    final maxAllowed250 = _ideal250 + 100;
+    final valid250 = c250 != null && c250 > 0 && c250 <= maxAllowed250;
+
     // If remaining > 0, notes must be filled
     final notesOk = remainingG <= 0 || hasNotes;
 
-    final canSubmit = allFilled && exact400 && exact300 && notesOk;
+    final canSubmit = allFilled && exact400 && exact300 && valid250 && notesOk;
 
     if (_showSubmitButton != canSubmit) {
       setState(() => _showSubmitButton = canSubmit);
@@ -290,6 +309,7 @@ class CutterPortioningScreenState extends State<CutterPortioningScreen> {
   }
 
   void _submitPortions() {
+    if (_isSubmittingPortions) return;
     final messenger = ScaffoldMessenger.of(context);
     final batch = _activeBatch;
     final notes = _remainingNotesController.text.trim();
@@ -315,62 +335,68 @@ class CutterPortioningScreenState extends State<CutterPortioningScreen> {
             isDestructiveAction: true,
             onPressed: () async {
               Navigator.pop(dialogCtx);
-              final c250 = int.tryParse(_controllers['250g']!.text.trim()) ?? 0;
-              final c300 = int.tryParse(_controllers['300g']!.text.trim()) ?? 0;
-              final c400 = int.tryParse(_controllers['400g']!.text.trim()) ?? 0;
-              final remainingG = int.tryParse(_meatLeftController.text.trim()) ?? 0;
-              final cutterNotes = notes.isEmpty ? null : notes;
+              if (!mounted || _isSubmittingPortions) return;
+              setState(() => _isSubmittingPortions = true);
+              try {
+                final c250 = int.tryParse(_controllers['250g']!.text.trim()) ?? 0;
+                final c300 = int.tryParse(_controllers['300g']!.text.trim()) ?? 0;
+                final c400 = int.tryParse(_controllers['400g']!.text.trim()) ?? 0;
+                final remainingG = int.tryParse(_meatLeftController.text.trim()) ?? 0;
+                final cutterNotes = notes.isEmpty ? null : notes;
 
-              final user = AuthService.currentUser;
-              final empName = user?.fullName.isNotEmpty == true ? user!.fullName : AuthService.currentUsername;
+                final user = AuthService.currentUser;
+                final empName = user?.fullName.isNotEmpty == true ? user!.fullName : AuthService.currentUsername;
 
-              bool ok = false;
-              if (batch != null && batch.id != 'default') {
-                ok = await FirestoreService.submitBatchCutterReport(
-                  batchId: batch.id,
-                  batchName: batch.name,
-                  employeeId: AuthService.currentUserId,
-                  cutterName: empName,
-                  count250g: c250,
-                  count300g: c300,
-                  count400g: c400,
-                  target250g: _targets['250g'] ?? 150,
-                  target300g: _targets['300g'] ?? 100,
-                  target400g: _targets['400g'] ?? 100,
-                  remainingGrams: remainingG,
-                  cutterNotes: cutterNotes,
-                );
-              } else {
-                ok = await FirestoreService.submitPortioningReport(
-                  employeeId: AuthService.currentUserId,
-                  employeeName: empName,
-                  count250g: c250,
-                  count300g: c300,
-                  count400g: c400,
-                  target250g: _targets['250g'] ?? 150,
-                  target300g: _targets['300g'] ?? 100,
-                  target400g: _targets['400g'] ?? 100,
-                  remainingGrams: remainingG,
-                  cutterNotes: cutterNotes,
-                );
-              }
-
-              if (mounted) {
-                messenger.showSnackBar(
-                  SnackBar(
-                    content: Text(ok ? 'Portioning report submitted to the owner!' : 'Error submitting report. Please try again.'),
-                    backgroundColor: ok ? AppColors.success : AppColors.error,
-                  ),
-                );
-                if (ok) {
-                  setState(() {
-                    for (var controller in _controllers.values) {
-                      controller.clear();
-                    }
-                    _meatLeftController.clear();
-                    _remainingNotesController.clear();
-                  });
+                bool ok = false;
+                if (batch != null && batch.id != 'default') {
+                  ok = await FirestoreService.submitBatchCutterReport(
+                    batchId: batch.id,
+                    batchName: batch.name,
+                    employeeId: AuthService.currentUserId,
+                    cutterName: empName,
+                    count250g: c250,
+                    count300g: c300,
+                    count400g: c400,
+                    target250g: _targets['250g'] ?? 150,
+                    target300g: _targets['300g'] ?? 100,
+                    target400g: _targets['400g'] ?? 100,
+                    remainingGrams: remainingG,
+                    cutterNotes: cutterNotes,
+                  );
+                } else {
+                  ok = await FirestoreService.submitPortioningReport(
+                    employeeId: AuthService.currentUserId,
+                    employeeName: empName,
+                    count250g: c250,
+                    count300g: c300,
+                    count400g: c400,
+                    target250g: _targets['250g'] ?? 150,
+                    target300g: _targets['300g'] ?? 100,
+                    target400g: _targets['400g'] ?? 100,
+                    remainingGrams: remainingG,
+                    cutterNotes: cutterNotes,
+                  );
                 }
+
+                if (mounted) {
+                  messenger.showSnackBar(
+                    SnackBar(
+                      content: Text(ok ? 'Portioning report submitted to the owner!' : 'Error submitting report. Please try again.'),
+                      backgroundColor: ok ? AppColors.success : AppColors.error,
+                    ),
+                  );
+                  if (ok) {
+                    setState(() {
+                      for (var controller in _controllers.values) {
+                        controller.clear();
+                      }
+                      _meatLeftController.clear();
+                      _remainingNotesController.clear();
+                    });
+                  }
+                }
+              } finally {
+                if (mounted) setState(() => _isSubmittingPortions = false);
               }
             },
             child: const Text('Submit'),
@@ -822,19 +848,7 @@ class CutterPortioningScreenState extends State<CutterPortioningScreen> {
     final bool isDone = isStrict ? isExact : (hasInput && (current ?? 0) > 0);
 
     // For 250G: ideal reference = kota - t400 - t300
-    final t400Actual = _targets['400g'] ?? 0;
-    final t300Actual = _targets['300g'] ?? 0;
-    final ideal250 = size == '250g' && _activeBatch != null
-        ? ((_activeBatch!.sessions.isNotEmpty
-              ? _activeBatch!.sessions
-                  .lastWhere((s) => s.status == 'cutting' || s.status == 'cooked',
-                      orElse: () => _activeBatch!.sessions.last)
-                  .kota
-              : 0) -
-            t400Actual -
-            t300Actual)
-            .clamp(0, 9999)
-        : target;
+    final ideal250 = size == '250g' ? _ideal250 : target;
 
     Color borderColor;
     Color textColor;
@@ -849,16 +863,17 @@ class CutterPortioningScreenState extends State<CutterPortioningScreen> {
       textColor = AppColors.accent;
     }
 
+    // Max allowed: strict sizes cap at target; 250g caps at ideal250 + 100
+    final int maxAllowed = isStrict ? target : (ideal250 + 100);
+
     final String subtitle;
     if (isStrict) {
       subtitle = isError
           ? 'Must be exactly $target pcs — no more, no less'
           : 'Target: $target pcs (exact)';
     } else {
-      // 250G — show ideal reference
-      subtitle = target > 0
-          ? 'Ideal: $ideal250 pcs (actual may vary)'
-          : 'Ideal: $ideal250 pcs — all remaining meat';
+      // 250G — show ideal reference and max cap
+      subtitle = 'Ideal: $ideal250 pcs — max: $maxAllowed pcs';
     }
 
     return StaffCard(
@@ -900,6 +915,17 @@ class CutterPortioningScreenState extends State<CutterPortioningScreen> {
               keyboardType: TextInputType.number,
               textAlign: TextAlign.center,
               placeholder: '0',
+              inputFormatters: [
+                FilteringTextInputFormatter.digitsOnly,
+                TextInputFormatter.withFunction((oldValue, newValue) {
+                  if (newValue.text.isEmpty) return newValue;
+                  final val = int.tryParse(newValue.text);
+                  if (val != null && val > maxAllowed) {
+                    return oldValue;
+                  }
+                  return newValue;
+                }),
+              ],
               onChanged: _onFieldChanged,
               style: TextStyle(
                 fontWeight: FontWeight.w900,

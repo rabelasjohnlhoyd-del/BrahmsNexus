@@ -3,6 +3,7 @@ import 'package:flutter/cupertino.dart';
 import '../../models/announcement.dart';
 import '../../services/firestore_service.dart';
 import '../../services/notification_service.dart';
+import '../../services/rate_limiter.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/staff_button.dart';
 import '../../widgets/staff_card.dart';
@@ -67,37 +68,67 @@ class _OwnerAnnouncementsScreenState extends State<OwnerAnnouncementsScreen> {
   }
 
   Future<void> _postAnnouncement() async {
+    if (_isPosting) return;
+
     final text = _messageController.text.trim();
     if (text.isEmpty) return;
 
-    setState(() => _isPosting = true);
-
-    final docId = await FirestoreService.postAnnouncement(
-      text,
-      targetPosition: _selectedTargetPosition,
-    );
-
-    // Broadcast notification to all Staff and Drivers matching target position
-    await NotificationService.notifyStaffAndDriversOfAnnouncement(
-      messageContent: text,
-      targetPosition: _selectedTargetPosition,
-    );
-
-    if (!mounted) return;
-
-    setState(() {
-      _announcements.insert(
-        0,
-        Announcement(
-          id: docId ?? 'an${_announcements.length + 1}',
-          messageContent: text,
-          datePosted: DateTime.now(),
-          targetPosition: _selectedTargetPosition,
+    if (!RateLimiter.tryAction(
+      key: 'owner_announcement_post',
+      cooldown: const Duration(seconds: 15),
+    )) {
+      final secs = RateLimiter.remainingCooldownSeconds('owner_announcement_post');
+      showCupertinoDialog<void>(
+        context: context,
+        builder: (ctx) => CupertinoAlertDialog(
+          title: const Text('Please Wait'),
+          content: Text(
+            'Kakapost mo lang ng anunsyo. Maghintay muna ng ${secs}s bago mag-post muli upang maiwasan ang notification spam sa mga empleyado.',
+          ),
+          actions: [
+            CupertinoDialogAction(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('OK'),
+            ),
+          ],
         ),
       );
-      _messageController.clear();
-      _isPosting = false;
-    });
+      return;
+    }
+
+    setState(() => _isPosting = true);
+
+    try {
+      final docId = await FirestoreService.postAnnouncement(
+        text,
+        targetPosition: _selectedTargetPosition,
+      );
+
+      // Broadcast notification to all Staff and Drivers matching target position
+      await NotificationService.notifyStaffAndDriversOfAnnouncement(
+        messageContent: text,
+        targetPosition: _selectedTargetPosition,
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        _announcements.insert(
+          0,
+          Announcement(
+            id: docId ?? 'an${_announcements.length + 1}',
+            messageContent: text,
+            datePosted: DateTime.now(),
+            targetPosition: _selectedTargetPosition,
+          ),
+        );
+        _messageController.clear();
+      });
+    } finally {
+      if (mounted) {
+        setState(() => _isPosting = false);
+      }
+    }
   }
 
   Future<void> _confirmDelete(Announcement a) async {
