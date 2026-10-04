@@ -1,11 +1,13 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../../models/branch.dart';
 import '../../../models/branch_assignment.dart';
 import '../../../models/staff_member.dart';
 import '../../../services/assignment_service.dart';
 import '../../../services/auth_service.dart';
 import '../../../services/firestore_service.dart';
+import '../../../services/rate_limiter.dart';
 import '../../../services/supabase_service.dart';
 import '../admin_web_colors.dart';
 import '../admin_web_shell.dart';
@@ -29,7 +31,7 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
   final _searchController = TextEditingController();
   String _query = '';
   int _currentPage = 0;
-  static const int _pageSize = 15;
+  static const int _pageSize = 5;
 
   List<Branch> _availableBranches = SupabaseService.getAllBranchesSync();
 
@@ -313,6 +315,18 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
   }
 
   void _saveAll() async {
+    // Rate limit: prevent hammering Supabase with rapid save presses
+    if (!RateLimiter.tryAction(
+      key: 'admin_save_assignments',
+      cooldown: const Duration(seconds: 10),
+    )) {
+      final secs = RateLimiter.remainingCooldownSeconds('admin_save_assignments');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Please wait $secs second(s) before saving again.')),
+      );
+      return;
+    }
+
     // Check for duplicate on-duty cooks per branch (excluding Unassigned / N/A)
     final onDutyList = _assignments.where((a) => a.workStatus == WorkStatus.onDuty).toList();
     final Map<String, List<String>> branchOccupants = {};
@@ -497,6 +511,9 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
                   _query = v;
                   _currentPage = 0;
                 }),
+                inputFormatters: [
+                  LengthLimitingTextInputFormatter(50),
+                ],
                 decoration: InputDecoration(
                   hintText: 'SEARCH STAFF BY NAME...',
                   prefixIcon: const Icon(Icons.search_rounded, color: AdminWebColors.accent),

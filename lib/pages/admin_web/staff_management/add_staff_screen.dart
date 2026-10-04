@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../../models/staff_member.dart';
 import '../../../services/auth_service.dart';
+import '../../../services/rate_limiter.dart';
 import '../../../widgets/address_edit_dialog.dart';
 import '../admin_web_widgets/glass_card.dart';
 import '../admin_web_colors.dart';
@@ -87,9 +89,17 @@ class _AddStaffScreenState extends State<AddStaffScreen> {
     if (fieldName.toLowerCase().contains('name')) {
       if (trimmed.length < 2) return '$fieldName must be at least 2 characters';
       if (trimmed.length > 50) return '$fieldName must not exceed 50 characters';
-      final namePattern = RegExp(r"^[a-zA-ZñÑáéíóúÁÉÍÓÚ\s\-'.]+$");
-      if (!namePattern.hasMatch(trimmed)) {
+      // Must start with a letter — no leading spaces or special chars
+      if (!RegExp(r'^[a-zA-ZñÑáéíóúÁÉÍÓÚ]').hasMatch(trimmed)) {
+        return '$fieldName must start with a letter';
+      }
+      // Only letters, single spaces (between words), hyphens, apostrophes, dots
+      if (!RegExp(r"^[a-zA-ZñÑáéíóúÁÉÍÓÚ][a-zA-ZñÑáéíóúÁÉÍÓÚ\s\-'.]*$").hasMatch(trimmed)) {
         return '$fieldName must contain only letters';
+      }
+      // No consecutive spaces
+      if (trimmed.contains(RegExp(r'  '))) {
+        return '$fieldName must not have consecutive spaces';
       }
     }
     if (fieldName.toLowerCase().contains('address')) {
@@ -102,7 +112,7 @@ class _AddStaffScreenState extends State<AddStaffScreen> {
   String? _validateUsername(String? value) {
     final trimmed = value?.trim() ?? '';
     if (trimmed.isEmpty) return 'Username is required';
-    if (trimmed.length < 4) return 'Username must be at least 4 characters';
+    if (trimmed.length < 3) return 'Username must be at least 3 characters';
     if (trimmed.length > 20) return 'Username must not exceed 20 characters';
     if (trimmed.contains(' ')) return 'Username cannot contain spaces';
     if (!RegExp(r'^[a-zA-Z0-9._]+$').hasMatch(trimmed)) {
@@ -114,10 +124,12 @@ class _AddStaffScreenState extends State<AddStaffScreen> {
   String? _validateEmail(String? value) {
     final trimmed = value?.trim() ?? '';
     if (trimmed.isEmpty) return 'Email address is required';
+    if (trimmed.length < 6) return 'Enter a valid email address';
     final emailPattern = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
     if (!emailPattern.hasMatch(trimmed)) return 'Enter a valid email address';
     return null;
   }
+
 
   String? _validatePhone(String? value) {
     final trimmed = value?.trim() ?? '';
@@ -196,6 +208,18 @@ class _AddStaffScreenState extends State<AddStaffScreen> {
 
   Future<void> _handleSave() async {
     FocusScope.of(context).unfocus();
+
+    // Rate limit: prevent duplicate staff creation from rapid tapping
+    if (!RateLimiter.tryAction(
+      key: 'admin_add_staff',
+      cooldown: const Duration(seconds: 30),
+    )) {
+      final secs = RateLimiter.remainingCooldownSeconds('admin_add_staff');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Please wait $secs second(s) before creating another staff account.')),
+      );
+      return;
+    }
 
     if (!_formKey.currentState!.validate()) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -334,6 +358,10 @@ class _AddStaffScreenState extends State<AddStaffScreen> {
                                 controller: _firstNameController,
                                 textCapitalization: TextCapitalization.words,
                                 textInputAction: TextInputAction.next,
+                                inputFormatters: [
+                                  LengthLimitingTextInputFormatter(50),
+                                  FilteringTextInputFormatter.allow(RegExp(r"[a-zA-ZñÑáéíóúÁÉÍÓÚ\s\-'.]")),
+                                ],
                                 decoration: const InputDecoration(
                                   labelText: 'FIRST NAME *',
                                   hintText: 'Enter first name',
@@ -349,6 +377,10 @@ class _AddStaffScreenState extends State<AddStaffScreen> {
                                 controller: _lastNameController,
                                 textCapitalization: TextCapitalization.words,
                                 textInputAction: TextInputAction.next,
+                                inputFormatters: [
+                                  LengthLimitingTextInputFormatter(50),
+                                  FilteringTextInputFormatter.allow(RegExp(r"[a-zA-ZñÑáéíóúÁÉÍÓÚ\s\-'.]")),
+                                ],
                                 decoration: const InputDecoration(
                                   labelText: 'LAST NAME *',
                                   hintText: 'Enter last name',
@@ -370,6 +402,10 @@ class _AddStaffScreenState extends State<AddStaffScreen> {
                                 controller: _middleNameController,
                                 textCapitalization: TextCapitalization.words,
                                 textInputAction: TextInputAction.next,
+                                inputFormatters: [
+                                  LengthLimitingTextInputFormatter(50),
+                                  FilteringTextInputFormatter.allow(RegExp(r"[a-zA-ZñÑáéíóúÁÉÍÓÚ\s\-'.]")),
+                                ],
                                 decoration: const InputDecoration(
                                   labelText: 'MIDDLE NAME (OPTIONAL)',
                                   hintText: 'Enter middle name',
@@ -449,6 +485,10 @@ class _AddStaffScreenState extends State<AddStaffScreen> {
                                 controller: _phoneController,
                                 keyboardType: TextInputType.phone,
                                 textInputAction: TextInputAction.next,
+                                inputFormatters: [
+                                  LengthLimitingTextInputFormatter(15),
+                                  FilteringTextInputFormatter.allow(RegExp(r'[0-9\+\-\s]')),
+                                ],
                                 decoration: const InputDecoration(
                                   labelText: 'PHONE NUMBER *',
                                   hintText: '0917 123 4567',
@@ -464,6 +504,9 @@ class _AddStaffScreenState extends State<AddStaffScreen> {
                                 controller: _emailController,
                                 keyboardType: TextInputType.emailAddress,
                                 textInputAction: TextInputAction.next,
+                                inputFormatters: [
+                                  LengthLimitingTextInputFormatter(100),
+                                ],
                                 decoration: const InputDecoration(
                                   labelText: 'EMAIL *',
                                   hintText: 'name@example.com',
@@ -497,10 +540,14 @@ class _AddStaffScreenState extends State<AddStaffScreen> {
                           controller: _usernameController,
                           textInputAction: TextInputAction.next,
                           autocorrect: false,
+                          inputFormatters: [
+                            LengthLimitingTextInputFormatter(20),
+                            FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z0-9._]')),
+                          ],
                           decoration: const InputDecoration(
                             labelText: 'USERNAME *',
                             isDense: true,
-                            helperText: 'Used for logging in. No spaces.',
+                            helperText: 'Min 3 characters. No spaces.',
                             prefixIcon: Icon(Icons.account_circle_outlined, size: 20),
                           ),
                           validator: _validateUsername,

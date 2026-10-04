@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../models/staff_member.dart';
+import '../../../services/rate_limiter.dart';
 import '../../../widgets/address_edit_dialog.dart';
 import '../admin_web_widgets/glass_card.dart';
 import '../admin_web_colors.dart';
@@ -190,6 +191,18 @@ class _EditStaffScreenState extends State<EditStaffScreen> {
     if (!_formKey.currentState!.validate()) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please fix the highlighted fields.')),
+      );
+      return;
+    }
+
+    // Rate limit: prevent rapid repeated profile updates
+    if (!RateLimiter.tryAction(
+      key: 'admin_edit_staff',
+      cooldown: const Duration(seconds: 15),
+    )) {
+      final secs = RateLimiter.remainingCooldownSeconds('admin_edit_staff');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Please wait $secs second(s) before saving again.')),
       );
       return;
     }

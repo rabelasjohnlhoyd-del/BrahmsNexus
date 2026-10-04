@@ -95,10 +95,10 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
       );
       return;
     }
-    if (text.length > 500) {
+    if (text.length > 300) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Announcement must not exceed 500 characters.'),
+          content: Text('Announcement must not exceed 300 characters.'),
           backgroundColor: Colors.red,
         ),
       );
@@ -220,7 +220,7 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
                   TextField(
                     controller: _messageController,
                     maxLines: 3,
-                    maxLength: 500,
+                    maxLength: 300,
                     decoration: const InputDecoration(
                       labelText: 'NEW ANNOUNCEMENT',
                       hintText: 'Type your announcement here...',

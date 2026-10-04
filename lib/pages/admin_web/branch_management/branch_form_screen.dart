@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../data/philippine_address_data.dart';
 import '../../../models/branch.dart';
+import '../../../services/rate_limiter.dart';
 import '../admin_web_colors.dart';
 import '../admin_web_shell.dart';
 import '../admin_web_widgets/glass_card.dart';
@@ -74,6 +75,18 @@ class _BranchFormScreenState extends State<BranchFormScreen> {
 
   Future<void> _handleSave() async {
     if (!_formKey.currentState!.validate()) return;
+
+    // Rate limit: prevent duplicate branch create/update
+    if (!RateLimiter.tryAction(
+      key: 'admin_save_branch',
+      cooldown: const Duration(seconds: 20),
+    )) {
+      final secs = RateLimiter.remainingCooldownSeconds('admin_save_branch');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Please wait $secs second(s) before saving again.')),
+      );
+      return;
+    }
 
     setState(() {
       _isSaving = true;

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../../models/bilao_order.dart';
 import '../../../models/branch.dart';
 import '../../../services/firestore_service.dart';
+import '../../../services/rate_limiter.dart';
 import '../admin_web_colors.dart';
 import '../admin_web_shell.dart';
 import '../admin_web_widgets/glass_card.dart';
@@ -127,8 +129,17 @@ class _AddBilaoOrderScreenState extends State<AddBilaoOrderScreen> {
         return false;
       }
       final digits = contact.replaceAll(RegExp(r'\D'), '');
-      if (digits.length < 7 || digits.length > 12) {
-        _showSnack('Enter a valid contact number (7 to 12 digits, e.g. 0917 123 4567).');
+      // Must be a valid Philippine mobile number: 09xxxxxxxxx (11 digits) or +639xxxxxxxxx (12 digits)
+      final isPhMobile = RegExp(r'^(09\d{9}|639\d{9})$').hasMatch(digits);
+      if (!isPhMobile) {
+        _showSnack('Enter a valid Philippine mobile number (e.g. 09171234567).');
+        return false;
+      }
+
+      // Notes max 200 characters
+      final notes = _notesController.text.trim();
+      if (notes.length > 200) {
+        _showSnack('Notes must not exceed 200 characters.');
         return false;
       }
 
@@ -149,8 +160,8 @@ class _AddBilaoOrderScreenState extends State<AddBilaoOrderScreen> {
         _showSnack('Quantity must be at least 1.');
         return false;
       }
-      if (_qty > 100) {
-        _showSnack('Quantity cannot exceed 100 bilaos per order.');
+      if (_qty > 10) {
+        _showSnack('Quantity cannot exceed 10 bilaos per order.');
         return false;
       }
     }
@@ -185,8 +196,18 @@ class _AddBilaoOrderScreenState extends State<AddBilaoOrderScreen> {
           _showSnack('Please provide the GCash reference number for verification.');
           return false;
         }
-        if (ref.length < 6 || ref.length > 30) {
-          _showSnack('Enter a valid GCash reference number (e.g. 1002 9384 1928).');
+        // GCash reference numbers are numeric, typically 13 digits (allow 10–20 for flexibility)
+        final refDigits = ref.replaceAll(RegExp(r'\D'), '');
+        if (refDigits.length < 10 || refDigits.length > 20) {
+          _showSnack('Enter a valid GCash reference number (10 to 20 digits, e.g. 1002345678901).');
+          return false;
+        }
+
+        // GCash amount must be a valid positive number
+        final amountText = _gcashAmountController.text.trim();
+        final amount = double.tryParse(amountText);
+        if (amountText.isEmpty || amount == null || amount <= 0) {
+          _showSnack('Please enter the GCash amount sent (e.g. 900.00).');
           return false;
         }
       }
@@ -225,6 +246,16 @@ class _AddBilaoOrderScreenState extends State<AddBilaoOrderScreen> {
   // ── Save ───────────────────────────────────────────────────────────────────
 
   Future<void> _handleSave() async {
+    // Rate limit: prevent duplicate order submission from rapid tapping
+    if (!RateLimiter.tryAction(
+      key: 'admin_add_bilao_order',
+      cooldown: const Duration(seconds: 15),
+    )) {
+      final secs = RateLimiter.remainingCooldownSeconds('admin_add_bilao_order');
+      _showSnack('Please wait $secs second(s) before submitting another order.');
+      return;
+    }
+
     setState(() => _isSaving = true);
     final isPickup = _fulfillmentType == BilaoFulfillmentType.branchPickup;
 
@@ -419,14 +450,22 @@ class _AddBilaoOrderScreenState extends State<AddBilaoOrderScreen> {
           hint: 'e.g. Maria Clara',
           icon: Icons.person_outline_rounded,
           capitalization: TextCapitalization.words,
+          maxLength: 60,
+          inputFormatters: [
+            FilteringTextInputFormatter.allow(RegExp(r"[a-zA-ZñÑáéíóúÁÉÍÓÚ\s\-'.]")),
+          ],
         ),
         const SizedBox(height: 12),
         _webField(
           controller: _contactController,
           label: 'Contact Number',
-          hint: 'e.g. 0917 123 4567',
+          hint: 'e.g. 09171234567',
           icon: Icons.phone_outlined,
           keyboard: TextInputType.phone,
+          maxLength: 13,
+          inputFormatters: [
+            FilteringTextInputFormatter.allow(RegExp(r'[0-9\+\-\s]')),
+          ],
         ),
         const SizedBox(height: 20),
 
@@ -506,6 +545,7 @@ class _AddBilaoOrderScreenState extends State<AddBilaoOrderScreen> {
               hint: 'e.g. Table 2, waiting at the counter',
               icon: Icons.edit_note_rounded,
               maxLines: 2,
+              maxLength: 200,
             ),
           ]),
         ),
@@ -893,6 +933,10 @@ class _AddBilaoOrderScreenState extends State<AddBilaoOrderScreen> {
                     hint: 'e.g. 1002345678901',
                     icon: Icons.tag_rounded,
                     keyboard: TextInputType.number,
+                    maxLength: 20,
+                    inputFormatters: [
+                      FilteringTextInputFormatter.digitsOnly,
+                    ],
                   );
                   final amt = _webField(
                     controller: _gcashAmountController,
@@ -902,6 +946,10 @@ class _AddBilaoOrderScreenState extends State<AddBilaoOrderScreen> {
                     keyboard: const TextInputType.numberWithOptions(
                         decimal: true),
                     prefixText: '\u20b1 ',
+                    maxLength: 12,
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
+                    ],
                   );
                   return wide
                       ? Row(children: [
@@ -936,6 +984,8 @@ class _AddBilaoOrderScreenState extends State<AddBilaoOrderScreen> {
     int maxLines = 1,
     String? prefixText,
     void Function(String)? onChanged,
+    int? maxLength,
+    List<TextInputFormatter>? inputFormatters,
   }) {
     return TextFormField(
       controller: controller,
@@ -943,6 +993,12 @@ class _AddBilaoOrderScreenState extends State<AddBilaoOrderScreen> {
       textCapitalization: capitalization,
       maxLines: maxLines,
       onChanged: onChanged,
+      maxLength: maxLength,
+      inputFormatters: inputFormatters,
+      // Hide the counter label when maxLength is set — we only want enforcement
+      buildCounter: maxLength != null
+          ? (_, {required currentLength, maxLength, required isFocused}) => null
+          : null,
       decoration: InputDecoration(
         labelText: label,
         hintText: hint,

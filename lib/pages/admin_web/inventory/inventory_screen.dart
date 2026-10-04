@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import '../../../models/branch.dart';
 import '../../../models/branch_meat_inventory.dart';
@@ -228,9 +229,15 @@ class _InventoryScreenState extends State<InventoryScreen>
                   TextField(
                     controller: nameCtrl,
                     textCapitalization: TextCapitalization.characters,
+                    // Max 50 characters; allow letters, digits, spaces, dashes, and dots
+                    inputFormatters: [
+                      LengthLimitingTextInputFormatter(50),
+                      FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z0-9\s\-\.]')),
+                    ],
                     decoration: const InputDecoration(
                       labelText: 'BATCH NAME (MONTHLY BATCH)',
                       hintText: 'e.g. KARNE BATCH - OCTOBER 2026',
+                      helperText: 'Max 50 characters.',
                       border: OutlineInputBorder(),
                     ),
                   ),
@@ -246,6 +253,10 @@ class _InventoryScreenState extends State<InventoryScreen>
                       helperText: 'Total delivered meat kilos for the month of ${DateFormat('MMMM yyyy').format(selectedMonth)}.',
                     ),
                     keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    // Allow digits and a single decimal point only
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
+                    ],
                   ),
                 ],
               ),
@@ -260,14 +271,44 @@ class _InventoryScreenState extends State<InventoryScreen>
                 onPressed: monthAlreadyHasBatch
                     ? null
                     : () async {
-                        final double? kilos = double.tryParse(kilosCtrl.text.trim());
-                        if (nameCtrl.text.trim().isEmpty || kilos == null || kilos <= 0) return;
-
                         final messenger = ScaffoldMessenger.of(context);
+                        // ── Validation with user-visible error messages ──
+                        final nameText = nameCtrl.text.trim();
+                        if (nameText.isEmpty) {
+                          messenger.showSnackBar(const SnackBar(
+                            content: Text('Batch name cannot be empty.'),
+                            backgroundColor: AdminWebColors.error,
+                          ));
+                          return;
+                        }
+                        if (nameText.length < 3) {
+                          messenger.showSnackBar(const SnackBar(
+                            content: Text('Batch name must be at least 3 characters.'),
+                            backgroundColor: AdminWebColors.error,
+                          ));
+                          return;
+                        }
+                        final kilosText = kilosCtrl.text.trim();
+                        if (kilosText.isEmpty) {
+                          messenger.showSnackBar(const SnackBar(
+                            content: Text('Please enter the total raw meat in kilos.'),
+                            backgroundColor: AdminWebColors.error,
+                          ));
+                          return;
+                        }
+                        final double? kilos = double.tryParse(kilosText);
+                        if (kilos == null || kilos <= 0) {
+                          messenger.showSnackBar(const SnackBar(
+                            content: Text('Total raw meat must be a valid positive number (e.g. 1000.0).'),
+                            backgroundColor: AdminWebColors.error,
+                          ));
+                          return;
+                        }
+
                         final batchId = 'kb_${selectedMonth.year}_${selectedMonth.month.toString().padLeft(2, '0')}';
                         final newBatch = KarneBatch(
                           id: batchId,
-                          name: nameCtrl.text.trim().toUpperCase(),
+                          name: nameText.toUpperCase(),
                           date: selectedMonth,
                           totalKilos: kilos,
                           cookingStatus: 'pending',

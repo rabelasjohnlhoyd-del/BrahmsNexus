@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../models/bilao_order.dart';
 import '../../../services/firestore_service.dart';
@@ -1075,6 +1076,9 @@ class _BilaoOrderScreenState extends State<BilaoOrderScreen> {
                                     prefixIcon: Icon(Icons.search_rounded, size: 20),
                                     isDense: true,
                                   ),
+                                  inputFormatters: [
+                                    LengthLimitingTextInputFormatter(50),
+                                  ],
                                   onChanged: (v) =>
                                       setState(() => _searchQuery = v),
                                 ),
@@ -1134,6 +1138,9 @@ class _BilaoOrderScreenState extends State<BilaoOrderScreen> {
                                   prefixIcon: Icon(Icons.search_rounded, size: 20),
                                   isDense: true,
                                 ),
+                                inputFormatters: [
+                                  LengthLimitingTextInputFormatter(50),
+                                ],
                                 onChanged: (v) => setState(() => _searchQuery = v),
                               ),
                               const SizedBox(height: 10),
