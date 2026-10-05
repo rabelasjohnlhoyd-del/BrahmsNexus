@@ -439,42 +439,21 @@ class _AddStaffScreenState extends State<AddStaffScreen> {
                           ],
                         ),
                         const SizedBox(height: 20),
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(
-                              flex: 2,
-                              child: TextFormField(
-                                controller: _birthdateController,
-                                readOnly: true,
-                                onTap: _pickBirthdate,
-                                decoration: InputDecoration(
-                                  labelText: 'BIRTHDATE *',
-                                  hintText: 'Select birthdate',
-                                  isDense: true,
-                                  prefixIcon: const Icon(Icons.calendar_month_outlined, size: 20),
-                                  suffixIcon: IconButton(
-                                    icon: const Icon(Icons.calendar_today_rounded, size: 18),
-                                    onPressed: _pickBirthdate,
-                                  ),
-                                ),
-                                validator: (v) => _validateRequired(v, 'Birthdate'),
-                              ),
+                        TextFormField(
+                          controller: _birthdateController,
+                          readOnly: true,
+                          onTap: _pickBirthdate,
+                          decoration: InputDecoration(
+                            labelText: 'BIRTHDATE *',
+                            hintText: 'Select birthdate',
+                            isDense: true,
+                            prefixIcon: const Icon(Icons.calendar_month_outlined, size: 20),
+                            suffixIcon: IconButton(
+                              icon: const Icon(Icons.calendar_today_rounded, size: 18),
+                              onPressed: _pickBirthdate,
                             ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              flex: 1,
-                              child: TextFormField(
-                                controller: _ageController,
-                                readOnly: true,
-                                decoration: const InputDecoration(
-                                  labelText: 'AGE',
-                                  isDense: true,
-                                  prefixIcon: Icon(Icons.cake_outlined, size: 20),
-                                ),
-                              ),
-                            ),
-                          ],
+                          ),
+                          validator: (v) => _validateRequired(v, 'Birthdate'),
                         ),
                         const SizedBox(height: 20),
                         Row(

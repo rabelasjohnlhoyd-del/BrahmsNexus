@@ -99,7 +99,7 @@ class _RecordTransferScreenState extends State<RecordTransferScreen> {
   Future<void> _handleSave() async {
     if (_hasSubmittedSales) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Hindi na maaaring i-restock dahil naisumite na ang Closing EOD Sales.')),
+        const SnackBar(content: Text('Cannot restock: Closing EOD Sales have already been submitted for today.')),
       );
       return;
     }
@@ -129,7 +129,7 @@ class _RecordTransferScreenState extends State<RecordTransferScreen> {
 
     if (reg == 0 && med == 0 && b1t1 == 0 && mayo == 0 && styro == 0 && toyo == 0) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Pakiusap maglagay ng kahit isang bilang ng item na ire-restock.')),
+        const SnackBar(content: Text('Please enter at least one item quantity to restock.')),
       );
       return;
     }
@@ -240,7 +240,7 @@ class _RecordTransferScreenState extends State<RecordTransferScreen> {
                                 SizedBox(width: 8),
                                 Expanded(
                                   child: Text(
-                                    'Hindi na maaaring i-restock ang branch na ito dahil naisumite na ang Closing EOD Sales para sa araw na ito.',
+                                    'This branch cannot be restocked because the Closing EOD Sales for today have already been submitted.',
                                     style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: AdminWebColors.error),
                                   ),
                                 ),

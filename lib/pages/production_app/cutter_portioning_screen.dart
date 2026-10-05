@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 import '../../models/inventory_batch.dart';
 import '../../services/auth_service.dart';
 import '../../services/firestore_service.dart';
+import '../../services/input_validators.dart';
 import '../../services/tutorial_service.dart';
 import '../../services/weather_service.dart';
 import '../../theme/app_theme.dart';
@@ -230,7 +231,6 @@ class CutterPortioningScreenState extends State<CutterPortioningScreen> {
 
   void _validateInputs() {
     final remainingG = int.tryParse(_meatLeftController.text.trim()) ?? 0;
-    final hasNotes = _remainingNotesController.text.trim().isNotEmpty;
 
     // Reject unreasonably large remaining meat values (> 50,000g = 50 kg)
     if (remainingG > 50000) {
@@ -263,8 +263,15 @@ class CutterPortioningScreenState extends State<CutterPortioningScreen> {
     final maxAllowed250 = _ideal250 + 100;
     final valid250 = c250 != null && c250 > 0 && c250 <= maxAllowed250;
 
-    // If remaining > 0, notes must be filled
-    final notesOk = remainingG <= 0 || hasNotes;
+    // If remaining > 0, notes must be properly validated (min 10 chars, max 300 chars)
+    final notesValidation = InputValidators.validateMessage(
+      _remainingNotesController.text,
+      fieldName: 'Remaining meat report',
+      required: remainingG > 0,
+      minLength: 10,
+      maxLength: 300,
+    );
+    final notesOk = remainingG <= 0 || notesValidation.isValid;
 
     final canSubmit = allFilled && exact400 && exact300 && valid250 && notesOk;
 
@@ -312,7 +319,30 @@ class CutterPortioningScreenState extends State<CutterPortioningScreen> {
     if (_isSubmittingPortions) return;
     final messenger = ScaffoldMessenger.of(context);
     final batch = _activeBatch;
-    final notes = _remainingNotesController.text.trim();
+    final remainingG = int.tryParse(_meatLeftController.text.trim()) ?? 0;
+    String? cutterNotes;
+
+    if (remainingG > 0) {
+      final validation = InputValidators.validateMessage(
+        _remainingNotesController.text,
+        fieldName: 'Remaining meat report',
+        required: true,
+        minLength: 10,
+        maxLength: 300,
+      );
+      if (!validation.isValid) {
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text(validation.errorMessage ?? 'Please provide a valid remaining meat explanation.'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+        return;
+      }
+      cutterNotes = validation.sanitizedText;
+    }
+
+    final notes = cutterNotes ?? '';
 
     showCupertinoDialog(
       context: context,
@@ -601,65 +631,125 @@ class CutterPortioningScreenState extends State<CutterPortioningScreen> {
             // Notes field — only shown when there is remaining weight to explain
             if ((int.tryParse(_meatLeftController.text.trim()) ?? 0) > 0) ...[
               const SizedBox(height: 12),
-              StaffCard(
-                padding: const EdgeInsets.all(20),
-                highlighted: _remainingNotesController.text.trim().isNotEmpty,
-                borderColor: _remainingNotesController.text.trim().isNotEmpty
-                    ? AppColors.success
-                    : AppColors.error.withValues(alpha: 0.4),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        const Icon(CupertinoIcons.exclamationmark_bubble_fill,
-                            size: 14, color: AppColors.error),
-                        const SizedBox(width: 6),
-                        const Expanded(
+              Builder(builder: (context) {
+                final notesText = _remainingNotesController.text;
+                final validation = InputValidators.validateMessage(
+                  notesText,
+                  fieldName: 'Remaining meat report',
+                  required: true,
+                  minLength: 10,
+                  maxLength: 300,
+                );
+                final hasInput = notesText.trim().isNotEmpty;
+                final isInvalid = hasInput && !validation.isValid;
+                final isValid = hasInput && validation.isValid;
+
+                return StaffCard(
+                  padding: const EdgeInsets.all(20),
+                  highlighted: hasInput,
+                  borderColor: isInvalid
+                      ? AppColors.error
+                      : (isValid
+                          ? AppColors.success
+                          : AppColors.error.withValues(alpha: 0.4)),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(
+                            isInvalid
+                                ? CupertinoIcons.exclamationmark_circle_fill
+                                : (isValid
+                                    ? CupertinoIcons.checkmark_circle_fill
+                                    : CupertinoIcons.exclamationmark_bubble_fill),
+                            size: 15,
+                            color: isInvalid
+                                ? AppColors.error
+                                : (isValid ? AppColors.success : AppColors.error),
+                          ),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              'REMAINING MEAT REPORT (REQUIRED)',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                                color: isInvalid
+                                    ? AppColors.error
+                                    : (isValid ? AppColors.success : AppColors.error),
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      const Text(
+                        'Explain the reason for any remaining meat (min. 10 chars, max. 300 chars).',
+                        style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                      ),
+                      const SizedBox(height: 12),
+                      CupertinoTextField(
+                        controller: _remainingNotesController,
+                        placeholder: 'e.g. Extra raw meat cooked, machine issue, bone density variation...',
+                        keyboardType: TextInputType.multiline,
+                        maxLines: 4,
+                        minLines: 3,
+                        maxLength: 300,
+                        inputFormatters: [
+                          LengthLimitingTextInputFormatter(300),
+                        ],
+                        onChanged: _onFieldChanged,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textPrimary,
+                        ),
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: AppColors.background,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: isInvalid
+                                ? AppColors.error
+                                : (isValid
+                                    ? AppColors.success.withValues(alpha: 0.5)
+                                    : AppColors.error.withValues(alpha: 0.3)),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: Text(
+                          '${notesText.length} / 300 characters',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: notesText.length >= 300
+                                ? AppColors.error
+                                : AppColors.textSecondary,
+                          ),
+                        ),
+                      ),
+                      if (isInvalid && validation.errorMessage != null) ...[
+                        Padding(
+                          padding: const EdgeInsets.only(top: 4, left: 2),
                           child: Text(
-                            'REMAINING MEAT REPORT (REQUIRED)',
-                            style: TextStyle(
+                            validation.errorMessage!,
+                            style: const TextStyle(
                               fontSize: 11,
-                              fontWeight: FontWeight.w800,
+                              fontWeight: FontWeight.w600,
                               color: AppColors.error,
-                              letterSpacing: 0.5,
                             ),
                           ),
                         ),
                       ],
-                    ),
-                    const SizedBox(height: 6),
-                    const Text(
-                      'Explain the reason for any remaining meat.',
-                      style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
-                    ),
-                    const SizedBox(height: 12),
-                    CupertinoTextField(
-                      controller: _remainingNotesController,
-                      placeholder: 'e.g. Extra raw meat cooked, machine issue, etc.',
-                      keyboardType: TextInputType.multiline,
-                      maxLines: 4,
-                      minLines: 3,
-                      onChanged: _onFieldChanged,
-                      style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textPrimary,
-                      ),
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: AppColors.background,
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(
-                          color: _remainingNotesController.text.trim().isNotEmpty
-                              ? AppColors.success.withValues(alpha: 0.5)
-                              : AppColors.error.withValues(alpha: 0.3),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+                    ],
+                  ),
+                );
+              }),
             ],
             const SizedBox(height: 12),
             Container(
@@ -676,7 +766,6 @@ class CutterPortioningScreenState extends State<CutterPortioningScreen> {
                         final t400 = _targets['400g'] ?? 0;
                         final t300 = _targets['300g'] ?? 0;
                         final remainingG = int.tryParse(_meatLeftController.text.trim()) ?? 0;
-                        final hasNotes = _remainingNotesController.text.trim().isNotEmpty;
 
                         final issues = <String>[];
                         if (_controllers['400g']!.text.trim().isEmpty ||
@@ -693,8 +782,17 @@ class CutterPortioningScreenState extends State<CutterPortioningScreen> {
                         if (_meatLeftController.text.trim().isEmpty) {
                           issues.add('Enter the remaining weight.');
                         }
-                        if (remainingG > 0 && !hasNotes) {
-                          issues.add('Provide a reason for the remaining meat.');
+                        if (remainingG > 0) {
+                          final v = InputValidators.validateMessage(
+                            _remainingNotesController.text,
+                            fieldName: 'Report reason',
+                            required: true,
+                            minLength: 10,
+                            maxLength: 300,
+                          );
+                          if (!v.isValid && v.errorMessage != null) {
+                            issues.add(v.errorMessage!);
+                          }
                         }
 
                         return Text(

@@ -119,19 +119,19 @@ class _SystemSettingsScreenState extends State<SystemSettingsScreen> {
                     final confirmed = await showDialog<bool>(
                       context: context,
                       builder: (ctx) => AlertDialog(
-                        title: const Text('Panoorin Ulit ang Tutorial?'),
+                        title: const Text('Replay Guided Tour?'),
                         content: const Text(
-                          'Ipapakita muli ang step-by-step guided tour para sa Owner Web system. Gusto mo bang simulan ngayon?',
+                          'This will show the step-by-step guided tour for the Owner Web system again. Would you like to start now?',
                         ),
                         actions: [
                           TextButton(
                             onPressed: () => Navigator.of(ctx).pop(false),
-                            child: const Text('Huwag Na'),
+                            child: const Text('Not Now'),
                           ),
                           TextButton(
                             onPressed: () => Navigator.of(ctx).pop(true),
                             child: const Text(
-                              'Oo, Simulan Na',
+                              'Yes, Start Tour',
                               style: TextStyle(fontWeight: FontWeight.bold),
                             ),
                           ),

@@ -93,7 +93,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
     final input = _identifierController.text.trim();
     if (input.isEmpty) {
-      setState(() => _errorMessage = 'Ilagay ang iyong Email address o Username.');
+      setState(() => _errorMessage = 'Please enter your Email address or Username.');
       return;
     }
 
@@ -108,7 +108,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         if (!mounted) return;
         setState(() {
           _isLoading = false;
-          _errorMessage = 'Walang account na nakarehistro sa impormasyong ito.';
+          _errorMessage = 'No account found with that email or username.';
         });
         return;
       }
@@ -124,7 +124,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         if (!mounted) return;
         setState(() {
           _isLoading = false;
-          _errorMessage = 'Hindi naipadala ang verification code. Paki-subukan muli.';
+          _errorMessage = 'Failed to send verification code. Please try again.';
         });
         return;
       }
@@ -144,7 +144,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       if (!mounted) return;
       setState(() {
         _isLoading = false;
-        _errorMessage = 'May naganap na error. Paki-subukan muli.';
+        _errorMessage = 'An unexpected error occurred. Please try again.';
       });
     }
   }
@@ -164,7 +164,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
     final code = _otpController.text.trim();
     if (code.length < 6) {
-      setState(() => _errorMessage = 'Ilagay ang kumpletong 6-digit verification code.');
+      setState(() => _errorMessage = 'Please enter the complete 6-digit verification code.');
       return;
     }
 
@@ -186,7 +186,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
           _otpAttempts++;
           final remaining = _maxOtpAttempts - _otpAttempts;
           _errorMessage = remaining > 0
-              ? 'Maling verification code o expired na ito. ($remaining attempt${remaining == 1 ? "" : "s"} remaining)'
+              ? 'Incorrect or expired verification code. ($remaining attempt${remaining == 1 ? "" : "s"} remaining)'
               : 'Maximum attempts reached ($_maxOtpAttempts). Please request a new code.';
         });
         return;
@@ -201,7 +201,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       if (!mounted) return;
       setState(() {
         _isLoading = false;
-        _errorMessage = 'Hindi ma-verify ang code. Paki-subukan muli.';
+        _errorMessage = 'Failed to verify the code. Please try again.';
       });
     }
   }
@@ -224,12 +224,12 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       _startResendTimer();
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Naipadala muli ang verification code sa iyong email.'),
+          content: Text('Verification code resent to your email.'),
           backgroundColor: Color(0xFF2E7D32),
         ),
       );
     } else {
-      setState(() => _errorMessage = 'Hindi naipadala muli ang code. Subukan mamaya.');
+      setState(() => _errorMessage = 'Failed to resend the code. Please try again later.');
     }
   }
 
@@ -242,13 +242,13 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     final newPassword = _passwordController.text;
     final confirmPassword = _confirmPasswordController.text;
 
-    final passwordError = AuthService.validateStrongPassword(newPassword, tagalog: true);
+    final passwordError = AuthService.validateStrongPassword(newPassword);
     if (passwordError != null) {
       setState(() => _errorMessage = passwordError);
       return;
     }
     if (newPassword != confirmPassword) {
-      setState(() => _errorMessage = 'Hindi nagtutugma ang bagong password at kumpirmasyon nito.');
+      setState(() => _errorMessage = 'New password and confirmation do not match.');
       return;
     }
 
@@ -268,7 +268,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       setState(() => _isLoading = false);
 
       if (!success) {
-        setState(() => _errorMessage = 'Hindi na-update ang password. Paki-subukan muli.');
+        setState(() => _errorMessage = 'Failed to update your password. Please try again.');
         return;
       }
 
@@ -295,7 +295,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
             ],
           ),
           content: Text(
-            'Matagumpay na na-set ang bagong password para sa iyong account (@${_targetUsername!}). Kung may natanggap ka ring official confirmation link sa iyong email, i-click din ito para magkabisa agad sa lahat ng platform.',
+            'Your new password has been set for account @${_targetUsername!}. If you also received an official confirmation link in your email, click it as well to apply changes across all platforms.',
             style: const TextStyle(fontSize: 14, color: AppColors.textSecondary, height: 1.4),
           ),
           actions: [
@@ -319,7 +319,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       if (!mounted) return;
       setState(() {
         _isLoading = false;
-        _errorMessage = 'May naganap na error sa pag-update ng password.';
+        _errorMessage = 'An unexpected error occurred while updating your password.';
       });
     }
   }
@@ -396,10 +396,10 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
                           Text(
                             _currentStep == 0
-                                ? 'Ilagay ang iyong rehistradong Email Address o Username upang makatanggap ng 6-digit verification code.'
+                                ? 'Enter your registered Email Address or Username to receive a 6-digit verification code.'
                                 : _currentStep == 1
-                                    ? 'Ipinadala namin ang 6-digit verification code sa ${_targetEmail != null ? _maskEmail(_targetEmail!) : "iyong email"}.'
-                                    : 'Gumawa ng bagong password para sa account ni ${_targetFullName ?? _targetUsername}.',
+                                    ? 'We sent a 6-digit verification code to ${_targetEmail != null ? _maskEmail(_targetEmail!) : "your email"}.'
+                                    : 'Create a new password for the account of ${_targetFullName ?? _targetUsername}.',
                             textAlign: TextAlign.center,
                             style: const TextStyle(
                               fontSize: 14,
@@ -507,7 +507,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                                         SizedBox(width: 8),
                                         Expanded(
                                           child: Text(
-                                            'Maaari mo ring i-click ang official reset link sa iyong email para sa mabilis na pag-update.',
+                                            'You can also click the official reset link sent to your email for a faster update.',
                                             style: TextStyle(
                                               color: AppColors.accent,
                                               fontSize: 11.5,
@@ -560,7 +560,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                     children: [
                                       const Text(
-                                        'Hindi natanggap ang code?',
+                                        "Didn't receive the code?",
                                         style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
                                       ),
                                       TextButton(
@@ -603,7 +603,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                                     decoration: InputDecoration(
                                       labelText: 'NEW PASSWORD',
                                       labelStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 0.8),
-                                      helperText: 'Dapat may malaki at maliit na titik, numero, at symbol (min. 6).',
+                                      helperText: 'Must include uppercase, lowercase, a number, and a symbol (min. 6 characters).',
                                       helperStyle: const TextStyle(fontSize: 10.5, color: Color(0xFF8D6E63)),
                                       prefixIcon: const Icon(Icons.lock_outline_rounded, size: 20),
                                       suffixIcon: IconButton(

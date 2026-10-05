@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -45,6 +47,7 @@ class RouteScreenState extends State<RouteScreen> {
   final Set<String> _notifiedStaffIds = {};
 
   List<Branch> _branches = [];
+  StreamSubscription? _statusSubscription;
 
   // ── Guided Tour Keys (Live Spotlight) ───────────────────────────
   final GlobalKey _rfidBannerKey = GlobalKey();
@@ -56,6 +59,7 @@ class RouteScreenState extends State<RouteScreen> {
     super.initState();
     _loadData();
     AssignmentService.changeNotifier.addListener(_onAssignmentsChanged);
+    _listenToBranchStatus();
     _maybeTriggerGuidedTour();
   }
 
@@ -119,12 +123,40 @@ class RouteScreenState extends State<RouteScreen> {
 
   @override
   void dispose() {
+    _statusSubscription?.cancel();
     AssignmentService.changeNotifier.removeListener(_onAssignmentsChanged);
     super.dispose();
   }
 
   void _onAssignmentsChanged() {
     if (mounted) setState(() {});
+  }
+
+  void _listenToBranchStatus() {
+    _statusSubscription = FirebaseFirestore.instance
+        .collection('branch_status')
+        .snapshots()
+        .listen((snap) {
+      if (!mounted) return;
+      setState(() {
+        for (final doc in snap.docs) {
+          final data = doc.data();
+          final isOpen = data['isOpen'] == true;
+          final lastTapType = data['lastTapType'] as String?;
+          if (isOpen || lastTapType == 'deployment_opening') {
+            _completedDeploymentIds.add(doc.id);
+          }
+          if (!isOpen && lastTapType == 'retrieval_closing') {
+            _completedRetrievalIds.add(doc.id);
+          }
+          if (data['driverOnWay'] == true) {
+            _notifiedStaffIds.add(doc.id);
+          }
+        }
+      });
+    }, onError: (e) {
+      debugPrint('Branch status stream error: $e');
+    });
   }
 
   Future<void> _loadData() async {
@@ -324,6 +356,77 @@ class RouteScreenState extends State<RouteScreen> {
             child: const Text('Yes'),
           ),
         ],
+      ),
+    );
+  }
+
+  void _confirmSimulatedRfidTap(Branch branch, StaffMember? staff) {
+    final isDeployment = _activeMode == RouteMode.deployment;
+    final action = isDeployment ? 'Opening (Arrival)' : 'Closing (Departure)';
+    final staffName = staff?.fullName ?? 'Assigned Cook';
+
+    showCupertinoDialog(
+      context: context,
+      builder: (dialogCtx) => CupertinoAlertDialog(
+        title: Text('Simulate Cook RFID $action'),
+        content: Text(
+          'Simulate RFID card tap for $staffName at ${branch.name}?\n\n'
+          'This will mark ${branch.name} as ${isDeployment ? "OPEN" : "CLOSED"} in real-time and complete this stop.',
+        ),
+        actions: [
+          CupertinoDialogAction(
+            onPressed: () => Navigator.pop(dialogCtx),
+            child: const Text('Cancel'),
+          ),
+          CupertinoDialogAction(
+            isDefaultAction: true,
+            onPressed: () {
+              Navigator.pop(dialogCtx);
+              _handleSimulatedRfidTap(branch, staff);
+            },
+            child: Text(isDeployment ? 'Confirm & Open' : 'Confirm & Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _handleSimulatedRfidTap(Branch branch, StaffMember? staff) async {
+    final isDeployment = _activeMode == RouteMode.deployment;
+    final staffName = staff?.fullName ?? 'Assigned Cook';
+    final cookId = staff?.id ?? 'cook_${branch.id}';
+    final rfidTag = (staff?.rfidTag != null && staff!.rfidTag.isNotEmpty)
+        ? staff.rfidTag
+        : 'SIM_${isDeployment ? "OPEN" : "CLOSE"}_${branch.id}';
+
+    setState(() {
+      if (isDeployment) {
+        _completedDeploymentIds.add(branch.id);
+      } else {
+        _completedRetrievalIds.add(branch.id);
+      }
+    });
+
+    await FirestoreService.processBranchCookRfidTap(
+      branchId: branch.id,
+      branchName: branch.fullName,
+      cookName: staffName,
+      cookId: cookId,
+      isDeployment: isDeployment,
+      rfidTag: rfidTag,
+      deviceId: 'simulated_driver_route',
+    );
+
+    if (!mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(
+          isDeployment
+              ? '✅ ${branch.name} is now OPEN! (Simulated Cook Tap logged)'
+              : '🔒 ${branch.name} is now CLOSED! (Simulated Cook Tap logged)',
+        ),
+        backgroundColor: isDeployment ? AppColors.success : const Color(0xFFC62828),
       ),
     );
   }
@@ -745,32 +848,58 @@ class RouteScreenState extends State<RouteScreen> {
 
                                     if (!completed) ...[
                                       const SizedBox(height: 16),
-                                      if (notified)
-                                        // RFID waiting chip — shown after driver taps "On the way"
-                                        Container(
-                                          width: double.infinity,
-                                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                                          decoration: BoxDecoration(
-                                            color: AppColors.warning.withValues(alpha: 0.08),
-                                            borderRadius: BorderRadius.circular(12),
-                                            border: Border.all(color: AppColors.warning.withValues(alpha: 0.3)),
-                                          ),
-                                          child: const Row(
+                                      if (notified) ...[
+                                        // Temporary Simulated Cook RFID Tap Button (Opening for Deployment, Closing for Retrieval)
+                                        CupertinoButton(
+                                          padding: EdgeInsets.zero,
+                                          minimumSize: const Size(double.infinity, 42),
+                                          color: _activeMode == RouteMode.deployment
+                                              ? AppColors.success
+                                              : const Color(0xFFC62828),
+                                          borderRadius: BorderRadius.circular(12),
+                                          onPressed: isLocked ? null : () => _confirmSimulatedRfidTap(branch, staff),
+                                          child: Row(
                                             mainAxisAlignment: MainAxisAlignment.center,
                                             children: [
-                                              Icon(CupertinoIcons.radiowaves_right, size: 13, color: AppColors.warning),
-                                              SizedBox(width: 6),
+                                              const Icon(
+                                                CupertinoIcons.radiowaves_right,
+                                                size: 16,
+                                                color: CupertinoColors.white,
+                                              ),
+                                              const SizedBox(width: 8),
                                               Text(
-                                                'Waiting for Cook RFID Tap',
-                                                style: TextStyle(
-                                                  fontSize: 12,
-                                                  fontWeight: FontWeight.w700,
-                                                  color: AppColors.warning,
+                                                _activeMode == RouteMode.deployment
+                                                    ? 'Simulate Cook Tap (Open Branch)'
+                                                    : 'Simulate Cook Tap (Close Branch)',
+                                                style: const TextStyle(
+                                                  fontSize: 12.5,
+                                                  fontWeight: FontWeight.w800,
+                                                  color: CupertinoColors.white,
+                                                  letterSpacing: 0.3,
                                                 ),
                                               ),
                                             ],
                                           ),
-                                        )
+                                        ),
+                                        const SizedBox(height: 6),
+                                        Row(
+                                          mainAxisAlignment: MainAxisAlignment.center,
+                                          children: [
+                                            const Icon(CupertinoIcons.info_circle, size: 11, color: AppColors.textSecondary),
+                                            const SizedBox(width: 4),
+                                            Text(
+                                              _activeMode == RouteMode.deployment
+                                                  ? 'Temporary trigger for branch opening arrival'
+                                                  : 'Temporary trigger for branch closing retrieval',
+                                              style: const TextStyle(
+                                                fontSize: 10.5,
+                                                color: AppColors.textSecondary,
+                                                fontStyle: FontStyle.italic,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ]
                                       else
                                         // "On the way" button — only shown before driver has notified
                                         CupertinoButton(

@@ -233,7 +233,6 @@ class _AccountApprovalsScreenState extends State<AccountApprovalsScreen> {
                           .map(
                             (r) => _RequestCard(
                               request: r,
-                              onChangeStatus: (newStatus) => _decide(r, newStatus),
                             ),
                           ),
                       AdminPaginationBar(
@@ -259,13 +258,11 @@ class _RequestCard extends StatelessWidget {
     required this.request,
     this.onAccept,
     this.onReject,
-    this.onChangeStatus,
   });
 
   final RegistrationRequest request;
   final VoidCallback? onAccept;
   final VoidCallback? onReject;
-  final void Function(AccountStatus)? onChangeStatus;
 
   Color _statusColor() {
     switch (request.status) {
@@ -536,53 +533,6 @@ class _RequestCard extends StatelessWidget {
                         ),
                       ),
                     ),
-                    if (onChangeStatus != null) ...[
-                      const SizedBox(width: 4),
-                      PopupMenuButton<AccountStatus>(
-                        tooltip: 'Change Decision',
-                        icon: const Icon(Icons.more_vert_rounded,
-                            size: 18, color: AdminWebColors.textSecondary),
-                        onSelected: onChangeStatus,
-                        itemBuilder: (context) => [
-                          if (request.status != AccountStatus.approved)
-                            const PopupMenuItem(
-                              value: AccountStatus.approved,
-                              child: Row(
-                                children: [
-                                  Icon(Icons.check_circle_rounded,
-                                      size: 16, color: AdminWebColors.success),
-                                  SizedBox(width: 8),
-                                  Text('Approve Account'),
-                                ],
-                              ),
-                            ),
-                          if (request.status != AccountStatus.rejected)
-                            const PopupMenuItem(
-                              value: AccountStatus.rejected,
-                              child: Row(
-                                children: [
-                                  Icon(Icons.cancel_rounded,
-                                      size: 16, color: AdminWebColors.error),
-                                  SizedBox(width: 8),
-                                  Text('Reject Account'),
-                                ],
-                              ),
-                            ),
-                          if (request.status != AccountStatus.pending)
-                            const PopupMenuItem(
-                              value: AccountStatus.pending,
-                              child: Row(
-                                children: [
-                                  Icon(Icons.pending_actions_rounded,
-                                      size: 16, color: AdminWebColors.warning),
-                                  SizedBox(width: 8),
-                                  Text('Move to Pending'),
-                                ],
-                              ),
-                            ),
-                        ],
-                      ),
-                    ],
                   ],
                 );
 

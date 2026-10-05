@@ -292,7 +292,7 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
                     border: Border.all(color: AdminWebColors.border),
                   ),
                   child: Text(
-                    report.content.isEmpty ? 'Wala pang naisusumiteng report.' : report.content,
+                    report.content.isEmpty ? 'No report submitted yet.' : report.content,
                     style: const TextStyle(color: AdminWebColors.textPrimary, fontSize: 13.5, height: 1.4),
                   ),
                 ),
