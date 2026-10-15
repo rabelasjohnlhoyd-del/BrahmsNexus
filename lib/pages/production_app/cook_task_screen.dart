@@ -14,6 +14,7 @@ import '../../widgets/staff_card.dart';
 import '../../widgets/staff_nav_bar.dart';
 import '../../widgets/staff_section_header.dart';
 import '../../widgets/staff_top_actions.dart';
+import '../staff_app/staff_salary_screen.dart';
 import 'production_shell.dart';
 
 class CookTaskScreen extends StatefulWidget {
@@ -268,6 +269,71 @@ class CookTaskScreenState extends State<CookTaskScreen> {
           children: [
             // 0. WEATHER WIDGET
             _weatherWidget(),
+            const SizedBox(height: 14),
+
+            // SALARY QUICK-CARD
+            GestureDetector(
+              onTap: () {
+                Navigator.of(context, rootNavigator: true).push(
+                  CupertinoPageRoute(
+                    builder: (_) => const StaffSalaryScreen(),
+                  ),
+                );
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: AppColors.accent.withValues(alpha: 0.3)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.03),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: AppColors.accent.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(CupertinoIcons.money_dollar_circle_fill,
+                          color: AppColors.accent, size: 20),
+                    ),
+                    const SizedBox(width: 12),
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Sahod at Sessions (₱1,000 / Session)',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF24140B),
+                            ),
+                          ),
+                          SizedBox(height: 2),
+                          Text(
+                            '12-15 sessions buwanang trabaho • Tingnan ang tala',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Color(0xFF7A6556),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Icon(CupertinoIcons.chevron_right, size: 16, color: AppColors.accent),
+                  ],
+                ),
+              ),
+            ),
             const SizedBox(height: 18),
 
             // ASSIGNED BATCH CARD (MULA KAY OWNER)

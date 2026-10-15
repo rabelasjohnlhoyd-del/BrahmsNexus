@@ -26,6 +26,7 @@ class _MonthlyFinancialsScreenState extends State<MonthlyFinancialsScreen> {
       '${DateTime.now().year}_${DateTime.now().month.toString().padLeft(2, '0')}';
 
   double _actualBranchCookWages = 0.0;
+  String? _selectedBatchId;
   bool _isSaving = false;
 
   @override
@@ -51,7 +52,7 @@ class _MonthlyFinancialsScreenState extends State<MonthlyFinancialsScreen> {
       medium300gCount: counts.count300g,
       b1t1400gCount: counts.count400g,
       productionCookingSessions: counts.sessionsCount > 0 ? counts.sessionsCount : 7,
-      productionCookDailyRate: 1100.0,
+      productionCookDailyRate: 1000.0,
       productionCutterDailyRate: 1100.0,
       driverWorkingDays: 25,
       driverDailyWage: 650.0,
@@ -141,7 +142,11 @@ class _MonthlyFinancialsScreenState extends State<MonthlyFinancialsScreen> {
     int c400 = 0;
     int sessions = 0;
 
-    for (var b in widget.karneBatches) {
+    final batchesToUse = _selectedBatchId == null
+        ? widget.karneBatches
+        : widget.karneBatches.where((b) => b.id == _selectedBatchId).toList();
+
+    for (var b in batchesToUse) {
       if (b.sessions.isNotEmpty) {
         for (var s in b.sessions) {
           sessions++;
@@ -613,6 +618,183 @@ class _MonthlyFinancialsScreenState extends State<MonthlyFinancialsScreen> {
     );
   }
 
+  void _editBranchCookLaborSettings() {
+    final laborCtrl = TextEditingController(
+      text: _period.effectiveBranchCookLabor.toStringAsFixed(0),
+    );
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Edit Branch Cook Labor Total'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Total Branch Cook labor across all 6 stores. Automatically calculated from sales, but you can override or adjust this amount manually.',
+              style: TextStyle(fontSize: 12, color: AdminWebColors.textSecondary),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: laborCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Branch Cook Labor Total (₱)',
+                prefixText: '₱ ',
+                helperText: 'Total wages across all stores for this batch / month',
+              ),
+              keyboardType: TextInputType.number,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('CANCEL'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final newWage = double.tryParse(laborCtrl.text);
+              if (newWage != null) {
+                setState(() {
+                  _actualBranchCookWages = newWage;
+                  _period = _period.copyWith(branchCookLaborTotal: newWage);
+                });
+                Navigator.pop(ctx);
+                _persistPeriod();
+              }
+            },
+            child: const Text('UPDATE'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _editDaddyNetSettings() {
+    final daysCtrl =
+        TextEditingController(text: _period.daddyNetDays.toString());
+    final rateCtrl =
+        TextEditingController(text: _period.dailyDaddyNetRate.toStringAsFixed(0));
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("Edit Daddy's Net"),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              "Daddy's Net daily rate is ₱700 by default. Adjust days and daily rate as needed.",
+              style: TextStyle(fontSize: 12, color: AdminWebColors.textSecondary),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: daysCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Operating Days',
+                helperText: 'Number of operating days for Daddy’s Net',
+              ),
+              keyboardType: TextInputType.number,
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: rateCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Daily Rate (₱)',
+                prefixText: '₱ ',
+              ),
+              keyboardType: TextInputType.number,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('CANCEL'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              setState(() {
+                _period = _period.copyWith(
+                  daddyNetDays: int.tryParse(daysCtrl.text) ?? _period.daddyNetDays,
+                  dailyDaddyNetRate:
+                      double.tryParse(rateCtrl.text) ?? _period.dailyDaddyNetRate,
+                );
+              });
+              Navigator.pop(ctx);
+              _persistPeriod();
+            },
+            child: const Text('UPDATE'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _editTrikeGasSettings() {
+    final daysCtrl =
+        TextEditingController(text: _period.trikeGasDays.toString());
+    final rateCtrl =
+        TextEditingController(text: _period.dailyTrikeGasRate.toStringAsFixed(0));
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Edit Trike Gas'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Trike Gas daily allowance is ₱150 by default. Adjust days and daily rate as needed.',
+              style: TextStyle(fontSize: 12, color: AdminWebColors.textSecondary),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: daysCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Trike Gas Days',
+                helperText: 'Number of delivery days needing trike gas',
+              ),
+              keyboardType: TextInputType.number,
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: rateCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Daily Rate (₱)',
+                prefixText: '₱ ',
+              ),
+              keyboardType: TextInputType.number,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('CANCEL'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              setState(() {
+                _period = _period.copyWith(
+                  trikeGasDays: int.tryParse(daysCtrl.text) ?? _period.trikeGasDays,
+                  dailyTrikeGasRate:
+                      double.tryParse(rateCtrl.text) ?? _period.dailyTrikeGasRate,
+                );
+              });
+              Navigator.pop(ctx);
+              _persistPeriod();
+            },
+            child: const Text('UPDATE'),
+          ),
+        ],
+      ),
+    );
+  }
+
   // --- BUILD METHOD ---
 
   @override
@@ -983,6 +1165,70 @@ class _MonthlyFinancialsScreenState extends State<MonthlyFinancialsScreen> {
               ),
             ],
           ),
+          if (widget.karneBatches.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: AdminWebColors.border),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.inventory_2_outlined,
+                      size: 16, color: AdminWebColors.accent),
+                  const SizedBox(width: 8),
+                  const Text(
+                    'Select Karne Batch: ',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: AdminWebColors.textSecondary,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  DropdownButton<String?>(
+                    value: _selectedBatchId,
+                    isDense: true,
+                    underline: const SizedBox.shrink(),
+                    items: [
+                      const DropdownMenuItem<String?>(
+                        value: null,
+                        child: Text(
+                          'All Monthly Batches (Combined)',
+                          style: TextStyle(
+                              fontSize: 12, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      ...widget.karneBatches.map((b) => DropdownMenuItem<String?>(
+                            value: b.id,
+                            child: Text(
+                              '${b.name} (${b.totalKilos.toStringAsFixed(1)} kg)',
+                              style: const TextStyle(fontSize: 12),
+                            ),
+                          )),
+                    ],
+                    onChanged: (val) {
+                      setState(() {
+                        _selectedBatchId = val;
+                        final counts = _extractMeatCounts();
+                        _period = _period.copyWith(
+                          regular250gCount: counts.count250g,
+                          medium300gCount: counts.count300g,
+                          b1t1400gCount: counts.count400g,
+                          productionCookingSessions: counts.sessionsCount > 0
+                              ? counts.sessionsCount
+                              : _period.productionCookingSessions,
+                        );
+                      });
+                      _persistPeriod();
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ],
           const Divider(height: 28),
           Row(
             children: [
@@ -1127,6 +1373,9 @@ class _MonthlyFinancialsScreenState extends State<MonthlyFinancialsScreen> {
   }
 
   Widget _buildGroupCard(ProcurementGroup group) {
+    final allPaid =
+        group.items.isNotEmpty && group.items.every((it) => it.isPaid);
+
     return GlassCard(
       padding: EdgeInsets.zero,
       child: Column(
@@ -1142,12 +1391,73 @@ class _MonthlyFinancialsScreenState extends State<MonthlyFinancialsScreen> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  group.title,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w900,
-                    color: AdminWebColors.accent,
-                  ),
+                Row(
+                  children: [
+                    Text(
+                      group.title,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w900,
+                        color: AdminWebColors.accent,
+                      ),
+                    ),
+                    if (group.items.isNotEmpty) ...[
+                      const SizedBox(width: 12),
+                      InkWell(
+                        onTap: () {
+                          setState(() {
+                            final target = !allPaid;
+                            for (var item in group.items) {
+                              item.isPaid = target;
+                            }
+                          });
+                          _persistPeriod();
+                        },
+                        borderRadius: BorderRadius.circular(6),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: (allPaid
+                                    ? AdminWebColors.success
+                                    : AdminWebColors.accent)
+                                .withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(
+                              color: (allPaid
+                                      ? AdminWebColors.success
+                                      : AdminWebColors.accent)
+                                  .withValues(alpha: 0.3),
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                allPaid
+                                    ? Icons.check_box_rounded
+                                    : Icons.check_box_outline_blank_rounded,
+                                size: 14,
+                                color: allPaid
+                                    ? AdminWebColors.success
+                                    : AdminWebColors.accent,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                allPaid ? 'UNCHECK ALL' : 'CHECK ALL',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w800,
+                                  color: allPaid
+                                      ? AdminWebColors.success
+                                      : AdminWebColors.accent,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
                 Row(
                   children: [
@@ -1291,11 +1601,13 @@ class _MonthlyFinancialsScreenState extends State<MonthlyFinancialsScreen> {
           ),
           const Divider(height: 28),
 
-          // 2. Branch Cook Labor (Automated from Sales & Payroll)
-          _overheadRow(
-            'Branch Cooks Labor (6 Stores)',
-            '₱${_period.effectiveBranchCookLabor.toStringAsFixed(0)}',
-            sub: 'Automatically synced from Branch Cook Sales & Payroll',
+          // 2. Branch Cook Labor (Automated from Sales & Payroll, with manual override)
+          _overheadRowWithAction(
+            label: 'Branch Cooks Labor (6 Stores)',
+            val: '₱${_period.effectiveBranchCookLabor.toStringAsFixed(0)}',
+            sub:
+                'Synced from Branch Cook sales or warehouse batch. Tap pencil to override.',
+            onEdit: _editBranchCookLaborSettings,
           ),
           const Divider(height: 28),
 
@@ -1318,21 +1630,21 @@ class _MonthlyFinancialsScreenState extends State<MonthlyFinancialsScreen> {
               color: AdminWebColors.textSecondary,
             ),
           ),
-          const SizedBox(height: 8),
-          _overheadRow(
-            'Total Rent & Stall Fees',
-            '₱${(_period.driverWorkingDays * _period.dailyButawRate).toStringAsFixed(0)}',
-            sub: '${_period.driverWorkingDays} days × ₱${_period.dailyButawRate.toStringAsFixed(0)}',
+          const SizedBox(height: 12),
+          _overheadRowWithAction(
+            label: "Total Daddy's Net",
+            val: '₱${_period.totalDaddyNetCost.toStringAsFixed(0)}',
+            sub:
+                '${_period.daddyNetDays} days × ₱${_period.dailyDaddyNetRate.toStringAsFixed(0)} daily rate',
+            onEdit: _editDaddyNetSettings,
           ),
-          _overheadRow(
-            "Total Daddy's Net",
-            '₱${(_period.driverWorkingDays * _period.dailyDaddyNetRate).toStringAsFixed(0)}',
-            sub: '${_period.driverWorkingDays} days × ₱${_period.dailyDaddyNetRate.toStringAsFixed(0)}',
-          ),
-          _overheadRow(
-            'Total Trike Gas',
-            '₱${(_period.driverWorkingDays * _period.dailyTrikeGasRate).toStringAsFixed(0)}',
-            sub: '${_period.driverWorkingDays} days × ₱${_period.dailyTrikeGasRate.toStringAsFixed(0)}',
+          const Divider(height: 20),
+          _overheadRowWithAction(
+            label: 'Total Trike Gas',
+            val: '₱${_period.totalTrikeGasCost.toStringAsFixed(0)}',
+            sub:
+                '${_period.trikeGasDays} days × ₱${_period.dailyTrikeGasRate.toStringAsFixed(0)} daily rate',
+            onEdit: _editTrikeGasSettings,
           ),
 
           const Divider(height: 36, thickness: 1.5),

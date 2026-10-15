@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../models/branch.dart';
@@ -38,10 +39,18 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
   // derive assignments from staff list, filtered to show only Branch Cooks
   late List<BranchAssignment> _assignments;
 
+  // Draft: local-only changes before the owner confirms Save
+  // Key = employeeId, Value = draft assignment
+  final Map<String, BranchAssignment> _draftChanges = {};
+
+  // Whether today's assignments have already been saved once
+  bool _savedToday = false;
+
   @override
   void initState() {
     super.initState();
     _initializeAssignments();
+    _checkSavedToday();
     _updateShellActions();
     AssignmentService.changeNotifier.addListener(_onAssignmentsChanged);
     AuthService.syncApprovedUsersToStaffDirectory().then((_) {
@@ -87,6 +96,8 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
     setState(() {
       for (int i = 0; i < _assignments.length; i++) {
         final a = _assignments[i];
+        // Skip entries that have unsaved draft changes from the owner
+        if (_draftChanges.containsKey(a.employeeId)) continue;
         final staff = _findStaff(branchCooks, a.employeeId, a.employeeName);
         if (staff == null) continue; // Never overwrite with a mismatched person!
 
@@ -221,6 +232,7 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
         _onAssignmentsChanged();
       }
     } catch (_) {}
+    _checkSavedToday();
   }
 
   @override
@@ -234,87 +246,89 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
     shell?.setActions([]); 
   }
 
-  void _updateBranch(BranchAssignment target, Branch branch) async {
+  Future<void> _checkSavedToday() async {
+    final prefs = await SharedPreferences.getInstance();
+    final savedDate = prefs.getString('assignment_saved_date') ?? '';
+    final todayStr = '${_today.year}-${_today.month.toString().padLeft(2, '0')}-${_today.day.toString().padLeft(2, '0')}';
+    if (mounted) {
+      setState(() => _savedToday = savedDate == todayStr);
+    }
+  }
+
+  void _updateBranch(BranchAssignment target, Branch branch) {
     final originalIndex = _assignments.indexWhere((item) =>
         item.employeeId == target.employeeId ||
         item.employeeName.trim().toLowerCase() == target.employeeName.trim().toLowerCase());
     if (originalIndex == -1) return;
-
     final a = _assignments[originalIndex];
-
-    final allStaff = SupabaseService.getAllStaff();
-    final staff = _findStaff(allStaff, a.employeeId, a.employeeName);
-    final username = (staff != null && staff.username.isNotEmpty) ? staff.username : a.employeeId;
-
-    // Lock branch in cache immediately before async call
-    AssignmentService.lockBranch(
-      username: username,
-      employeeId: a.employeeId,
-      branchName: branch.fullName,
-    );
-
-    setState(() {
-      _assignments[originalIndex] = a.copyWith(
-        branchId: branch.id,
-        branchName: branch.fullName,
-      );
-    });
-
-    await AssignmentService.setAssignment(
-      username: username,
-      employeeId: a.employeeId,
-      employeeName: a.employeeName,
+    final updated = a.copyWith(
       branchId: branch.id,
       branchName: branch.fullName,
-      status: a.workStatus,
     );
-
-    final adminName = AuthService.currentAppUser?.fullName ?? 'Admin';
-    FirestoreService.logActivity(
-      actor: adminName,
-      role: 'Admin',
-      action: 'Reassigned ${a.employeeName} to ${branch.fullName}',
-      detail: 'Position: Branch Cook',
-      type: 'Staff',
-    ).catchError((_) {});
+    setState(() {
+      _assignments[originalIndex] = updated;
+      _draftChanges[a.employeeId] = updated;
+    });
   }
 
-  void _updateStatus(BranchAssignment target, WorkStatus status) async {
+  void _updateStatus(BranchAssignment target, WorkStatus status) {
     final originalIndex = _assignments.indexWhere((item) =>
         item.employeeId == target.employeeId ||
         item.employeeName.trim().toLowerCase() == target.employeeName.trim().toLowerCase());
     if (originalIndex == -1) return;
-
     final a = _assignments[originalIndex];
     if (a.workStatus == status) return;
-
-    final allStaff = SupabaseService.getAllStaff();
-    final staff = _findStaff(allStaff, a.employeeId, a.employeeName);
-    final username = (staff != null && staff.username.isNotEmpty) ? staff.username : a.employeeId;
-
-    // Lock status in cache immediately (optimistic UI without annoying popups)
-    AssignmentService.lockStatus(
-      username: username,
-      employeeId: a.employeeId,
-      status: status,
-      branchName: a.branchName,
-    );
-
+    final updated = a.copyWith(workStatus: status);
     setState(() {
-      _assignments[originalIndex] = a.copyWith(workStatus: status);
+      _assignments[originalIndex] = updated;
+      _draftChanges[a.employeeId] = updated;
     });
-
-    await AssignmentService.setAssignment(
-      username: username,
-      employeeId: a.employeeId,
-      employeeName: a.employeeName,
-      branchId: a.branchId,
-      branchName: a.branchName,
-      status: status,
-    );
   }
 
-  void _saveAll() async {
+  void _setRestDayAll() {
+    setState(() {
+      for (int i = 0; i < _assignments.length; i++) {
+        final updated = _assignments[i].copyWith(workStatus: WorkStatus.restDay);
+        _assignments[i] = updated;
+        _draftChanges[updated.employeeId] = updated;
+      }
+    });
+  }
+
+  Future<void> _saveAll() async {
+    if (_savedToday) {
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          title: const Row(
+            children: [
+              Icon(Icons.lock_clock_rounded, color: Color(0xFFDC2626), size: 24),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text('Already Saved Today', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+              ),
+            ],
+          ),
+          content: const Text(
+            'Assignments have already been saved for today. To prevent accidental changes to active sales data, assignments can only be saved once per day.\n\nIf you really need to change something, please contact the system administrator.',
+            style: TextStyle(fontSize: 13, height: 1.4),
+          ),
+          actions: [
+            ElevatedButton(
+              onPressed: () => Navigator.pop(ctx),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AdminWebColors.accent,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
     // Rate limit: prevent hammering Supabase with rapid save presses
     if (!RateLimiter.tryAction(
       key: 'admin_save_assignments',
@@ -327,7 +341,7 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
       return;
     }
 
-    // Check for duplicate on-duty cooks per branch (excluding Unassigned / N/A)
+    // Check for duplicate on-duty cooks per branch
     final onDutyList = _assignments.where((a) => a.workStatus == WorkStatus.onDuty).toList();
     final Map<String, List<String>> branchOccupants = {};
     for (final a in onDutyList) {
@@ -338,6 +352,7 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
     final conflicts = branchOccupants.entries.where((e) => e.value.length > 1).toList();
     if (conflicts.isNotEmpty) {
       final conflictDetails = conflicts.map((c) => '• ${c.key}:\n  - ${c.value.join("\n  - ")}').join('\n\n');
+      if (!mounted) return;
       showDialog(
         context: context,
         builder: (ctx) => AlertDialog(
@@ -369,19 +384,74 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
       return;
     }
 
+    // Show confirmation dialog
+    final onDutyCount = _assignments.where((a) => a.workStatus == WorkStatus.onDuty).length;
+    final restDayCount = _assignments.where((a) => a.workStatus == WorkStatus.restDay).length;
+    if (!mounted) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        title: const Row(
+          children: [
+            Icon(Icons.save_rounded, color: AdminWebColors.accent, size: 24),
+            SizedBox(width: 8),
+            Expanded(
+              child: Text('Confirm Save Assignments', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+            ),
+          ],
+        ),
+        content: Text(
+          'Are you sure you want to save today\'s assignments?\n\n'
+          '• $onDutyCount staff ON DUTY\n'
+          '• $restDayCount staff on REST DAY\n\n'
+          'This action can only be done once today. Once saved, assignments cannot be changed until tomorrow.',
+          style: const TextStyle(fontSize: 13, height: 1.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('CANCEL', style: TextStyle(color: Color(0xFF64748B))),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AdminWebColors.accent,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('YES, SAVE NOW'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    // Commit all draft changes to AssignmentService + cloud
     final allStaff = SupabaseService.getAllStaff();
     for (final a in _assignments) {
-      // Skip staff who still have no real branch assigned — writing "Unassigned"
-      // or "N/A" to Supabase would corrupt the realtime cache for all staff.
       final bNameClean = a.branchName.trim().toLowerCase();
       final hasRealBranch = bNameClean.isNotEmpty && bNameClean != 'n/a' && bNameClean != 'unassigned';
-
-      // Always save rest-day status (even without a branch) so it persists.
-      // For on-duty staff, skip if they have no branch yet — they must select one first.
       if (!hasRealBranch && a.workStatus != WorkStatus.restDay) continue;
 
       final staff = _findStaff(allStaff, a.employeeId, a.employeeName);
       final username = (staff != null && staff.username.isNotEmpty) ? staff.username : a.employeeId;
+
+      // NOW write to AssignmentService cache + cloud
+      AssignmentService.lockStatus(
+        username: username,
+        employeeId: a.employeeId,
+        status: a.workStatus,
+        branchName: a.branchName,
+      );
+      if (hasRealBranch) {
+        AssignmentService.lockBranch(
+          username: username,
+          employeeId: a.employeeId,
+          branchName: a.branchName,
+        );
+      }
       await AssignmentService.setAssignment(
         username: username,
         employeeId: a.employeeId,
@@ -391,10 +461,31 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
         status: a.workStatus,
       );
     }
+
+    // Mark as saved today
+    final prefs = await SharedPreferences.getInstance();
+    final todayStr = '${_today.year}-${_today.month.toString().padLeft(2, '0')}-${_today.day.toString().padLeft(2, '0')}';
+    await prefs.setString('assignment_saved_date', todayStr);
+    _draftChanges.clear();
+
     if (!mounted) return;
+    setState(() => _savedToday = true);
+
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Branch assignments & Rest Days saved to cloud successfully!')),
+      const SnackBar(
+        content: Text('✅ Branch assignments saved successfully! Staff can now log in.'),
+        backgroundColor: Color(0xFF059669),
+      ),
     );
+
+    final adminName = AuthService.currentAppUser?.fullName ?? 'Admin';
+    FirestoreService.logActivity(
+      actor: adminName,
+      role: 'Admin',
+      action: 'Saved branch assignments for ${_today.day}/${_today.month}/${_today.year}',
+      detail: '$onDutyCount on duty, $restDayCount rest day',
+      type: 'Staff',
+    ).catchError((_) {});
   }
 
   List<BranchAssignment> get _filteredAssignments {
@@ -458,19 +549,39 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
                     ),
                   );
 
-                  final saveBtn = ElevatedButton.icon(
-                    onPressed: _saveAll,
-                    icon: const Icon(Icons.save_rounded,
-                        size: 16, color: Colors.white),
+                  final restDayAllBtn = OutlinedButton.icon(
+                    onPressed: _savedToday ? null : _setRestDayAll,
+                    icon: const Icon(Icons.hotel_rounded, size: 16),
                     label: const Text(
-                      'SAVE ASSIGNMENTS',
-                      style: TextStyle(
+                      'REST DAY ALL',
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFFDC2626),
+                      side: BorderSide(
+                        color: _savedToday ? const Color(0xFFCBD5E1) : const Color(0xFFDC2626),
+                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                  );
+
+                  final saveBtn = ElevatedButton.icon(
+                    onPressed: _savedToday ? null : _saveAll,
+                    icon: Icon(
+                      _savedToday ? Icons.lock_rounded : Icons.save_rounded,
+                      size: 16,
+                      color: Colors.white,
+                    ),
+                    label: Text(
+                      _savedToday ? 'SAVED FOR TODAY' : 'SAVE ASSIGNMENTS',
+                      style: const TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 13,
                       ),
                     ),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: AdminWebColors.accent,
+                      backgroundColor: _savedToday ? const Color(0xFF94A3B8) : AdminWebColors.accent,
                       foregroundColor: Colors.white,
                       elevation: 0,
                       padding: const EdgeInsets.symmetric(
@@ -485,6 +596,8 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
                       children: [
                         dateBadge,
                         const Spacer(),
+                        restDayAllBtn,
+                        const SizedBox(width: 10),
                         saveBtn,
                       ],
                     );
@@ -495,6 +608,8 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
                     children: [
                       dateBadge,
                       const SizedBox(height: 10),
+                      restDayAllBtn,
+                      const SizedBox(height: 8),
                       saveBtn,
                     ],
                   );

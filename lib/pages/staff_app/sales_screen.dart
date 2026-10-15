@@ -1246,7 +1246,7 @@ class SalesScreenState extends State<SalesScreen> {
                         label: '+1 REGULAR BAGNET',
                         priceTag: '₱130 · 250g',
                         icon: CupertinoIcons.add,
-                        color: const Color(0xFFD97706),
+                        color: AppColors.accent,
                         onTap: () => _punchOrder(
                           name: 'Regular Bagnet',
                           price: 130,
@@ -1278,7 +1278,7 @@ class SalesScreenState extends State<SalesScreen> {
                         label: '+1 MEDIUM BAGNET',
                         priceTag: '₱160 · 300g',
                         icon: CupertinoIcons.add,
-                        color: const Color(0xFFD97706),
+                        color: AppColors.accent,
                         onTap: () => _punchOrder(
                           name: 'Medium Bagnet',
                           price: 160,
@@ -1294,7 +1294,7 @@ class SalesScreenState extends State<SalesScreen> {
                         label: '+1 B1T1 (SISIG & BAGNET)',
                         priceTag: '₱210 · 400g (2 Pcs)',
                         icon: CupertinoIcons.add,
-                        color: const Color(0xFF059669),
+                        color: AppColors.accent,
                         onTap: () => _punchOrder(
                           name: 'B1T1 (Sisig & Bagnet)',
                           price: 210,
@@ -1310,7 +1310,7 @@ class SalesScreenState extends State<SalesScreen> {
                         label: '+1 B1T1 (BAGNET & BAGNET)',
                         priceTag: '₱210 · 400g (2 Pcs)',
                         icon: CupertinoIcons.add,
-                        color: const Color(0xFF059669),
+                        color: AppColors.accent,
                         onTap: () => _punchOrder(
                           name: 'B1T1 (Bagnet & Bagnet)',
                           price: 210,

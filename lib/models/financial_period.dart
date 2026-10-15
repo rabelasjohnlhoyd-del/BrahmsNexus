@@ -11,13 +11,15 @@ class FinancialPeriod {
     this.medium300gCount = 0,
     this.b1t1400gCount = 0,
     int? productionCookingSessions,
-    this.productionCookDailyRate = 1100.0,
+    this.productionCookDailyRate = 1000.0,
     this.productionCutterDailyRate = 1100.0,
     this.driverWorkingDays = 25,
     this.driverDailyWage = 650.0,
     this.branchCookLaborTotal = 0.0,
-    this.dailyButawRate = 100.0,
+    this.dailyButawRate = 0.0,
+    int? daddyNetDays,
     this.dailyDaddyNetRate = 700.0,
+    int? trikeGasDays,
     this.dailyTrikeGasRate = 150.0,
     this.dailyOverheads = const [],
     this.procurementGroups = const [],
@@ -25,7 +27,9 @@ class FinancialPeriod {
     int? productionLaborDays,
   })  : regular250gCount = regular250gCount ?? (productionPcs ?? 0),
         productionCookingSessions =
-            productionCookingSessions ?? (productionLaborDays ?? 0);
+            productionCookingSessions ?? (productionLaborDays ?? 0),
+        daddyNetDays = daddyNetDays ?? driverWorkingDays,
+        trikeGasDays = trikeGasDays ?? driverWorkingDays;
 
   final String id;
   final String monthName;
@@ -50,9 +54,11 @@ class FinancialPeriod {
   // Branch Cook labor (from Sales & Payroll)
   final double branchCookLaborTotal;
 
-  // Fixed daily store overheads
+  // Fixed daily store overheads (Rent & Stall Fees removed per Owner's instruction)
   final double dailyButawRate;
+  final int daddyNetDays;
   final double dailyDaddyNetRate;
+  final int trikeGasDays;
   final double dailyTrikeGasRate;
 
   final List<DailyOverheadEntry> dailyOverheads;
@@ -87,9 +93,11 @@ class FinancialPeriod {
 
   double get totalDriverLaborCost => driverWorkingDays * driverDailyWage;
 
+  double get totalDaddyNetCost => daddyNetDays * dailyDaddyNetRate;
+  double get totalTrikeGasCost => trikeGasDays * dailyTrikeGasRate;
+
   double get totalDailyFixedOverheads =>
-      driverWorkingDays *
-      (dailyButawRate + dailyDaddyNetRate + dailyTrikeGasRate);
+      totalDaddyNetCost + totalTrikeGasCost;
 
   double get accumulatedStoreCost =>
       totalDriverLaborCost +
@@ -150,7 +158,9 @@ class FinancialPeriod {
     double? driverDailyWage,
     double? branchCookLaborTotal,
     double? dailyButawRate,
+    int? daddyNetDays,
     double? dailyDaddyNetRate,
+    int? trikeGasDays,
     double? dailyTrikeGasRate,
     List<DailyOverheadEntry>? dailyOverheads,
     List<ProcurementGroup>? procurementGroups,
@@ -175,7 +185,9 @@ class FinancialPeriod {
       branchCookLaborTotal:
           branchCookLaborTotal ?? this.branchCookLaborTotal,
       dailyButawRate: dailyButawRate ?? this.dailyButawRate,
+      daddyNetDays: daddyNetDays ?? this.daddyNetDays,
       dailyDaddyNetRate: dailyDaddyNetRate ?? this.dailyDaddyNetRate,
+      trikeGasDays: trikeGasDays ?? this.trikeGasDays,
       dailyTrikeGasRate: dailyTrikeGasRate ?? this.dailyTrikeGasRate,
       dailyOverheads: dailyOverheads ?? this.dailyOverheads,
       procurementGroups: procurementGroups ?? this.procurementGroups,
@@ -199,7 +211,9 @@ class FinancialPeriod {
       'driverDailyWage': driverDailyWage,
       'branchCookLaborTotal': branchCookLaborTotal,
       'dailyButawRate': dailyButawRate,
+      'daddyNetDays': daddyNetDays,
       'dailyDaddyNetRate': dailyDaddyNetRate,
+      'trikeGasDays': trikeGasDays,
       'dailyTrikeGasRate': dailyTrikeGasRate,
       'procurementGroups': procurementGroups.map((g) => g.toMap()).toList(),
       'dailyOverheads': dailyOverheads.map((o) => o.toMap()).toList(),
@@ -222,16 +236,22 @@ class FinancialPeriod {
       productionCookingSessions:
           (map['productionCookingSessions'] as num?)?.toInt() ?? 0,
       productionCookDailyRate:
-          (map['productionCookDailyRate'] as num?)?.toDouble() ?? 1100.0,
+          (map['productionCookDailyRate'] as num?)?.toDouble() ?? 1000.0,
       productionCutterDailyRate:
           (map['productionCutterDailyRate'] as num?)?.toDouble() ?? 1100.0,
       driverWorkingDays: (map['driverWorkingDays'] as num?)?.toInt() ?? 25,
       driverDailyWage: (map['driverDailyWage'] as num?)?.toDouble() ?? 650.0,
       branchCookLaborTotal:
           (map['branchCookLaborTotal'] as num?)?.toDouble() ?? 0.0,
-      dailyButawRate: (map['dailyButawRate'] as num?)?.toDouble() ?? 100.0,
+      dailyButawRate: (map['dailyButawRate'] as num?)?.toDouble() ?? 0.0,
+      daddyNetDays: (map['daddyNetDays'] as num?)?.toInt() ??
+          (map['driverWorkingDays'] as num?)?.toInt() ??
+          25,
       dailyDaddyNetRate:
           (map['dailyDaddyNetRate'] as num?)?.toDouble() ?? 700.0,
+      trikeGasDays: (map['trikeGasDays'] as num?)?.toInt() ??
+          (map['driverWorkingDays'] as num?)?.toInt() ??
+          25,
       dailyTrikeGasRate:
           (map['dailyTrikeGasRate'] as num?)?.toDouble() ?? 150.0,
       procurementGroups: rawGroups

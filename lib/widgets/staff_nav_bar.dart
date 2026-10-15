@@ -88,8 +88,13 @@ class StaffNavBar extends StatelessWidget
         ),
       ),
       padding: EdgeInsets.only(top: topInset),
-      child: SizedBox(
-        height: contentHeight,
+      child: DefaultTextStyle(
+        style: const TextStyle(
+          decoration: TextDecoration.none,
+          fontFamily: '.SF UI Text',
+        ),
+        child: SizedBox(
+          height: contentHeight,
         child: Stack(
           children: [
             Positioned(
@@ -109,6 +114,7 @@ class StaffNavBar extends StatelessWidget
             ),
           ],
         ),
+      ),
       ),
     );
   }
@@ -206,6 +212,7 @@ class StaffNavBar extends StatelessWidget
                   fontWeight: FontWeight.w700,
                   fontSize: 16,
                   letterSpacing: -0.2,
+                  decoration: TextDecoration.none,
                 ),
               ),
             ),

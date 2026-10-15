@@ -13,6 +13,7 @@ import '../auth/login_screen.dart';
 import 'driver_shell.dart';
 import 'edit_profile_screen.dart';
 import 'route_screen.dart';
+import '../staff_app/staff_salary_screen.dart';
 
 /// Refined Driver Profile — displays the logged-in driver's real account details.
 class DriverProfileScreen extends StatefulWidget {
@@ -69,6 +70,83 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
                   photoUrl: photoUrl,
                   fullName: fullName,
                   position: position,
+                ),
+
+                const SizedBox(height: 16),
+
+                // --- SALARY & EARNINGS BANNER ---
+                GestureDetector(
+                  onTap: () {
+                    Navigator.of(context, rootNavigator: true).push(
+                      CupertinoPageRoute(
+                        builder: (_) => const StaffSalaryScreen(),
+                      ),
+                    );
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF2B1B12), Color(0xFF5A311B)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF2B1B12).withValues(alpha: 0.2),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 44,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            color: CupertinoColors.white.withValues(alpha: 0.15),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            CupertinoIcons.money_dollar_circle_fill,
+                            color: Color(0xFFFFA726),
+                            size: 26,
+                          ),
+                        ),
+                        const SizedBox(width: 14),
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Sahod at Kita (My Salary)',
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w800,
+                                  color: CupertinoColors.white,
+                                ),
+                              ),
+                              SizedBox(height: 2),
+                              Text(
+                                '₱650 / araw (25–30 araw kada buwan)',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: Color(0xFFD4BDB0),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const Icon(
+                          CupertinoIcons.chevron_right,
+                          color: Color(0xB3FFFFFF),
+                          size: 18,
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
 
                 const SizedBox(height: 20),
