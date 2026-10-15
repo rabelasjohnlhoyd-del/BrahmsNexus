@@ -137,6 +137,34 @@ class FirestoreService {
     }
   }
 
+  /// Checks if a GCash reference number already exists in bilao_orders
+  /// across Firestore documents to prevent duplicate submissions.
+  static Future<bool> isGcashRefNumberExists(String refNumber) async {
+    final clean = refNumber.trim().replaceAll(' ', '');
+    if (clean.isEmpty) return false;
+    try {
+      final snap = await _db
+          .collection('bilao_orders')
+          .where('gcashRefNumber', isEqualTo: clean)
+          .limit(1)
+          .get();
+      if (snap.docs.isNotEmpty) return true;
+
+      if (clean != refNumber.trim()) {
+        final snapOriginal = await _db
+            .collection('bilao_orders')
+            .where('gcashRefNumber', isEqualTo: refNumber.trim())
+            .limit(1)
+            .get();
+        return snapOriginal.docs.isNotEmpty;
+      }
+      return false;
+    } catch (e) {
+      debugPrint('FirestoreService.isGcashRefNumberExists error: $e');
+      return false;
+    }
+  }
+
   /// Creates a new confirmed bilao order.
   static Future<String?> createBilaoOrder(BilaoOrder order) async {
     try {
@@ -427,6 +455,15 @@ class FirestoreService {
         'gcashVerifiedBy': verifiedBy,
         'updatedAt': FieldValue.serverTimestamp(),
       });
+      // Synchronize with Supabase master table
+      SupabaseService.updateGcashVerification(
+        orderId: orderId,
+        verified: true,
+        verifiedBy: verifiedBy,
+      ).catchError((e) {
+        debugPrint('SupabaseService.updateGcashVerification error: $e');
+        return false;
+      });
       return true;
     } catch (e) {
       debugPrint('FirestoreService.verifyGcashPayment error: $e');
@@ -448,6 +485,15 @@ class FirestoreService {
         'gcashRefNumber': null,
         'gcashAmount': null,
         'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      // Synchronize with Supabase master table
+      SupabaseService.updateGcashVerification(
+        orderId: orderId,
+        verified: false,
+      ).catchError((e) {
+        debugPrint('SupabaseService.updateGcashVerification error: $e');
+        return false;
       });
 
       // Notify branch staff to follow up with the customer
@@ -485,6 +531,40 @@ class FirestoreService {
       return true;
     } catch (e) {
       debugPrint('FirestoreService.updateGcashProof error: $e');
+      return false;
+    }
+  }
+
+  /// Sets GCash proof, extracted ref/amount, and directly marks as verified by Admin/Owner.
+  /// Also updates Supabase PostgreSQL bilao_orders simultaneously.
+  static Future<bool> attachAndVerifyGcashProof({
+    required String orderId,
+    required String gcashProofUrl,
+    required String gcashRefNumber,
+    required double gcashAmount,
+    String verifiedBy = 'Admin / Owner',
+  }) async {
+    try {
+      await _db.collection('bilao_orders').doc(orderId).update({
+        'gcashProofUrl': gcashProofUrl,
+        'gcashRefNumber': gcashRefNumber,
+        'gcashAmount': gcashAmount,
+        'gcashVerified': true,
+        'gcashVerifiedAt': FieldValue.serverTimestamp(),
+        'gcashVerifiedBy': verifiedBy,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      SupabaseService.updateBilaoOrderGcashProof(
+        orderId: orderId,
+        gcashProofUrl: gcashProofUrl,
+        gcashRefNumber: gcashRefNumber,
+        gcashAmount: gcashAmount,
+        verified: true,
+        verifiedBy: verifiedBy,
+      );
+      return true;
+    } catch (e) {
+      debugPrint('FirestoreService.attachAndVerifyGcashProof error: $e');
       return false;
     }
   }

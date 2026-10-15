@@ -78,12 +78,18 @@ class GeminiGcashResult {
     this.refNumber = '',
     this.amount = 0.0,
     this.errorMessage = '',
+    this.isAuthentic = true,
+    this.authenticityWarning = '',
+    this.transactionDateTime,
   });
 
   final bool success;
   final String refNumber;
   final double amount;
   final String errorMessage;
+  final bool isAuthentic;
+  final String authenticityWarning;
+  final String? transactionDateTime;
 }
 
 /// Internal wrapper for successful Gemini API call with model tracking.
@@ -122,16 +128,22 @@ class GeminiService {
       final currentKey = keys[keyIdx];
 
       for (final model in models) {
-        final uri = Uri.parse(
-          'https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=$currentKey',
-        );
+        final bool isBearerToken = currentKey.startsWith('AQ.') || currentKey.startsWith('ya29.');
+        final uri = isBearerToken
+            ? Uri.parse('https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent')
+            : Uri.parse('https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=$currentKey');
+
+        final headers = <String, String>{
+          'Content-Type': 'application/json',
+          if (isBearerToken) 'Authorization': 'Bearer $currentKey' else 'x-goog-api-key': currentKey,
+        };
 
         try {
           debugPrint('[GeminiService] Calling model $model (Key #${keyIdx + 1})...');
           final response = await http
               .post(
                 uri,
-                headers: {'Content-Type': 'application/json'},
+                headers: headers,
                 body: bodyJson,
               )
               .timeout(timeout);
@@ -148,6 +160,12 @@ class GeminiService {
           debugPrint(
             '[GeminiService] Model $model returned status ${response.statusCode}',
           );
+
+          // If 401 (Invalid API key), break immediately because all models will fail with 401!
+          if (response.statusCode == 401) {
+            debugPrint('[GeminiService] 401 Unauthorized: Invalid API key on Key #${keyIdx + 1}. Skipping remote calls and using local fallback.');
+            break;
+          }
 
           // If 429 (quota or rate limit reached) and another key is available, switch key immediately!
           if (response.statusCode == 429 && keyIdx + 1 < keys.length) {
@@ -712,20 +730,29 @@ Respond ONLY with raw JSON (do not include markdown codeblocks or quotes):
     }
 
     const prompt = '''
-You are a GCash payment receipt reader for a Philippine food business app.
-Extract the GCash reference number and amount from this GCash screenshot or receipt photo.
+You are an expert fraud-detection and OCR assistant for a Philippine food business app analyzing GCash payment receipts.
+Extract the GCash reference number and amount from this GCash screenshot or receipt photo, and inspect the receipt for visual authenticity.
 
 Rules:
-- Reference number is usually 13 digits long (e.g. 1234567890123)
-- Amount is the peso amount sent/paid (look for "PHP", "₱", or a number near "Amount" or "Sent")
-- If you cannot find either field clearly, set success to false
+1. Reference Number: Standard GCash reference numbers are 13 digits long (e.g. 1002 9384 1928 or 1002938419281). Clean and extract the digits.
+2. Amount: The peso amount sent or paid (e.g. 650.00, 900.00, 1300.00). Look for "PHP", "₱", or the number near "Amount", "Sent", or "Paid".
+3. Transaction Date & Time: Extract the date and time string if visible (e.g. "Oct 09, 2026 10:15 AM").
+4. Authenticity Check:
+   - Check if this looks like a genuine GCash confirmation receipt screen (blue header/checkmark, official font, proper spacing, "Express Send" / "Payment Details").
+   - Inspect for signs of forgery, template generators, or editing: mismatched fonts, misaligned numbers, blurring specifically around the amount/reference number, unnatural shadows, or fake watermarks.
+   - If genuine, set isAuthentic: true, authenticityWarning: ""
+   - If suspicious, set isAuthentic: false, authenticityWarning: "brief description of suspicion"
+5. If you cannot find the reference number or amount clearly, set success to false with an explanatory errorMessage.
 
 Respond ONLY with raw JSON (no markdown, no code blocks):
 {
   "success": boolean,
-  "refNumber": "string (13-digit reference number or empty string if not found)",
+  "refNumber": "string (digits only or standard space-separated digits, empty if not found)",
   "amount": number (amount in pesos as a decimal e.g. 900.00, or 0 if not found),
-  "errorMessage": "string (reason if success is false, otherwise empty string)"
+  "transactionDateTime": "string or null",
+  "isAuthentic": boolean,
+  "authenticityWarning": "string",
+  "errorMessage": "string"
 }
 ''';
 
@@ -766,6 +793,9 @@ Respond ONLY with raw JSON (no markdown, no code blocks):
             success: json['success'] as bool? ?? false,
             refNumber: (json['refNumber'] as String? ?? '').trim(),
             amount: (json['amount'] as num?)?.toDouble() ?? 0.0,
+            transactionDateTime: json['transactionDateTime']?.toString(),
+            isAuthentic: json['isAuthentic'] as bool? ?? true,
+            authenticityWarning: (json['authenticityWarning'] as String? ?? '').trim(),
             errorMessage: (json['errorMessage'] as String? ?? '').trim(),
           );
         }
@@ -782,6 +812,359 @@ Respond ONLY with raw JSON (no markdown, no code blocks):
       errorMessage: 'Hindi nakuha ang data mula sa receipt. I-manual input na lang.',
     );
   }
+
+  // ===========================================================================
+  // 6. CHAT-TO-ORDER NLP PARSER (GEMINI 2.5 FLASH)
+  // ===========================================================================
+
+  /// Analyzes raw customer conversation text (from FB Messenger, SMS, etc.)
+  /// and extracts structured Bilao Order fields (Name, Contact, Size, Qty, Date, Time, Notes).
+  static Future<GeminiChatOrderResult> parseChatOrder(String rawChat) async {
+    if (rawChat.trim().isEmpty) {
+      return const GeminiChatOrderResult(
+        success: false,
+        errorMessage: 'Walang text na inilagay para i-parse.',
+      );
+    }
+
+    if (!RateLimiter.tryAction(key: 'gemini_chat_parse', cooldown: const Duration(seconds: 1))) {
+      return const GeminiChatOrderResult(
+        success: false,
+        errorMessage: 'Sandali lang po bago mag-parse ulit.',
+      );
+    }
+
+    final todayStr = DateTime.now().toIso8601String().substring(0, 10);
+
+    final prompt = '''
+Ikaw ay isang matalinong AI order intake assistant para sa isang sikat na tindahan ng Pancit Bilao sa Pilipinas (Brahms Food Ventures).
+Ang trabaho mo ay suriin ang raw chat conversation mula sa Facebook Messenger, SMS, o Viber at i-extract ang order details.
+Ang petsa ngayon ay: $todayStr.
+
+MGA SUKAT NG BILAO (BILAO SIZES):
+- "Small" o "S": 10 Pax | 1.25 kg | ₱650
+- "Medium" o "M": 15 Pax | 1.75 kg | ₱900
+- "Large" o "L": 20 Pax | 2.5 kg | ₱1,300
+
+MGA BRANCH OUTLETS:
+- "Brgy. Gatid, Sta. Cruz" (o "Gatid", "Sta Cruz") -> code: "br1"
+- "Brgy. Labuin, Pila" (o "Labuin", "Pila") -> code: "br2"
+- "Brgy. Sta. Clara Sur, Pila" (o "Sta Clara") -> code: "br3"
+- "Brgy. Nanhaya, Victoria" (o "Nanhaya", "Victoria") -> code: "br4"
+- "Brgy. San Francisco, Victoria" (o "San Francisco") -> code: "br5"
+- "Brgy. Dayap, Calauan" (o "Dayap", "Calauan") -> code: "br6"
+
+MGA PATAKARAN SA PAG-EXTRACT:
+1. customerName: Pangalan ng umorder (hal. "Maria Santos", "Kuya Ben"). Kung walang pangalan, empty string "".
+2. contactNumber: Cellphone number (e.g. 09171234567, +639171234567). Linisin ang spaces o dashes.
+3. bilaoSize: Isa lamang sa: "Small", "Medium", o "Large". Kung hindi binanggit, default ay "Medium".
+4. quantity: Dami ng bilao (bilang/integer, default ay 1).
+5. pickupDate: YYYY-MM-DD format. Kung sinabing "bukas" (tomorrow), idagdag ang 1 araw mula sa petsa ngayon ($todayStr). Kung sinabing "ngayon" (today), gamitin ang $todayStr. Kung may petsang binanggit (hal. "Oct 15" o "sa Biyernes"), kalkulahin ang tamang petsa sa taong ${DateTime.now().year}.
+6. pickupTime: 24-hour HH:mm format (hal. "15:30" kung 3:30 PM, "11:00" kung 11am). Kung walang binanggit, mag-default sa "14:00".
+7. pickupBranchId: Ang branch ID kung saan kukunin (isa sa "br1", "br2", "br3", "br4", "br5", "br6"). Kung walang binanggit, mag-default sa "br1".
+8. specialInstructions: Mga bilin o notes (hal. "extra calamansi", "paki-hiwalay ang sili", "may kasamang candles").
+
+Sumagot LAMANG ng raw JSON (walang markdown, walang ``` code blocks):
+{
+  "success": true,
+  "customerName": "string",
+  "contactNumber": "string",
+  "bilaoSize": "Small" | "Medium" | "Large",
+  "quantity": number,
+  "pickupDate": "YYYY-MM-DD",
+  "pickupTime": "HH:mm",
+  "pickupBranchId": "br1" | "br2" | "br3" | "br4" | "br5" | "br6",
+  "specialInstructions": "string",
+  "errorMessage": ""
+}
+''';
+
+    final requestBody = {
+      'contents': [
+        {
+          'parts': [
+            {'text': '$prompt\n\nCUSTOMER CHAT TRANSCRIPT:\n"""\n$rawChat\n"""'}
+          ]
+        }
+      ],
+      'generationConfig': {
+        'responseMimeType': 'application/json',
+        'temperature': 0.1,
+      }
+    };
+
+    try {
+      final callResult = await _postWithFallback(
+        requestBody: requestBody,
+        timeout: const Duration(seconds: 15),
+      );
+
+      if (callResult != null && callResult.response.statusCode == 200) {
+        final data = jsonDecode(callResult.response.body) as Map<String, dynamic>;
+        final candidates = data['candidates'] as List<dynamic>?;
+        if (candidates != null && candidates.isNotEmpty) {
+          var rawText = candidates.first['content']['parts'][0]['text'] as String;
+          rawText = rawText.trim().replaceAll('```json', '').replaceAll('```', '').trim();
+          final json = jsonDecode(rawText) as Map<String, dynamic>;
+          return GeminiChatOrderResult(
+            success: json['success'] as bool? ?? true,
+            customerName: (json['customerName'] as String? ?? '').trim(),
+            contactNumber: (json['contactNumber'] as String? ?? '').trim(),
+            bilaoSize: (json['bilaoSize'] as String? ?? 'Medium').trim(),
+            quantity: (json['quantity'] as num?)?.toInt() ?? 1,
+            pickupDate: json['pickupDate'] as String?,
+            pickupTime: json['pickupTime'] as String?,
+            pickupBranchId: (json['pickupBranchId'] as String? ?? 'br1').trim(),
+            specialInstructions: (json['specialInstructions'] as String? ?? '').trim(),
+            errorMessage: (json['errorMessage'] as String? ?? '').trim(),
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint('[GeminiService.parseChatOrder] API call failed: $e, invoking local fallback parser');
+      return _localChatOrderFallback(rawChat);
+    }
+
+    return _localChatOrderFallback(rawChat);
+  }
+
+  /// Rule-based local NLP parser that extracts Bilao Order details even when
+  /// offline, during network timeout, or when no Gemini API key is configured.
+  /// Specially tuned to parse the official Brahms Messenger intake form cleanly.
+  static GeminiChatOrderResult _localChatOrderFallback(String rawChat) {
+    final lines = rawChat.split(RegExp(r'[\r\n]+'));
+
+    String customerName = '';
+    String contactNumber = '';
+    String size = 'Medium';
+    int qty = 1;
+    String branchId = 'br1';
+    String? pickupDate;
+    String? pickupTime;
+    String deliveryOrPickup = '';
+    String notes = '';
+
+    for (final rawLine in lines) {
+      final line = rawLine.trim();
+      if (line.isEmpty) continue;
+      final lowerLine = line.toLowerCase();
+
+      // Find value after the colon if any
+      // E.g. "- Full Name: Juan Dela Cruz" -> "Juan Dela Cruz"
+      // E.g. "- Bilao Size (Small PHP 650 / Medium PHP 900 / Large PHP 1,300): Large" -> "Large"
+      final colonIndex = line.lastIndexOf(':');
+      final afterColon = colonIndex >= 0 && colonIndex < line.length - 1
+          ? line.substring(colonIndex + 1).trim()
+          : '';
+
+      // 1. Full Name
+      if (lowerLine.contains('full name') || lowerLine.contains('pangalan') || lowerLine.startsWith('- name') || lowerLine.startsWith('name:')) {
+        if (afterColon.isNotEmpty) {
+          customerName = afterColon;
+        }
+      }
+
+      // 2. Contact Number
+      else if (lowerLine.contains('contact') || lowerLine.contains('cellphone') || lowerLine.contains('mobile') || lowerLine.contains('phone')) {
+        final phoneMatch = RegExp(r'(09\d{9}|639\d{9}|\+639\d{9})').firstMatch(line);
+        if (phoneMatch != null) {
+          contactNumber = phoneMatch.group(1)!;
+        } else if (afterColon.isNotEmpty) {
+          contactNumber = afterColon;
+        }
+      }
+
+      // 3. Bilao Size (inspect value after colon first so options in parentheses don't collide)
+      else if (lowerLine.contains('size') || lowerLine.contains('bilao size')) {
+        final target = afterColon.isNotEmpty ? afterColon.toLowerCase() : lowerLine;
+        if (target.contains('large')) {
+          size = 'Large';
+        } else if (target.contains('small')) {
+          size = 'Small';
+        } else if (target.contains('medium')) {
+          size = 'Medium';
+        }
+      }
+
+      // 4. Quantity
+      else if (lowerLine.contains('quantity') || lowerLine.contains('qty') || lowerLine.contains('bilang') || lowerLine.contains('dami')) {
+        final numMatch = RegExp(r'\b(\d+)\b').firstMatch(afterColon.isNotEmpty ? afterColon : line);
+        if (numMatch != null) {
+          qty = int.tryParse(numMatch.group(1)!) ?? 1;
+        }
+      }
+
+      // 5. Preferred Branch (inspect value after colon first)
+      else if (lowerLine.contains('preferred branch') || lowerLine.contains('branch')) {
+        final target = afterColon.isNotEmpty ? afterColon.toLowerCase() : lowerLine;
+        if (target.contains('labuin')) {
+          branchId = 'br2';
+        } else if (target.contains('clara')) {
+          branchId = 'br3';
+        } else if (target.contains('nanhaya') || target.contains('victoria')) {
+          branchId = 'br4';
+        } else if (target.contains('francisco') || target.contains('san pablo')) {
+          branchId = 'br5';
+        } else if (target.contains('dayap') || target.contains('calauan')) {
+          branchId = 'br6';
+        } else if (target.contains('gatid') || target.contains('sta. cruz')) {
+          branchId = 'br1';
+        }
+      }
+
+      // 6. Schedule (Pickup Date & Time)
+      else if (lowerLine.contains('date') || lowerLine.contains('time') || lowerLine.contains('schedule') || lowerLine.contains('pickup date')) {
+        final dtTarget = afterColon.isNotEmpty ? afterColon : line;
+        final (d, t) = _extractDateTime(dtTarget);
+        if (d != null) pickupDate = d;
+        if (t != null) pickupTime = t;
+      }
+
+      // 7. Pickup or Delivery
+      else if (lowerLine.contains('delivery') || lowerLine.contains('pickup or delivery')) {
+        deliveryOrPickup = afterColon.isNotEmpty ? afterColon : line;
+      }
+
+      // 8. Special instructions / remarks
+      else if (!lowerLine.contains('thank you') &&
+               !lowerLine.contains('brahms') &&
+               !lowerLine.contains('gcash') &&
+               !lowerLine.contains('account name') &&
+               !lowerLine.contains('screenshot') &&
+               !lowerLine.contains('please reply') &&
+               !lowerLine.contains('to place your order')) {
+        if (notes.isEmpty) {
+          notes = line;
+        } else {
+          notes = '$notes\n$line';
+        }
+      }
+    }
+
+    // Secondary fallback pass across full raw text if some fields weren't captured by line scanning
+    if (customerName.isEmpty) {
+      final nameRegex = RegExp(r'(?:name|pangalan|customer|full name)\s*[:=]?\s*([^\n\r,]+)', caseSensitive: false);
+      final nameMatch = nameRegex.firstMatch(rawChat);
+      if (nameMatch != null) {
+        customerName = nameMatch.group(1)?.trim() ?? '';
+      }
+    }
+
+    if (contactNumber.isEmpty) {
+      final phoneRegex = RegExp(r'(09\d{9}|639\d{9}|\+639\d{9})');
+      final phoneMatch = phoneRegex.firstMatch(rawChat);
+      if (phoneMatch != null) {
+        contactNumber = phoneMatch.group(1) ?? '';
+      }
+    }
+
+    if (pickupDate == null || pickupTime == null) {
+      final (d, t) = _extractDateTime(rawChat);
+      if (pickupDate == null && d != null) pickupDate = d;
+      if (pickupTime == null && t != null) pickupTime = t;
+    }
+
+    if (deliveryOrPickup.isNotEmpty) {
+      final dl = deliveryOrPickup.toLowerCase();
+      if (dl.contains('delivery')) {
+        notes = notes.isNotEmpty
+            ? '[DELIVERY] $deliveryOrPickup\n$notes'
+            : '[DELIVERY] $deliveryOrPickup';
+      }
+    }
+
+    return GeminiChatOrderResult(
+      success: true,
+      customerName: customerName.isNotEmpty ? customerName : 'FB Customer',
+      contactNumber: contactNumber.isNotEmpty ? contactNumber : '09000000000',
+      bilaoSize: size,
+      quantity: qty,
+      pickupDate: pickupDate,
+      pickupTime: pickupTime,
+      pickupBranchId: branchId,
+      specialInstructions: notes,
+    );
+  }
+
+  static (String?, String?) _extractDateTime(String text) {
+    String? date;
+    String? time;
+    final lower = text.toLowerCase();
+    final now = DateTime.now();
+
+    if (lower.contains('bukas') || lower.contains('tomorrow')) {
+      final tomorrow = now.add(const Duration(days: 1));
+      date = '${tomorrow.year}-${tomorrow.month.toString().padLeft(2, '0')}-${tomorrow.day.toString().padLeft(2, '0')}';
+    } else if (lower.contains('ngayon') || lower.contains('today')) {
+      date = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+    } else {
+      final dateRegex = RegExp(r'([A-Za-z]{3,9}\s+\d{1,2}(?:,\s*\d{4})?|\d{1,2}/\d{1,2}/\d{2,4}|\d{4}-\d{2}-\d{2})');
+      final dateMatch = dateRegex.firstMatch(text);
+      if (dateMatch != null) {
+        final rawDate = dateMatch.group(1)!;
+        try {
+          final months = {
+            'jan': 1, 'feb': 2, 'mar': 3, 'apr': 4, 'may': 5, 'jun': 6,
+            'jul': 7, 'aug': 8, 'sep': 9, 'oct': 10, 'nov': 11, 'dec': 12
+          };
+          for (final entry in months.entries) {
+            if (rawDate.toLowerCase().startsWith(entry.key)) {
+              final dayMatch = RegExp(r'\d{1,2}').firstMatch(rawDate);
+              final day = int.tryParse(dayMatch?.group(0) ?? '1') ?? 1;
+              final yearMatch = RegExp(r'\d{4}').firstMatch(rawDate);
+              final year = int.tryParse(yearMatch?.group(0) ?? '${now.year}') ?? now.year;
+              date = '$year-${entry.value.toString().padLeft(2, '0')}-${day.toString().padLeft(2, '0')}';
+              break;
+            }
+          }
+        } catch (_) {}
+      }
+    }
+
+    final timeRegex = RegExp(r'(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\b', caseSensitive: false);
+    final allMatches = timeRegex.allMatches(text);
+    for (final tm in allMatches) {
+      final hourStr = tm.group(1);
+      final minStr = tm.group(2) ?? '00';
+      final ampm = tm.group(3)?.toLowerCase();
+      if (ampm != null || tm.group(2) != null) {
+        int h = int.tryParse(hourStr ?? '14') ?? 14;
+        if (ampm == 'pm' && h < 12) h += 12;
+        if (ampm == 'am' && h == 12) h = 0;
+        time = '${h.toString().padLeft(2, '0')}:$minStr';
+        break;
+      }
+    }
+
+    return (date, time);
+  }
+}
+
+/// Result of Gemini Natural Language Chat Order Extraction
+class GeminiChatOrderResult {
+  const GeminiChatOrderResult({
+    required this.success,
+    this.customerName = '',
+    this.contactNumber = '',
+    this.bilaoSize = 'Medium',
+    this.quantity = 1,
+    this.pickupDate,
+    this.pickupTime,
+    this.pickupBranchId = 'br1',
+    this.specialInstructions = '',
+    this.errorMessage = '',
+  });
+
+  final bool success;
+  final String customerName;
+  final String contactNumber;
+  final String bilaoSize;
+  final int quantity;
+  final String? pickupDate;
+  final String? pickupTime;
+  final String pickupBranchId;
+  final String specialInstructions;
+  final String errorMessage;
 }
 
 

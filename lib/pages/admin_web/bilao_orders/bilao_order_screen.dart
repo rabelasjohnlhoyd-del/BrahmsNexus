@@ -2,14 +2,18 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../models/bilao_order.dart';
 import '../../../services/firestore_service.dart';
+import '../../../services/gemini_service.dart';
+import '../../../services/supabase_service.dart';
 import '../admin_web_colors.dart';
 import '../admin_web_shell.dart';
 import '../admin_web_widgets/glass_card.dart';
 import '../admin_web_widgets/admin_pagination_bar.dart';
 import 'add_bilao_order_screen.dart';
+import 'bilao_kitchen_ticket_dialog.dart';
 
 /// Admin records confirmed advance/special bilao orders here (received
 /// via Messenger/phone — customers never order directly in-app), then
@@ -18,6 +22,8 @@ import 'add_bilao_order_screen.dart';
 /// Backed by live real-time Firestore sync.
 class BilaoOrderScreen extends StatefulWidget {
   const BilaoOrderScreen({super.key});
+
+  static void Function(BilaoOrder order)? onOrderAddedGlobally;
 
   @override
   State<BilaoOrderScreen> createState() => _BilaoOrderScreenState();
@@ -312,31 +318,58 @@ class _BilaoOrderScreenState extends State<BilaoOrderScreen> {
 
                           // Action button or completed badge (forward-only, non-reversible)
                           if (currentOrder.preparationStatus == PreparationStatus.pending)
-                            SizedBox(
-                              width: double.infinity,
-                              child: ElevatedButton.icon(
-                                onPressed: () async {
-                                  final next = await FirestoreService.advanceBilaoPreparation(currentOrder);
-                                  if (next != null) {
-                                    setDialogState(() {
-                                      currentOrder = currentOrder.copyWith(preparationStatus: next);
-                                    });
-                                    setState(() {
-                                      final idx = _orders.indexWhere((o) => o.id == currentOrder.id);
-                                      if (idx >= 0) _orders[idx] = currentOrder;
-                                    });
-                                  }
-                                },
-                                icon: const Icon(Icons.play_arrow_rounded, size: 16),
-                                label: const Text('Start Preparing'),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: AdminWebColors.accent,
-                                  foregroundColor: Colors.white,
-                                  padding: const EdgeInsets.symmetric(vertical: 12),
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                            if (currentOrder.isPendingGcashVerification)
+                              Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                decoration: BoxDecoration(
+                                  color: AdminWebColors.warning.withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(color: AdminWebColors.warning.withValues(alpha: 0.4)),
                                 ),
-                              ),
-                            )
+                                child: const Row(
+                                  children: [
+                                    Icon(Icons.lock_rounded, size: 16, color: AdminWebColors.warning),
+                                    SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        'Cooking Locked: Awaiting GCash proof verification.',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w700,
+                                          color: AdminWebColors.warning,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              )
+                            else
+                              SizedBox(
+                                width: double.infinity,
+                                child: ElevatedButton.icon(
+                                  onPressed: () async {
+                                    final next = await FirestoreService.advanceBilaoPreparation(currentOrder);
+                                    if (next != null) {
+                                      setDialogState(() {
+                                        currentOrder = currentOrder.copyWith(preparationStatus: next);
+                                      });
+                                      setState(() {
+                                        final idx = _orders.indexWhere((o) => o.id == currentOrder.id);
+                                        if (idx >= 0) _orders[idx] = currentOrder;
+                                      });
+                                    }
+                                  },
+                                  icon: const Icon(Icons.play_arrow_rounded, size: 16),
+                                  label: const Text('Start Preparing'),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: AdminWebColors.accent,
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(vertical: 12),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                  ),
+                                ),
+                              )
                           else if (currentOrder.preparationStatus == PreparationStatus.preparing)
                             SizedBox(
                               width: double.infinity,
@@ -510,93 +543,147 @@ class _BilaoOrderScreenState extends State<BilaoOrderScreen> {
                             ],
                             if (!currentOrder.gcashVerified) ...[
                               const SizedBox(height: 12),
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: ElevatedButton.icon(
-                                      onPressed: () async {
-                                        final ok = await FirestoreService.verifyGcashPayment(
-                                          orderId: currentOrder.id,
-                                          verifiedBy: 'Admin/Owner',
-                                        );
-                                        if (ok) {
-                                          setDialogState(() {
-                                            currentOrder = currentOrder.copyWith(
-                                              gcashVerified: true,
-                                              gcashVerifiedBy: 'Admin/Owner',
-                                              gcashVerifiedAt: DateTime.now(),
-                                            );
-                                          });
-                                          setState(() {
-                                            final idx = _orders.indexWhere((o) => o.id == currentOrder.id);
-                                            if (idx >= 0) _orders[idx] = currentOrder;
-                                          });
-                                        }
-                                      },
-                                      icon: const Icon(Icons.check_rounded, size: 14),
-                                      label: const Text('Verify GCash'),
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: AdminWebColors.success,
-                                        foregroundColor: Colors.white,
-                                        padding: const EdgeInsets.symmetric(vertical: 10),
-                                        shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(8)),
-                                      ),
-                                    ),
+                              if (currentOrder.gcashProofUrl == null) ...[
+                                Container(
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: AdminWebColors.warning.withValues(alpha: 0.1),
+                                    borderRadius: BorderRadius.circular(10),
+                                    border: Border.all(color: AdminWebColors.warning.withValues(alpha: 0.35)),
                                   ),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: OutlinedButton.icon(
-                                      onPressed: () async {
-                                        final reasonCtrl = TextEditingController();
-                                        final reason = await showDialog<String>(
-                                          context: context,
-                                          builder: (rCtx) => AlertDialog(
-                                            title: const Text('Reject GCash Payment'),
-                                            content: TextField(
-                                              controller: reasonCtrl,
-                                              decoration: const InputDecoration(
-                                                labelText: 'Reason for rejection',
-                                                hintText: 'e.g. Blurry photo, wrong amount...',
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      const Row(
+                                        children: [
+                                          Icon(Icons.lock_clock_rounded, size: 16, color: AdminWebColors.warning),
+                                          SizedBox(width: 8),
+                                          Expanded(
+                                            child: Text(
+                                              'Awaiting GCash Screenshot (Kitchen Locked)',
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.w700,
+                                                color: AdminWebColors.warning,
                                               ),
-                                              maxLines: 2,
                                             ),
-                                            actions: [
-                                              TextButton(
-                                                onPressed: () => Navigator.pop(rCtx),
-                                                child: const Text('CANCEL'),
-                                              ),
-                                              ElevatedButton(
-                                                style: ElevatedButton.styleFrom(
-                                                    backgroundColor: AdminWebColors.error,
-                                                    foregroundColor: Colors.white),
-                                                onPressed: () => Navigator.pop(
-                                                    rCtx, reasonCtrl.text.trim()),
-                                                child: const Text('REJECT'),
-                                              ),
-                                            ],
                                           ),
-                                        );
-                                        if (reason == null) return;
-                                        await FirestoreService.rejectGcashPayment(
-                                          orderId: currentOrder.id,
-                                          reason: reason.isEmpty ? 'No reason given' : reason,
-                                          customerName: currentOrder.customerName,
-                                        );
-                                      },
-                                      icon: const Icon(Icons.close_rounded, size: 14),
-                                      label: const Text('Reject'),
-                                      style: OutlinedButton.styleFrom(
-                                        foregroundColor: AdminWebColors.error,
-                                        side: const BorderSide(color: AdminWebColors.error),
-                                        padding: const EdgeInsets.symmetric(vertical: 10),
-                                        shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(8)),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 6),
+                                      const Text(
+                                        'Inaasahan ang patunay mula sa customer via Messenger. Pindutin ang button sa ibaba upang i-attach ang resibo at i-verify gamit ang AI.',
+                                        style: TextStyle(fontSize: 11, color: AdminWebColors.textPrimary, height: 1.3),
+                                      ),
+                                      const SizedBox(height: 10),
+                                      ElevatedButton.icon(
+                                        onPressed: () => _attachGcashProofToOrder(
+                                          currentOrder,
+                                          (updated) {
+                                            setDialogState(() => currentOrder = updated);
+                                          },
+                                        ),
+                                        icon: const Icon(Icons.add_photo_alternate_rounded, size: 16),
+                                        label: const Text('Attach Screenshot & Verify with AI'),
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: AdminWebColors.accent,
+                                          foregroundColor: Colors.white,
+                                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ] else ...[
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: ElevatedButton.icon(
+                                        onPressed: () async {
+                                          final ok = await FirestoreService.verifyGcashPayment(
+                                            orderId: currentOrder.id,
+                                            verifiedBy: 'Admin/Owner',
+                                          );
+                                          if (ok) {
+                                            setDialogState(() {
+                                              currentOrder = currentOrder.copyWith(
+                                                gcashVerified: true,
+                                                gcashVerifiedBy: 'Admin/Owner',
+                                                gcashVerifiedAt: DateTime.now(),
+                                              );
+                                            });
+                                            setState(() {
+                                              final idx = _orders.indexWhere((o) => o.id == currentOrder.id);
+                                              if (idx >= 0) _orders[idx] = currentOrder;
+                                            });
+                                          }
+                                        },
+                                        icon: const Icon(Icons.check_rounded, size: 14),
+                                        label: const Text('Verify GCash'),
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: AdminWebColors.success,
+                                          foregroundColor: Colors.white,
+                                          padding: const EdgeInsets.symmetric(vertical: 10),
+                                          shape: RoundedRectangleBorder(
+                                              borderRadius: BorderRadius.circular(8)),
+                                        ),
                                       ),
                                     ),
-                                  ),
-                                ],
-                              ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: OutlinedButton.icon(
+                                        onPressed: () async {
+                                          final reasonCtrl = TextEditingController();
+                                          final reason = await showDialog<String>(
+                                            context: context,
+                                            builder: (rCtx) => AlertDialog(
+                                              title: const Text('Reject GCash Payment'),
+                                              content: TextField(
+                                                controller: reasonCtrl,
+                                                decoration: const InputDecoration(
+                                                  labelText: 'Reason for rejection',
+                                                  hintText: 'e.g. Blurry photo, wrong amount...',
+                                                ),
+                                                maxLines: 2,
+                                              ),
+                                              actions: [
+                                                TextButton(
+                                                  onPressed: () => Navigator.pop(rCtx),
+                                                  child: const Text('CANCEL'),
+                                                ),
+                                                ElevatedButton(
+                                                  style: ElevatedButton.styleFrom(
+                                                      backgroundColor: AdminWebColors.error,
+                                                      foregroundColor: Colors.white),
+                                                  onPressed: () => Navigator.pop(
+                                                      rCtx, reasonCtrl.text.trim()),
+                                                  child: const Text('REJECT'),
+                                                ),
+                                              ],
+                                            ),
+                                          );
+                                          if (reason == null) return;
+                                          await FirestoreService.rejectGcashPayment(
+                                            orderId: currentOrder.id,
+                                            reason: reason.isEmpty ? 'No reason given' : reason,
+                                            customerName: currentOrder.customerName,
+                                          );
+                                        },
+                                        icon: const Icon(Icons.close_rounded, size: 14),
+                                        label: const Text('Reject'),
+                                        style: OutlinedButton.styleFrom(
+                                          foregroundColor: AdminWebColors.error,
+                                          side: const BorderSide(color: AdminWebColors.error),
+                                          padding: const EdgeInsets.symmetric(vertical: 10),
+                                          shape: RoundedRectangleBorder(
+                                              borderRadius: BorderRadius.circular(8)),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
                             ],
                           ],
                         ),
@@ -618,6 +705,20 @@ class _BilaoOrderScreenState extends State<BilaoOrderScreen> {
               ),
             ),
             actions: [
+              OutlinedButton.icon(
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  BilaoKitchenTicketDialog.show(context, currentOrder);
+                },
+                icon: const Icon(Icons.receipt_long_rounded, size: 15),
+                label: const Text('Print / View Ticket Slip'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AdminWebColors.accent,
+                  side: const BorderSide(color: AdminWebColors.accent),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+              ),
+              const SizedBox(width: 8),
               TextButton(
                 onPressed: () => Navigator.pop(ctx),
                 child: const Text('CLOSE', style: TextStyle(fontWeight: FontWeight.bold)),
@@ -723,7 +824,18 @@ class _BilaoOrderScreenState extends State<BilaoOrderScreen> {
 
   Future<void> _openAddOrder() async {
     final result = await Navigator.of(context).push<BilaoOrder>(
-      MaterialPageRoute(builder: (context) => const AddBilaoOrderScreen()),
+      PageRouteBuilder<BilaoOrder>(
+        pageBuilder: (context, animation, secondaryAnimation) =>
+            const AddBilaoOrderScreen(),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          return FadeTransition(
+            opacity: CurvedAnimation(parent: animation, curve: Curves.easeInOut),
+            child: child,
+          );
+        },
+        transitionDuration: const Duration(milliseconds: 180),
+        reverseTransitionDuration: const Duration(milliseconds: 160),
+      ),
     );
 
     if (!mounted) return;
@@ -742,6 +854,174 @@ class _BilaoOrderScreenState extends State<BilaoOrderScreen> {
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('Order for ${result.customerName} recorded successfully.')),
+    );
+  }
+
+  Future<void> _attachGcashProofToOrder(
+    BilaoOrder order,
+    void Function(BilaoOrder) onUpdated,
+  ) async {
+    try {
+      final picker = ImagePicker();
+      final picked = await picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1920,
+        maxHeight: 1920,
+        imageQuality: 88,
+      );
+      if (picked == null) return;
+
+      final bytes = await picked.readAsBytes();
+
+      if (!mounted) return;
+      // Show analyzing modal dialog
+      showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          content: const Padding(
+            padding: EdgeInsets.symmetric(vertical: 20),
+            child: Row(
+              children: [
+                CircularProgressIndicator(strokeWidth: 2, color: AdminWebColors.accent),
+                SizedBox(width: 18),
+                Expanded(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Sinusuri ang GCash Resibo...',
+                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+                      ),
+                      SizedBox(height: 4),
+                      Text(
+                        'Gemini AI forensics & duplicate check sa Supabase...',
+                        style: TextStyle(fontSize: 11, color: AdminWebColors.textSecondary),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+
+      final ocrResult = await GeminiService.extractGcashReceipt(imageBytes: bytes);
+
+      if (!ocrResult.success || ocrResult.refNumber.isEmpty) {
+        if (mounted) Navigator.of(context, rootNavigator: true).pop();
+        if (mounted) {
+          _showErrorDialog(
+            title: 'Hindi Mabasa ang Resibo',
+            message: ocrResult.errorMessage.isNotEmpty
+                ? ocrResult.errorMessage
+                : 'Hindi makita ang reference number sa litrato. Paki-siguraduhing malinaw ang screenshot ng GCash.',
+          );
+        }
+        return;
+      }
+
+      final ref = ocrResult.refNumber.trim();
+      final inSupabase = await SupabaseService.isGcashRefNumberExists(ref);
+      final inFirestore = await FirestoreService.isGcashRefNumberExists(ref);
+
+      if (inSupabase || inFirestore) {
+        if (mounted) Navigator.of(context, rootNavigator: true).pop();
+        if (mounted) {
+          _showErrorDialog(
+            title: 'BLOCKED: Duplicate Reference Number',
+            message: 'Ang GCash reference number ($ref) ay nagamit na sa ibang order! Hindi ito maaaring gamitin muli.',
+          );
+        }
+        return;
+      }
+
+      // Upload to Supabase Storage bucket bilao-proofs
+      final proofUrl = await SupabaseService.uploadBilaoProofPhoto(
+        orderId: order.id,
+        proofType: 'gcash',
+        bytes: bytes,
+      );
+
+      if (proofUrl == null) {
+        if (mounted) Navigator.of(context, rootNavigator: true).pop();
+        if (mounted) {
+          _showErrorDialog(
+            title: 'Upload Failed',
+            message: 'Nabigong i-upload ang screenshot sa Supabase Storage. Pakisuri ang koneksyon.',
+          );
+        }
+        return;
+      }
+
+      // Synchronously update Firestore and Supabase
+      final verifiedAmount = ocrResult.amount > 0 ? ocrResult.amount : order.depositAmount;
+      final ok = await FirestoreService.attachAndVerifyGcashProof(
+        orderId: order.id,
+        gcashProofUrl: proofUrl,
+        gcashRefNumber: ref,
+        gcashAmount: verifiedAmount,
+        verifiedBy: 'Admin / Owner',
+      );
+
+      if (mounted) Navigator.of(context, rootNavigator: true).pop(); // dismiss progress dialog
+
+      if (ok && mounted) {
+        final updated = order.copyWith(
+          gcashProofUrl: proofUrl,
+          gcashRefNumber: ref,
+          gcashAmount: verifiedAmount,
+          gcashVerified: true,
+          gcashVerifiedAt: DateTime.now(),
+          gcashVerifiedBy: 'Admin / Owner',
+        );
+
+        onUpdated(updated);
+        setState(() {
+          final idx = _orders.indexWhere((o) => o.id == order.id);
+          if (idx >= 0) _orders[idx] = updated;
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('✅ GCash Verified (Ref: $ref)! Kitchen preparation unlocked.'),
+            backgroundColor: AdminWebColors.success,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        Navigator.of(context, rootNavigator: true).maybePop();
+        _showErrorDialog(title: 'Error', message: 'May naganap na error: $e');
+      }
+    }
+  }
+
+  void _showErrorDialog({required String title, required String message}) {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            const Icon(Icons.error_outline_rounded, color: AdminWebColors.error, size: 22),
+            const SizedBox(width: 8),
+            Expanded(child: Text(title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold))),
+          ],
+        ),
+        content: Text(message, style: const TextStyle(fontSize: 12.5)),
+        actions: [
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: AdminWebColors.accent, foregroundColor: Colors.white),
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
     );
   }
 
@@ -773,6 +1053,18 @@ class _BilaoOrderScreenState extends State<BilaoOrderScreen> {
   void initState() {
     super.initState();
     _updateShellActions();
+    BilaoOrderScreen.onOrderAddedGlobally = (order) {
+      if (mounted) {
+        setState(() {
+          final existingIdx = _orders.indexWhere((o) => o.id == order.id);
+          if (existingIdx >= 0) {
+            _orders[existingIdx] = order;
+          } else {
+            _orders.insert(0, order);
+          }
+        });
+      }
+    };
     _ordersSub = FirestoreService.watchAllBilaoOrders().listen((orders) {
       if (mounted) {
         setState(() {
@@ -786,6 +1078,7 @@ class _BilaoOrderScreenState extends State<BilaoOrderScreen> {
 
   @override
   void dispose() {
+    BilaoOrderScreen.onOrderAddedGlobally = null;
     _ordersSub?.cancel();
     super.dispose();
   }
@@ -915,6 +1208,7 @@ class _BilaoOrderScreenState extends State<BilaoOrderScreen> {
 
   void _updateShellActions() {
     final shell = context.findAncestorStateOfType<AdminWebShellState>();
+    shell?.setTitle(null);
     shell?.setActions([]);
   }
 
@@ -1476,6 +1770,28 @@ class _OrderCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.end,
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  if (order.isPendingGcashVerification) ...[
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                      margin: const EdgeInsets.only(bottom: 4),
+                      decoration: BoxDecoration(
+                        color: AdminWebColors.warning.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: AdminWebColors.warning.withValues(alpha: 0.45)),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.lock_clock_rounded, size: 10, color: AdminWebColors.warning),
+                          SizedBox(width: 4),
+                          Text(
+                            'KITCHEN LOCKED',
+                            style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w800, color: AdminWebColors.warning),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(

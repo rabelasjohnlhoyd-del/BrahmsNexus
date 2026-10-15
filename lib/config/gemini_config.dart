@@ -6,8 +6,10 @@ class GeminiConfig {
   // 👉 PRIMARY API KEY:
   //    I-paste dito ang iyong pangunahing API key mula sa Google AI Studio.
   //    (Palitan ang 'PASTE_YOUR_API_KEY_HERE' ng iyong key hal. 'AIzaSy...')
+  //    PAALALA: Kung ang key mo ay nagsisimula sa 'AQ.' o 'ya29.', ito ay
+  //    Google OAuth Bearer Token. Awtomatiko itong gagamitin bilang Bearer auth.
   // ===========================================================================
-  static const String key = 'PASTE_YOUR_API_KEY_HERE';
+  static const String key = '';
 
   // ===========================================================================
   // 👉 MULTIPLE API KEYS SUPPORT (ROTATION & FAILOVER):
@@ -22,9 +24,9 @@ class GeminiConfig {
   ];
 
   // ===========================================================================
-  // 👉 MODEL ROLLBACK HIERARCHY (GEMINI 3.x SERIES ONLY):
-  //    Walang mas mababa sa 3.1 flash-lite (bawal ang phaseout na 1.5/2.0).
-  //    Kapag nag-error o busy ang unang model, sunod-sunod na mag-fallback dito:
+  // 👉 MODEL ROLLBACK HIERARCHY (GEMINI 3.x SERIES):
+  //    Kapag nag-error o busy ang unang model, sunod-sunod na mag-fallback dito.
+  //    Ang AQ. Bearer token ay gumagamit ng Gemini 3.x series (hindi 1.5/2.0).
   // ===========================================================================
   static const List<String> fallbackModels = [
     'gemini-3.5-flash-lite',
@@ -44,20 +46,21 @@ class GeminiConfig {
     final valid = <String>[];
     for (final k in apiKeys) {
       final trimmed = k.trim();
-      if (trimmed.isNotEmpty &&
-          trimmed != 'PASTE_YOUR_API_KEY_HERE' &&
-          !valid.contains(trimmed)) {
+      if (_isValidKey(trimmed) && !valid.contains(trimmed)) {
         valid.add(trimmed);
       }
     }
     // Also include [key] if it was modified directly but not yet added to [apiKeys]
     final direct = key.trim();
-    if (direct.isNotEmpty &&
-        direct != 'PASTE_YOUR_API_KEY_HERE' &&
-        !valid.contains(direct)) {
+    if (_isValidKey(direct) && !valid.contains(direct)) {
       valid.insert(0, direct);
     }
     return valid;
+  }
+
+  static bool _isValidKey(String k) {
+    final trimmed = k.trim();
+    return trimmed.isNotEmpty && trimmed != 'PASTE_YOUR_API_KEY_HERE';
   }
 
   /// The active primary API key.

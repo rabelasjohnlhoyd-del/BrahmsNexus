@@ -847,10 +847,15 @@ class _AddBilaoOrderSheetState extends State<_AddBilaoOrderSheet> {
   PaymentMethod _paymentMethod = PaymentMethod.cash;
   PaymentType   _paymentType   = PaymentType.fullPayment;
 
-  // GCash OCR
-  XFile? _gcashPhoto;
-  bool   _isOcrLoading = false;
-  String _ocrError     = '';
+  // GCash OCR & Anti-Fraud Security
+  XFile?  _gcashPhoto;
+  bool    _isOcrLoading           = false;
+  String  _ocrError               = '';
+  bool    _isOcrAuthentic         = true;
+  String  _ocrAuthenticityWarning = '';
+  String? _ocrTransactionDate;
+  String? _ocrDuplicateWarning;
+  String? _ocrAmountWarning;
 
   // Inline Validation Errors
   String? _nameError;
@@ -1219,6 +1224,28 @@ class _AddBilaoOrderSheetState extends State<_AddBilaoOrderSheet> {
       final bytes  = await photo.readAsBytes();
       final result = await GeminiService.extractGcashReceipt(imageBytes: bytes);
       if (!mounted) return;
+
+      String? duplicateWarn;
+      String? amountWarn;
+
+      if (result.success && result.refNumber.isNotEmpty) {
+        // Run duplicate check against both Supabase and Firestore
+        final inSupabase = await SupabaseService.isGcashRefNumberExists(result.refNumber);
+        final inFirestore = await FirestoreService.isGcashRefNumberExists(result.refNumber);
+        if (inSupabase || inFirestore) {
+          duplicateWarn = 'Babala: Ang Ref Number (${result.refNumber}) ay nagamit na sa ibang order!';
+        }
+
+        // Compare amount against requirements
+        if (result.amount > 0) {
+          final requiredMin = _paymentType == PaymentType.downPayment ? _minDeposit : _total;
+          if (result.amount < requiredMin - 0.01) {
+            amountWarn = 'Kulang ang bayad: ₱${result.amount.toStringAsFixed(2)} lamang sa resibo (kailangan: ₱${requiredMin.toStringAsFixed(2)}).';
+          }
+        }
+      }
+
+      if (!mounted) return;
       setState(() {
         _isOcrLoading = false;
         if (result.success) {
@@ -1226,8 +1253,18 @@ class _AddBilaoOrderSheetState extends State<_AddBilaoOrderSheet> {
           if (result.amount > 0) {
             _gcashAmtCtrl.text = result.amount.toStringAsFixed(2);
           }
+          _isOcrAuthentic = result.isAuthentic;
+          _ocrAuthenticityWarning = result.authenticityWarning;
+          _ocrTransactionDate = result.transactionDateTime;
+          _ocrDuplicateWarning = duplicateWarn;
+          _ocrAmountWarning = amountWarn;
           _ocrError = '';
         } else {
+          _isOcrAuthentic = true;
+          _ocrAuthenticityWarning = '';
+          _ocrTransactionDate = null;
+          _ocrDuplicateWarning = null;
+          _ocrAmountWarning = null;
           _ocrError = result.errorMessage.isNotEmpty
               ? result.errorMessage
               : 'Hindi nakuha ang data. I-edit na lang manually.';
@@ -1244,9 +1281,14 @@ class _AddBilaoOrderSheetState extends State<_AddBilaoOrderSheet> {
 
   void _clearGcashPhoto() {
     setState(() {
-      _gcashPhoto   = null;
-      _ocrError     = '';
-      _isOcrLoading = false;
+      _gcashPhoto             = null;
+      _ocrError               = '';
+      _isOcrLoading           = false;
+      _isOcrAuthentic         = true;
+      _ocrAuthenticityWarning = '';
+      _ocrTransactionDate     = null;
+      _ocrDuplicateWarning    = null;
+      _ocrAmountWarning       = null;
       _gcashRefCtrl.clear();
       _gcashAmtCtrl.clear();
     });
@@ -1306,6 +1348,14 @@ class _AddBilaoOrderSheetState extends State<_AddBilaoOrderSheet> {
         _showError('Maglagay ng tamang GCash Reference Number (e.g. 1002 9384 1928).');
         return;
       }
+
+      // Check duplicates in Supabase & Firestore to prevent recycled receipts
+      final inSupabase = await SupabaseService.isGcashRefNumberExists(ref);
+      final inFirestore = await FirestoreService.isGcashRefNumberExists(ref);
+      if (inSupabase || inFirestore) {
+        _showError('Babala: Ang GCash Reference Number ($ref) ay nagamit na sa ibang order. Bawal ang duplicate o recycled receipt.');
+        return;
+      }
     }
 
     // Validate deposit amount for down payment
@@ -1337,18 +1387,18 @@ class _AddBilaoOrderSheetState extends State<_AddBilaoOrderSheet> {
     try {
       // Upload GCash proof if needed
       String? gcashProofUrl;
+      final orderId = 'bilao_${DateTime.now().millisecondsSinceEpoch}';
+
       if (_paymentMethod == PaymentMethod.gcash && _gcashPhoto != null) {
         final bytes  = await _gcashPhoto!.readAsBytes();
-        final tempId = 'temp_${DateTime.now().millisecondsSinceEpoch}';
         gcashProofUrl = await SupabaseService.uploadBilaoProofPhoto(
-          orderId:   tempId,
+          orderId:   orderId,
           proofType: 'gcash',
           bytes:     bytes,
         );
       }
 
       final depositAmt = double.tryParse(_depositCtrl.text.trim()) ?? 0.0;
-      final orderId    = 'bilao_${DateTime.now().millisecondsSinceEpoch}';
 
       final order = BilaoOrder(
         id:                orderId,
@@ -1376,8 +1426,15 @@ class _AddBilaoOrderSheetState extends State<_AddBilaoOrderSheet> {
                                : null,
         gcashProofUrl:     gcashProofUrl,
         gcashVerified:     false,
+        createdAt:         DateTime.now(),
       );
+
+      // 1. Save master ledger and reference number record in Supabase PostgreSQL
+      await SupabaseService.saveBilaoOrder(order);
+
+      // 2. Also record in Firestore for real-time cook & driver notifications
       await FirestoreService.createBilaoOrder(order);
+
       if (mounted) Navigator.pop(context);
     } catch (e) {
       setState(() => _isSaving = false);
@@ -2088,19 +2145,13 @@ class _AddBilaoOrderSheetState extends State<_AddBilaoOrderSheet> {
                 ]),
                 const SizedBox(height: 8),
 
-                // Photo picker / preview
+                // Photo picker / preview (Camera Only for Anti-Fraud)
                 if (_gcashPhoto == null)
-                  Row(children: [
-                    Expanded(
-                        child: _gcashPhotoBtn(
-                            'Camera', Icons.camera_alt_outlined,
-                            () => _pickGcashPhoto(ImageSource.camera))),
-                    const SizedBox(width: 8),
-                    Expanded(
-                        child: _gcashPhotoBtn(
-                            'Gallery', Icons.photo_library_outlined,
-                            () => _pickGcashPhoto(ImageSource.gallery))),
-                  ])
+                  _gcashPhotoBtn(
+                    'Kunan ng Litrato ang GCash Screen (Camera)',
+                    Icons.camera_alt_rounded,
+                    () => _pickGcashPhoto(ImageSource.camera),
+                  )
                 else ...[
                   ClipRRect(
                     borderRadius: BorderRadius.circular(7),
@@ -2126,18 +2177,141 @@ class _AddBilaoOrderSheetState extends State<_AddBilaoOrderSheet> {
                             strokeWidth: 2,
                             color: Color(0xFF2563EB))),
                     SizedBox(width: 8),
-                    Text('Kinukuha ang ref no. at amount...',
+                    Text('Sinusuri ang GCash resibo gamit ang AI (OCR & Authenticity)...',
                         style: TextStyle(
                             fontSize: 10.5, color: Color(0xFF2563EB),
+                            fontWeight: FontWeight.w600,
                             decoration: TextDecoration.none)),
                   ]),
                 ],
                 if (_ocrError.isNotEmpty && !_isOcrLoading) ...[
-                  const SizedBox(height: 4),
-                  Text(_ocrError,
-                      style: const TextStyle(
-                          fontSize: 10, color: AppColors.warning,
-                          decoration: TextDecoration.none)),
+                  const SizedBox(height: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: AppColors.error.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: AppColors.error.withValues(alpha: 0.2)),
+                    ),
+                    child: Row(children: [
+                      const Icon(Icons.error_outline_rounded, size: 12, color: AppColors.error),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(_ocrError,
+                            style: const TextStyle(
+                                fontSize: 10, color: AppColors.error,
+                                decoration: TextDecoration.none)),
+                      ),
+                    ]),
+                  ),
+                ],
+                if (_gcashPhoto != null && !_isOcrLoading && _ocrError.isEmpty && _gcashRefCtrl.text.isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  if (!_isOcrAuthentic || _ocrAuthenticityWarning.isNotEmpty)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: AppColors.error.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: AppColors.error.withValues(alpha: 0.3)),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Icon(Icons.warning_amber_rounded, size: 13, color: AppColors.error),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              'Babala sa Authenticity: $_ocrAuthenticityWarning',
+                              style: const TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.error,
+                                  decoration: TextDecoration.none),
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  else
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: AppColors.success.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: AppColors.success.withValues(alpha: 0.3)),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.verified_rounded, size: 13, color: AppColors.success),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              'AI Verified Authentic GCash Layout${_ocrTransactionDate != null && _ocrTransactionDate!.isNotEmpty ? ' • $_ocrTransactionDate' : ''}',
+                              style: const TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.success,
+                                  decoration: TextDecoration.none),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  if (_ocrDuplicateWarning != null) ...[
+                    const SizedBox(height: 4),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: AppColors.error.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: AppColors.error.withValues(alpha: 0.4)),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.block_rounded, size: 13, color: AppColors.error),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              _ocrDuplicateWarning!,
+                              style: const TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.error,
+                                  decoration: TextDecoration.none),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                  if (_ocrAmountWarning != null) ...[
+                    const SizedBox(height: 4),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: AppColors.warning.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: AppColors.warning.withValues(alpha: 0.4)),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.info_outline_rounded, size: 13, color: AppColors.warning),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              _ocrAmountWarning!,
+                              style: const TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.warning,
+                                  decoration: TextDecoration.none),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ],
 
                 const SizedBox(height: 8),

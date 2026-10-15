@@ -21,6 +21,9 @@ import 'staff_management/staff_management_screen.dart';
 import 'branch_management/branch_management_screen.dart';
 import 'activity_log/activity_log_screen.dart';
 import 'settings/system_settings_screen.dart';
+import 'admin_web_widgets/admin_messenger_dock.dart';
+import 'bilao_orders/add_bilao_order_screen.dart';
+import '../../models/bilao_order.dart';
 
 /// Full Admin shell — WEB (also accessible via phone browser, hence
 /// responsive). On a wide screen (desktop/tablet), just the side
@@ -55,6 +58,12 @@ class AdminWebShellState extends State<AdminWebShell> {
   List<Widget> _currentActions = [];
   bool _isSidebarCollapsed = false;
 
+  /// Key for the nested page Navigator — used to push AddBilaoOrderScreen
+  /// directly into the correct inner navigator (avoids white-screen bug
+  /// caused by pushing on the root navigator while a nested Navigator widget
+  /// with ValueKey(_selectedIndex) is in the tree).
+  final GlobalKey<NavigatorState> _pageNavigatorKey = GlobalKey<NavigatorState>();
+
   // Sidebar item GlobalKeys — one per item (null = no spotlight for that item)
   // Indices match _items list: 0=Dashboard, 1=Staff, 2=Approvals, 3=Branch Assignments,
   // 4=Inventory, 5=Sales&Payroll, 6=Bilao, 7=Employee Reports, 8=Announcements,
@@ -69,6 +78,7 @@ class AdminWebShellState extends State<AdminWebShell> {
   GlobalKey get _approvalsKey   => _sidebarItemKeys[2]!;
   GlobalKey get _inventoryKey   => _sidebarItemKeys[4]!;
   GlobalKey get _salesPayrollKey => _sidebarItemKeys[5]!;
+
 
   @override
   void initState() {
@@ -150,6 +160,20 @@ class AdminWebShellState extends State<AdminWebShell> {
         _inventoryInitialTab = inventoryTab;
       }
     });
+    // After setState rebuilds, switch the inner navigator to the new page
+    WidgetsBinding.instance.addPostFrameCallback((_) => _switchPageInNavigator());
+  }
+
+  /// Pops all routes in the nested page Navigator back to root,
+  /// then pushes the current page. Called whenever _selectedIndex changes.
+  void _switchPageInNavigator() {
+    final nav = _pageNavigatorKey.currentState;
+    if (nav == null) return;
+    nav.pushReplacement(
+      MaterialPageRoute(
+        builder: (context) => _pages[_selectedIndex],
+      ),
+    );
   }
 
   void setTitle(String? title) {
@@ -308,40 +332,73 @@ class AdminWebShellState extends State<AdminWebShell> {
 
   void _handleNavigateRoute(String route) {
     int targetIndex = 0;
+    int? inventoryTab;
     switch (route) {
       case 'account_approvals':
-        targetIndex = 2; // Account Approvals
+        targetIndex = 2;
         break;
       case 'inventory_dispatch':
-        targetIndex = 4; // Inventory
-        _inventoryInitialTab = 2; // Dispatch Logs
+        targetIndex = 4;
+        inventoryTab = 2;
         break;
       case 'inventory_supply_requests':
-        targetIndex = 4; // Inventory
-        _inventoryInitialTab = 3; // Supply Requests
+        targetIndex = 4;
+        inventoryTab = 3;
         break;
       case 'inventory':
-        targetIndex = 4; // Inventory
-        _inventoryInitialTab = 0;
+        targetIndex = 4;
         break;
       case 'sales':
-        targetIndex = 5; // Sales & Payroll
+        targetIndex = 5;
         break;
       case 'employee_reports':
-        targetIndex = 7; // Employee Reports
+        targetIndex = 7;
         break;
       case 'announcements':
-        targetIndex = 8; // Announcements
+        targetIndex = 8;
         break;
       default:
         targetIndex = 0;
     }
-    setState(() {
-      _selectedIndex = targetIndex;
-      _currentActions = [];
-      _customTitle = null;
-    });
+    navigateToTab(targetIndex, inventoryTab: inventoryTab);
   }
+
+  Future<void> _handleMessengerOrderParsed(dynamic parsedResult) async {
+    // 1. Switch to Bilao Orders tab AND update the inner Navigator
+    navigateToTab(6);
+
+    // 2. Wait for the nested Navigator to build BilaoOrderScreen
+    await Future.delayed(const Duration(milliseconds: 120));
+    if (!mounted) return;
+
+    final innerNav = _pageNavigatorKey.currentState;
+    if (innerNav == null) return;
+
+    // 3. Push AddBilaoOrderScreen INSIDE the nested page Navigator
+    //    so that pop() returns cleanly to BilaoOrderScreen (no white screen).
+    final newOrder = await innerNav.push<BilaoOrder>(
+      MaterialPageRoute(
+        builder: (ctx) => AddBilaoOrderScreen(
+          initialParsedResult: parsedResult,
+        ),
+      ),
+    );
+
+    if (newOrder != null) {
+      BilaoOrderScreen.onOrderAddedGlobally?.call(newOrder);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('✅ Order para kay ${newOrder.customerName} naitala nang maayos!'),
+            backgroundColor: AdminWebColors.success,
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
+    }
+  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -359,50 +416,52 @@ class AdminWebShellState extends State<AdminWebShell> {
             // render a second duplicate bar above it here.
             return Scaffold(
               backgroundColor: AdminWebColors.background,
-              body: Row(
+              body: Stack(
                 children: [
-                  AdminSidebar(
-                    items: _items,
-                    selectedIndex: _selectedIndex,
-                    isCollapsed: _isSidebarCollapsed,
-                    itemKeys: _sidebarItemKeys,
-                    onToggleCollapse: () =>
-                        setState(() => _isSidebarCollapsed = !_isSidebarCollapsed),
-                    onSelect: (index) =>
-                        setState(() {
-                          _selectedIndex = index;
-                          _currentActions = [];
-                          _customTitle = null;
-                        }),
-                    onLogout: _handleLogout,
-                  ),
-                  Expanded(
-                    child: Column(
-                      children: [
-                        AdminTopBar(
-                          title: _customTitle ?? _items[_selectedIndex].label,
-                          subtitle: 'Brahms Nexus Management System',
-                          onLogout: _handleLogout,
-                          onProfile: _showAdminProfile,
-                          actions: _currentActions,
-                          onNavigateRoute: _handleNavigateRoute,
-                          showSidebarToggle: _isSidebarCollapsed,
-                          onToggleSidebar: () =>
-                              setState(() => _isSidebarCollapsed = !_isSidebarCollapsed),
-                        ),
-                        Expanded(
-                          child: SafeArea(
-                            child: Navigator(
-                              key: ValueKey(_selectedIndex),
-                              onGenerateRoute: (settings) => MaterialPageRoute(
-                                builder: (context) => currentPage,
-                                settings: settings,
+                  Row(
+                    children: [
+                      AdminSidebar(
+                        items: _items,
+                        selectedIndex: _selectedIndex,
+                        isCollapsed: _isSidebarCollapsed,
+                        itemKeys: _sidebarItemKeys,
+                        onToggleCollapse: () =>
+                            setState(() => _isSidebarCollapsed = !_isSidebarCollapsed),
+                        onSelect: (index) => navigateToTab(index),
+                        onLogout: _handleLogout,
+                      ),
+                      Expanded(
+                        child: Column(
+                          children: [
+                            AdminTopBar(
+                              title: _customTitle ?? _items[_selectedIndex].label,
+                              subtitle: 'Brahms Nexus Management System',
+                              onLogout: _handleLogout,
+                              onProfile: _showAdminProfile,
+                              actions: _currentActions,
+                              onNavigateRoute: _handleNavigateRoute,
+                              showSidebarToggle: _isSidebarCollapsed,
+                              onToggleSidebar: () =>
+                                  setState(() => _isSidebarCollapsed = !_isSidebarCollapsed),
+                            ),
+                            Expanded(
+                              child: SafeArea(
+                                child: Navigator(
+                                  key: _pageNavigatorKey,
+                                  onGenerateRoute: (settings) => MaterialPageRoute(
+                                    builder: (context) => _pages[_selectedIndex],
+                                    settings: settings,
+                                  ),
+                                ),
                               ),
                             ),
-                          ),
+                          ],
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
+                  ),
+                  AdminMessengerDock(
+                    onOrderParsed: _handleMessengerOrderParsed,
                   ),
                 ],
               ),
@@ -521,12 +580,19 @@ class AdminWebShellState extends State<AdminWebShell> {
               ),
             ),
             body: SafeArea(
-              child: Navigator(
-                key: ValueKey(_selectedIndex),
-                onGenerateRoute: (settings) => MaterialPageRoute(
-                  builder: (context) => currentPage,
-                  settings: settings,
-                ),
+              child: Stack(
+                children: [
+                  Navigator(
+                    key: ValueKey(_selectedIndex),
+                    onGenerateRoute: (settings) => MaterialPageRoute(
+                      builder: (context) => currentPage,
+                      settings: settings,
+                    ),
+                  ),
+                  AdminMessengerDock(
+                    onOrderParsed: _handleMessengerOrderParsed,
+                  ),
+                ],
               ),
             ),
           );

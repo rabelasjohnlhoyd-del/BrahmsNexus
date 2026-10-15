@@ -175,3 +175,56 @@ ON CONFLICT (id) DO UPDATE SET public = true;
 CREATE POLICY "Public Access avatars" ON storage.objects FOR SELECT USING (bucket_id = 'avatars');
 CREATE POLICY "Public Upload avatars" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'avatars');
 CREATE POLICY "Public Update avatars" ON storage.objects FOR UPDATE USING (bucket_id = 'avatars');
+
+-- ==============================================================================
+-- 7. BILAO ORDERS TABLE (Master Order Ledger & GCash Reference Archive)
+-- ==============================================================================
+
+CREATE TABLE IF NOT EXISTS public.bilao_orders (
+    id TEXT PRIMARY KEY,
+    customer_name TEXT NOT NULL,
+    contact_number TEXT NOT NULL,
+    size TEXT NOT NULL,
+    quantity INT NOT NULL DEFAULT 1,
+    unit_price NUMERIC(10, 2),
+    deposit_amount NUMERIC(10, 2) NOT NULL DEFAULT 0,
+    scheduled_date_time TIMESTAMPTZ NOT NULL,
+    delivery_address TEXT DEFAULT '',
+    fulfillment_type TEXT NOT NULL DEFAULT 'branchPickup',
+    order_channel TEXT NOT NULL DEFAULT 'branchOrder',
+    commission_amount NUMERIC(10, 2) DEFAULT 0,
+    pickup_branch_id TEXT,
+    pickup_branch_name TEXT,
+    notes TEXT,
+    preparation_status TEXT NOT NULL DEFAULT 'pending',
+    delivery_status TEXT NOT NULL DEFAULT 'forDelivery',
+    payment_method TEXT NOT NULL DEFAULT 'cash',
+    payment_type TEXT NOT NULL DEFAULT 'fullPayment',
+    gcash_ref_number TEXT,
+    gcash_amount NUMERIC(10, 2),
+    gcash_proof_url TEXT,
+    gcash_verified BOOLEAN DEFAULT false,
+    gcash_verified_at TIMESTAMPTZ,
+    gcash_verified_by TEXT,
+    delivery_proof_url TEXT,
+    is_cancelled BOOLEAN DEFAULT false,
+    cancellation_reason TEXT,
+    created_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()),
+    updated_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW())
+);
+
+CREATE INDEX IF NOT EXISTS idx_bilao_orders_gcash_ref ON public.bilao_orders (gcash_ref_number);
+
+ALTER TABLE public.bilao_orders ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow anon read bilao_orders" ON public.bilao_orders FOR SELECT USING (true);
+CREATE POLICY "Allow anon modify bilao_orders" ON public.bilao_orders FOR ALL USING (true);
+
+-- Create Storage bucket for bilao proofs (GCash receipts & Driver deliveries)
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('bilao-proofs', 'bilao-proofs', true)
+ON CONFLICT (id) DO UPDATE SET public = true;
+
+CREATE POLICY "Public Access bilao-proofs" ON storage.objects FOR SELECT USING (bucket_id = 'bilao-proofs');
+CREATE POLICY "Public Upload bilao-proofs" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'bilao-proofs');
+CREATE POLICY "Public Update bilao-proofs" ON storage.objects FOR UPDATE USING (bucket_id = 'bilao-proofs');
+

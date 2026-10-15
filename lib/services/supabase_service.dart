@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../config/supabase_config.dart';
 import '../models/announcement.dart';
+import '../models/bilao_order.dart';
 import '../models/branch.dart';
 import '../models/branch_daily_inventory.dart';
 import '../models/daily_report.dart';
@@ -1468,6 +1469,266 @@ class SupabaseService {
       return true;
     } catch (e) {
       debugPrint('SupabaseService.deleteAnnouncement error: $e');
+      return false;
+    }
+  }
+
+  // ===========================================================================
+  // 8. BILAO ORDERS & GCASH VERIFICATION (Supabase PostgreSQL)
+  // ===========================================================================
+
+  static Map<String, dynamic> _bilaoOrderToMap(BilaoOrder order) {
+    return {
+      'id': order.id,
+      'customer_name': order.customerName,
+      'contact_number': order.contactNumber,
+      'size': order.size.label,
+      'quantity': order.quantity,
+      'unit_price': order.unitPrice ?? order.size.price,
+      'deposit_amount': order.depositAmount,
+      'scheduled_date_time': order.scheduledDateTime.toIso8601String(),
+      'delivery_address': order.deliveryAddress,
+      'fulfillment_type': order.fulfillmentType.name,
+      'order_channel': order.orderChannel.name,
+      'commission_amount': order.commissionAmount,
+      'pickup_branch_id': order.pickupBranchId,
+      'pickup_branch_name': order.pickupBranchName,
+      'notes': order.notes,
+      'preparation_status': order.preparationStatus.name,
+      'delivery_status': order.deliveryStatus.name,
+      'payment_method': order.paymentMethod.name,
+      'payment_type': order.paymentType.name,
+      'gcash_ref_number': order.gcashRefNumber?.trim(),
+      'gcash_amount': order.gcashAmount,
+      'gcash_proof_url': order.gcashProofUrl,
+      'gcash_verified': order.gcashVerified,
+      'gcash_verified_at': order.gcashVerifiedAt?.toIso8601String(),
+      'gcash_verified_by': order.gcashVerifiedBy,
+      'delivery_proof_url': order.deliveryProofUrl,
+      'is_cancelled': order.isCancelled,
+      'cancellation_reason': order.cancellationReason,
+      'created_at': (order.createdAt ?? DateTime.now()).toIso8601String(),
+      'updated_at': DateTime.now().toIso8601String(),
+    };
+  }
+
+  static BilaoOrder _bilaoOrderFromSupabaseMap(Map<String, dynamic> data) {
+    final scheduledDate = data['scheduled_date_time'] != null
+        ? DateTime.tryParse(data['scheduled_date_time'].toString()) ?? DateTime.now()
+        : DateTime.now();
+
+    final sizeStr = (data['size'] ?? '').toString().toLowerCase();
+    final size = BilaoSize.values.firstWhere(
+      (e) => e.name.toLowerCase() == sizeStr || e.label.toLowerCase() == sizeStr,
+      orElse: () => BilaoSize.small,
+    );
+
+    final fulfillStr = data['fulfillment_type']?.toString();
+    final fulfillType = BilaoFulfillmentType.values.firstWhere(
+      (e) => e.name == fulfillStr,
+      orElse: () => BilaoFulfillmentType.branchPickup,
+    );
+
+    final channelStr = data['order_channel']?.toString();
+    final orderChannel = BilaoOrderChannel.values.firstWhere(
+      (e) => e.name == channelStr,
+      orElse: () => BilaoOrderChannel.branchOrder,
+    );
+
+    final prepStr = data['preparation_status']?.toString();
+    final prepStatus = PreparationStatus.values.firstWhere(
+      (e) => e.name == prepStr,
+      orElse: () => PreparationStatus.pending,
+    );
+
+    final delivStr = data['delivery_status']?.toString();
+    final delivStatus = DeliveryStatus.values.firstWhere(
+      (e) => e.name == delivStr,
+      orElse: () => DeliveryStatus.forDelivery,
+    );
+
+    final payMethodStr = data['payment_method']?.toString();
+    final paymentMethod = PaymentMethod.values.firstWhere(
+      (e) => e.name == payMethodStr,
+      orElse: () => PaymentMethod.cash,
+    );
+
+    final payTypeStr = data['payment_type']?.toString();
+    final paymentType = PaymentType.values.firstWhere(
+      (e) => e.name == payTypeStr,
+      orElse: () => PaymentType.fullPayment,
+    );
+
+    return BilaoOrder(
+      id: data['id']?.toString() ?? '',
+      customerName: data['customer_name']?.toString() ?? '',
+      contactNumber: data['contact_number']?.toString() ?? '',
+      size: size,
+      quantity: (data['quantity'] as num?)?.toInt() ?? 1,
+      scheduledDateTime: scheduledDate,
+      deliveryAddress: data['delivery_address']?.toString() ?? '',
+      fulfillmentType: fulfillType,
+      orderChannel: orderChannel,
+      pickupBranchId: data['pickup_branch_id']?.toString(),
+      pickupBranchName: data['pickup_branch_name']?.toString(),
+      notes: data['notes']?.toString(),
+      unitPrice: (data['unit_price'] as num?)?.toDouble(),
+      depositAmount: (data['deposit_amount'] as num?)?.toDouble() ?? 0.0,
+      createdAt: data['created_at'] != null ? DateTime.tryParse(data['created_at'].toString()) : null,
+      preparationStatus: prepStatus,
+      deliveryStatus: delivStatus,
+      paymentMethod: paymentMethod,
+      paymentType: paymentType,
+      gcashRefNumber: data['gcash_ref_number']?.toString(),
+      gcashAmount: (data['gcash_amount'] as num?)?.toDouble(),
+      gcashProofUrl: data['gcash_proof_url']?.toString(),
+      gcashVerified: data['gcash_verified'] as bool? ?? false,
+      gcashVerifiedAt: data['gcash_verified_at'] != null
+          ? DateTime.tryParse(data['gcash_verified_at'].toString())
+          : null,
+      gcashVerifiedBy: data['gcash_verified_by']?.toString(),
+      deliveryProofUrl: data['delivery_proof_url']?.toString(),
+      isCancelled: data['is_cancelled'] as bool? ?? false,
+      cancellationReason: data['cancellation_reason']?.toString(),
+    );
+  }
+
+  /// Checks whether a GCash reference number already exists in Supabase bilao_orders
+  /// to block duplicate or recycled payment receipts.
+  static Future<bool> isGcashRefNumberExists(String refNumber) async {
+    final clean = refNumber.trim();
+    if (clean.isEmpty) return false;
+    final client = _client;
+    if (client == null) return false;
+
+    final unspaced = clean.replaceAll(' ', '');
+
+    try {
+      final data = await client
+          .from('bilao_orders')
+          .select('id, gcash_ref_number')
+          .or('gcash_ref_number.eq.$clean,gcash_ref_number.eq.$unspaced')
+          .limit(1);
+
+      return (data as List).isNotEmpty;
+    } catch (e) {
+      debugPrint('SupabaseService.isGcashRefNumberExists error: $e');
+      return false;
+    }
+  }
+
+  /// Saves or upserts a bilao order into the Supabase 'bilao_orders' table.
+  /// Guarantees that payment reference numbers and order archives are permanently
+  /// stored in Supabase PostgreSQL without consuming Firebase document storage.
+  static Future<bool> saveBilaoOrder(BilaoOrder order) async {
+    final client = _client;
+    if (client == null) {
+      debugPrint('Supabase client unavailable, skipping Supabase bilao order save');
+      return false;
+    }
+
+    try {
+      await client.from('bilao_orders').upsert(_bilaoOrderToMap(order));
+      debugPrint('Supabase bilao_orders successfully saved: ${order.id}');
+      return true;
+    } catch (e) {
+      debugPrint('SupabaseService.saveBilaoOrder error: $e');
+      return false;
+    }
+  }
+
+  /// Fetches bilao orders from Supabase PostgreSQL.
+  static Future<List<BilaoOrder>> getBilaoOrders({int limit = 100}) async {
+    final client = _client;
+    if (client == null) return [];
+
+    try {
+      final data = await client
+          .from('bilao_orders')
+          .select()
+          .order('scheduled_date_time', ascending: false)
+          .limit(limit);
+
+      return (data as List)
+          .map((row) => _bilaoOrderFromSupabaseMap(row as Map<String, dynamic>))
+          .toList();
+    } catch (e) {
+      debugPrint('SupabaseService.getBilaoOrders error: $e');
+      return [];
+    }
+  }
+
+  /// Fetches bilao orders assigned to a specific branch from Supabase.
+  static Future<List<BilaoOrder>> getBranchBilaoOrders({
+    required String branchId,
+    int limit = 100,
+  }) async {
+    final client = _client;
+    if (client == null) return [];
+
+    try {
+      final data = await client
+          .from('bilao_orders')
+          .select()
+          .eq('pickup_branch_id', branchId)
+          .order('scheduled_date_time', ascending: false)
+          .limit(limit);
+
+      return (data as List)
+          .map((row) => _bilaoOrderFromSupabaseMap(row as Map<String, dynamic>))
+          .toList();
+    } catch (e) {
+      debugPrint('SupabaseService.getBranchBilaoOrders error: $e');
+      return [];
+    }
+  }
+
+  /// Updates the GCash verification status of an order in Supabase.
+  static Future<bool> updateGcashVerification({
+    required String orderId,
+    required bool verified,
+    String? verifiedBy,
+  }) async {
+    final client = _client;
+    if (client == null) return false;
+    try {
+      await client.from('bilao_orders').update({
+        'gcash_verified': verified,
+        'gcash_verified_at': verified ? DateTime.now().toIso8601String() : null,
+        'gcash_verified_by': verifiedBy,
+        'updated_at': DateTime.now().toIso8601String(),
+      }).eq('id', orderId);
+      return true;
+    } catch (e) {
+      debugPrint('SupabaseService.updateGcashVerification error: $e');
+      return false;
+    }
+  }
+
+  /// Updates GCash proof URL, extracted ref number, amount, and marks as verified in Supabase.
+  static Future<bool> updateBilaoOrderGcashProof({
+    required String orderId,
+    required String gcashProofUrl,
+    required String gcashRefNumber,
+    required double gcashAmount,
+    required bool verified,
+    String? verifiedBy,
+  }) async {
+    final client = _client;
+    if (client == null) return false;
+    try {
+      await client.from('bilao_orders').update({
+        'gcash_proof_url': gcashProofUrl,
+        'gcash_ref_number': gcashRefNumber,
+        'gcash_amount': gcashAmount,
+        'gcash_verified': verified,
+        'gcash_verified_at': verified ? DateTime.now().toIso8601String() : null,
+        'gcash_verified_by': verifiedBy,
+        'updated_at': DateTime.now().toIso8601String(),
+      }).eq('id', orderId);
+      return true;
+    } catch (e) {
+      debugPrint('SupabaseService.updateBilaoOrderGcashProof error: $e');
       return false;
     }
   }
