@@ -15,6 +15,7 @@ import 'record_transfer_screen.dart';
 import 'karne_batch_detail_screen.dart';
 import 'monthly_financials_screen.dart';
 import '../admin_web_widgets/admin_pagination_bar.dart';
+import 'inventory_export_dialog.dart';
 
 class InventoryScreen extends StatefulWidget {
   const InventoryScreen({super.key, this.initialTab = 0});
@@ -548,6 +549,31 @@ class _InventoryScreenState extends State<InventoryScreen>
                   )
                 : null;
 
+            final exportInventoryBtn = OutlinedButton.icon(
+              onPressed: () => InventoryExportDialog.show(
+                context,
+                batches: _karneBatches,
+                branchStocks: _branchMeatStocks,
+                dispatches: _meatDispatches,
+                supplyRequests: _supplyRequests,
+              ),
+              icon: const Icon(Icons.table_view_rounded, size: 16, color: Color(0xFF2E7D32)),
+              label: const Text(
+                'EXPORT INVENTORY (.XLSX)',
+                style: TextStyle(
+                  color: Color(0xFF2E7D32),
+                  fontWeight: FontWeight.w800,
+                  fontSize: 13,
+                ),
+              ),
+              style: OutlinedButton.styleFrom(
+                backgroundColor: Colors.white,
+                side: const BorderSide(color: Color(0xFF81C784), width: 1.2),
+                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+            );
+
             final addBtn = ElevatedButton.icon(
               onPressed: _addNewBatch,
               icon: const Icon(Icons.add_rounded, size: 18, color: Colors.white),
@@ -574,7 +600,13 @@ class _InventoryScreenState extends State<InventoryScreen>
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   if (clearBtn != null) clearBtn else const SizedBox.shrink(),
-                  addBtn,
+                  Row(
+                    children: [
+                      exportInventoryBtn,
+                      const SizedBox(width: 12),
+                      addBtn,
+                    ],
+                  ),
                 ],
               );
             }
@@ -586,6 +618,8 @@ class _InventoryScreenState extends State<InventoryScreen>
                   clearBtn,
                   const SizedBox(height: 10),
                 ],
+                exportInventoryBtn,
+                const SizedBox(height: 10),
                 addBtn,
               ],
             );

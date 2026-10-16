@@ -14,6 +14,7 @@ import '../admin_web_widgets/glass_card.dart';
 import '../admin_web_widgets/admin_pagination_bar.dart';
 import 'add_bilao_order_screen.dart';
 import 'bilao_kitchen_ticket_dialog.dart';
+import 'excel_export_dialog.dart';
 
 /// Admin records confirmed advance/special bilao orders here (received
 /// via Messenger/phone — customers never order directly in-app), then
@@ -1320,6 +1321,27 @@ class _BilaoOrderScreenState extends State<BilaoOrderScreen> {
                       spacing: 10,
                       runSpacing: 8,
                       children: [
+                        OutlinedButton.icon(
+                          onPressed: () => ExcelExportDialog.show(context, orders: _orders),
+                          icon: const Icon(Icons.table_view_rounded,
+                              size: 16, color: Color(0xFF2E7D32)),
+                          label: const Text(
+                            'EXPORT EXCEL (.XLSX)',
+                            style: TextStyle(
+                              color: Color(0xFF2E7D32),
+                              fontWeight: FontWeight.w800,
+                              fontSize: 12,
+                            ),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            backgroundColor: Colors.white,
+                            side: const BorderSide(color: Color(0xFF81C784), width: 1.2),
+                            padding: const EdgeInsets.symmetric(
+                                vertical: 12, horizontal: 16),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10)),
+                          ),
+                        ),
                         OutlinedButton.icon(
                           onPressed: _showPricingDialog,
                           icon: const Icon(Icons.sell_outlined,

@@ -5,6 +5,7 @@ import '../../../models/inventory_batch.dart';
 import '../../../models/procurement_list.dart';
 import '../../../models/sales_record.dart';
 import '../../../services/firestore_service.dart';
+import '../../../services/excel_export_service.dart';
 import '../admin_web_colors.dart';
 import '../admin_web_widgets/glass_card.dart';
 
@@ -795,6 +796,136 @@ class _MonthlyFinancialsScreenState extends State<MonthlyFinancialsScreen> {
     );
   }
 
+  Future<void> _exportFinancialsExcel() async {
+    try {
+      await ExcelExportService.exportMonthlyFinancialsReport(period: _period);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: const Color(0xFF2E7D32),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            content: Row(
+              children: [
+                const Icon(Icons.check_circle_rounded, color: Colors.white, size: 20),
+                const SizedBox(width: 10),
+                Text(
+                  '${_period.monthName} ${_period.year} Financial Statement exported to Excel!',
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+              ],
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: AdminWebColors.error,
+            content: Text('Failed to export Excel: $e'),
+          ),
+        );
+      }
+    }
+  }
+
+  Widget _buildTopActionBar() {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isWide = constraints.maxWidth >= 650;
+        final titleContent = Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Wrap(
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 10,
+              children: [
+                Text(
+                  '${_period.monthName.toUpperCase()} ${_period.year} FINANCIAL STATEMENT',
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w900,
+                    color: AdminWebColors.textPrimary,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: (_period.isRoiAchieved ? AdminWebColors.success : AdminWebColors.warning)
+                        .withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: (_period.isRoiAchieved ? AdminWebColors.success : AdminWebColors.warning)
+                          .withValues(alpha: 0.4),
+                    ),
+                  ),
+                  child: Text(
+                    _period.isRoiAchieved ? 'ROI ACHIEVED' : 'ROI IN PROGRESS',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      color: _period.isRoiAchieved ? AdminWebColors.success : AdminWebColors.warning,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              'Consolidated Profit & Loss (P&L), Commissary Production, Procurement & Payroll',
+              style: TextStyle(
+                fontSize: 12.5,
+                color: AdminWebColors.textSecondary,
+              ),
+            ),
+          ],
+        );
+
+        final exportBtn = ElevatedButton.icon(
+          onPressed: _exportFinancialsExcel,
+          icon: const Icon(Icons.table_view_rounded, size: 16, color: Colors.white),
+          label: const Text(
+            'EXPORT P&L (.XLSX)',
+            style: TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w800,
+              fontSize: 13,
+            ),
+          ),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFF2E7D32),
+            foregroundColor: Colors.white,
+            elevation: 0,
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+        );
+
+        if (isWide) {
+          return Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(child: titleContent),
+              const SizedBox(width: 16),
+              exportBtn,
+            ],
+          );
+        } else {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              titleContent,
+              const SizedBox(height: 12),
+              Align(alignment: Alignment.centerLeft, child: exportBtn),
+            ],
+          );
+        }
+      },
+    );
+  }
+
   // --- BUILD METHOD ---
 
   @override
@@ -806,6 +937,10 @@ class _MonthlyFinancialsScreenState extends State<MonthlyFinancialsScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // 0. TOP ACTION HEADER & EXCEL EXPORT
+            _buildTopActionBar(),
+            const SizedBox(height: 20),
+
             // 1. NOTES BANNER (Top-most as requested)
             _buildNotesBanner(),
             const SizedBox(height: 20),

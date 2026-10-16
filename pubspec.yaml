@@ -60,6 +60,7 @@ dependencies:
 
   # Local persistence for Remember Me and offline caching
   shared_preferences: ^2.2.0
+  excel: ^4.0.6
 
 dev_dependencies:
   flutter_test:

@@ -8,6 +8,7 @@ import '../admin_web_colors.dart';
 import '../admin_web_shell.dart';
 import '../admin_web_widgets/glass_card.dart';
 import '../admin_web_widgets/admin_pagination_bar.dart';
+import 'sales_payroll_export_dialog.dart';
 
 /// Admin monitors daily sales and payroll here.
 /// Separated into 2 main sections:
@@ -308,15 +309,20 @@ class _SalesPayrollScreenState extends State<SalesPayrollScreen> {
                     // Export Button
                     ElevatedButton.icon(
                       onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                              content: Text('Payroll summary exported.')),
+                        SalesPayrollExportDialog.show(
+                          context,
+                          records: _records,
+                          cookRate: _productionCookRate,
+                          cutterRate: _productionCutterRate,
+                          driverRate: _driverDailyRate,
+                          driverDays: _driverDaysWorked,
+                          cookingSessions: _totalCookingSessions,
                         );
                       },
-                      icon: const Icon(Icons.ios_share_rounded, size: 16),
-                      label: const Text('EXPORT'),
+                      icon: const Icon(Icons.table_view_rounded, size: 16),
+                      label: const Text('EXPORT SALES & PAYROLL (.XLSX)'),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: AdminWebColors.accent,
+                        backgroundColor: const Color(0xFF2E7D32), // Excel Dark Green
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(
                             horizontal: 16, vertical: 16),
