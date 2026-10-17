@@ -2,7 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../../models/branch.dart';
 import '../../../models/branch_daily_inventory.dart';
-import '../../../models/branch_meat_stock.dart';
+import '../../../models/branch_meat_inventory.dart';
 import '../../../models/daily_report.dart';
 import '../../../services/firestore_service.dart';
 import '../admin_web_colors.dart';

@@ -2,7 +2,7 @@ import 'dart:async';
 import 'package:flutter/cupertino.dart';
 import '../../models/branch.dart';
 import '../../models/branch_assignment.dart';
-import '../../models/branch_meat_stock.dart';
+import '../../models/branch_meat_inventory.dart';
 import '../../models/staff_member.dart';
 import '../../services/assignment_service.dart';
 import '../../services/auth_service.dart';

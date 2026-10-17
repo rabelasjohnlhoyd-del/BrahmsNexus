@@ -4,7 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../models/bilao_order.dart';
 import '../../../models/branch.dart';
-import '../../../models/branch_meat_stock.dart';
+import '../../../models/branch_meat_inventory.dart';
 import '../../../services/firestore_service.dart';
 import '../../../services/gemini_service.dart';
 import '../../../services/rate_limiter.dart';
@@ -54,7 +54,7 @@ class _AddBilaoOrderScreenState extends State<AddBilaoOrderScreen> {
 
   StreamSubscription<List<BranchMeatStock>>? _stocksSub;
   List<BranchMeatStock> _allStocks = [];
-  List<Branch> _branches = List.from(kSampleBranches);
+  final List<Branch> _branches = List.from(kSampleBranches);
 
   bool get _isSelectedBranchClosed =>
       _allStocks.any((s) => s.branchId == _selectedBranchId && s.isClosed);
@@ -923,7 +923,7 @@ class _AddBilaoOrderScreenState extends State<AddBilaoOrderScreen> {
         ),
         const SizedBox(height: 12),
         DropdownButtonFormField<String>(
-          value: _selectedBranchId,
+          initialValue: _selectedBranchId,
           isExpanded: true,
           decoration: InputDecoration(
             labelText: 'Target Pickup Branch Outlet',
