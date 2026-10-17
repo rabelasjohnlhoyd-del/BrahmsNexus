@@ -164,8 +164,19 @@ class _ExcelExportDialogState extends State<ExcelExportDialog> {
         Navigator.of(context).pop();
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('✅ Matagumpay na na-download ang Bilao Orders Audit Report (.xlsx)!'),
-            backgroundColor: AdminWebColors.success,
+            content: Row(
+              children: [
+                Icon(Icons.check_circle_rounded, color: Colors.white, size: 20),
+                SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Matagumpay na na-download ang Bilao Orders Audit Report (.xlsx)!',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: Color(0xFF2E7D32),
             behavior: SnackBarBehavior.floating,
             duration: Duration(seconds: 4),
           ),
@@ -254,7 +265,7 @@ class _ExcelExportDialogState extends State<ExcelExportDialog> {
                       return DropdownMenuItem<String>(
                         value: name,
                         child: Text(
-                          name == 'All Branches' ? '🌟 All 6 Branches (Consolidated Master Report)' : name,
+                          name == 'All Branches' ? 'All 6 Branches (Consolidated Master Report)' : name,
                           style: TextStyle(
                             fontSize: 13,
                             fontWeight: name == 'All Branches' ? FontWeight.w700 : FontWeight.w500,
@@ -376,13 +387,14 @@ class _ExcelExportDialogState extends State<ExcelExportDialog> {
           onPressed: _isGenerating || matches.isEmpty ? null : _handleExport,
           icon: _isGenerating
               ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-              : const Icon(Icons.download_rounded, size: 18),
+              : const Icon(Icons.table_view_rounded, size: 18),
           label: Text(_isGenerating ? 'Generating Excel...' : 'Download Bilao Orders Audit (.xlsx)'),
           style: ElevatedButton.styleFrom(
-            backgroundColor: AdminWebColors.accent,
+            backgroundColor: const Color(0xFF2E7D32),
             foregroundColor: Colors.white,
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            elevation: 0,
           ),
         ),
       ],

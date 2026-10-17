@@ -98,6 +98,13 @@ class KarneBatch {
     return sum;
   }
 
+  /// Total pieces of meat produced/cut for this batch (across 250g, 300g, 400g):
+  int get totalProducedMeatPcs {
+    final fromSessions = totalPcsNagawa;
+    if (fromSessions > 0) return fromSessions;
+    return (actual250g ?? 0) + (actual300g ?? 0) + (actual400g ?? 0);
+  }
+
   KarneBatch copyWith({
     String? id,
     String? name,

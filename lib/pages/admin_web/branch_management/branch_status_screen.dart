@@ -39,14 +39,32 @@ class _BranchStatusScreenState extends State<BranchStatusScreen> {
         .snapshots()
         .listen((snap) {
       if (!mounted) return;
+      final todayStr = DateTime.now().toIso8601String().substring(0, 10);
       setState(() {
         _statuses.clear();
         for (final doc in snap.docs) {
           final data = doc.data();
+          final rawIsOpen = data['isOpen'] as bool? ?? false;
+          final isClosed = data['isClosed'] as bool? ?? false;
+          final lastTapType = data['lastTapType'] as String?;
+          final openedDateStr = data['openedDateStr'] as String?;
+          final hasRfidArrivalToday = lastTapType == 'deployment_opening' && openedDateStr == todayStr;
+          final isClosedByRetrieval = lastTapType == 'retrieval_closing';
+
+          // Store is strictly OPEN if cook tapped arrival RFID today and branch is not closed
+          final effectiveIsOpen = !isClosed && !isClosedByRetrieval && (rawIsOpen || hasRfidArrivalToday);
+
+          if (effectiveIsOpen && !rawIsOpen) {
+            FirebaseFirestore.instance.collection('branch_status').doc(doc.id).set({
+              'isOpen': true,
+            }, SetOptions(merge: true)).catchError((_) {});
+          }
+
           final status = _BranchLiveStatus(
             branchId: (data['branchId']?.toString() ?? doc.id).toLowerCase(),
             branchName: data['branchName']?.toString() ?? '',
-            isOpen: data['isOpen'] as bool? ?? false,
+            isOpen: effectiveIsOpen,
+            isClosed: isClosed,
             driverOnWay: data['driverOnWay'] as bool? ?? false,
             cookName: data['cookName']?.toString() ?? '',
             driverName: data['driverName']?.toString() ?? '',
@@ -219,6 +237,7 @@ class _BranchStatusScreenState extends State<BranchStatusScreen> {
   Widget _buildBranchCard(Branch branch, int stopNumber) {
     final status = _getStatusForBranch(branch);
     final isOpen = status?.isOpen ?? false;
+    final isClosed = status?.isClosed ?? false;
     final driverOnWay = status?.driverOnWay ?? false;
     final neverUpdated = status == null;
 
@@ -226,7 +245,7 @@ class _BranchStatusScreenState extends State<BranchStatusScreen> {
     final String statusText;
     final IconData statusIcon;
 
-    if (neverUpdated) {
+    if (neverUpdated || isClosed) {
       statusColor = AdminWebColors.textSecondary;
       statusText = 'CLOSED';
       statusIcon = Icons.lock_rounded;
@@ -239,7 +258,7 @@ class _BranchStatusScreenState extends State<BranchStatusScreen> {
       statusText = 'OPEN';
       statusIcon = Icons.lock_open_rounded;
     } else {
-      statusColor = AdminWebColors.error;
+      statusColor = AdminWebColors.textSecondary;
       statusText = 'CLOSED';
       statusIcon = Icons.lock_rounded;
     }
@@ -382,6 +401,7 @@ class _BranchLiveStatus {
     required this.branchId,
     required this.branchName,
     required this.isOpen,
+    this.isClosed = false,
     required this.driverOnWay,
     required this.cookName,
     required this.driverName,
@@ -390,6 +410,7 @@ class _BranchLiveStatus {
   final String branchId;
   final String branchName;
   final bool isOpen;
+  final bool isClosed;
   final bool driverOnWay;
   final String cookName;
   final String driverName;

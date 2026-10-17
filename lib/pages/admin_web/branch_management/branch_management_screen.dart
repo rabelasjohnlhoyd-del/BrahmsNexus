@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../models/branch.dart';
 import '../../../services/supabase_service.dart';
 import '../admin_web_colors.dart';
@@ -21,6 +23,9 @@ class _BranchManagementScreenState extends State<BranchManagementScreen> {
   final _searchController = TextEditingController();
   String _query = '';
   bool _isLoading = false;
+  StreamSubscription? _statusSub;
+  final Map<String, bool> _branchOpenMap = {};
+  final Map<String, bool> _branchClosedMap = {};
 
   int _currentPage = 0;
   static const int _pageSize = 5;
@@ -30,6 +35,33 @@ class _BranchManagementScreenState extends State<BranchManagementScreen> {
     super.initState();
     _loadBranches();
     _updateShellActions();
+    _listenToStatus();
+  }
+
+  void _listenToStatus() {
+    _statusSub = FirebaseFirestore.instance.collection('branch_status').snapshots().listen((snap) {
+      if (!mounted) return;
+      final todayStr = DateTime.now().toIso8601String().substring(0, 10);
+      setState(() {
+        _branchOpenMap.clear();
+        _branchClosedMap.clear();
+        for (final doc in snap.docs) {
+          final data = doc.data();
+          final bId = (data['branchId']?.toString() ?? doc.id).toLowerCase();
+          final rawIsOpen = data['isOpen'] == true;
+          final isClosed = data['isClosed'] == true;
+          final lastTapType = data['lastTapType'] as String?;
+          final openedDateStr = data['openedDateStr'] as String?;
+          final hasRfidArrivalToday = lastTapType == 'deployment_opening' && openedDateStr == todayStr;
+          final isClosedByRetrieval = lastTapType == 'retrieval_closing';
+
+          // Open if cook has tapped arrival RFID today and branch is not closed
+          final isOpen = !isClosed && !isClosedByRetrieval && (rawIsOpen || hasRfidArrivalToday);
+          _branchOpenMap[bId] = isOpen;
+          _branchClosedMap[bId] = isClosed;
+        }
+      });
+    });
   }
 
   Future<void> _loadBranches() async {
@@ -44,6 +76,7 @@ class _BranchManagementScreenState extends State<BranchManagementScreen> {
 
   @override
   void dispose() {
+    _statusSub?.cancel();
     _searchController.dispose();
     super.dispose();
   }
@@ -259,13 +292,60 @@ class _BranchManagementScreenState extends State<BranchManagementScreen> {
                                         child: const Icon(Icons.storefront_rounded,
                                             color: AdminWebColors.accent),
                                       ),
-                                      title: Text(
-                                        b.fullName,
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.w700,
-                                          color: AdminWebColors.textPrimary,
-                                          fontSize: 15,
-                                        ),
+                                      title: Row(
+                                        children: [
+                                          Expanded(
+                                            child: Text(
+                                              b.fullName,
+                                              style: const TextStyle(
+                                                fontWeight: FontWeight.w700,
+                                                color: AdminWebColors.textPrimary,
+                                                fontSize: 15,
+                                              ),
+                                            ),
+                                          ),
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                            decoration: BoxDecoration(
+                                              color: (_branchOpenMap[b.id.toLowerCase()] == true && _branchClosedMap[b.id.toLowerCase()] != true)
+                                                  ? AdminWebColors.success.withValues(alpha: 0.12)
+                                                  : AdminWebColors.textSecondary.withValues(alpha: 0.12),
+                                              borderRadius: BorderRadius.circular(6),
+                                              border: Border.all(
+                                                color: (_branchOpenMap[b.id.toLowerCase()] == true && _branchClosedMap[b.id.toLowerCase()] != true)
+                                                    ? AdminWebColors.success.withValues(alpha: 0.3)
+                                                    : AdminWebColors.textSecondary.withValues(alpha: 0.3),
+                                              ),
+                                            ),
+                                            child: Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                Icon(
+                                                  (_branchOpenMap[b.id.toLowerCase()] == true && _branchClosedMap[b.id.toLowerCase()] != true)
+                                                      ? Icons.lock_open_rounded
+                                                      : Icons.lock_rounded,
+                                                  size: 11,
+                                                  color: (_branchOpenMap[b.id.toLowerCase()] == true && _branchClosedMap[b.id.toLowerCase()] != true)
+                                                      ? AdminWebColors.success
+                                                      : AdminWebColors.textSecondary,
+                                                ),
+                                                const SizedBox(width: 4),
+                                                Text(
+                                                  (_branchOpenMap[b.id.toLowerCase()] == true && _branchClosedMap[b.id.toLowerCase()] != true)
+                                                      ? 'OPEN'
+                                                      : 'CLOSED',
+                                                  style: TextStyle(
+                                                    fontSize: 10,
+                                                    fontWeight: FontWeight.w800,
+                                                    color: (_branchOpenMap[b.id.toLowerCase()] == true && _branchClosedMap[b.id.toLowerCase()] != true)
+                                                        ? AdminWebColors.success
+                                                        : AdminWebColors.textSecondary,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                       subtitle: Text(
                                         'Daily Route Priority: ${b.dailyRouteSequence}',

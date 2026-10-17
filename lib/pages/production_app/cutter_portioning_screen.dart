@@ -8,6 +8,7 @@ import '../../models/inventory_batch.dart';
 import '../../services/auth_service.dart';
 import '../../services/firestore_service.dart';
 import '../../services/input_validators.dart';
+import '../../services/system_busy_coordinator.dart';
 import '../../services/tutorial_service.dart';
 import '../../services/weather_service.dart';
 import '../../theme/app_theme.dart';
@@ -368,6 +369,7 @@ class CutterPortioningScreenState extends State<CutterPortioningScreen> {
               Navigator.pop(dialogCtx);
               if (!mounted || _isSubmittingPortions) return;
               setState(() => _isSubmittingPortions = true);
+              SystemBusyCoordinator.setBusy(true);
               try {
                 final c250 = int.tryParse(_controllers['250g']!.text.trim()) ?? 0;
                 final c300 = int.tryParse(_controllers['300g']!.text.trim()) ?? 0;
@@ -427,6 +429,7 @@ class CutterPortioningScreenState extends State<CutterPortioningScreen> {
                   }
                 }
               } finally {
+                SystemBusyCoordinator.setBusy(false);
                 if (mounted) setState(() => _isSubmittingPortions = false);
               }
             },
@@ -445,7 +448,11 @@ class CutterPortioningScreenState extends State<CutterPortioningScreen> {
         title: 'Home',
         trailing: StaffTopActions(),
       ),
-      child: SafeArea(
+      child: AbsorbPointer(
+        absorbing: _isSubmittingPortions,
+        child: Stack(
+          children: [
+            SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
@@ -886,8 +893,37 @@ class CutterPortioningScreenState extends State<CutterPortioningScreen> {
           ],
         ),
       ),
-    );
-  }
+      if (_isSubmittingPortions)
+        Positioned.fill(
+          child: Container(
+            color: CupertinoColors.black.withValues(alpha: 0.25),
+            child: Center(
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                decoration: BoxDecoration(
+                  color: CupertinoColors.white,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    CupertinoActivityIndicator(),
+                    SizedBox(width: 12),
+                    Text(
+                      'Submitting portioning report... Please wait...',
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.textPrimary),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+    ],
+  ),
+),
+);
+}
 
   Widget _weatherWidget() {
     return StaffCard(

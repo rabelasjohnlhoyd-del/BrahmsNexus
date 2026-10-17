@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/cupertino.dart';
 import '../../models/branch.dart';
 import '../../models/branch_assignment.dart';
@@ -315,6 +316,8 @@ class HomepageScreenState extends State<HomepageScreen> with WidgetsBindingObser
   BranchMeatStock? _branchMeatStock;
   StreamSubscription<BranchDailyInventory?>? _inventorySub;
   StreamSubscription<List<BranchMeatStock>>? _meatStocksSub;
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _statusSub;
+  bool _isBranchRfidOpenToday = false;
   String _currentBranchId = 'br1';
 
   final _karneController = TextEditingController();
@@ -604,8 +607,46 @@ class HomepageScreenState extends State<HomepageScreen> with WidgetsBindingObser
         );
         setState(() {
           _branchMeatStock = match;
+          if (_inventory.status == InventoryVerificationStatus.pending) {
+            _inventory = _inventory.copyWith(
+              allocated: InventoryCounts(
+                karne: match.totalAllocatedPcs,
+                mayo: match.mayoTotal,
+                styro: match.styroTotal,
+                toyo: match.toyoTotal,
+              ),
+            );
+          }
         });
       }
+    });
+
+    _statusSub?.cancel();
+    _statusSub = FirebaseFirestore.instance
+        .collection('branch_status')
+        .doc(_currentBranchId)
+        .snapshots()
+        .listen((snap) {
+      if (!mounted) return;
+      final data = snap.data();
+      final todayStr = DateTime.now().toIso8601String().substring(0, 10);
+      final rawIsOpen = data?['isOpen'] == true;
+      final isClosed = data?['isClosed'] == true;
+      final lastTapType = data?['lastTapType'] as String?;
+      final openedDateStr = data?['openedDateStr'] as String?;
+      final hasRfidArrivalToday = lastTapType == 'deployment_opening' && openedDateStr == todayStr;
+      final isClosedByRetrieval = lastTapType == 'retrieval_closing';
+      final isOpenToday = !isClosed && !isClosedByRetrieval && (rawIsOpen || hasRfidArrivalToday);
+
+      if (isOpenToday && !rawIsOpen && _currentBranchId.isNotEmpty) {
+        FirebaseFirestore.instance.collection('branch_status').doc(_currentBranchId).set({
+          'isOpen': true,
+        }, SetOptions(merge: true)).catchError((_) {});
+      }
+
+      setState(() {
+        _isBranchRfidOpenToday = isOpenToday;
+      });
     });
   }
 
@@ -617,6 +658,7 @@ class HomepageScreenState extends State<HomepageScreen> with WidgetsBindingObser
     AssignmentService.changeNotifier.removeListener(_onAssignmentChanged);
     _inventorySub?.cancel();
     _meatStocksSub?.cancel();
+    _statusSub?.cancel();
     _karneController.dispose();
     _mayoController.dispose();
     _styroController.dispose();
@@ -627,12 +669,12 @@ class HomepageScreenState extends State<HomepageScreen> with WidgetsBindingObser
     super.dispose();
   }
 
-  int get _allocatedMayo => _inventory.allocated.mayo > 0 ? _inventory.allocated.mayo : 40;
-  int get _allocatedToyo => _inventory.allocated.toyo > 0 ? _inventory.allocated.toyo : 10;
-  int get _allocatedStyro => _inventory.allocated.styro > 0 ? _inventory.allocated.styro : 40;
-  int get _allocatedRegular => 20;
-  int get _allocatedMedium => 10;
-  int get _allocatedB1t1 => 10;
+  int get _allocatedMayo => _branchMeatStock?.mayoTotal ?? (_inventory.allocated.mayo > 0 ? _inventory.allocated.mayo : 40);
+  int get _allocatedToyo => _branchMeatStock?.toyoTotal ?? (_inventory.allocated.toyo > 0 ? _inventory.allocated.toyo : 10);
+  int get _allocatedStyro => _branchMeatStock?.styroTotal ?? (_inventory.allocated.styro > 0 ? _inventory.allocated.styro : 40);
+  int get _allocatedRegular => _branchMeatStock?.regular250gTotal ?? 20;
+  int get _allocatedMedium => _branchMeatStock?.medium300gTotal ?? 10;
+  int get _allocatedB1t1 => _branchMeatStock?.b1t1_400gTotal ?? 10;
 
   int get _maxMayo => _allocatedMayo + 5;
   int get _maxToyo => _allocatedToyo + 5;
@@ -726,6 +768,10 @@ class HomepageScreenState extends State<HomepageScreen> with WidgetsBindingObser
   }
 
   void _confirm() {
+    if (!_isBranchRfidOpenToday) {
+      _showToast('Mag-tap muna ng RFID sa device ng Driver upang mabuksan ang branch bago mag-verify.');
+      return;
+    }
     if (!_countsWithinMax) {
       _showToast('Hindi maaaring lumagpas sa Allocated + 5 ang bawat item.');
       return;
@@ -800,6 +846,10 @@ class HomepageScreenState extends State<HomepageScreen> with WidgetsBindingObser
   }
 
   Future<void> _showDenyDialog() async {
+    if (!_isBranchRfidOpenToday) {
+      _showToast('Mag-tap muna ng RFID sa device ng Driver upang mabuksan ang branch bago mag-verify.');
+      return;
+    }
     if (!_countsWithinMax) {
       _showToast('Hindi maaaring lumagpas sa Allocated + 5 ang bawat item.');
       return;
@@ -1058,6 +1108,59 @@ class HomepageScreenState extends State<HomepageScreen> with WidgetsBindingObser
                       ),
                     ),
                   ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: (_isBranchRfidOpenToday
+                              ? AppColors.success
+                              : (_branchMeatStock?.isClosed == true
+                                  ? AppColors.error
+                                  : const Color(0xFFD97706)))
+                          .withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: (_isBranchRfidOpenToday
+                                ? AppColors.success
+                                : (_branchMeatStock?.isClosed == true
+                                    ? AppColors.error
+                                    : const Color(0xFFD97706)))
+                            .withValues(alpha: 0.4),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          _isBranchRfidOpenToday
+                              ? CupertinoIcons.lock_open_fill
+                              : CupertinoIcons.lock_fill,
+                          size: 11,
+                          color: _isBranchRfidOpenToday
+                              ? AppColors.success
+                              : (_branchMeatStock?.isClosed == true
+                                  ? AppColors.error
+                                  : const Color(0xFFD97706)),
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          _isBranchRfidOpenToday
+                              ? 'OPEN'
+                              : (_branchMeatStock?.isClosed == true
+                                  ? 'CLOSED'
+                                  : 'AWAITING RFID'),
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w800,
+                            color: _isBranchRfidOpenToday
+                                ? AppColors.success
+                                : (_branchMeatStock?.isClosed == true
+                                    ? AppColors.error
+                                    : const Color(0xFFD97706)),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -1081,12 +1184,12 @@ class HomepageScreenState extends State<HomepageScreen> with WidgetsBindingObser
                 final ar = _inventory.actualReceived;
                 final isDiscrepancy = _inventory.status == InventoryVerificationStatus.discrepancyReported && ar != null;
 
-                final reg = isDiscrepancy ? ar.regular : 20;
-                final med = isDiscrepancy ? ar.medium : 10;
-                final b1t1 = isDiscrepancy ? ar.b1t1 : 10;
-                final mayo = isDiscrepancy ? ar.mayo : 40;
-                final toyo = isDiscrepancy ? ar.toyo : 10;
-                final styro = isDiscrepancy ? ar.styro : 40;
+                final reg = isDiscrepancy ? ar.regular : _allocatedRegular;
+                final med = isDiscrepancy ? ar.medium : _allocatedMedium;
+                final b1t1 = isDiscrepancy ? ar.b1t1 : _allocatedB1t1;
+                final mayo = isDiscrepancy ? ar.mayo : _allocatedMayo;
+                final toyo = isDiscrepancy ? ar.toyo : _allocatedToyo;
+                final styro = isDiscrepancy ? ar.styro : _allocatedStyro;
                 Widget dtile(String label, String value, {bool dark = false}) =>
                     SizedBox(width: cardW, child: StaffDisplayTile(label: label, value: value, dark: dark));
                 return SingleChildScrollView(
@@ -1130,7 +1233,9 @@ class HomepageScreenState extends State<HomepageScreen> with WidgetsBindingObser
                   : CupertinoIcons.checkmark_seal_fill,
               subtitle: isVerified
                   ? 'Counts for today have been recorded (Locked)'
-                  : 'Enter the actual count of items you received',
+                  : (_isBranchRfidOpenToday
+                      ? 'Enter the actual count of items you received'
+                      : 'Locked: Awaiting Cook RFID tap on Driver device'),
               large: true,
               trailing: isVerified
                   ? Container(
@@ -1159,6 +1264,47 @@ class HomepageScreenState extends State<HomepageScreen> with WidgetsBindingObser
                   : null,
             ),
             const SizedBox(height: 14),
+            if (!isVerified && !_isBranchRfidOpenToday) ...[
+              Container(
+                margin: const EdgeInsets.only(bottom: 14),
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFD97706).withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFD97706).withValues(alpha: 0.35)),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(CupertinoIcons.lock_shield_fill, color: Color(0xFFD97706), size: 24),
+                    SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Awaiting RFID Tap on Driver Device',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF92400E),
+                              fontSize: 13,
+                            ),
+                          ),
+                          SizedBox(height: 3),
+                          Text(
+                            'Naka-lock ang pag-verify ng imbentaryo. Mag-tap muna ng iyong RFID card sa hardware reader ng Driver pagdating sa branch upang mabuksan ang tindahan bago mag-verify.',
+                            style: TextStyle(
+                              color: Color(0xFF78350F),
+                              fontSize: 11.5,
+                              height: 1.3,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
             LayoutBuilder(
               builder: (ctx, constraints) {
                 final cardW = (constraints.maxWidth - 12) / 2;
@@ -1167,7 +1313,7 @@ class HomepageScreenState extends State<HomepageScreen> with WidgetsBindingObser
                   child: StaffInputTile(
                     label: label,
                     controller: ctrl,
-                    enabled: !isVerified,
+                    enabled: !isVerified && _isBranchRfidOpenToday,
                     max: max,
                     onChanged: () => setState(() {}),
                   ),
@@ -1276,7 +1422,17 @@ class HomepageScreenState extends State<HomepageScreen> with WidgetsBindingObser
               ),
             ],
             // DYNAMIC CONFIRM/DENY BUTTON
-            if (_hasEnteredCount && status == InventoryVerificationStatus.pending)
+            if (!isVerified && !_isBranchRfidOpenToday)
+              const SizedBox(
+                width: double.infinity,
+                child: StaffButton(
+                  label: 'Locked: Tap RFID on Driver Device First',
+                  icon: CupertinoIcons.lock_fill,
+                  color: Color(0xFF94A3B8),
+                  onPressed: null,
+                ),
+              ),
+            if (_hasEnteredCount && status == InventoryVerificationStatus.pending && _isBranchRfidOpenToday)
               SizedBox(
                 width: double.infinity,
                 child: !_countsWithinMax
@@ -1300,7 +1456,7 @@ class HomepageScreenState extends State<HomepageScreen> with WidgetsBindingObser
                             onPressed: _showDenyDialog,
                           ),
               ),
-            if (!_hasEnteredCount && status == InventoryVerificationStatus.pending)
+            if (!_hasEnteredCount && status == InventoryVerificationStatus.pending && _isBranchRfidOpenToday)
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 8),
                 child: Text(

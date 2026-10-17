@@ -1,5 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
+import '../../services/system_busy_coordinator.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/deactivation_guard.dart';
 import '../staff_app/profile_screen.dart';
@@ -112,57 +113,65 @@ class _ProductionShellState extends State<ProductionShell> {
                     left: 16,
                     right: 16,
                     bottom: bottomPadding > 0 ? bottomPadding : 12,
-                    child: AnimatedBuilder(
-                      animation: tabController,
-                      builder: (context, _) {
-                        final currentIndex = tabController.index;
-                        return Container(
-                          height: 56,
-                          decoration: BoxDecoration(
-                            color: CupertinoColors.white,
-                            borderRadius: BorderRadius.circular(24),
-                            border: Border.all(
-                              color: AppColors.border.withValues(alpha: 0.8),
-                              width: 1,
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: CupertinoColors.black.withValues(alpha: 0.08),
-                                blurRadius: 18,
-                                offset: const Offset(0, 5),
-                              ),
-                              BoxShadow(
-                                color: AppColors.accentDark.withValues(alpha: 0.03),
-                                blurRadius: 6,
-                                offset: const Offset(0, 1),
-                              ),
-                            ],
-                          ),
-                          child: Row(
-                            children: [
-                              _buildNavItem(
-                                index: 0,
-                                currentIndex: currentIndex,
-                                activeIcon: CupertinoIcons.house_fill,
-                                inactiveIcon: CupertinoIcons.house,
-                                label: 'Home',
-                              ),
-                              _buildNavItem(
-                                key: ProductionShell.inventoryTabKey,
-                                index: 1,
-                                currentIndex: currentIndex,
-                                activeIcon: CupertinoIcons.archivebox_fill,
-                                inactiveIcon: CupertinoIcons.archivebox,
-                                label: 'Inventory',
-                              ),
-                              _buildNavItem(
-                                index: 2,
-                                currentIndex: currentIndex,
-                                activeIcon: CupertinoIcons.person_fill,
-                                inactiveIcon: CupertinoIcons.person,
-                                label: 'Profile',
-                              ),
-                            ],
+                    child: ValueListenableBuilder<bool>(
+                      valueListenable: SystemBusyCoordinator.isBusy,
+                      builder: (context, isBusy, _) {
+                        return AbsorbPointer(
+                          absorbing: isBusy,
+                          child: AnimatedBuilder(
+                            animation: tabController,
+                            builder: (context, _) {
+                              final currentIndex = tabController.index;
+                              return Container(
+                                height: 56,
+                                decoration: BoxDecoration(
+                                  color: CupertinoColors.white,
+                                  borderRadius: BorderRadius.circular(24),
+                                  border: Border.all(
+                                    color: AppColors.border.withValues(alpha: 0.8),
+                                    width: 1,
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: CupertinoColors.black.withValues(alpha: 0.08),
+                                      blurRadius: 18,
+                                      offset: const Offset(0, 5),
+                                    ),
+                                    BoxShadow(
+                                      color: AppColors.accentDark.withValues(alpha: 0.03),
+                                      blurRadius: 6,
+                                      offset: const Offset(0, 1),
+                                    ),
+                                  ],
+                                ),
+                                child: Row(
+                                  children: [
+                                    _buildNavItem(
+                                      index: 0,
+                                      currentIndex: currentIndex,
+                                      activeIcon: CupertinoIcons.house_fill,
+                                      inactiveIcon: CupertinoIcons.house,
+                                      label: 'Home',
+                                    ),
+                                    _buildNavItem(
+                                      key: ProductionShell.inventoryTabKey,
+                                      index: 1,
+                                      currentIndex: currentIndex,
+                                      activeIcon: CupertinoIcons.archivebox_fill,
+                                      inactiveIcon: CupertinoIcons.archivebox,
+                                      label: 'Inventory',
+                                    ),
+                                    _buildNavItem(
+                                      index: 2,
+                                      currentIndex: currentIndex,
+                                      activeIcon: CupertinoIcons.person_fill,
+                                      inactiveIcon: CupertinoIcons.person,
+                                      label: 'Profile',
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
                           ),
                         );
                       },

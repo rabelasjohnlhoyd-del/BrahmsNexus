@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../services/auth_service.dart';
 import '../../services/rate_limiter.dart';
+import '../../services/system_busy_coordinator.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/auth_brand_mark.dart';
 import '../../widgets/auth_card.dart';
@@ -101,6 +102,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       _isLoading = true;
       _errorMessage = null;
     });
+    SystemBusyCoordinator.setBusy(true);
 
     try {
       final account = await AuthService.lookupAccountForPasswordReset(input);
@@ -146,6 +148,9 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         _isLoading = false;
         _errorMessage = 'An unexpected error occurred. Please try again.';
       });
+    } finally {
+      SystemBusyCoordinator.setBusy(false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -172,6 +177,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       _isLoading = true;
       _errorMessage = null;
     });
+    SystemBusyCoordinator.setBusy(true);
 
     try {
       final isValid = await AuthService.verifyPasswordResetOtp(
@@ -203,6 +209,9 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         _isLoading = false;
         _errorMessage = 'Failed to verify the code. Please try again.';
       });
+    } finally {
+      SystemBusyCoordinator.setBusy(false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -256,6 +265,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       _isLoading = true;
       _errorMessage = null;
     });
+    SystemBusyCoordinator.setBusy(true);
 
     try {
       final success = await AuthService.completePasswordReset(
@@ -265,7 +275,6 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       );
 
       if (!mounted) return;
-      setState(() => _isLoading = false);
 
       if (!success) {
         setState(() => _errorMessage = 'Failed to update your password. Please try again.');
@@ -318,9 +327,11 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _isLoading = false;
         _errorMessage = 'An unexpected error occurred while updating your password.';
       });
+    } finally {
+      SystemBusyCoordinator.setBusy(false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -331,9 +342,9 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   @override
   Widget build(BuildContext context) {
     return PopScope(
-      canPop: _currentStep == 0,
+      canPop: !_isLoading && _currentStep == 0,
       onPopInvokedWithResult: (didPop, result) {
-        if (!didPop && _currentStep > 0) {
+        if (!didPop && !_isLoading && _currentStep > 0) {
           setState(() {
             _currentStep--;
             _errorMessage = null;
@@ -342,7 +353,9 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       },
       child: Scaffold(
         backgroundColor: AppColors.background,
-        body: SafeArea(
+        body: AbsorbPointer(
+          absorbing: _isLoading,
+          child: SafeArea(
           child: Stack(
             children: [
               // Top Back Navigation
@@ -665,6 +678,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
               ),
             ],
           ),
+        ),
         ),
       ),
     );

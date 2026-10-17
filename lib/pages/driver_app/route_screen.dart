@@ -12,6 +12,7 @@ import '../../services/auth_service.dart';
 import '../../services/notification_service.dart';
 import '../../services/firestore_service.dart';
 import '../../services/supabase_service.dart';
+import '../../services/system_busy_coordinator.dart';
 import '../../services/tutorial_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/driver_card.dart';
@@ -48,6 +49,16 @@ class RouteScreenState extends State<RouteScreen> {
 
   List<Branch> _branches = [];
   StreamSubscription? _statusSubscription;
+  StreamSubscription? _meatStocksSubscription;
+
+  // Track closed branches (set by owner via Branch Allocation / branch_status)
+  final Set<String> _closedBranchIds = {};
+
+  // ── Daily Reset ──────────────────────────────────────────────────
+  // Tracks the current route calendar date; at midnight, stops are cleared.
+  Timer? _dayResetTimer;
+  String _routeDateStr = DateTime.now().toIso8601String().substring(0, 10);
+  bool _isProcessing = false;
 
   // ── Guided Tour Keys (Live Spotlight) ───────────────────────────
   final GlobalKey _rfidBannerKey = GlobalKey();
@@ -60,6 +71,8 @@ class RouteScreenState extends State<RouteScreen> {
     _loadData();
     AssignmentService.changeNotifier.addListener(_onAssignmentsChanged);
     _listenToBranchStatus();
+    _listenToMeatStocks();
+    _startDayResetTimer();
     _maybeTriggerGuidedTour();
   }
 
@@ -124,6 +137,8 @@ class RouteScreenState extends State<RouteScreen> {
   @override
   void dispose() {
     _statusSubscription?.cancel();
+    _meatStocksSubscription?.cancel();
+    _dayResetTimer?.cancel();
     AssignmentService.changeNotifier.removeListener(_onAssignmentsChanged);
     super.dispose();
   }
@@ -132,30 +147,125 @@ class RouteScreenState extends State<RouteScreen> {
     if (mounted) setState(() {});
   }
 
+  // ── Route Reset Scheduler (Midnight & 2:30 PM) ───────────────────
+  /// Schedules a Timer that fires at the next operational reset milestone:
+  /// 1. 2:30 PM (14:30) of the current day (if before 2:30 PM)
+  /// 2. 12:00:01 AM (midnight) of the next day (if after 2:30 PM)
+  void _startDayResetTimer() {
+    _dayResetTimer?.cancel();
+    final now = DateTime.now();
+    final today230pm = DateTime(now.year, now.month, now.day, 14, 30, 0);
+    final tomorrowMidnight = DateTime(now.year, now.month, now.day + 1, 0, 0, 1);
+
+    DateTime nextResetTarget;
+    if (now.isBefore(today230pm)) {
+      nextResetTarget = today230pm;
+    } else {
+      nextResetTarget = tomorrowMidnight;
+    }
+
+    final delay = nextResetTarget.difference(now);
+    _dayResetTimer = Timer(delay, () {
+      _resetForNewDay();
+      _startDayResetTimer(); // Schedule the next milestone
+    });
+  }
+
+  /// Clears route progress so the driver starts fresh for the new operational cycle/day.
+  void _resetForNewDay() {
+    if (!mounted) return;
+    setState(() {
+      _completedDeploymentIds.clear();
+      _completedRetrievalIds.clear();
+      _notifiedStaffIds.clear();
+      // Closed branches remain as-is until owner explicitly opens them
+      _activeMode = RouteMode.deployment;
+      _routeDateStr = DateTime.now().toIso8601String().substring(0, 10);
+    });
+    debugPrint('[RouteScreen] Route reset at ${DateTime.now()} — new route date: $_routeDateStr');
+  }
+
   void _listenToBranchStatus() {
     _statusSubscription = FirebaseFirestore.instance
         .collection('branch_status')
         .snapshots()
         .listen((snap) {
       if (!mounted) return;
+      final todayStr = DateTime.now().toIso8601String().substring(0, 10);
       setState(() {
         for (final doc in snap.docs) {
           final data = doc.data();
           final isOpen = data['isOpen'] == true;
+          final isClosed = data['isClosed'] == true;
           final lastTapType = data['lastTapType'] as String?;
-          if (isOpen || lastTapType == 'deployment_opening') {
+          // openedDateStr tells us which calendar day this branch was opened.
+          // If it was opened on a previous day, it does NOT count as a completed
+          // deployment stop for today's route.
+          final openedDateStr = data['openedDateStr'] as String?;
+          final openedToday = openedDateStr == todayStr;
+
+          // Owner-closed branches: must never be in completed sets or notified sets
+          if (isClosed) {
+            _closedBranchIds.add(doc.id);
+            _completedDeploymentIds.remove(doc.id);
+            _completedRetrievalIds.remove(doc.id);
+            _notifiedStaffIds.remove(doc.id);
+            continue;
+          }
+
+          _closedBranchIds.remove(doc.id);
+
+          // Deployment stop is completed when cook has performed an arrival RFID tap today
+          final isDeploymentOpeningTap = lastTapType == 'deployment_opening' && openedToday;
+          final isRetrievalClosingTap = lastTapType == 'retrieval_closing' && openedToday;
+
+          if (isDeploymentOpeningTap && !isRetrievalClosingTap) {
             _completedDeploymentIds.add(doc.id);
+            // Self-heal: ensure isOpen is true in Firestore if it was cleared by any other write
+            if (!isOpen) {
+              FirebaseFirestore.instance.collection('branch_status').doc(doc.id).set({
+                'isOpen': true,
+              }, SetOptions(merge: true)).catchError((_) {});
+            }
+          } else if (!isDeploymentOpeningTap) {
+            _completedDeploymentIds.remove(doc.id);
           }
-          if (!isOpen && lastTapType == 'retrieval_closing') {
+
+          // Retrieval stop is completed ONLY when cook has performed a closing RFID tap today
+          if (isRetrievalClosingTap) {
             _completedRetrievalIds.add(doc.id);
+          } else {
+            _completedRetrievalIds.remove(doc.id);
           }
+
+          // driverOnWay flag — live push from Firestore
           if (data['driverOnWay'] == true) {
             _notifiedStaffIds.add(doc.id);
+          } else {
+            // When driverOnWay is reset (after RFID tap completes stop), remove it
+            _notifiedStaffIds.remove(doc.id);
           }
         }
       });
     }, onError: (e) {
       debugPrint('Branch status stream error: $e');
+    });
+  }
+
+  void _listenToMeatStocks() {
+    _meatStocksSubscription = FirestoreService.watchBranchMeatStocks().listen((stocks) {
+      if (!mounted) return;
+      setState(() {
+        for (final s in stocks) {
+          if (s.isClosed) {
+            _closedBranchIds.add(s.branchId);
+          } else {
+            _closedBranchIds.remove(s.branchId);
+          }
+        }
+      });
+    }, onError: (e) {
+      debugPrint('Meat stocks stream error: $e');
     });
   }
 
@@ -296,6 +406,7 @@ class RouteScreenState extends State<RouteScreen> {
 
 
   void _confirmNotifyStaff(Branch branch, StaffMember? staff) {
+    if (_isProcessing) return;
     final messenger = ScaffoldMessenger.of(context);
     if (staff == null) {
       messenger.showSnackBar(
@@ -326,31 +437,39 @@ class RouteScreenState extends State<RouteScreen> {
             isDefaultAction: true,
             onPressed: () async {
               Navigator.pop(dialogCtx);
-              setState(() {
-                _notifiedStaffIds.add(branch.id);
-              });
-              final driverName = AuthService.currentAppUser?.fullName ?? 'Driver';
-              await NotificationService.notifyStaffDriverOnTheWay(
-                staffName: staffName,
-                branchName: branch.fullName,
-                mode: _activeMode.name,
-                staffId: staff.id,
-                staffUsername: staff.username,
-                driverName: driverName,
-              );
-              // Update branch_status in Firestore so the owner's Branch Status
-              // overview reflects "DRIVER ON THE WAY" in real-time.
-              await FirestoreService.setDriverOnTheWay(
-                branchId: branch.id,
-                branchName: branch.fullName,
-                cookName: staffName,
-                driverName: driverName,
-                isDeployment: _activeMode == RouteMode.deployment,
-              );
-              if (mounted) {
-                messenger.showSnackBar(
-                  SnackBar(content: Text('Notified $staffName: "Driver is on the way"')),
+              if (!mounted || _isProcessing) return;
+              setState(() => _isProcessing = true);
+              SystemBusyCoordinator.setBusy(true);
+              try {
+                setState(() {
+                  _notifiedStaffIds.add(branch.id);
+                });
+                final driverName = AuthService.currentAppUser?.fullName ?? 'Driver';
+                await NotificationService.notifyStaffDriverOnTheWay(
+                  staffName: staffName,
+                  branchName: branch.fullName,
+                  mode: _activeMode.name,
+                  staffId: staff.id,
+                  staffUsername: staff.username,
+                  driverName: driverName,
                 );
+                // Update branch_status in Firestore so the owner's Branch Status
+                // overview reflects "DRIVER ON THE WAY" in real-time.
+                await FirestoreService.setDriverOnTheWay(
+                  branchId: branch.id,
+                  branchName: branch.fullName,
+                  cookName: staffName,
+                  driverName: driverName,
+                  isDeployment: _activeMode == RouteMode.deployment,
+                );
+                if (mounted) {
+                  messenger.showSnackBar(
+                    SnackBar(content: Text('Notified $staffName: "Driver is on the way"')),
+                  );
+                }
+              } finally {
+                SystemBusyCoordinator.setBusy(false);
+                if (mounted) setState(() => _isProcessing = false);
               }
             },
             child: const Text('Yes'),
@@ -392,53 +511,76 @@ class RouteScreenState extends State<RouteScreen> {
   }
 
   Future<void> _handleSimulatedRfidTap(Branch branch, StaffMember? staff) async {
-    final isDeployment = _activeMode == RouteMode.deployment;
-    final staffName = staff?.fullName ?? 'Assigned Cook';
-    final cookId = staff?.id ?? 'cook_${branch.id}';
-    final rfidTag = (staff?.rfidTag != null && staff!.rfidTag.isNotEmpty)
-        ? staff.rfidTag
-        : 'SIM_${isDeployment ? "OPEN" : "CLOSE"}_${branch.id}';
+    if (_isProcessing) return;
+    setState(() => _isProcessing = true);
+    SystemBusyCoordinator.setBusy(true);
+    try {
+      final isDeployment = _activeMode == RouteMode.deployment;
+      final staffName = staff?.fullName ?? 'Assigned Cook';
+      final cookId = staff?.id ?? 'cook_${branch.id}';
+      final rfidTag = (staff?.rfidTag != null && staff!.rfidTag.isNotEmpty)
+          ? staff.rfidTag
+          : 'SIM_${isDeployment ? "OPEN" : "CLOSE"}_${branch.id}';
 
-    setState(() {
-      if (isDeployment) {
-        _completedDeploymentIds.add(branch.id);
-      } else {
-        _completedRetrievalIds.add(branch.id);
-      }
-    });
+      setState(() {
+        if (isDeployment) {
+          _completedDeploymentIds.add(branch.id);
+        } else {
+          _completedRetrievalIds.add(branch.id);
+        }
+      });
 
-    await FirestoreService.processBranchCookRfidTap(
-      branchId: branch.id,
-      branchName: branch.fullName,
-      cookName: staffName,
-      cookId: cookId,
-      isDeployment: isDeployment,
-      rfidTag: rfidTag,
-      deviceId: 'simulated_driver_route',
-    );
+      await FirestoreService.processBranchCookRfidTap(
+        branchId: branch.id,
+        branchName: branch.fullName,
+        cookName: staffName,
+        cookId: cookId,
+        isDeployment: isDeployment,
+        rfidTag: rfidTag,
+        deviceId: 'simulated_driver_route',
+      );
 
-    if (!mounted) return;
-    final messenger = ScaffoldMessenger.of(context);
-    messenger.showSnackBar(
-      SnackBar(
-        content: Text(
-          isDeployment
-              ? '✅ ${branch.name} is now OPEN! (Simulated Cook Tap logged)'
-              : '🔒 ${branch.name} is now CLOSED! (Simulated Cook Tap logged)',
+      if (!mounted) return;
+      final messenger = ScaffoldMessenger.of(context);
+      messenger.showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              Icon(
+                isDeployment ? Icons.store_rounded : Icons.lock_rounded,
+                color: Colors.white,
+                size: 18,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  isDeployment
+                      ? '${branch.name} is now OPEN. Simulated Cook Tap logged.'
+                      : '${branch.name} is now CLOSED. Simulated Cook Tap logged.',
+                ),
+              ),
+            ],
+          ),
+          backgroundColor: isDeployment ? AppColors.success : const Color(0xFFC62828),
         ),
-        backgroundColor: isDeployment ? AppColors.success : const Color(0xFFC62828),
-      ),
-    );
+      );
+    } finally {
+      SystemBusyCoordinator.setBusy(false);
+      if (mounted) setState(() => _isProcessing = false);
+    }
   }
 
 
   @override
   Widget build(BuildContext context) {
+    // Keep full ordered route sequence
     final branches = (_branches.isNotEmpty ? [..._branches] : [...kSampleBranches])
       ..sort((a, b) => a.dailyRouteSequence.compareTo(b.dailyRouteSequence));
 
-    final completedCount = _currentCompletedSet.length;
-    final allDone = completedCount == branches.length;
+    // Only count non-closed branches towards active route completion
+    final activeBranches = branches.where((b) => !_closedBranchIds.contains(b.id)).toList();
+    final completedCount = _currentCompletedSet.where((id) => !_closedBranchIds.contains(id)).length;
+    final allDone = activeBranches.isNotEmpty && completedCount == activeBranches.length;
 
     return CupertinoPageScaffold(
       backgroundColor: AppColors.background,
@@ -446,7 +588,11 @@ class RouteScreenState extends State<RouteScreen> {
         title: 'Route',
         trailing: DriverTopActions(),
       ),
-      child: SafeArea(
+      child: AbsorbPointer(
+        absorbing: _isProcessing,
+        child: Stack(
+          children: [
+            SafeArea(
         child: Column(
           children: [
             Padding(
@@ -547,7 +693,9 @@ class RouteScreenState extends State<RouteScreen> {
                                     ),
                                   ),
                                   Text(
-                                    '$completedCount of ${branches.length} stops reached',
+                                    activeBranches.isEmpty
+                                        ? 'No active branches today'
+                                        : '$completedCount of ${activeBranches.length} active stops reached',
                                     style: const TextStyle(
                                       fontSize: 13,
                                       fontWeight: FontWeight.w500,
@@ -564,7 +712,7 @@ class RouteScreenState extends State<RouteScreen> {
                         ClipRRect(
                           borderRadius: BorderRadius.circular(8),
                           child: LinearProgressIndicator(
-                            value: branches.isEmpty ? 0 : completedCount / branches.length,
+                            value: activeBranches.isEmpty ? 0 : completedCount / activeBranches.length,
                             minHeight: 8,
                             backgroundColor: AppColors.border.withValues(alpha: 0.4),
                             valueColor: AlwaysStoppedAnimation<Color>(
@@ -615,53 +763,84 @@ class RouteScreenState extends State<RouteScreen> {
 
                   const SizedBox(height: 12),
 
-                  ...List.generate(branches.length, (index) {
-                    final branch = branches[index];
-                    final isLast = index == branches.length - 1;
-                    final completed = _currentCompletedSet.contains(branch.id);
-                    final notified = _notifiedStaffIds.contains(branch.id);
-                    final staff = _getAssignedStaff(branch);
-                    final hasStaff = staff != null;
-                    final staffName = staff?.fullName ?? 'Unassigned';
-                    final hours = _branchHours[branch.id] ?? '8:00 AM - 8:00 PM';
-
-                    // Sequence Enforcement: A stop is active ONLY if all preceding stops are completed.
-                    bool isLocked = false;
-                    for (int i = 0; i < index; i++) {
-                      if (!_currentCompletedSet.contains(branches[i].id)) {
-                        isLocked = true;
-                        break;
-                      }
-                    }
-
-                    return IntrinsicHeight(
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                  if (activeBranches.isEmpty)
+                    DriverCard(
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 30),
+                      child: const Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Column(
-                            children: [
-                              Container(
-                                width: 28,
-                                height: 28,
-                                alignment: Alignment.center,
-                                decoration: BoxDecoration(
-                                  color: completed
-                                      ? AppColors.success
-                                      : (isLocked ? AppColors.border : AppColors.accent),
-                                  shape: BoxShape.circle,
-                                ),
-                                child: completed
-                                    ? const Icon(CupertinoIcons.check_mark, color: CupertinoColors.white, size: 14)
-                                    : Text(
-                                        '${index + 1}',
-                                        style: TextStyle(
-                                          color: isLocked ? AppColors.textSecondary : CupertinoColors.white,
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.bold,
+                          Icon(CupertinoIcons.moon_zzz_fill, size: 36, color: AppColors.accent),
+                          SizedBox(height: 12),
+                          Text(
+                            'Walang Delivery Route Ngayong Araw',
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.textPrimary,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                          SizedBox(height: 6),
+                          Text(
+                            'Lahat ng sangay ay kasalukuyang sarado mula sa Branch Allocation ng Owner.',
+                            style: TextStyle(
+                              fontSize: 12.5,
+                              color: AppColors.textSecondary,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
+                      ),
+                    )
+                  else
+                    ...List.generate(activeBranches.length, (index) {
+                      final branch = activeBranches[index];
+                      final isLast = index == activeBranches.length - 1;
+                      final completed = _currentCompletedSet.contains(branch.id);
+                      final notified = _notifiedStaffIds.contains(branch.id);
+                      final staff = _getAssignedStaff(branch);
+                      final hasStaff = staff != null;
+                      final staffName = staff?.fullName ?? 'Unassigned';
+                      final hours = _branchHours[branch.id] ?? '8:00 AM - 8:00 PM';
+
+                      // Sequence Enforcement: A stop is active ONLY if all preceding active stops are completed.
+                      bool isLocked = false;
+                      for (int i = 0; i < index; i++) {
+                        final prevBranch = activeBranches[i];
+                        if (!_currentCompletedSet.contains(prevBranch.id)) {
+                          isLocked = true;
+                          break;
+                        }
+                      }
+
+                      return IntrinsicHeight(
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Column(
+                              children: [
+                                Container(
+                                  width: 28,
+                                  height: 28,
+                                  alignment: Alignment.center,
+                                  decoration: BoxDecoration(
+                                    color: completed
+                                        ? AppColors.success
+                                        : (isLocked ? AppColors.border : AppColors.accent),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: completed
+                                      ? const Icon(CupertinoIcons.check_mark, color: CupertinoColors.white, size: 14)
+                                      : Text(
+                                          '${index + 1}',
+                                          style: TextStyle(
+                                            color: isLocked ? AppColors.textSecondary : CupertinoColors.white,
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.bold,
+                                          ),
                                         ),
-                                      ),
-                              ),
-                              if (!isLast)
+                                ),
+                                if (!isLast)
                                 Expanded(
                                   child: Container(
                                     width: 2,
@@ -681,7 +860,7 @@ class RouteScreenState extends State<RouteScreen> {
                             child: Padding(
                               padding: const EdgeInsets.only(bottom: 20),
                               child: Opacity(
-                                opacity: isLocked ? 0.6 : 1.0,
+                                opacity: isLocked ? 0.65 : 1.0,
                                 child: DriverCard(
                                   key: index == 0 ? _firstStopCardKey : null,
                                   padding: const EdgeInsets.all(16),
@@ -737,6 +916,30 @@ class RouteScreenState extends State<RouteScreen> {
                                                   fontWeight: FontWeight.w800,
                                                   color: AppColors.success,
                                                 ),
+                                              ),
+                                            )
+                                          else if (notified)
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                              decoration: BoxDecoration(
+                                                color: AppColors.warning.withValues(alpha: 0.15),
+                                                borderRadius: BorderRadius.circular(8),
+                                                border: Border.all(color: AppColors.warning.withValues(alpha: 0.3)),
+                                              ),
+                                              child: const Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  Icon(CupertinoIcons.car_detailed, size: 12, color: AppColors.warning),
+                                                  SizedBox(width: 4),
+                                                  Text(
+                                                    'ON THE WAY',
+                                                    style: TextStyle(
+                                                      fontSize: 10,
+                                                      fontWeight: FontWeight.w800,
+                                                      color: AppColors.warning,
+                                                    ),
+                                                  ),
+                                                ],
                                               ),
                                             )
                                           else
@@ -955,7 +1158,36 @@ class RouteScreenState extends State<RouteScreen> {
           ],
         ),
       ),
-    );
-  }
+      if (_isProcessing)
+        Positioned.fill(
+          child: Container(
+            color: CupertinoColors.black.withValues(alpha: 0.25),
+            child: Center(
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                decoration: BoxDecoration(
+                  color: CupertinoColors.white,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    CupertinoActivityIndicator(),
+                    SizedBox(width: 12),
+                    Text(
+                      'Processing... Please wait...',
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.textPrimary),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+    ],
+  ),
+),
+);
+}
 }
 

@@ -1,15 +1,12 @@
-import 'dart:ui';
-
 import 'package:flutter/material.dart';
 import '../admin_web_colors.dart';
 
-/// A "glassmorphism" surface used for every boxed component on the
-/// Admin Web dashboard (welcome banner, KPI cards, chart cards, quick
-/// links): semi-transparent white/beige fill, subtle backdrop blur,
-/// a thin soft border, and a very light shadow. The blur is
-/// deliberately subtle per the design brief — this is not meant to
-/// make the whole page look frosted, just to give boxed surfaces a
-/// touch of depth on top of the solid white page background.
+/// High-performance card surface used across the Admin Web dashboard.
+///
+/// Pre-renders cleanly with subtle elevation and border without triggering
+/// heavy GPU offscreen framebuffer copies (BackdropFilter) on every frame.
+/// Wrapped in [RepaintBoundary] so scrolling lists of cards do not force
+/// expensive re-rasterization of individual cards.
 class GlassCard extends StatelessWidget {
   const GlassCard({
     super.key,
@@ -28,28 +25,23 @@ class GlassCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(borderRadius),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-        child: Container(
-          padding: padding,
-          decoration: BoxDecoration(
-            color: color ?? AdminWebColors.glassFill,
-            borderRadius: BorderRadius.circular(borderRadius),
-            border: Border.all(color: borderColor ?? AdminWebColors.glassBorder),
-            boxShadow: [
-              BoxShadow(
-                color: AdminWebColors.accentDark.withValues(alpha: 0.08),
-                blurRadius: 16,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: child,
+    return RepaintBoundary(
+      child: Container(
+        padding: padding,
+        decoration: BoxDecoration(
+          color: color ?? Colors.white.withValues(alpha: 0.95),
+          borderRadius: BorderRadius.circular(borderRadius),
+          border: Border.all(color: borderColor ?? AdminWebColors.glassBorder),
+          boxShadow: [
+            BoxShadow(
+              color: AdminWebColors.accentDark.withValues(alpha: 0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 3),
+            ),
+          ],
         ),
+        child: child,
       ),
     );
   }
 }
-

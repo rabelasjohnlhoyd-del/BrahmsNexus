@@ -5,6 +5,7 @@ import '../../../models/registration_request.dart';
 import '../../../models/user_role.dart';
 import '../../../services/auth_service.dart';
 import '../../../services/firestore_service.dart';
+import '../../../services/system_busy_coordinator.dart';
 import '../admin_web_colors.dart';
 import '../admin_web_shell.dart';
 import '../admin_web_widgets/glass_card.dart';
@@ -31,7 +32,9 @@ class _AccountApprovalsScreenState extends State<AccountApprovalsScreen> {
   int _decidedPage = 0;
   static const int _pageSize = 5;
   void _decide(RegistrationRequest request, AccountStatus status) async {
-    final success = await AuthService.updateAccountStatus(request.id, status);
+    final success = await SystemBusyCoordinator.run(
+      () => AuthService.updateAccountStatus(request.id, status),
+    );
 
     if (!mounted) return;
 

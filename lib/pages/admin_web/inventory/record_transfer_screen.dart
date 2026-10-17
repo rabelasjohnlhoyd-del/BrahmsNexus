@@ -7,22 +7,22 @@ import '../../../models/branch_meat_inventory.dart';
 import '../../../models/meat_dispatch.dart';
 import '../../../services/firestore_service.dart';
 import '../../../services/supabase_service.dart';
+import '../../../services/system_busy_coordinator.dart';
 import '../admin_web_colors.dart';
-import '../admin_web_shell.dart';
-import '../admin_web_widgets/glass_card.dart';
 
-class RecordTransferScreen extends StatefulWidget {
-  const RecordTransferScreen({super.key, this.initialBranchId});
+/// Pop-up modal dialog for dispatching meat and supply restocks to branches.
+class RecordTransferDialog extends StatefulWidget {
+  const RecordTransferDialog({super.key, this.initialBranchId});
 
   final String? initialBranchId;
 
   @override
-  State<RecordTransferScreen> createState() => _RecordTransferScreenState();
+  State<RecordTransferDialog> createState() => _RecordTransferDialogState();
 }
 
-class _RecordTransferScreenState extends State<RecordTransferScreen> {
+class _RecordTransferDialogState extends State<RecordTransferDialog> {
   final _formKey = GlobalKey<FormState>();
-  
+
   List<Branch> _branches = SupabaseService.getAllBranchesSync();
   late String _destId;
   final _regController = TextEditingController();
@@ -37,25 +37,33 @@ class _RecordTransferScreenState extends State<RecordTransferScreen> {
   StreamSubscription<List<BranchMeatStock>>? _stocksSub;
   List<BranchMeatStock> _allStocks = [];
 
+  BranchMeatStock? get _selectedBranchStock {
+    for (final st in _allStocks) {
+      if (st.branchId == _destId) return st;
+    }
+    return null;
+  }
+
+  bool get _isSelectedBranchClosed => _selectedBranchStock?.isClosed ?? false;
+
   @override
   void initState() {
     super.initState();
     if (_branches.isEmpty) _branches = List.from(kSampleBranches);
-    if (widget.initialBranchId != null && _branches.any((b) => b.id == widget.initialBranchId)) {
+    if (widget.initialBranchId != null &&
+        _branches.any((b) => b.id == widget.initialBranchId)) {
       _destId = widget.initialBranchId!;
     } else {
       _destId = _branches.first.id;
     }
     _loadBranches();
     _checkSalesSubmitted(_destId);
-    
+
     _stocksSub = FirestoreService.watchBranchMeatStocks().listen((stocks) {
       if (mounted) {
         setState(() => _allStocks = stocks);
       }
     });
-
-    _updateShellActions();
   }
 
   Future<void> _loadBranches() async {
@@ -64,7 +72,15 @@ class _RecordTransferScreenState extends State<RecordTransferScreen> {
       setState(() {
         _branches = list;
         if (!_branches.any((b) => b.id == _destId)) {
-          _destId = _branches.first.id;
+          // Try to find first open branch
+          final firstOpen = _branches.firstWhere(
+            (b) => !(_allStocks.firstWhere(
+              (st) => st.branchId == b.id,
+              orElse: () => BranchMeatStock.defaultForBranch(b),
+            ).isClosed),
+            orElse: () => _branches.first,
+          );
+          _destId = firstOpen.id;
         }
       });
       _checkSalesSubmitted(_destId);
@@ -90,16 +106,23 @@ class _RecordTransferScreenState extends State<RecordTransferScreen> {
     super.dispose();
   }
 
-  void _updateShellActions() {
-    final shell = context.findAncestorStateOfType<AdminWebShellState>();
-    shell?.setTitle('RESTOCK BRANCH');
-    shell?.setActions([]);
-  }
-
   Future<void> _handleSave() async {
     if (_hasSubmittedSales) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Cannot restock: Closing EOD Sales have already been submitted for today.')),
+        const SnackBar(
+          content: Text('Cannot restock: Closing EOD Sales have already been submitted for today.'),
+          backgroundColor: Color(0xFFDC2626),
+        ),
+      );
+      return;
+    }
+
+    if (_isSelectedBranchClosed) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Hindi pwedeng mag-restock: Ang branch ay SARADO. I-open muna ito sa Branch Allocation.'),
+          backgroundColor: Color(0xFFDC2626),
+        ),
       );
       return;
     }
@@ -114,7 +137,10 @@ class _RecordTransferScreenState extends State<RecordTransferScreen> {
     // Per-field: no negative values
     if (reg < 0 || med < 0 || b1t1 < 0 || mayo < 0 || styro < 0 || toyo < 0) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Quantities cannot be negative.')),
+        const SnackBar(
+          content: Text('Quantities cannot be negative.'),
+          backgroundColor: Color(0xFFDC2626),
+        ),
       );
       return;
     }
@@ -122,47 +148,70 @@ class _RecordTransferScreenState extends State<RecordTransferScreen> {
     // Per-field: cap at 999 pcs per item
     if (reg > 999 || med > 999 || b1t1 > 999 || mayo > 999 || styro > 999 || toyo > 999) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Quantity per item must not exceed 999 pcs.')),
+        const SnackBar(
+          content: Text('Quantity per item must not exceed 999 pcs.'),
+          backgroundColor: Color(0xFFDC2626),
+        ),
       );
       return;
     }
 
     if (reg == 0 && med == 0 && b1t1 == 0 && mayo == 0 && styro == 0 && toyo == 0) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter at least one item quantity to restock.')),
+        const SnackBar(
+          content: Text('Please enter at least one item quantity to restock.'),
+          backgroundColor: Color(0xFFDC2626),
+        ),
       );
       return;
     }
 
-    setState(() {
-      _isSaving = true;
-      _updateShellActions();
-    });
+    setState(() => _isSaving = true);
+    SystemBusyCoordinator.setBusy(true);
 
-    final dest = kSampleBranches.firstWhere((b) => b.id == _destId, orElse: () => kSampleBranches.first);
+    try {
+      final dest = kSampleBranches.firstWhere((b) => b.id == _destId, orElse: () => kSampleBranches.first);
 
-    final dispatch = MeatDispatch(
-      id: 'disp_${DateTime.now().millisecondsSinceEpoch}',
-      destinationBranchId: dest.id,
-      destinationBranchName: dest.fullName,
-      regular250gPcs: reg,
-      medium300gPcs: med,
-      b1t1_400gPcs: b1t1,
-      mayoPcs: mayo,
-      styroPcs: styro,
-      toyoPcs: toyo,
-      status: 'pending',
-      createdAt: DateTime.now(),
-      deliveredAt: null,
-    );
+      final dispatch = MeatDispatch(
+        id: 'disp_${DateTime.now().millisecondsSinceEpoch}',
+        destinationBranchId: dest.id,
+        destinationBranchName: dest.fullName,
+        regular250gPcs: reg,
+        medium300gPcs: med,
+        b1t1_400gPcs: b1t1,
+        mayoPcs: mayo,
+        styroPcs: styro,
+        toyoPcs: toyo,
+        status: 'pending',
+        createdAt: DateTime.now(),
+        deliveredAt: null,
+      );
 
-    await FirestoreService.createMeatDispatch(dispatch);
+      await FirestoreService.createMeatDispatch(dispatch);
 
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Restock request dispatched to Driver for ${dest.fullName}! Live stock will update once the driver confirms delivery.')),
-    );
-    Navigator.of(context).pop(dispatch);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.check_circle_rounded, color: Colors.white, size: 20),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Restock request dispatched to Driver for ${dest.fullName}! Live stock will update once the driver confirms delivery.',
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+              ),
+            ],
+          ),
+          backgroundColor: const Color(0xFF059669),
+        ),
+      );
+      Navigator.of(context).pop(dispatch);
+    } finally {
+      SystemBusyCoordinator.setBusy(false);
+      if (mounted) setState(() => _isSaving = false);
+    }
   }
 
   @override
@@ -178,45 +227,133 @@ class _RecordTransferScreenState extends State<RecordTransferScreen> {
       _branches.firstWhere((b) => b.id == _destId, orElse: () => kSampleBranches.first),
     );
 
-    return Container(
-      color: AdminWebColors.background,
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 650),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const SizedBox(height: 10),
-                  GlassCard(
-                    padding: const EdgeInsets.all(24),
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      backgroundColor: Colors.white,
+      elevation: 8,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 620, maxHeight: 780),
+        child: AbsorbPointer(
+          absorbing: _isSaving,
+          child: Stack(
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Header
+              Container(
+                padding: const EdgeInsets.fromLTRB(20, 16, 12, 14),
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  border: Border(bottom: BorderSide(color: AdminWebColors.border)),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: AdminWebColors.accent.withValues(alpha: 0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.add_shopping_cart_rounded, color: AdminWebColors.accent, size: 20),
+                    ),
+                    const SizedBox(width: 12),
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'RESTOCK BRANCH',
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w800,
+                              color: AdminWebColors.textPrimary,
+                              letterSpacing: 0.3,
+                            ),
+                          ),
+                          SizedBox(height: 2),
+                          Text(
+                            'Magpadala ng karagdagang supply sa napiling branch via driver',
+                            style: TextStyle(fontSize: 11.5, color: AdminWebColors.textSecondary),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close_rounded, color: AdminWebColors.textSecondary, size: 20),
+                      onPressed: _isSaving ? null : () => Navigator.of(context).pop(),
+                      splashRadius: 18,
+                    ),
+                  ],
+                ),
+              ),
+
+              // Scrollable Body
+              Flexible(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(20),
+                  child: Form(
+                    key: _formKey,
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
-                          'RESTOCK BRANCH',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 1.0,
-                            color: AdminWebColors.textSecondary,
-                          ),
-                        ),
-                        const SizedBox(height: 20),
+                        // TARGET BRANCH
                         DropdownButtonFormField<String>(
+                          key: ValueKey(_destId),
                           initialValue: _destId,
                           decoration: const InputDecoration(
                             labelText: 'TARGET BRANCH',
                             isDense: true,
                             prefixIcon: Icon(Icons.storefront_rounded, size: 20),
                           ),
-                          items: _branches
-                              .map((b) =>
-                                  DropdownMenuItem(value: b.id, child: Text(b.fullName)))
-                              .toList(),
+                          isExpanded: true,
+                          items: _branches.map((b) {
+                            final bStock = _allStocks.firstWhere(
+                              (st) => st.branchId == b.id,
+                              orElse: () => BranchMeatStock.defaultForBranch(b),
+                            );
+                            final isClosed = bStock.isClosed;
+                            return DropdownMenuItem<String>(
+                              value: b.id,
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Flexible(
+                                    child: Text(
+                                      b.fullName,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        color: isClosed ? const Color(0xFF94A3B8) : null,
+                                      ),
+                                    ),
+                                  ),
+                                  if (isClosed) ...[
+                                    const SizedBox(width: 6),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFDC2626).withValues(alpha: 0.1),
+                                        borderRadius: BorderRadius.circular(3),
+                                        border: Border.all(color: const Color(0xFFDC2626).withValues(alpha: 0.3)),
+                                      ),
+                                      child: const Text(
+                                        'SARADO',
+                                        style: TextStyle(
+                                          fontSize: 9,
+                                          fontWeight: FontWeight.w900,
+                                          color: Color(0xFFDC2626),
+                                          letterSpacing: 0.4,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            );
+                          }).toList(),
                           onChanged: (v) {
                             if (v != null) {
                               setState(() => _destId = v);
@@ -250,6 +387,31 @@ class _RecordTransferScreenState extends State<RecordTransferScreen> {
                           const SizedBox(height: 16),
                         ],
 
+                        // Closed branch warning banner
+                        if (_isSelectedBranchClosed) ...[
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFDC2626).withValues(alpha: 0.08),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: const Color(0xFFDC2626).withValues(alpha: 0.3)),
+                            ),
+                            child: const Row(
+                              children: [
+                                Icon(Icons.lock_rounded, color: Color(0xFFDC2626), size: 20),
+                                SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    'Hindi pwedeng mag-restock: Ang branch na ito ay SARADO. I-open muna ang branch sa Branch Allocation bago mag-dispatch.',
+                                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Color(0xFFDC2626)),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                        ],
+
                         // CURRENT STOCK DISPLAY AT TOP (Always visible for selected branch)
                         const Text(
                           'CURRENT STOCK SA BRANCH:',
@@ -257,11 +419,11 @@ class _RecordTransferScreenState extends State<RecordTransferScreen> {
                         ),
                         const SizedBox(height: 8),
                         Container(
-                          padding: const EdgeInsets.all(14),
+                          padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: AdminWebColors.accent.withValues(alpha: 0.06),
+                            color: AdminWebColors.accent.withValues(alpha: 0.05),
                             borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: AdminWebColors.accent.withValues(alpha: 0.2)),
+                            border: Border.all(color: AdminWebColors.accent.withValues(alpha: 0.18)),
                           ),
                           child: Column(
                             children: [
@@ -287,20 +449,20 @@ class _RecordTransferScreenState extends State<RecordTransferScreen> {
                             ],
                           ),
                         ),
-                        const SizedBox(height: 24),
+                        const SizedBox(height: 20),
 
                         const Text(
                           'ILAGAY ANG MGA IDADAGDAG NA PCS (RESTOCK):',
-                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: AdminWebColors.accent),
+                          style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, color: AdminWebColors.accent),
                         ),
-                        const SizedBox(height: 12),
+                        const SizedBox(height: 10),
                         Row(
                           children: [
                             Expanded(
                               child: TextFormField(
                                 controller: _regController,
                                 keyboardType: TextInputType.number,
-                                enabled: !_hasSubmittedSales,
+                                enabled: !_hasSubmittedSales && !_isSelectedBranchClosed,
                                 maxLength: 3,
                                 inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                                 decoration: const InputDecoration(
@@ -311,12 +473,12 @@ class _RecordTransferScreenState extends State<RecordTransferScreen> {
                                 ),
                               ),
                             ),
-                            const SizedBox(width: 12),
+                            const SizedBox(width: 10),
                             Expanded(
                               child: TextFormField(
                                 controller: _medController,
                                 keyboardType: TextInputType.number,
-                                enabled: !_hasSubmittedSales,
+                                enabled: !_hasSubmittedSales && !_isSelectedBranchClosed,
                                 maxLength: 3,
                                 inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                                 decoration: const InputDecoration(
@@ -327,12 +489,12 @@ class _RecordTransferScreenState extends State<RecordTransferScreen> {
                                 ),
                               ),
                             ),
-                            const SizedBox(width: 12),
+                            const SizedBox(width: 10),
                             Expanded(
                               child: TextFormField(
                                 controller: _b1t1Controller,
                                 keyboardType: TextInputType.number,
-                                enabled: !_hasSubmittedSales,
+                                enabled: !_hasSubmittedSales && !_isSelectedBranchClosed,
                                 maxLength: 3,
                                 inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                                 decoration: const InputDecoration(
@@ -345,14 +507,14 @@ class _RecordTransferScreenState extends State<RecordTransferScreen> {
                             ),
                           ],
                         ),
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 12),
                         Row(
                           children: [
                             Expanded(
                               child: TextFormField(
                                 controller: _mayoController,
                                 keyboardType: TextInputType.number,
-                                enabled: !_hasSubmittedSales,
+                                enabled: !_hasSubmittedSales && !_isSelectedBranchClosed,
                                 maxLength: 3,
                                 inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                                 decoration: const InputDecoration(
@@ -363,12 +525,12 @@ class _RecordTransferScreenState extends State<RecordTransferScreen> {
                                 ),
                               ),
                             ),
-                            const SizedBox(width: 12),
+                            const SizedBox(width: 10),
                             Expanded(
                               child: TextFormField(
                                 controller: _styroController,
                                 keyboardType: TextInputType.number,
-                                enabled: !_hasSubmittedSales,
+                                enabled: !_hasSubmittedSales && !_isSelectedBranchClosed,
                                 maxLength: 3,
                                 inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                                 decoration: const InputDecoration(
@@ -379,12 +541,12 @@ class _RecordTransferScreenState extends State<RecordTransferScreen> {
                                 ),
                               ),
                             ),
-                            const SizedBox(width: 12),
+                            const SizedBox(width: 10),
                             Expanded(
                               child: TextFormField(
                                 controller: _toyoController,
                                 keyboardType: TextInputType.number,
-                                enabled: !_hasSubmittedSales,
+                                enabled: !_hasSubmittedSales && !_isSelectedBranchClosed,
                                 maxLength: 3,
                                 inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                                 decoration: const InputDecoration(
@@ -397,61 +559,99 @@ class _RecordTransferScreenState extends State<RecordTransferScreen> {
                             ),
                           ],
                         ),
-
                       ],
                     ),
                   ),
-                  const SizedBox(height: 24),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      TextButton(
-                        onPressed:
-                            _isSaving ? null : () => Navigator.of(context).pop(),
-                        child: const Text(
-                          'CANCEL',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: AdminWebColors.textSecondary,
-                          ),
+                ),
+              ),
+
+              // Bottom Actions
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  border: Border(top: BorderSide(color: AdminWebColors.border)),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: _isSaving ? null : () => Navigator.of(context).pop(),
+                      child: const Text(
+                        'CANCEL',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: AdminWebColors.textSecondary,
                         ),
                       ),
-                      const SizedBox(width: 16),
-                      ElevatedButton.icon(
-                        onPressed: (_isSaving || _hasSubmittedSales) ? null : _handleSave,
-                        icon: _isSaving
-                            ? const SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  valueColor:
-                                      AlwaysStoppedAnimation<Color>(Colors.white),
-                                ),
-                              )
-                            : const Icon(Icons.add_shopping_cart_rounded, size: 18),
-                        label: const Text('DISPATCH RESTOCK TO DRIVER'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: _hasSubmittedSales ? Colors.grey : AdminWebColors.accent,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 24, vertical: 14),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
+                    ),
+                    const SizedBox(width: 14),
+                    ElevatedButton.icon(
+                      onPressed: (_isSaving || _hasSubmittedSales || _isSelectedBranchClosed) ? null : _handleSave,
+                      icon: _isSaving
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                              ),
+                            )
+                          : const Icon(Icons.add_shopping_cart_rounded, size: 16),
+                      label: const Text('DISPATCH RESTOCK TO DRIVER', style: TextStyle(fontWeight: FontWeight.bold)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: (_hasSubmittedSales || _isSelectedBranchClosed) ? Colors.grey : AdminWebColors.accent,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                       ),
-                    ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (_isSaving)
+          Positioned.fill(
+            child: Container(
+              color: Colors.black.withValues(alpha: 0.25),
+              child: Center(
+                child: Material(
+                  elevation: 6,
+                  borderRadius: BorderRadius.circular(10),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: AdminWebColors.accent),
+                        ),
+                        SizedBox(width: 12),
+                        Text(
+                          'Dispatching restock... Please wait...',
+                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AdminWebColors.textPrimary),
+                        ),
+                      ],
+                    ),
                   ),
-                  const SizedBox(height: 40),
-                ],
+                ),
               ),
             ),
           ),
-        ),
-      ),
-    );
-  }
+      ],
+    ),
+  ),
+),
+);
+}
 
   Widget _stockInfoChip(String label, String value) {
     return Container(
@@ -465,8 +665,25 @@ class _RecordTransferScreenState extends State<RecordTransferScreen> {
         children: [
           Text(label, style: const TextStyle(fontSize: 10, color: AdminWebColors.textSecondary, fontWeight: FontWeight.bold)),
           const SizedBox(height: 2),
-          Text(value, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: AdminWebColors.textPrimary)),
+          Text(value, style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, color: AdminWebColors.textPrimary)),
         ],
+      ),
+    );
+  }
+}
+
+/// Compatibility screen wrapper (if ever called as a full route)
+class RecordTransferScreen extends StatelessWidget {
+  const RecordTransferScreen({super.key, this.initialBranchId});
+
+  final String? initialBranchId;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AdminWebColors.background,
+      body: Center(
+        child: RecordTransferDialog(initialBranchId: initialBranchId),
       ),
     );
   }

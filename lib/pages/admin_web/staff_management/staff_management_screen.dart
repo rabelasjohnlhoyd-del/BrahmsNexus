@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../models/staff_member.dart';
 import '../../../services/auth_service.dart';
 import '../../../services/supabase_service.dart';
+import '../../../services/system_busy_coordinator.dart';
 import '../admin_web_colors.dart';
 import '../admin_web_shell.dart';
 import '../admin_web_widgets/glass_card.dart';
@@ -45,18 +46,21 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
 
   Future<void> _loadStaff() async {
     setState(() => _isLoading = true);
-    final res = await SupabaseService.getStaffProfiles(
-      page: _currentPage,
-      pageSize: _pageSize,
-      query: _query,
-      showArchived: _showArchived,
-    );
-    if (!mounted) return;
-    setState(() {
-      _paginatedStaff = res.items;
-      _totalCount = res.totalCount;
-      _isLoading = false;
-    });
+    try {
+      final res = await SupabaseService.getStaffProfiles(
+        page: _currentPage,
+        pageSize: _pageSize,
+        query: _query,
+        showArchived: _showArchived,
+      );
+      if (!mounted) return;
+      setState(() {
+        _paginatedStaff = res.items;
+        _totalCount = res.totalCount;
+      });
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   @override
@@ -101,17 +105,25 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
   }
 
   Future<void> _toggleStatus(StaffMember member) async {
-    final willDeactivate = member.isActive;
-    // deactivateStaffAccount / reactivateStaffAccount now handle everything:
-    // - writes to deactivated_staff/{username} (no UID needed, persists always)
-    // - updates users/{uid} in Firestore if the staff has ever signed in
-    // - updates Supabase in-memory for Branch Assignments UI
-    if (willDeactivate) {
-      await AuthService.deactivateStaffAccount(member.id, member.username);
-    } else {
-      await AuthService.reactivateStaffAccount(member.id, member.username);
+    if (_isLoading) return;
+    setState(() => _isLoading = true);
+    SystemBusyCoordinator.setBusy(true);
+    try {
+      final willDeactivate = member.isActive;
+      // deactivateStaffAccount / reactivateStaffAccount now handle everything:
+      // - writes to deactivated_staff/{username} (no UID needed, persists always)
+      // - updates users/{uid} in Firestore if the staff has ever signed in
+      // - updates Supabase in-memory for Branch Assignments UI
+      if (willDeactivate) {
+        await AuthService.deactivateStaffAccount(member.id, member.username);
+      } else {
+        await AuthService.reactivateStaffAccount(member.id, member.username);
+      }
+      await _loadStaff();
+    } finally {
+      SystemBusyCoordinator.setBusy(false);
+      if (mounted) setState(() => _isLoading = false);
     }
-    await _loadStaff();
   }
 
   Future<void> _openEditStaff(StaffMember member) async {
@@ -183,31 +195,39 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
     );
 
     if (confirmed == true) {
-      final willArchive = !member.isArchived;
-      // Archive in Supabase (for Staff Management list display)
-      await SupabaseService.toggleStaffArchived(member.id, willArchive);
+      if (_isLoading) return;
+      setState(() => _isLoading = true);
+      SystemBusyCoordinator.setBusy(true);
+      try {
+        final willArchive = !member.isArchived;
+        // Archive in Supabase (for Staff Management list display)
+        await SupabaseService.toggleStaffArchived(member.id, willArchive);
 
-      if (willArchive) {
-        // Archiving → also deactivate so the staff is immediately logged out
-        // (writes to deactivated_staff/{username} in Firestore — picked up
-        // in real-time by DeactivationGuard in all staff/driver/production shells)
-        await AuthService.deactivateStaffAccount(member.id, member.username);
-      } else {
-        // Restoring from archive → reactivate so they can log in again
-        await AuthService.reactivateStaffAccount(member.id, member.username);
-      }
+        if (willArchive) {
+          // Archiving → also deactivate so the staff is immediately logged out
+          // (writes to deactivated_staff/{username} in Firestore — picked up
+          // in real-time by DeactivationGuard in all staff/driver/production shells)
+          await AuthService.deactivateStaffAccount(member.id, member.username);
+        } else {
+          // Restoring from archive → reactivate so they can log in again
+          await AuthService.reactivateStaffAccount(member.id, member.username);
+        }
 
-      await _loadStaff();
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            member.isArchived
-                ? '${member.fullName} was restored to active staff.'
-                : '${member.fullName} was archived and account deactivated.',
+        await _loadStaff();
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              member.isArchived
+                  ? '${member.fullName} was restored to active staff.'
+                  : '${member.fullName} was archived and account deactivated.',
+            ),
           ),
-        ),
-      );
+        );
+      } finally {
+        SystemBusyCoordinator.setBusy(false);
+        if (mounted) setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -236,14 +256,22 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
     );
 
     if (confirmed == true) {
-      await SupabaseService.toggleStaffArchived(member.id, true);
-      await _loadStaff();
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('${member.fullName} was removed.'),
-        ),
-      );
+      if (_isLoading) return;
+      setState(() => _isLoading = true);
+      SystemBusyCoordinator.setBusy(true);
+      try {
+        await SupabaseService.toggleStaffArchived(member.id, true);
+        await _loadStaff();
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('${member.fullName} was removed.'),
+          ),
+        );
+      } finally {
+        SystemBusyCoordinator.setBusy(false);
+        if (mounted) setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -262,7 +290,11 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
   Widget build(BuildContext context) {
     final staff = _paginatedStaff;
 
-    return Container(
+    return AbsorbPointer(
+      absorbing: _isLoading,
+      child: Stack(
+        children: [
+          Container(
       color: AdminWebColors.background,
       child: Column(
         children: [
@@ -479,8 +511,45 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
             ),
         ],
       ),
-    );
-  }
+    ),
+    if (_isLoading)
+      Positioned.fill(
+        child: Container(
+          color: Colors.black.withValues(alpha: 0.15),
+          child: Center(
+            child: Material(
+              elevation: 6,
+              borderRadius: BorderRadius.circular(12),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2.5, color: AdminWebColors.accent),
+                    ),
+                    SizedBox(width: 14),
+                    Text(
+                      'Processing staff data... Please wait...',
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AdminWebColors.textPrimary),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+  ],
+),
+);
+}
 }
 
 class _StaffTile extends StatelessWidget {

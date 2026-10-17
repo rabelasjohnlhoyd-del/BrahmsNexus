@@ -356,18 +356,12 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     int mediumCount = 0;
     int largeCount = 0;
     int pickupCount = 0;
-    int deliveryCount = 0;
 
     for (final order in _bilaoOrders) {
       if (order.size == BilaoSize.small) smallCount += order.quantity;
       if (order.size == BilaoSize.medium) mediumCount += order.quantity;
       if (order.size == BilaoSize.large) largeCount += order.quantity;
-
-      if (order.fulfillmentType == BilaoFulfillmentType.branchPickup) {
-        pickupCount += order.quantity;
-      } else {
-        deliveryCount += order.quantity;
-      }
+      pickupCount += order.quantity;
     }
 
     final totalQuantity = (smallCount + mediumCount + largeCount);
@@ -412,7 +406,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
           ),
           const SizedBox(height: 4),
           const Text(
-            'Distribution of sizes and customer fulfillment methods.',
+            'Distribution of sizes and customer fulfillment at branches.',
             style: TextStyle(fontSize: 12, color: AdminWebColors.textSecondary),
           ),
           const SizedBox(height: 16),
@@ -444,38 +438,14 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
             ),
             child: Row(
               children: [
-                Expanded(
-                  child: Row(
-                    children: [
-                      const Icon(Icons.storefront_rounded, size: 17, color: AdminWebColors.accent),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Pickup: $pickupCount',
-                        style: const TextStyle(
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w700,
-                          color: AdminWebColors.textPrimary,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Container(height: 16, width: 1, color: const Color(0xFFDCCFC3)),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Row(
-                    children: [
-                      const Icon(Icons.local_shipping_rounded, size: 17, color: Color(0xFFE65100)),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Delivery: $deliveryCount',
-                        style: const TextStyle(
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w700,
-                          color: AdminWebColors.textPrimary,
-                        ),
-                      ),
-                    ],
+                const Icon(Icons.storefront_rounded, size: 17, color: AdminWebColors.accent),
+                const SizedBox(width: 8),
+                Text(
+                  'Branch Pickup: $pickupCount Packages ($total Orders)',
+                  style: const TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                    color: AdminWebColors.textPrimary,
                   ),
                 ),
               ],

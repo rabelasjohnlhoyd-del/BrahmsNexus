@@ -27,6 +27,13 @@ class BranchMeatStock {
     this.styroRemaining = 40,
     this.toyoTotal = 10,
     this.toyoRemaining = 10,
+    this.isClosed = false,
+    int? baseRegular250g,
+    int? baseMedium300g,
+    int? baseB1t1_400g,
+    int? baseMayo,
+    int? baseStyro,
+    int? baseToyo,
     this.regLowAlertSent = false,
     this.medLowAlertSent = false,
     this.b1t1LowAlertSent = false,
@@ -35,7 +42,12 @@ class BranchMeatStock {
     this.styroLowAlertSent = false,
     this.lowStockAlertDate,
     this.spoilagePenalty = 0.0,
-  });
+  })  : baseRegular250g = baseRegular250g ?? (regular250gTotal > 0 ? regular250gTotal : 20),
+        baseMedium300g = baseMedium300g ?? (medium300gTotal > 0 ? medium300gTotal : 10),
+        baseB1t1_400g = baseB1t1_400g ?? (b1t1_400gTotal > 0 ? b1t1_400gTotal : 10),
+        baseMayo = baseMayo ?? (mayoTotal > 0 ? mayoTotal : 40),
+        baseStyro = baseStyro ?? (styroTotal > 0 ? styroTotal : 40),
+        baseToyo = baseToyo ?? (toyoTotal > 0 ? toyoTotal : 10);
 
   final String branchId;
   final String branchName;
@@ -63,6 +75,15 @@ class BranchMeatStock {
   final int toyoTotal;
   final int toyoRemaining;
 
+  // Branch open/closed status & baseline allocation memory
+  final bool isClosed;
+  final int baseRegular250g;
+  final int baseMedium300g;
+  final int baseB1t1_400g;
+  final int baseMayo;
+  final int baseStyro;
+  final int baseToyo;
+
   final bool regLowAlertSent;
   final bool medLowAlertSent;
   final bool b1t1LowAlertSent;
@@ -76,8 +97,53 @@ class BranchMeatStock {
   int get totalRemainingPcs => regular250gRemaining + medium300gRemaining + b1t1_400gRemaining;
   int get totalUsedPcs => totalAllocatedPcs - totalRemainingPcs;
 
-  /// Flags low stock when remaining meat is less than 20% of total
-  bool get isRunningLow => totalAllocatedPcs > 0 && (totalRemainingPcs / totalAllocatedPcs) < 0.20;
+  /// Flags low stock when remaining meat is less than 20% of total (only if branch is open)
+  bool get isRunningLow => !isClosed && totalAllocatedPcs > 0 && (totalRemainingPcs / totalAllocatedPcs) < 0.20;
+
+  /// Returns a new BranchMeatStock marked as CLOSED with all active stock set to 0,
+  /// while preserving baseline configured allocation.
+  BranchMeatStock toClosed() {
+    return copyWith(
+      isClosed: true,
+      regular250gTotal: 0,
+      regular250gRemaining: 0,
+      medium300gTotal: 0,
+      medium300gRemaining: 0,
+      b1t1_400gTotal: 0,
+      b1t1_400gRemaining: 0,
+      mayoTotal: 0,
+      mayoRemaining: 0,
+      styroTotal: 0,
+      styroRemaining: 0,
+      toyoTotal: 0,
+      toyoRemaining: 0,
+    );
+  }
+
+  /// Returns a new BranchMeatStock marked as OPEN with stock restored to its configured baseline.
+  BranchMeatStock toOpen() {
+    final reg = baseRegular250g > 0 ? baseRegular250g : 20;
+    final med = baseMedium300g > 0 ? baseMedium300g : 10;
+    final b1t1 = baseB1t1_400g > 0 ? baseB1t1_400g : 10;
+    final mayo = baseMayo > 0 ? baseMayo : 40;
+    final styro = baseStyro > 0 ? baseStyro : 40;
+    final toyo = baseToyo > 0 ? baseToyo : 10;
+    return copyWith(
+      isClosed: false,
+      regular250gTotal: reg,
+      regular250gRemaining: reg,
+      medium300gTotal: med,
+      medium300gRemaining: med,
+      b1t1_400gTotal: b1t1,
+      b1t1_400gRemaining: b1t1,
+      mayoTotal: mayo,
+      mayoRemaining: mayo,
+      styroTotal: styro,
+      styroRemaining: styro,
+      toyoTotal: toyo,
+      toyoRemaining: toyo,
+    );
+  }
 
   BranchMeatStock copyWith({
     String? branchId,
@@ -95,6 +161,13 @@ class BranchMeatStock {
     int? styroRemaining,
     int? toyoTotal,
     int? toyoRemaining,
+    bool? isClosed,
+    int? baseRegular250g,
+    int? baseMedium300g,
+    int? baseB1t1_400g,
+    int? baseMayo,
+    int? baseStyro,
+    int? baseToyo,
     bool? regLowAlertSent,
     bool? medLowAlertSent,
     bool? b1t1LowAlertSent,
@@ -120,6 +193,13 @@ class BranchMeatStock {
       styroRemaining: styroRemaining ?? this.styroRemaining,
       toyoTotal: toyoTotal ?? this.toyoTotal,
       toyoRemaining: toyoRemaining ?? this.toyoRemaining,
+      isClosed: isClosed ?? this.isClosed,
+      baseRegular250g: baseRegular250g ?? this.baseRegular250g,
+      baseMedium300g: baseMedium300g ?? this.baseMedium300g,
+      baseB1t1_400g: baseB1t1_400g ?? this.baseB1t1_400g,
+      baseMayo: baseMayo ?? this.baseMayo,
+      baseStyro: baseStyro ?? this.baseStyro,
+      baseToyo: baseToyo ?? this.baseToyo,
       regLowAlertSent: regLowAlertSent ?? this.regLowAlertSent,
       medLowAlertSent: medLowAlertSent ?? this.medLowAlertSent,
       b1t1LowAlertSent: b1t1LowAlertSent ?? this.b1t1LowAlertSent,
@@ -148,6 +228,13 @@ class BranchMeatStock {
       'styroRemaining': styroRemaining,
       'toyoTotal': toyoTotal,
       'toyoRemaining': toyoRemaining,
+      'isClosed': isClosed,
+      'baseRegular250g': baseRegular250g,
+      'baseMedium300g': baseMedium300g,
+      'baseB1t1_400g': baseB1t1_400g,
+      'baseMayo': baseMayo,
+      'baseStyro': baseStyro,
+      'baseToyo': baseToyo,
       'regLowAlertSent': regLowAlertSent,
       'medLowAlertSent': medLowAlertSent,
       'b1t1LowAlertSent': b1t1LowAlertSent,
@@ -171,22 +258,37 @@ class BranchMeatStock {
       parsedDate = DateTime.now();
     }
 
+    final isClosed = map['isClosed'] as bool? ?? false;
+    final regTotal = (map['regular250gTotal'] as num?)?.toInt() ?? 20;
+    final medTotal = (map['medium300gTotal'] as num?)?.toInt() ?? 10;
+    final b1t1Total = (map['b1t1_400gTotal'] as num?)?.toInt() ?? 10;
+    final mayoTotal = (map['mayoTotal'] as num?)?.toInt() ?? 40;
+    final styroTotal = (map['styroTotal'] as num?)?.toInt() ?? 40;
+    final toyoTotal = (map['toyoTotal'] as num?)?.toInt() ?? 10;
+
     return BranchMeatStock(
       branchId: id ?? (map['branchId']?.toString() ?? ''),
       branchName: map['branchName']?.toString() ?? '',
       date: parsedDate,
-      regular250gTotal: (map['regular250gTotal'] as num?)?.toInt() ?? 20,
-      regular250gRemaining: (map['regular250gRemaining'] as num?)?.toInt() ?? 20,
-      medium300gTotal: (map['medium300gTotal'] as num?)?.toInt() ?? 10,
-      medium300gRemaining: (map['medium300gRemaining'] as num?)?.toInt() ?? 10,
-      b1t1_400gTotal: (map['b1t1_400gTotal'] as num?)?.toInt() ?? 10,
-      b1t1_400gRemaining: (map['b1t1_400gRemaining'] as num?)?.toInt() ?? 10,
-      mayoTotal: (map['mayoTotal'] as num?)?.toInt() ?? 40,
-      mayoRemaining: (map['mayoRemaining'] as num?)?.toInt() ?? 40,
-      styroTotal: (map['styroTotal'] as num?)?.toInt() ?? 40,
-      styroRemaining: (map['styroRemaining'] as num?)?.toInt() ?? 40,
-      toyoTotal: (map['toyoTotal'] as num?)?.toInt() ?? 10,
-      toyoRemaining: (map['toyoRemaining'] as num?)?.toInt() ?? 10,
+      regular250gTotal: regTotal,
+      regular250gRemaining: (map['regular250gRemaining'] as num?)?.toInt() ?? regTotal,
+      medium300gTotal: medTotal,
+      medium300gRemaining: (map['medium300gRemaining'] as num?)?.toInt() ?? medTotal,
+      b1t1_400gTotal: b1t1Total,
+      b1t1_400gRemaining: (map['b1t1_400gRemaining'] as num?)?.toInt() ?? b1t1Total,
+      mayoTotal: mayoTotal,
+      mayoRemaining: (map['mayoRemaining'] as num?)?.toInt() ?? mayoTotal,
+      styroTotal: styroTotal,
+      styroRemaining: (map['styroRemaining'] as num?)?.toInt() ?? styroTotal,
+      toyoTotal: toyoTotal,
+      toyoRemaining: (map['toyoRemaining'] as num?)?.toInt() ?? toyoTotal,
+      isClosed: isClosed,
+      baseRegular250g: (map['baseRegular250g'] as num?)?.toInt() ?? (isClosed ? 20 : (regTotal > 0 ? regTotal : 20)),
+      baseMedium300g: (map['baseMedium300g'] as num?)?.toInt() ?? (isClosed ? 10 : (medTotal > 0 ? medTotal : 10)),
+      baseB1t1_400g: (map['baseB1t1_400g'] as num?)?.toInt() ?? (isClosed ? 10 : (b1t1Total > 0 ? b1t1Total : 10)),
+      baseMayo: (map['baseMayo'] as num?)?.toInt() ?? (isClosed ? 40 : (mayoTotal > 0 ? mayoTotal : 40)),
+      baseStyro: (map['baseStyro'] as num?)?.toInt() ?? (isClosed ? 40 : (styroTotal > 0 ? styroTotal : 40)),
+      baseToyo: (map['baseToyo'] as num?)?.toInt() ?? (isClosed ? 10 : (toyoTotal > 0 ? toyoTotal : 10)),
       regLowAlertSent: map['regLowAlertSent'] as bool? ?? false,
       medLowAlertSent: map['medLowAlertSent'] as bool? ?? false,
       b1t1LowAlertSent: map['b1t1LowAlertSent'] as bool? ?? false,
@@ -222,6 +324,13 @@ class BranchMeatStock {
       styroRemaining: 40,
       toyoTotal: 10,
       toyoRemaining: 10,
+      isClosed: false,
+      baseRegular250g: 20,
+      baseMedium300g: 10,
+      baseB1t1_400g: 10,
+      baseMayo: 40,
+      baseStyro: 40,
+      baseToyo: 10,
     );
   }
 }

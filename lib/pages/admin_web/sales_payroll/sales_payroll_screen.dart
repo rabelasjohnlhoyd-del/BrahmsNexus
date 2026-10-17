@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../models/inventory_batch.dart';
 import '../../../models/sales_record.dart';
 import '../../../models/branch.dart';
+import '../../../models/financial_period.dart';
 import '../../../services/firestore_service.dart';
 import '../admin_web_colors.dart';
 import '../admin_web_shell.dart';
@@ -30,6 +31,7 @@ class _SalesPayrollScreenState extends State<SalesPayrollScreen> {
 
   StreamSubscription<List<SalesRecord>>? _salesSub;
   StreamSubscription<List<KarneBatch>>? _batchesSub;
+  StreamSubscription<FinancialPeriod?>? _periodSub;
 
   final List<SalesRecord> _records = [];
   final List<KarneBatch> _batches = [];
@@ -38,7 +40,7 @@ class _SalesPayrollScreenState extends State<SalesPayrollScreen> {
   bool _groupByDate = true;
 
   // Production staff rates
-  double _productionCookRate = 1100.0;
+  double _productionCookRate = 1000.0;
   double _productionCutterRate = 1100.0;
   double _driverDailyRate = 650.0;
   int _driverDaysWorked = 25;
@@ -103,12 +105,24 @@ class _SalesPayrollScreenState extends State<SalesPayrollScreen> {
         });
       }
     });
+
+    _periodSub = FirestoreService.watchMonthlyFinancialPeriod(_currentPeriodId).listen((period) {
+      if (mounted && period != null) {
+        setState(() {
+          _productionCookRate = period.productionCookDailyRate;
+          _productionCutterRate = period.productionCutterDailyRate;
+          _driverDailyRate = period.driverDailyWage;
+          _driverDaysWorked = period.driverWorkingDays;
+        });
+      }
+    });
   }
 
   @override
   void dispose() {
     _salesSub?.cancel();
     _batchesSub?.cancel();
+    _periodSub?.cancel();
     super.dispose();
   }
 
@@ -158,7 +172,34 @@ class _SalesPayrollScreenState extends State<SalesPayrollScreen> {
               final val = int.tryParse(ctrl.text.trim()) ?? _driverDaysWorked;
               setState(() => _driverDaysWorked = val);
               Navigator.pop(ctx);
-              await _syncPayrollToMonthlyFinancials();
+              final ok = await _syncPayrollToMonthlyFinancials();
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Row(
+                      children: [
+                        Icon(
+                          ok ? Icons.check_circle_rounded : Icons.error_outline_rounded,
+                          color: Colors.white,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            ok
+                                ? 'Driver working days saved and synced successfully!'
+                                : 'Failed to save driver days to database.',
+                            style: const TextStyle(fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                      ],
+                    ),
+                    backgroundColor: ok
+                        ? const Color(0xFF059669)
+                        : const Color(0xFFDC2626),
+                  ),
+                );
+              }
             },
             child: const Text('SAVE DAYS'),
           ),
@@ -232,7 +273,34 @@ class _SalesPayrollScreenState extends State<SalesPayrollScreen> {
                 _driverDailyRate = dRate;
               });
               Navigator.pop(ctx);
-              await _syncPayrollToMonthlyFinancials();
+              final ok = await _syncPayrollToMonthlyFinancials();
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Row(
+                      children: [
+                        Icon(
+                          ok ? Icons.check_circle_rounded : Icons.error_outline_rounded,
+                          color: Colors.white,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            ok
+                                ? 'Staff daily rates saved and synced successfully!'
+                                : 'Failed to save rates to database.',
+                            style: const TextStyle(fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                      ],
+                    ),
+                    backgroundColor: ok
+                        ? const Color(0xFF059669)
+                        : const Color(0xFFDC2626),
+                  ),
+                );
+              }
             },
             child: const Text('SAVE RATES'),
           ),
@@ -241,23 +309,51 @@ class _SalesPayrollScreenState extends State<SalesPayrollScreen> {
     );
   }
 
-  Future<void> _syncPayrollToMonthlyFinancials() async {
+  static String _getMonthName(int month) {
+    const names = [
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December'
+    ];
+    return names[(month - 1).clamp(0, 11)];
+  }
+
+  Future<bool> _syncPayrollToMonthlyFinancials() async {
     try {
       final existing =
           await FirestoreService.watchMonthlyFinancialPeriod(_currentPeriodId)
               .first;
-      if (existing != null) {
-        final updated = existing.copyWith(
-          productionCookDailyRate: _productionCookRate,
-          productionCutterDailyRate: _productionCutterRate,
-          driverDailyWage: _driverDailyRate,
-          driverWorkingDays: _driverDaysWorked,
-          productionCookingSessions: _totalCookingSessions,
-        );
-        await FirestoreService.saveMonthlyFinancialPeriod(updated);
-      }
+      final updated = existing != null
+          ? existing.copyWith(
+              productionCookDailyRate: _productionCookRate,
+              productionCutterDailyRate: _productionCutterRate,
+              driverDailyWage: _driverDailyRate,
+              driverWorkingDays: _driverDaysWorked,
+              productionCookingSessions: _totalCookingSessions,
+            )
+          : FinancialPeriod(
+              id: _currentPeriodId,
+              monthName: _getMonthName(DateTime.now().month),
+              year: DateTime.now().year,
+              productionCookDailyRate: _productionCookRate,
+              productionCutterDailyRate: _productionCutterRate,
+              driverDailyWage: _driverDailyRate,
+              driverWorkingDays: _driverDaysWorked,
+              productionCookingSessions: _totalCookingSessions,
+            );
+      return await FirestoreService.saveMonthlyFinancialPeriod(updated);
     } catch (e) {
       debugPrint('Error syncing payroll to monthly financials: $e');
+      return false;
     }
   }
 

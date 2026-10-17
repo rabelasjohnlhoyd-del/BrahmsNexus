@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../models/bilao_order.dart';
 import '../../../models/branch.dart';
+import '../../../models/branch_meat_stock.dart';
 import '../../../services/firestore_service.dart';
 import '../../../services/gemini_service.dart';
 import '../../../services/rate_limiter.dart';
@@ -50,6 +52,13 @@ class _AddBilaoOrderScreenState extends State<AddBilaoOrderScreen> {
   bool                 _isSaving       = false;
   bool                 _awaitingGcashProof = false;
 
+  StreamSubscription<List<BranchMeatStock>>? _stocksSub;
+  List<BranchMeatStock> _allStocks = [];
+  List<Branch> _branches = List.from(kSampleBranches);
+
+  bool get _isSelectedBranchClosed =>
+      _allStocks.any((s) => s.branchId == _selectedBranchId && s.isClosed);
+
   // ── GCash Proof & Forensics ────────────────────────────────────────────────
   Uint8List? _gcashBytes;
   String?    _gcashFileName;
@@ -86,6 +95,27 @@ class _AddBilaoOrderScreenState extends State<AddBilaoOrderScreen> {
     if (widget.initialParsedResult != null) {
       _applyParsedResult(widget.initialParsedResult!);
     }
+    _stocksSub = FirestoreService.watchBranchMeatStocks().listen((stocks) {
+      if (mounted) {
+        setState(() {
+          _allStocks = stocks;
+          final currentStock = _allStocks.firstWhere(
+            (s) => s.branchId == _selectedBranchId,
+            orElse: () => BranchMeatStock.defaultForBranch(_selectedBranch),
+          );
+          if (currentStock.isClosed) {
+            final firstOpen = _branches.firstWhere(
+              (b) => !(_allStocks.firstWhere(
+                (st) => st.branchId == b.id,
+                orElse: () => BranchMeatStock.defaultForBranch(b),
+              ).isClosed),
+              orElse: () => _branches.first,
+            );
+            _selectedBranchId = firstOpen.id;
+          }
+        });
+      }
+    });
     WidgetsBinding.instance.addPostFrameCallback((_) => _updateShellActions());
   }
 
@@ -149,6 +179,7 @@ class _AddBilaoOrderScreenState extends State<AddBilaoOrderScreen> {
 
   @override
   void dispose() {
+    _stocksSub?.cancel();
     _nameController.dispose();
     _contactController.dispose();
     _notesController.dispose();
@@ -391,7 +422,7 @@ class _AddBilaoOrderScreenState extends State<AddBilaoOrderScreen> {
                           }
                           _orderChannel = BilaoOrderChannel.directToOwner;
                         });
-                        _showSnack('✨ Success! Order details populated from chat.');
+                        _showSnack('Success! Order details populated from chat.');
                       } else {
                         setModalState(() {
                           isParsing = false;
@@ -427,6 +458,11 @@ class _AddBilaoOrderScreenState extends State<AddBilaoOrderScreen> {
 
   // ── Submission Handler ─────────────────────────────────────────────────────
   void _submitDirectOrder() {
+    if (_isSelectedBranchClosed) {
+      _showSnack('Hindi maaaring mag-order: Sarado ang napiling branch sa Branch Allocation. Pumili ng bukas na branch.');
+      return;
+    }
+
     final name = _nameController.text.trim();
     final contact = _contactController.text.trim();
 
@@ -574,7 +610,7 @@ class _AddBilaoOrderScreenState extends State<AddBilaoOrderScreen> {
           ? _notesController.text.trim()
           : null;
       if (isGcash && _awaitingGcashProof) {
-        const prefix = '[⚠️ AWAITING GCASH PROOF - KITCHEN LOCKED]';
+        const prefix = '[AWAITING GCASH PROOF - KITCHEN LOCKED]';
         if (orderNotes == null || !orderNotes.contains(prefix)) {
           orderNotes = orderNotes != null ? '$prefix $orderNotes' : prefix;
         }
@@ -640,7 +676,7 @@ class _AddBilaoOrderScreenState extends State<AddBilaoOrderScreen> {
       if (!savedOk) {
         // Still pop with the order so the list shows it immediately.
         // Show a non-blocking warning about partial save.
-        _showSnack('⚠️ Order naitala locally. I-refresh para makita sa database.');
+        _showSnack('Order naitala locally. I-refresh para makita sa database.');
       }
 
       // Always navigate back with the new order — never leave user on blank screen.
@@ -804,41 +840,12 @@ class _AddBilaoOrderScreenState extends State<AddBilaoOrderScreen> {
       children: [
         _cardHeader('1', 'ORDER CHANNEL & PREPARATION'),
         const SizedBox(height: 14),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          decoration: BoxDecoration(
-            color: AdminWebColors.warning.withValues(alpha: 0.06),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: AdminWebColors.warning.withValues(alpha: 0.25)),
-          ),
-          child: const Row(
-            children: [
-              Icon(Icons.info_outline_rounded, size: 15, color: AdminWebColors.warning),
-              SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  'Branch Walk-in orders allocate cook commission. Direct to Owner orders are prepared via Main Commissary with ₱0 commission.',
-                  style: TextStyle(fontSize: 11.5, color: AdminWebColors.textSecondary),
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 12),
         _choiceCard(
           title: 'Direct to Owner (Messenger / Phone)',
-          subtitle: 'Customer placed order directly with the Owner. Cooked at Commissary.',
+          subtitle: 'Customer placed order directly with the Owner via social media or phone. Cooked at Commissary.',
           icon: Icons.verified_user_rounded,
-          selected: _orderChannel == BilaoOrderChannel.directToOwner,
-          onTap: () => setState(() => _orderChannel = BilaoOrderChannel.directToOwner),
-        ),
-        const SizedBox(height: 10),
-        _choiceCard(
-          title: 'Branch In-Store Walk-in',
-          subtitle: 'Customer ordered in person at a branch outlet. Cook earns commission.',
-          icon: Icons.storefront_rounded,
-          selected: _orderChannel == BilaoOrderChannel.branchOrder,
-          onTap: () => setState(() => _orderChannel = BilaoOrderChannel.branchOrder),
+          selected: true,
+          onTap: () {},
         ),
       ],
     );
@@ -916,7 +923,7 @@ class _AddBilaoOrderScreenState extends State<AddBilaoOrderScreen> {
         ),
         const SizedBox(height: 12),
         DropdownButtonFormField<String>(
-          initialValue: _selectedBranchId,
+          value: _selectedBranchId,
           isExpanded: true,
           decoration: InputDecoration(
             labelText: 'Target Pickup Branch Outlet',
@@ -924,16 +931,95 @@ class _AddBilaoOrderScreenState extends State<AddBilaoOrderScreen> {
             prefixIcon: const Icon(Icons.storefront_rounded, size: 18),
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
           ),
-          items: kSampleBranches
-              .map((b) => DropdownMenuItem(
-                    value: b.id,
-                    child: Text(b.fullName, overflow: TextOverflow.ellipsis),
-                  ))
-              .toList(),
+          items: _branches.map((b) {
+            final bStock = _allStocks.firstWhere(
+              (st) => st.branchId == b.id,
+              orElse: () => BranchMeatStock.defaultForBranch(b),
+            );
+            final isClosed = bStock.isClosed;
+            return DropdownMenuItem<String>(
+              value: b.id,
+              enabled: !isClosed,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      b.fullName,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: isClosed ? const Color(0xFF94A3B8) : null,
+                        fontWeight: isClosed ? FontWeight.normal : FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: isClosed
+                          ? const Color(0xFFDC2626).withValues(alpha: 0.1)
+                          : const Color(0xFF059669).withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(
+                        color: isClosed
+                            ? const Color(0xFFDC2626).withValues(alpha: 0.3)
+                            : const Color(0xFF059669).withValues(alpha: 0.3),
+                      ),
+                    ),
+                    child: Text(
+                      isClosed ? 'CLOSED' : 'OPEN',
+                      style: TextStyle(
+                        fontSize: 9.5,
+                        fontWeight: FontWeight.w900,
+                        color: isClosed ? const Color(0xFFDC2626) : const Color(0xFF059669),
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }).toList(),
           onChanged: (v) {
-            if (v != null) setState(() => _selectedBranchId = v);
+            if (v != null) {
+              final bStock = _allStocks.firstWhere(
+                (st) => st.branchId == v,
+                orElse: () => BranchMeatStock.defaultForBranch(
+                  _branches.firstWhere((b) => b.id == v, orElse: () => _branches.first),
+                ),
+              );
+              if (bStock.isClosed) return;
+              setState(() => _selectedBranchId = v);
+            }
           },
         ),
+        if (_isSelectedBranchClosed) ...[
+          const SizedBox(height: 10),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFDC2626).withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: const Color(0xFFDC2626).withValues(alpha: 0.3)),
+            ),
+            child: const Row(
+              children: [
+                Icon(Icons.lock_rounded, color: Color(0xFFDC2626), size: 18),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'SARADO ANG BRANCH NA ITO NGAYON. Hindi maaaring mag-order dito. Pumili ng bukas na branch outlet para sa pickup.',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                      color: Color(0xFFDC2626),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
         const SizedBox(height: 12),
         _webField(
           controller: _notesController,
@@ -1346,7 +1432,7 @@ class _AddBilaoOrderScreenState extends State<AddBilaoOrderScreen> {
           const SizedBox(height: 18),
           _sectionCard(
             children: [
-              _cardHeader('⚡', 'GCASH PROOF & SETTLEMENT CONTROL'),
+              _cardHeader('G', 'GCASH PROOF & SETTLEMENT CONTROL'),
               const SizedBox(height: 14),
 
               // Settlement Mode Switcher (Immediate Proof vs Phone Call To-Follow)
@@ -1714,7 +1800,7 @@ class _AddBilaoOrderScreenState extends State<AddBilaoOrderScreen> {
   Widget _buildSubmitCard() {
     return _sectionCard(
       children: [
-        _cardHeader('✓', 'ORDER SUMMARY & SUBMISSION'),
+        _cardHeader('5', 'ORDER SUMMARY & SUBMISSION'),
         const SizedBox(height: 14),
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1747,7 +1833,7 @@ class _AddBilaoOrderScreenState extends State<AddBilaoOrderScreen> {
         SizedBox(
           width: double.infinity,
           child: ElevatedButton.icon(
-            onPressed: _isSaving ? null : _submitDirectOrder,
+            onPressed: (_isSaving || _isSelectedBranchClosed) ? null : _submitDirectOrder,
             icon: _isSaving
                 ? const SizedBox(
                     width: 16,
@@ -1756,11 +1842,15 @@ class _AddBilaoOrderScreenState extends State<AddBilaoOrderScreen> {
                   )
                 : const Icon(Icons.check_circle_rounded, size: 18),
             label: Text(
-              _isSaving ? 'Saving Order...' : 'Confirm & Create Order',
+              _isSaving
+                  ? 'Saving Order...'
+                  : (_isSelectedBranchClosed
+                      ? 'Selected Branch is Closed'
+                      : 'Confirm & Create Order'),
               style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800),
             ),
             style: ElevatedButton.styleFrom(
-              backgroundColor: AdminWebColors.accent,
+              backgroundColor: _isSelectedBranchClosed ? const Color(0xFF94A3B8) : AdminWebColors.accent,
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(vertical: 14),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -1871,7 +1961,7 @@ class _AddBilaoOrderScreenState extends State<AddBilaoOrderScreen> {
                   ElevatedButton.icon(
                     onPressed: _showSmartChatPasteDialog,
                     icon: const Icon(Icons.auto_awesome_rounded, size: 16),
-                    label: const Text('✨ Smart Paste Chat (AI)'),
+                    label: const Text('Smart Paste Chat (AI)'),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AdminWebColors.accent,
                       foregroundColor: Colors.white,

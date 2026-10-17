@@ -373,7 +373,7 @@ class FirestoreService {
       );
 
       NotificationService.sendNotification(
-        title: '🎉 Bilao Claimed — ${order.pickupBranchName ?? "Branch"}',
+        title: 'Bilao Claimed — ${order.pickupBranchName ?? "Branch"}',
         message: '$sName released the ${order.size.label} Bilao to ${order.customerName}. Order is now Completed!',
         type: NotificationType.system,
         targetRole: 'owner',
@@ -498,7 +498,7 @@ class FirestoreService {
 
       // Notify branch staff to follow up with the customer
       NotificationService.sendNotification(
-        title: '❌ GCash Rejected — $customerName',
+        title: 'GCash Rejected — $customerName',
         message: 'Ang GCash proof ni $customerName ay na-reject ng Owner. Dahilan: $reason. Makipag-ugnayan sa customer.',
         type: NotificationType.system,
         targetRole: 'staff',
@@ -1571,7 +1571,7 @@ class FirestoreService {
 
       // Notify the branch cook that owner replied
       await NotificationService.sendNotification(
-        title: '💬 May tugon ang Owner sa iyong report',
+        title: 'May tugon ang Owner sa iyong report',
         message: 'Sinabi ni Owner: "$reply" — i-tap para makita.',
         type: NotificationType.salesReport,
         targetRole: 'staff',
@@ -1605,7 +1605,7 @@ class FirestoreService {
 
       // Notify owner that the delivery/fix was confirmed by cook
       await NotificationService.sendNotification(
-        title: '✅ Na-confirm na ng Branch Cook',
+        title: 'Na-confirm na ng Branch Cook',
         message: '$employeeName ($branchName) ay nagkumpirma na natanggap na ang naihatid.',
         type: NotificationType.inventoryAlert,
         targetRole: 'owner',
@@ -1699,10 +1699,18 @@ class FirestoreService {
         'branchId': branchId,
         'branchName': branchName,
         'isOpen': isDeployment, // true if opening, false if closing
+        'isClosed': false, // RFID tap never locks a branch permanently
         'driverOnWay': false,
         'cookName': cookName,
         'lastUpdated': FieldValue.serverTimestamp(),
         'lastTapType': isDeployment ? 'deployment_opening' : 'retrieval_closing',
+        // Track which calendar date this was opened/closed for daily reset logic
+        if (isDeployment) 'openedAt': FieldValue.serverTimestamp(),
+        if (!isDeployment) 'closedAt': FieldValue.serverTimestamp(),
+        if (isDeployment)
+          'openedDateStr': DateTime.now().toIso8601String().substring(0, 10),
+        if (!isDeployment)
+          'closedDateStr': DateTime.now().toIso8601String().substring(0, 10),
       }, SetOptions(merge: true));
 
       await batch.commit();
@@ -1726,8 +1734,6 @@ class FirestoreService {
         'branchId': branchId,
         'branchName': branchName,
         'driverOnWay': true,
-        // if deployment, branch is not open yet; if retrieval, it remains open until cook taps
-        'isOpen': !isDeployment,
         'cookName': cookName,
         'driverName': driverName,
         'lastUpdated': FieldValue.serverTimestamp(),
@@ -2367,9 +2373,36 @@ class FirestoreService {
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
 
+      // Sync branch open/closed status directly to branch_status collection.
+      // NOTE: When owner enables/opens a branch in Allocation, it is NOT yet open live!
+      // Only the branch cook's physical or simulated RFID tap will mark it as open ('isOpen: true').
+      // When owner closes a branch in Allocation, it is immediately marked closed.
+      if (stock.isClosed) {
+        await _db.collection('branch_status').doc(stock.branchId).set({
+          'branchId': stock.branchId,
+          'branchName': stock.branchName,
+          'isOpen': false,
+          'isClosed': true,
+          'driverOnWay': false,
+          'lastUpdated': FieldValue.serverTimestamp(),
+          'closedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true)).catchError((e) {
+          debugPrint('Failed to sync branch_status from meat stock: $e');
+        });
+      } else {
+        await _db.collection('branch_status').doc(stock.branchId).set({
+          'branchId': stock.branchId,
+          'branchName': stock.branchName,
+          'isClosed': false,
+          'lastUpdated': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true)).catchError((e) {
+          debugPrint('Failed to sync branch_status from meat stock: $e');
+        });
+      }
+
       if (newlyLowItems.isNotEmpty) {
         await NotificationService.sendNotification(
-          title: '⚠️ Low Stock Alert — ${stock.branchName}',
+          title: 'Low Stock Alert — ${stock.branchName}',
           message: '${stock.branchName} has items running critically low:\n• ${newlyLowItems.join('\n• ')}',
           type: NotificationType.inventoryAlert,
           targetRole: 'owner',
@@ -2419,7 +2452,7 @@ class FirestoreService {
       });
 
       await NotificationService.sendNotification(
-        title: '🚚 Bagong Restock Dispatch — ${dispatch.destinationBranchName}',
+        title: 'Bagong Restock Dispatch — ${dispatch.destinationBranchName}',
         message: 'May bagong restock para sa ${dispatch.destinationBranchName}: ${dispatch.itemsSummary}. Mangyaring i-deliver sa branch.',
         type: NotificationType.deliveryTask,
         targetRole: 'driver',
@@ -2531,7 +2564,7 @@ class FirestoreService {
 
       // 3. Send real-time notification to the branch staff that stock has arrived
       await NotificationService.sendNotification(
-        title: '📦 Karagdagang Stock Dumating — ${dispatch.destinationBranchName}',
+        title: 'Karagdagang Stock Dumating — ${dispatch.destinationBranchName}',
         message: 'Na-deliver na ng Driver ang: ${dispatch.itemsSummary}',
         type: NotificationType.inventoryAlert,
         targetRole: 'staff',
@@ -2838,7 +2871,7 @@ class FirestoreService {
 
       // Notify the production staff
       await NotificationService.sendNotification(
-        title: '💬 Tugon sa Request: $itemName',
+        title: 'Tugon sa Request: $itemName',
         message: 'Sinabi ni Owner: "$reply"',
         type: NotificationType.inventoryAlert,
         targetRole: 'production',

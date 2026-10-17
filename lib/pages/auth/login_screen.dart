@@ -316,44 +316,47 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget build(BuildContext context) {
     // Web: enterprise card layout (unchanged)
     if (kIsWeb) {
-      return AuthAdminLayout(
-        maxWidth: 460,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(32, 28, 32, 28),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const Center(child: AuthBrandMark(size: 72)),
-                const SizedBox(height: 16),
-                const Text(
-                  'Administrator Portal',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.w900,
-                    color: Color(0xFF24140B),
-                    letterSpacing: -0.3,
+      return AbsorbPointer(
+        absorbing: _isLoading,
+        child: AuthAdminLayout(
+          maxWidth: 460,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(32, 28, 32, 28),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Center(child: AuthBrandMark(size: 72)),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Administrator Portal',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.w900,
+                      color: Color(0xFF24140B),
+                      letterSpacing: -0.3,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 5),
-                const Text(
-                  'Enter your owner credentials to access the Brahms Nexus management system.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: Color(0xFF7A6556),
-                    height: 1.35,
+                  const SizedBox(height: 5),
+                  const Text(
+                    'Enter your owner credentials to access the Brahms Nexus management system.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Color(0xFF7A6556),
+                      height: 1.35,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 24),
-                ..._buildFormFields(),
-                const SizedBox(height: 12),
-                _buildOptionsRow(),
-                const SizedBox(height: 20),
-                _buildSignInButton(),
-              ],
+                  const SizedBox(height: 24),
+                  ..._buildFormFields(),
+                  const SizedBox(height: 12),
+                  _buildOptionsRow(),
+                  const SizedBox(height: 20),
+                  _buildSignInButton(),
+                ],
+              ),
             ),
           ),
         ),
@@ -361,88 +364,93 @@ class _LoginScreenState extends State<LoginScreen> {
     }
 
     // Mobile: new dark wave header layout
-    return MobileAuthLayout(
-      subtitle: 'Crispy Sisig & Bagnet',
-      child: Form(
-        key: _formKey,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Left-aligned heading block
-            const Text(
-              'Sign In',
-              textAlign: TextAlign.left,
-              style: TextStyle(
-                fontSize: 26,
-                fontWeight: FontWeight.w900,
-                color: AppColors.textPrimary,
-                letterSpacing: -0.3,
-              ),
-            ),
-            const SizedBox(height: 5),
-            const Text(
-              'Welcome back. Enter your credentials.',
-              textAlign: TextAlign.left,
-              style: TextStyle(
-                fontSize: 13,
-                color: Color(0xFF7A6556),
-                height: 1.35,
-              ),
-            ),
-            const SizedBox(height: 24),
-
-            ..._buildFormFields(),
-            const SizedBox(height: 14),
-            _buildOptionsRow(),
-            const SizedBox(height: 20),
-            _buildSignInButton(),
-            const SizedBox(height: 18),
-            const Divider(color: AppColors.border, height: 1),
-            const SizedBox(height: 16),
-            Wrap(
-              alignment: WrapAlignment.center,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                const Text(
-                  "Don't have an account? ",
-                  style: TextStyle(color: Color(0xFF7A6556), fontSize: 12.5),
+    return AbsorbPointer(
+      absorbing: _isLoading,
+      child: MobileAuthLayout(
+        subtitle: 'Crispy Sisig & Bagnet',
+        child: Form(
+          key: _formKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Left-aligned heading block
+              const Text(
+                'Sign In',
+                textAlign: TextAlign.left,
+                style: TextStyle(
+                  fontSize: 26,
+                  fontWeight: FontWeight.w900,
+                  color: AppColors.textPrimary,
+                  letterSpacing: -0.3,
                 ),
-                GestureDetector(
-                  onTap: () {
-                    Navigator.of(context).push(
-                      PageRouteBuilder(
-                        opaque: false,
-                        pageBuilder:
-                            (context, animation, secondaryAnimation) =>
-                                const RegisterScreen(),
-                        transitionsBuilder:
-                            (context, animation, secondaryAnimation, child) {
-                          return FadeTransition(
-                            opacity: CurvedAnimation(
-                              parent: animation,
-                              curve: Curves.easeInOutCubic,
-                            ),
-                            child: child,
-                          );
-                        },
-                        transitionDuration: const Duration(milliseconds: 400),
-                        reverseTransitionDuration:
-                            const Duration(milliseconds: 400),
+              ),
+              const SizedBox(height: 5),
+              const Text(
+                'Welcome back. Enter your credentials.',
+                textAlign: TextAlign.left,
+                style: TextStyle(
+                  fontSize: 13,
+                  color: Color(0xFF7A6556),
+                  height: 1.35,
+                ),
+              ),
+              const SizedBox(height: 24),
+
+              ..._buildFormFields(),
+              const SizedBox(height: 14),
+              _buildOptionsRow(),
+              const SizedBox(height: 20),
+              _buildSignInButton(),
+              const SizedBox(height: 18),
+              const Divider(color: AppColors.border, height: 1),
+              const SizedBox(height: 16),
+              Wrap(
+                alignment: WrapAlignment.center,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  const Text(
+                    "Don't have an account? ",
+                    style: TextStyle(color: Color(0xFF7A6556), fontSize: 12.5),
+                  ),
+                  GestureDetector(
+                    onTap: _isLoading
+                        ? null
+                        : () {
+                            Navigator.of(context).push(
+                              PageRouteBuilder(
+                                opaque: false,
+                                pageBuilder:
+                                    (context, animation, secondaryAnimation) =>
+                                        const RegisterScreen(),
+                                transitionsBuilder:
+                                    (context, animation, secondaryAnimation, child) {
+                                  return FadeTransition(
+                                    opacity: CurvedAnimation(
+                                      parent: animation,
+                                      curve: Curves.easeInOutCubic,
+                                    ),
+                                    child: child,
+                                  );
+                                },
+                                transitionDuration: const Duration(milliseconds: 400),
+                                reverseTransitionDuration:
+                                    const Duration(milliseconds: 400),
+                              ),
+                            );
+                          },
+                    child: Text(
+                      'Register here',
+                      style: TextStyle(
+                        color: _isLoading ? const Color(0xFFB09E90) : AppColors.accent,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 12.5,
                       ),
-                    );
-                  },
-                  child: const Text(
-                    'Register here',
-                    style: TextStyle(
-                      color: AppColors.accent,
-                      fontWeight: FontWeight.w800,
-                      fontSize: 12.5,
                     ),
                   ),
-                ),
-              ],
-            ),
-          ],
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -454,6 +462,7 @@ class _LoginScreenState extends State<LoginScreen> {
   List<Widget> _buildFormFields() => [
         TextFormField(
           controller: _usernameController,
+          enabled: !_isLoading,
           textInputAction: TextInputAction.next,
           decoration: InputDecoration(
             labelText: 'Username or Email',
@@ -488,9 +497,10 @@ class _LoginScreenState extends State<LoginScreen> {
         const SizedBox(height: 16),
         TextFormField(
           controller: _passwordController,
+          enabled: !_isLoading,
           obscureText: _obscurePassword,
           textInputAction: TextInputAction.done,
-          onFieldSubmitted: (_) => _handleLogin(),
+          onFieldSubmitted: _isLoading ? null : (_) => _handleLogin(),
           decoration: InputDecoration(
             labelText: 'Password',
             hintText: '••••••••••••',
@@ -512,8 +522,9 @@ class _LoginScreenState extends State<LoginScreen> {
                 size: 19,
                 color: const Color(0xFF7A6556),
               ),
-              onPressed: () =>
-                  setState(() => _obscurePassword = !_obscurePassword),
+              onPressed: _isLoading
+                  ? null
+                  : () => setState(() => _obscurePassword = !_obscurePassword),
             ),
             contentPadding:
                 const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
@@ -569,7 +580,7 @@ class _LoginScreenState extends State<LoginScreen> {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           InkWell(
-            onTap: () => setState(() => _rememberMe = !_rememberMe),
+            onTap: _isLoading ? null : () => setState(() => _rememberMe = !_rememberMe),
             borderRadius: BorderRadius.circular(6),
             child: Padding(
               padding: const EdgeInsets.symmetric(vertical: 4),
@@ -581,8 +592,9 @@ class _LoginScreenState extends State<LoginScreen> {
                     height: 18,
                     child: Checkbox(
                       value: _rememberMe,
-                      onChanged: (val) =>
-                          setState(() => _rememberMe = val ?? false),
+                      onChanged: _isLoading
+                          ? null
+                          : (val) => setState(() => _rememberMe = val ?? false),
                       activeColor: AppColors.accent,
                       shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(4)),

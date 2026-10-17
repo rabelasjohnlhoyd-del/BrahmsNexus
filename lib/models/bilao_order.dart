@@ -61,6 +61,21 @@ enum BilaoSize {
         return '2 Kilos and 500 Grams';
     }
   }
+
+  /// Number of regular meat portions (250g) equivalent to this bilao:
+  /// - Small: 5 regular orders
+  /// - Medium: 7 regular orders
+  /// - Large: 10 regular orders
+  int get regularOrderEquivalent {
+    switch (this) {
+      case BilaoSize.small:
+        return 5;
+      case BilaoSize.medium:
+        return 7;
+      case BilaoSize.large:
+        return 10;
+    }
+  }
 }
 
 enum PreparationStatus {

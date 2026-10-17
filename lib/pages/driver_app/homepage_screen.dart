@@ -2,9 +2,11 @@ import 'dart:async';
 import 'package:flutter/cupertino.dart';
 import '../../models/branch.dart';
 import '../../models/branch_assignment.dart';
+import '../../models/branch_meat_stock.dart';
 import '../../models/staff_member.dart';
 import '../../services/assignment_service.dart';
 import '../../services/auth_service.dart';
+import '../../services/firestore_service.dart';
 import '../../services/supabase_service.dart';
 import '../../services/weather_service.dart';
 import '../../theme/app_theme.dart';
@@ -32,6 +34,8 @@ class _DriverHomepageScreenState extends State<DriverHomepageScreen> {
 
   List<StaffMember> _allStaff = [];
   List<Branch> _allBranches = [];
+  StreamSubscription<List<BranchMeatStock>>? _meatStocksSub;
+  final Map<String, bool> _branchClosedMap = {};
 
   // Live weather state
   int _tempC = 28;
@@ -49,12 +53,33 @@ class _DriverHomepageScreenState extends State<DriverHomepageScreen> {
     _loadInitialData();
     AssignmentService.changeNotifier.addListener(_onAssignmentsChanged);
     _startWeatherTimer();
+    _meatStocksSub = FirestoreService.watchBranchMeatStocks().listen((stocks) {
+      if (mounted) {
+        setState(() {
+          _branchClosedMap.clear();
+          for (final s in stocks) {
+            _branchClosedMap[s.branchId.toLowerCase()] = s.isClosed;
+            _branchClosedMap[s.branchName.trim().toLowerCase()] = s.isClosed;
+          }
+        });
+      }
+    });
+  }
+
+  bool _isBranchClosed(Branch branch) {
+    if (_branchClosedMap[branch.id.toLowerCase()] == true) return true;
+    final fullName = branch.fullName.trim().toLowerCase();
+    if (_branchClosedMap[fullName] == true) return true;
+    final name = branch.name.trim().toLowerCase();
+    if (_branchClosedMap[name] == true) return true;
+    return false;
   }
 
   @override
   void dispose() {
     AssignmentService.changeNotifier.removeListener(_onAssignmentsChanged);
     _weatherTimer?.cancel();
+    _meatStocksSub?.cancel();
     super.dispose();
   }
 
@@ -402,6 +427,7 @@ class _DriverHomepageScreenState extends State<DriverHomepageScreen> {
   @override
   Widget build(BuildContext context) {
     final totalBranches = _allBranches.length;
+    final openBranchesCount = _allBranches.where((b) => !_isBranchClosed(b)).length;
     final staffedBranches = _staffedBranchesCount;
 
     return CupertinoPageScaffold(
@@ -429,7 +455,7 @@ class _DriverHomepageScreenState extends State<DriverHomepageScreen> {
                   child: DriverDisplayTile(
                     icon: CupertinoIcons.building_2_fill,
                     label: 'Total Branches',
-                    value: '$staffedBranches/$totalBranches',
+                    value: '$openBranchesCount/$totalBranches',
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -461,6 +487,7 @@ class _DriverHomepageScreenState extends State<DriverHomepageScreen> {
                     for (final branch in pagedBranches) ...[
                       Builder(
                         builder: (context) {
+                          final isClosed = _isBranchClosed(branch);
                           final staffName = _getStaffForBranch(branch);
 
                           return Padding(
@@ -473,11 +500,19 @@ class _DriverHomepageScreenState extends State<DriverHomepageScreen> {
                                     height: 42,
                                     alignment: Alignment.center,
                                     decoration: BoxDecoration(
-                                      color: AppColors.pastelBrown.withValues(alpha: 0.3),
+                                      color: isClosed
+                                          ? const Color(0xFFDC2626).withValues(alpha: 0.12)
+                                          : AppColors.pastelBrown.withValues(alpha: 0.3),
                                       borderRadius: BorderRadius.circular(12),
                                     ),
-                                    child: const Icon(CupertinoIcons.building_2_fill,
-                                        color: AppColors.accent),
+                                    child: Icon(
+                                      isClosed
+                                          ? CupertinoIcons.lock_fill
+                                          : CupertinoIcons.building_2_fill,
+                                      color: isClosed
+                                          ? const Color(0xFFDC2626)
+                                          : AppColors.accent,
+                                    ),
                                   ),
                                   const SizedBox(width: 12),
                                   Expanded(
@@ -496,29 +531,79 @@ class _DriverHomepageScreenState extends State<DriverHomepageScreen> {
                                         Row(
                                           children: [
                                             Icon(
-                                              staffName != null
-                                                  ? CupertinoIcons.person_fill
-                                                  : CupertinoIcons.person,
+                                              isClosed
+                                                  ? CupertinoIcons.lock_fill
+                                                  : (staffName != null
+                                                      ? CupertinoIcons.person_fill
+                                                      : CupertinoIcons.person),
                                               size: 13,
-                                              color: staffName != null
-                                                  ? AppColors.success
-                                                  : AppColors.textSecondary,
+                                              color: isClosed
+                                                  ? const Color(0xFFDC2626)
+                                                  : (staffName != null
+                                                      ? AppColors.success
+                                                      : AppColors.textSecondary),
                                             ),
                                             const SizedBox(width: 5),
                                             Expanded(
                                               child: Text(
-                                                staffName ?? 'No staff assigned yet',
+                                                isClosed
+                                                    ? 'Branch closed by owner'
+                                                    : (staffName ?? 'No staff assigned yet'),
                                                 maxLines: 1,
                                                 overflow: TextOverflow.ellipsis,
                                                 style: TextStyle(
                                                   fontSize: 12.5,
-                                                  color: staffName != null
-                                                      ? AppColors.textSecondary
-                                                      : AppColors.warning,
+                                                  fontWeight: isClosed ? FontWeight.w600 : FontWeight.normal,
+                                                  color: isClosed
+                                                      ? const Color(0xFFDC2626)
+                                                      : (staffName != null
+                                                          ? AppColors.textSecondary
+                                                          : AppColors.warning),
                                                 ),
                                               ),
                                             ),
                                           ],
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: isClosed
+                                          ? const Color(0xFFDC2626).withValues(alpha: 0.1)
+                                          : AppColors.success.withValues(alpha: 0.1),
+                                      borderRadius: BorderRadius.circular(8),
+                                      border: Border.all(
+                                        color: isClosed
+                                            ? const Color(0xFFDC2626).withValues(alpha: 0.3)
+                                            : AppColors.success.withValues(alpha: 0.3),
+                                      ),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          isClosed
+                                              ? CupertinoIcons.lock_fill
+                                              : CupertinoIcons.checkmark_alt_circle_fill,
+                                          size: 10,
+                                          color: isClosed
+                                              ? const Color(0xFFDC2626)
+                                              : AppColors.success,
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          isClosed ? 'CLOSED' : 'OPEN',
+                                          style: TextStyle(
+                                            fontSize: 10.5,
+                                            fontWeight: FontWeight.w800,
+                                            color: isClosed
+                                                ? const Color(0xFFDC2626)
+                                                : AppColors.success,
+                                            letterSpacing: 0.4,
+                                          ),
                                         ),
                                       ],
                                     ),

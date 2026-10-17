@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../../models/branch.dart';
 import '../../../models/branch_daily_inventory.dart';
+import '../../../models/branch_meat_stock.dart';
 import '../../../models/daily_report.dart';
 import '../../../services/firestore_service.dart';
 import '../admin_web_colors.dart';
@@ -37,6 +38,8 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
   // Inventory verification
   final List<BranchDailyInventory> _verifications = [];
   StreamSubscription<List<BranchDailyInventory>>? _verifSub;
+  StreamSubscription<List<BranchMeatStock>>? _meatStocksSub;
+  final Map<String, bool> _branchClosedMap = {};
 
   final List<DailyReport> _reports = [
     DailyReport(
@@ -112,6 +115,31 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
         });
       }
     });
+
+    _meatStocksSub = FirestoreService.watchBranchMeatStocks().listen((stocks) {
+      if (mounted) {
+        setState(() {
+          _branchClosedMap.clear();
+          for (final s in stocks) {
+            _branchClosedMap[s.branchId.toLowerCase()] = s.isClosed;
+            _branchClosedMap[s.branchName.trim().toLowerCase()] = s.isClosed;
+          }
+        });
+      }
+    });
+  }
+
+  bool _isBranchClosed(String branchId, String branchName) {
+    if (_branchClosedMap[branchId.toLowerCase()] == true) return true;
+    if (_branchClosedMap[branchName.trim().toLowerCase()] == true) return true;
+    for (final b in kSampleBranches) {
+      if (b.id.toLowerCase() == branchId.toLowerCase() ||
+          b.fullName.toLowerCase() == branchName.trim().toLowerCase() ||
+          b.name.toLowerCase() == branchName.trim().toLowerCase()) {
+        if (_branchClosedMap[b.id.toLowerCase()] == true) return true;
+      }
+    }
+    return false;
   }
 
   @override
@@ -131,6 +159,7 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
     _searchController.dispose();
     _reportsSub?.cancel();
     _verifSub?.cancel();
+    _meatStocksSub?.cancel();
     super.dispose();
   }
 
@@ -202,8 +231,14 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
   int _countByStatus(ReportSubmissionStatus status) =>
       _reports.where((r) => r.status == status).length;
 
-  int _countVerifByStatus(InventoryVerificationStatus status) =>
-      _verifications.where((v) => v.status == status).length;
+  int _countVerifByStatus(InventoryVerificationStatus status) {
+    if (status == InventoryVerificationStatus.pending) {
+      return _verifications.where((v) =>
+          v.status == InventoryVerificationStatus.pending &&
+          !_isBranchClosed(v.branchId, v.branchName)).length;
+    }
+    return _verifications.where((v) => v.status == status).length;
+  }
 
   String _getInitials(String name) {
     final parts = name.trim().split(RegExp(r'\s+'));
@@ -1132,8 +1167,9 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
   }
 
   Widget _buildVerifCard(BranchDailyInventory v) {
-    final color = _verifColor(v.status);
-    final icon = _verifIcon(v.status);
+    final isClosed = _isBranchClosed(v.branchId, v.branchName);
+    final color = isClosed ? const Color(0xFFDC2626) : _verifColor(v.status);
+    final icon = isClosed ? Icons.lock_rounded : _verifIcon(v.status);
     final ar = v.actualReceived;
 
     return GlassCard(
@@ -1180,12 +1216,20 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            v.verifiedBy != null && v.verifiedAt != null
-                                ? 'Verified by ${v.verifiedBy} · ${_formatTime(v.verifiedAt!)}'
-                                : 'Awaiting staff verification',
+                            isClosed
+                                ? 'Branch closed by owner · No verification needed'
+                                : (v.verifiedBy != null && v.verifiedAt != null
+                                    ? 'Verified by ${v.verifiedBy} · ${_formatTime(v.verifiedAt!)}'
+                                    : 'Awaiting staff verification'),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontSize: 11, color: AdminWebColors.textSecondary),
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: isClosed
+                                  ? const Color(0xFFDC2626).withValues(alpha: 0.8)
+                                  : AdminWebColors.textSecondary,
+                              fontWeight: isClosed ? FontWeight.w600 : FontWeight.normal,
+                            ),
                           ),
                         ],
                       ),
@@ -1198,7 +1242,7 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Text(
-                        v.status.label,
+                        isClosed ? 'CLOSED' : v.status.label,
                         style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: color),
                       ),
                     ),
@@ -1208,25 +1252,37 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                   decoration: BoxDecoration(
-                    color: AdminWebColors.surfaceTint.withValues(alpha: 0.6),
+                    color: isClosed
+                        ? const Color(0xFFDC2626).withValues(alpha: 0.05)
+                        : AdminWebColors.surfaceTint.withValues(alpha: 0.6),
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: AdminWebColors.border),
+                    border: Border.all(
+                      color: isClosed
+                          ? const Color(0xFFDC2626).withValues(alpha: 0.25)
+                          : AdminWebColors.border,
+                    ),
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.inventory_2_outlined, size: 13, color: AdminWebColors.accent),
+                      Icon(
+                        isClosed ? Icons.lock_clock_rounded : Icons.inventory_2_outlined,
+                        size: 13,
+                        color: isClosed ? const Color(0xFFDC2626) : AdminWebColors.accent,
+                      ),
                       const SizedBox(width: 6),
                       Expanded(
                         child: Text(
-                          ar != null
-                              ? 'Actual: ${ar.regular + ar.medium + ar.b1t1} Meat · ${ar.mayo} Mayo · ${ar.styro} Styro'
-                              : 'Allocated: ${v.allocated.karne} Meat · ${v.allocated.mayo} Mayo · ${v.allocated.toyo} Toyo · ${v.allocated.styro} Styro',
+                          isClosed
+                              ? 'Branch is closed today (0 pcs allocation)'
+                              : (ar != null
+                                  ? 'Actual: ${ar.regular + ar.medium + ar.b1t1} Meat · ${ar.mayo} Mayo · ${ar.styro} Styro'
+                                  : 'Allocated: ${v.allocated.karne} Meat · ${v.allocated.mayo} Mayo · ${v.allocated.toyo} Toyo · ${v.allocated.styro} Styro'),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.w600,
-                            color: AdminWebColors.textPrimary,
+                            color: isClosed ? const Color(0xFFDC2626) : AdminWebColors.textPrimary,
                           ),
                         ),
                       ),

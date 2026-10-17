@@ -43,6 +43,12 @@ service cloud.firestore {
     // =========================================================================
     // 1. USERS COLLECTION
     // Holds authentication mapping, roles, statuses, and staff details.
+    //
+    // NOTE: `allow read: if request.auth == null` is intentional — needed so
+    // the login screen can look up a username before Firebase Auth is resolved.
+    // This is a known tradeoff: unauthenticated clients can read user documents.
+    // Consider switching to a separate username-lookup collection if stricter
+    // privacy is required in the future.
     // =========================================================================
     match /users/{userId} {
       // Owner and approved staff can read user lists; users can read their own profile; unauthenticated can lookup for login/recovery
@@ -83,7 +89,7 @@ service cloud.firestore {
     // Submitted by Production Meat Cutters upon completing portioning sessions.
     // =========================================================================
     match /portioning_reports/{reportId} {
-      allow read, write: if isSystemOwner() || isApprovedStaff();
+      allow read, create, update: if isSystemOwner() || isApprovedStaff();
       allow delete: if isSystemOwner();
     }
 
@@ -92,7 +98,7 @@ service cloud.firestore {
     // Tracks current 250g Regular, 300g Medium, and 400g B1T1 stock per branch.
     // =========================================================================
     match /branch_meat_stocks/{branchId} {
-      allow read, write: if isSystemOwner() || isApprovedStaff();
+      allow read, create, update: if isSystemOwner() || isApprovedStaff();
       allow delete: if isSystemOwner();
     }
 
@@ -101,7 +107,7 @@ service cloud.firestore {
     // Warehouse dispatches to branches with real-time driver delivery status.
     // =========================================================================
     match /meat_dispatches/{dispatchId} {
-      allow read, write: if isSystemOwner() || isApprovedStaff();
+      allow read, create, update: if isSystemOwner() || isApprovedStaff();
       allow delete: if isSystemOwner();
     }
 
@@ -110,7 +116,7 @@ service cloud.firestore {
     // Requests from branches/production staff for raw materials or supplies.
     // =========================================================================
     match /supply_requests/{requestId} {
-      allow read, write: if isSystemOwner() || isApprovedStaff();
+      allow read, create, update: if isSystemOwner() || isApprovedStaff();
       allow delete: if isSystemOwner();
     }
 
@@ -133,7 +139,7 @@ service cloud.firestore {
     // Document ID: ${branchId}_${YYYYMMDD}
     // =========================================================================
     match /branch_daily_inventories/{inventoryDocId} {
-      allow read, write: if isSystemOwner() || isApprovedStaff();
+      allow read, create, update: if isSystemOwner() || isApprovedStaff();
       allow delete: if isSystemOwner();
     }
 
@@ -208,6 +214,8 @@ service cloud.firestore {
     // =========================================================================
     // 16. DEACTIVATED / FROZEN STAFF REGISTRY
     // Checked during login before full auth profile resolution.
+    // NOTE: `allow read: if true` is intentional — the login screen must be
+    // able to check the deactivated list BEFORE the user is authenticated.
     // =========================================================================
     match /deactivated_staff/{username} {
       allow read: if true;
@@ -226,6 +234,8 @@ service cloud.firestore {
     // =========================================================================
     // 18. EMAIL OTPs
     // Temporary codes for account onboarding and password recovery.
+    // NOTE: `allow read, write: if true` is intentional — OTP lookup must work
+    // before the user is authenticated (email verification / forgot password).
     // =========================================================================
     match /email_otps/{email} {
       allow read, write: if true;
@@ -261,12 +271,29 @@ service cloud.firestore {
 
     // =========================================================================
     // 22. REAL-TIME BRANCH STATUS OVERVIEW
-    // Real-time store status (isOpen, driverOnWay, cookName, lastUpdated).
-    // Updated via ESP32 RFID taps or driver delivery route actions.
+    // Tracks whether each branch is truly open, based on RFID tap events.
+    //
+    // IMPORTANT — Business Logic:
+    //   A branch is considered OPEN only when:
+    //     - lastTapType == 'deployment_opening'  AND
+    //     - openedDateStr == today's date (YYYYMMDD)
+    //   Setting a branch as "open" in Branch Allocation (Owner Web) does NOT
+    //   automatically open the branch. The RFID tap by the Branch Cook is
+    //   required to confirm physical arrival and open the store.
+    //   When Owner sets a branch to "closed" in Branch Allocation, that branch
+    //   must be hidden from the Driver's route (it is permanently closed for
+    //   the day regardless of RFID status).
+    //
+    // Writers:
+    //   - Owner Web: saveBranchMeatStock() — updates allocation/target fields
+    //   - Driver App: setDriverOnTheWay() — sets driverOnWay flag per branch
+    //   - RFID System: processBranchCookRfidTap() — sets isOpen, openedDateStr,
+    //                  lastTapType, cookName, lastUpdated on each tap
     // =========================================================================
     match /branch_status/{branchId} {
       allow read: if isAuthenticated();
-      allow write: if isSystemOwner() || isApprovedStaff();
+      allow create, update: if isSystemOwner() || isApprovedStaff();
+      allow delete: if isSystemOwner();
     }
 
     // =========================================================================

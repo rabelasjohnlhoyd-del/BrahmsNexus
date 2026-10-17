@@ -988,7 +988,18 @@ class _BilaoOrderScreenState extends State<BilaoOrderScreen> {
 
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('✅ GCash Verified (Ref: $ref)! Kitchen preparation unlocked.'),
+            content: Row(
+              children: [
+                const Icon(Icons.check_circle_rounded, color: Colors.white, size: 20),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'GCash Verified (Ref: $ref)! Kitchen preparation unlocked.',
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ],
+            ),
             backgroundColor: AdminWebColors.success,
             behavior: SnackBarBehavior.floating,
           ),
@@ -1321,21 +1332,22 @@ class _BilaoOrderScreenState extends State<BilaoOrderScreen> {
                       spacing: 10,
                       runSpacing: 8,
                       children: [
-                        OutlinedButton.icon(
+                        ElevatedButton.icon(
                           onPressed: () => ExcelExportDialog.show(context, orders: _orders),
                           icon: const Icon(Icons.table_view_rounded,
-                              size: 16, color: Color(0xFF2E7D32)),
+                              size: 16, color: Colors.white),
                           label: const Text(
                             'EXPORT EXCEL (.XLSX)',
                             style: TextStyle(
-                              color: Color(0xFF2E7D32),
+                              color: Colors.white,
                               fontWeight: FontWeight.w800,
                               fontSize: 12,
                             ),
                           ),
-                          style: OutlinedButton.styleFrom(
-                            backgroundColor: Colors.white,
-                            side: const BorderSide(color: Color(0xFF81C784), width: 1.2),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF2E7D32),
+                            foregroundColor: Colors.white,
+                            elevation: 0,
                             padding: const EdgeInsets.symmetric(
                                 vertical: 12, horizontal: 16),
                             shape: RoundedRectangleBorder(

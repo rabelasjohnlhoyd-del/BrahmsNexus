@@ -229,13 +229,13 @@ class _TutorialOverlayState extends State<TutorialOverlay> {
                           scrollDirection: Axis.horizontal,
                           child: Row(
                             children: [
-                              _roleChip('staff', '🍳 Branch Cook', Icons.storefront_rounded),
+                              _roleChip('staff', 'Branch Cook', Icons.storefront_rounded),
                               const SizedBox(width: 6),
-                              _roleChip('driver', '🚚 Driver', Icons.local_shipping_rounded),
+                              _roleChip('driver', 'Driver', Icons.local_shipping_rounded),
                               const SizedBox(width: 6),
-                              _roleChip('production', '🔪 Production', Icons.soup_kitchen_rounded),
+                              _roleChip('production', 'Production', Icons.soup_kitchen_rounded),
                               const SizedBox(width: 6),
-                              _roleChip('owner', '💻 Owner Web', Icons.computer_rounded),
+                              _roleChip('owner', 'Owner Web', Icons.computer_rounded),
                             ],
                           ),
                         ),
@@ -551,7 +551,8 @@ class _StepSlide extends StatelessWidget {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('💡 ', style: TextStyle(fontSize: 13)),
+                  const Icon(Icons.lightbulb_rounded, size: 15, color: Color(0xFF166534)),
+                  const SizedBox(width: 5),
                   Expanded(
                     child: Text(
                       step.tip!,

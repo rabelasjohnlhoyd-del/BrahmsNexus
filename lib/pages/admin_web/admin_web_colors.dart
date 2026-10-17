@@ -215,6 +215,12 @@ class AdminWebTheme {
           borderRadius: BorderRadius.circular(10),
         ),
       ),
+      scrollbarTheme: ScrollbarThemeData(
+        thumbColor: WidgetStateProperty.all(AdminWebColors.accent.withValues(alpha: 0.35)),
+        radius: const Radius.circular(8),
+        thickness: WidgetStateProperty.all(6),
+        interactive: true,
+      ),
     );
   }
 }

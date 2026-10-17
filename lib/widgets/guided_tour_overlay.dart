@@ -498,7 +498,8 @@ class _GuidedTourOverlayState extends State<GuidedTourOverlay>
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('💡 ', style: TextStyle(fontSize: 12)),
+                        const Icon(Icons.lightbulb_rounded, size: 14, color: Color(0xFF166534)),
+                        const SizedBox(width: 5),
                         Expanded(
                           child: Text(
                             step.tip!,
@@ -522,7 +523,7 @@ class _GuidedTourOverlayState extends State<GuidedTourOverlay>
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      'Pindutin ang naka-highlight na button 👆',
+                      'Pindutin ang naka-highlight na button',
                       style: TextStyle(
                         fontSize: 11,
                         fontStyle: FontStyle.italic,
@@ -541,7 +542,7 @@ class _GuidedTourOverlayState extends State<GuidedTourOverlay>
                           border: Border.all(color: const Color(0xFFE8DED3)),
                         ),
                         child: const Text(
-                          'Next ➔',
+                          'Next',
                           style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: _brandDark),
                         ),
                       ),

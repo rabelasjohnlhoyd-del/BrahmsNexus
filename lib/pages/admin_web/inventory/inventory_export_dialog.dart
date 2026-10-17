@@ -61,8 +61,19 @@ class _InventoryExportDialogState extends State<InventoryExportDialog> {
         Navigator.of(context).pop();
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('✅ Matagumpay na na-download ang Inventory Audit Report (.xlsx)!'),
-            backgroundColor: AdminWebColors.success,
+            content: Row(
+              children: [
+                Icon(Icons.check_circle_rounded, color: Colors.white, size: 20),
+                SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Matagumpay na na-download ang Inventory Audit Report (.xlsx)!',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: Color(0xFF2E7D32),
             behavior: SnackBarBehavior.floating,
             duration: Duration(seconds: 4),
           ),

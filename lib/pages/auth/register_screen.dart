@@ -867,16 +867,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isBusy = _isSubmitting || _isAnalyzingPhoto;
     return PopScope(
-      canPop: _currentStep == 0,
+      canPop: !isBusy && _currentStep == 0,
       onPopInvokedWithResult: (didPop, result) {
-        if (!didPop && _currentStep > 0) {
+        if (!didPop && !isBusy && _currentStep > 0) {
           _prevStep();
         }
       },
-      child: MobileAuthLayout(
-        showBackButton: true,
-        onBack: _prevStep,
+      child: AbsorbPointer(
+        absorbing: isBusy,
+        child: MobileAuthLayout(
+          showBackButton: true,
+          onBack: isBusy ? () {} : _prevStep,
         child: Form(
           key: _formKey,
           child: Column(
@@ -1015,6 +1018,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
             ],
           ),
         ),
+      ),
       ),
     );
   }

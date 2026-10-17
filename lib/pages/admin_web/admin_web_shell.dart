@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'admin_web_colors.dart';
 import '../../services/auth_service.dart';
@@ -24,6 +25,24 @@ import 'settings/system_settings_screen.dart';
 import 'admin_web_widgets/admin_messenger_dock.dart';
 import 'bilao_orders/add_bilao_order_screen.dart';
 import '../../models/bilao_order.dart';
+import '../../services/system_busy_coordinator.dart';
+
+class SmoothWebScrollBehavior extends MaterialScrollBehavior {
+  const SmoothWebScrollBehavior();
+
+  @override
+  Set<PointerDeviceKind> get dragDevices => {
+        PointerDeviceKind.touch,
+        PointerDeviceKind.mouse,
+        PointerDeviceKind.trackpad,
+        PointerDeviceKind.stylus,
+      };
+
+  @override
+  ScrollPhysics getScrollPhysics(BuildContext context) {
+    return const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics());
+  }
+}
 
 /// Full Admin shell — WEB (also accessible via phone browser, hence
 /// responsive). On a wide screen (desktop/tablet), just the side
@@ -83,18 +102,8 @@ class AdminWebShellState extends State<AdminWebShell> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _maybeShowTutorial();
-    });
-  }
-
-  Future<void> _maybeShowTutorial() async {
-    final seen = await TutorialService.hasSeenTutorial('owner_spotlight');
-    if (!seen && mounted) {
-      await Future.delayed(const Duration(milliseconds: 900));
-      if (!mounted) return;
-      showTutorial();
-    }
+    // Disabled automatic pop-up of tutorial on launch.
+    // The tour can still be accessed on-demand via System Settings.
   }
 
   void showTutorial() {
@@ -151,29 +160,26 @@ class AdminWebShellState extends State<AdminWebShell> {
     });
   }
 
-  void navigateToTab(int index, {int? inventoryTab}) {
+  void navigateToTab(int index, {int? inventoryTab, int? activityLogTab}) {
     setState(() {
       _selectedIndex = index;
+      _activatedIndices.add(index);
       _currentActions = [];
       _customTitle = null;
       if (inventoryTab != null) {
         _inventoryInitialTab = inventoryTab;
+        _pageCache.remove(4);
+      }
+      if (activityLogTab != null) {
+        _activityLogInitialTab = activityLogTab;
+        _pageCache.remove(11);
       }
     });
-    // After setState rebuilds, switch the inner navigator to the new page
-    WidgetsBinding.instance.addPostFrameCallback((_) => _switchPageInNavigator());
-  }
 
-  /// Pops all routes in the nested page Navigator back to root,
-  /// then pushes the current page. Called whenever _selectedIndex changes.
-  void _switchPageInNavigator() {
     final nav = _pageNavigatorKey.currentState;
-    if (nav == null) return;
-    nav.pushReplacement(
-      MaterialPageRoute(
-        builder: (context) => _pages[_selectedIndex],
-      ),
-    );
+    if (nav != null && nav.canPop()) {
+      nav.popUntil((route) => route.isFirst);
+    }
   }
 
   void setTitle(String? title) {
@@ -209,22 +215,59 @@ class AdminWebShellState extends State<AdminWebShell> {
   ];
 
   int _inventoryInitialTab = 0;
+  int _activityLogInitialTab = 0;
+  final Map<int, Widget> _pageCache = {};
+  final Set<int> _activatedIndices = {0};
 
-  List<Widget> get _pages => [
-    DashboardScreen(onLogout: _handleLogout),
-    const StaffManagementScreen(),
-    const AccountApprovalsScreen(),
-    const BranchAssignmentsScreen(),
-    InventoryScreen(initialTab: _inventoryInitialTab),
-    const SalesPayrollScreen(),
-    const BilaoOrderScreen(),
-    const EmployeeReportsScreen(),
-    const AnnouncementsScreen(),
-    const AnalyticsScreen(),
-    const BranchManagementScreen(),
-    const ActivityLogScreen(),
-    const SystemSettingsScreen(),
-  ];
+  Widget _getPage(int index) {
+    return _pageCache.putIfAbsent(index, () {
+      switch (index) {
+        case 0:
+          return DashboardScreen(onLogout: _handleLogout);
+        case 1:
+          return const StaffManagementScreen();
+        case 2:
+          return const AccountApprovalsScreen();
+        case 3:
+          return const BranchAssignmentsScreen();
+        case 4:
+          return InventoryScreen(initialTab: _inventoryInitialTab);
+        case 5:
+          return const SalesPayrollScreen();
+        case 6:
+          return const BilaoOrderScreen();
+        case 7:
+          return const EmployeeReportsScreen();
+        case 8:
+          return const AnnouncementsScreen();
+        case 9:
+          return const AnalyticsScreen();
+        case 10:
+          return const BranchManagementScreen();
+        case 11:
+          return ActivityLogScreen(initialTab: _activityLogInitialTab);
+        case 12:
+          return const SystemSettingsScreen();
+        default:
+          return DashboardScreen(onLogout: _handleLogout);
+      }
+    });
+  }
+
+  Widget _buildBodyIndexedStack() {
+    return IndexedStack(
+      index: _selectedIndex,
+      children: List.generate(
+        _items.length,
+        (i) => _activatedIndices.contains(i)
+            ? KeyedSubtree(
+                key: ValueKey('admin_web_page_$i'),
+                child: _getPage(i),
+              )
+            : const SizedBox.shrink(),
+      ),
+    );
+  }
 
   void _handleLogout() {
     showDialog<void>(
@@ -333,17 +376,18 @@ class AdminWebShellState extends State<AdminWebShell> {
   void _handleNavigateRoute(String route) {
     int targetIndex = 0;
     int? inventoryTab;
+    int? activityLogTab;
     switch (route) {
       case 'account_approvals':
         targetIndex = 2;
         break;
       case 'inventory_dispatch':
-        targetIndex = 4;
-        inventoryTab = 2;
+        targetIndex = 11;
+        activityLogTab = 1;
         break;
       case 'inventory_supply_requests':
         targetIndex = 4;
-        inventoryTab = 3;
+        inventoryTab = 2;
         break;
       case 'inventory':
         targetIndex = 4;
@@ -360,7 +404,7 @@ class AdminWebShellState extends State<AdminWebShell> {
       default:
         targetIndex = 0;
     }
-    navigateToTab(targetIndex, inventoryTab: inventoryTab);
+    navigateToTab(targetIndex, inventoryTab: inventoryTab, activityLogTab: activityLogTab);
   }
 
   Future<void> _handleMessengerOrderParsed(dynamic parsedResult) async {
@@ -404,62 +448,68 @@ class AdminWebShellState extends State<AdminWebShell> {
   Widget build(BuildContext context) {
     return Theme(
       data: AdminWebTheme.themeData,
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final isWide = constraints.maxWidth >= _wideBreakpoint;
-          final currentPage = _pages[_selectedIndex];
+      child: ScrollConfiguration(
+        behavior: const SmoothWebScrollBehavior(),
+        child: ValueListenableBuilder<bool>(
+          valueListenable: SystemBusyCoordinator.isBusy,
+          builder: (context, isBusy, _) {
+            return AbsorbPointer(
+              absorbing: isBusy,
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+            final isWide = constraints.maxWidth >= _wideBreakpoint;
 
-          if (isWide) {
-            // --- DESKTOP / TABLET: side-nav, no separate top bar —
-            // each page (e.g. DashboardScreen's own header) owns its
-            // title/subtitle/notification/profile row, so we don't
-            // render a second duplicate bar above it here.
-            return Scaffold(
-              backgroundColor: AdminWebColors.background,
-              body: Stack(
-                children: [
-                  Row(
-                    children: [
-                      AdminSidebar(
-                        items: _items,
-                        selectedIndex: _selectedIndex,
-                        isCollapsed: _isSidebarCollapsed,
-                        itemKeys: _sidebarItemKeys,
-                        onToggleCollapse: () =>
-                            setState(() => _isSidebarCollapsed = !_isSidebarCollapsed),
-                        onSelect: (index) => navigateToTab(index),
-                        onLogout: _handleLogout,
-                      ),
-                      Expanded(
-                        child: Column(
-                          children: [
-                            AdminTopBar(
-                              title: _customTitle ?? _items[_selectedIndex].label,
-                              subtitle: 'Brahms Nexus Management System',
-                              onLogout: _handleLogout,
-                              onProfile: _showAdminProfile,
-                              actions: _currentActions,
-                              onNavigateRoute: _handleNavigateRoute,
-                              showSidebarToggle: _isSidebarCollapsed,
-                              onToggleSidebar: () =>
-                                  setState(() => _isSidebarCollapsed = !_isSidebarCollapsed),
-                            ),
-                            Expanded(
-                              child: SafeArea(
-                                child: Navigator(
-                                  key: _pageNavigatorKey,
-                                  onGenerateRoute: (settings) => MaterialPageRoute(
-                                    builder: (context) => _pages[_selectedIndex],
-                                    settings: settings,
+            if (isWide) {
+              // --- DESKTOP / TABLET: side-nav, no separate top bar —
+              // each page (e.g. DashboardScreen's own header) owns its
+              // title/subtitle/notification/profile row, so we don't
+              // render a second duplicate bar above it here.
+              return Scaffold(
+                backgroundColor: AdminWebColors.background,
+                body: Stack(
+                  children: [
+                    Row(
+                      children: [
+                        AdminSidebar(
+                          items: _items,
+                          selectedIndex: _selectedIndex,
+                          isCollapsed: _isSidebarCollapsed,
+                          itemKeys: _sidebarItemKeys,
+                          onToggleCollapse: () =>
+                              setState(() => _isSidebarCollapsed = !_isSidebarCollapsed),
+                          onSelect: (index) => navigateToTab(index),
+                          onLogout: _handleLogout,
+                        ),
+                        Expanded(
+                          child: Column(
+                            children: [
+                              AdminTopBar(
+                                title: _customTitle ?? _items[_selectedIndex].label,
+                                subtitle: 'Brahms Nexus Management System',
+                                onLogout: _handleLogout,
+                                onProfile: _showAdminProfile,
+                                actions: _currentActions,
+                                onNavigateRoute: _handleNavigateRoute,
+                                showSidebarToggle: _isSidebarCollapsed,
+                                onToggleSidebar: () =>
+                                    setState(() => _isSidebarCollapsed = !_isSidebarCollapsed),
+                              ),
+                              Expanded(
+                                child: SafeArea(
+                                  child: Navigator(
+                                    key: _pageNavigatorKey,
+                                    onGenerateRoute: (settings) => MaterialPageRoute(
+                                      builder: (context) => _buildBodyIndexedStack(),
+                                      settings: settings,
+                                    ),
                                   ),
                                 ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
+                      ],
+                    ),
                   AdminMessengerDock(
                     onOrderParsed: _handleMessengerOrderParsed,
                   ),
@@ -582,13 +632,7 @@ class AdminWebShellState extends State<AdminWebShell> {
             body: SafeArea(
               child: Stack(
                 children: [
-                  Navigator(
-                    key: ValueKey(_selectedIndex),
-                    onGenerateRoute: (settings) => MaterialPageRoute(
-                      builder: (context) => currentPage,
-                      settings: settings,
-                    ),
-                  ),
+                  _buildBodyIndexedStack(),
                   AdminMessengerDock(
                     onOrderParsed: _handleMessengerOrderParsed,
                   ),
@@ -599,6 +643,10 @@ class AdminWebShellState extends State<AdminWebShell> {
         },
       ),
     );
-  }
+  },
+),
+),
+);
+}
 }
 

@@ -488,7 +488,7 @@ class _OwnerAssignmentsScreenState extends State<OwnerAssignmentsScreen> {
                                     ),
                                     const SizedBox(height: 2),
                                     const Text(
-                                      '🟢 On Duty',
+                                      'On Duty',
                                       style: TextStyle(
                                         fontSize: 10.5,
                                         color: Color(0xFF065F46),
@@ -520,7 +520,7 @@ class _OwnerAssignmentsScreenState extends State<OwnerAssignmentsScreen> {
                                     ),
                                     const SizedBox(height: 2),
                                     const Text(
-                                      '🔴 Rest Day',
+                                      'Rest Day',
                                       style: TextStyle(
                                         fontSize: 10.5,
                                         color: Color(0xFF991B1B),

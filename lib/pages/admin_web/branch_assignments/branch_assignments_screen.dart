@@ -1,15 +1,18 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../models/branch.dart';
 import '../../../models/branch_assignment.dart';
+import '../../../models/branch_meat_inventory.dart';
 import '../../../models/staff_member.dart';
 import '../../../services/assignment_service.dart';
 import '../../../services/auth_service.dart';
 import '../../../services/firestore_service.dart';
 import '../../../services/rate_limiter.dart';
 import '../../../services/supabase_service.dart';
+import '../../../services/system_busy_coordinator.dart';
 import '../admin_web_colors.dart';
 import '../admin_web_shell.dart';
 import '../admin_web_widgets/glass_card.dart';
@@ -45,6 +48,44 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
 
   // Whether today's assignments have already been saved once
   bool _savedToday = false;
+  bool _isSaving = false;
+  Timer? _closeNoticeDebounceTimer;
+  final Set<String> _pendingClosedBranches = {};
+
+  // Real-time branch inventory stocks (track open vs closed branch status)
+  StreamSubscription<List<BranchMeatStock>>? _meatStocksSub;
+  List<BranchMeatStock> _branchMeatStocks = [];
+  // Previous snapshot — used to detect branches that just became closed
+  List<BranchMeatStock> _prevStocks = [];
+
+  bool _isBranchClosed(String branchId, String branchName) {
+    if (branchId == 'unassigned' || branchName == 'N/A' || branchName.isEmpty) return false;
+    final cleanId = branchId.trim().toLowerCase();
+    final cleanName = branchName.trim().toLowerCase();
+    for (final s in _branchMeatStocks) {
+      if (s.branchId.trim().toLowerCase() == cleanId ||
+          s.branchName.trim().toLowerCase() == cleanName ||
+          s.branchName.toLowerCase().contains(cleanName) ||
+          cleanName.contains(s.branchName.toLowerCase())) {
+        return s.isClosed;
+      }
+    }
+    return false;
+  }
+
+  bool get _areAllBranchesClosed {
+    if (_branchMeatStocks.isEmpty) return false;
+    final realStocks = _branchMeatStocks.where((s) => s.branchId != 'unassigned' && s.branchName != 'N/A').toList();
+    return realStocks.isNotEmpty && realStocks.every((s) => s.isClosed);
+  }
+
+  int get _closedBranchesCount {
+    return _branchMeatStocks.where((s) => s.isClosed).length;
+  }
+
+  int get _openBranchesCount {
+    return _branchMeatStocks.where((s) => !s.isClosed).length;
+  }
 
   @override
   void initState() {
@@ -53,6 +94,90 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
     _checkSavedToday();
     _updateShellActions();
     AssignmentService.changeNotifier.addListener(_onAssignmentsChanged);
+    _meatStocksSub = FirestoreService.watchBranchMeatStocks().listen((stocks) {
+      if (!mounted) return;
+
+      // Detect branches that just transitioned from open -> closed
+      final newlyClosedNames = <String>{};
+      for (final newStock in stocks) {
+        if (!newStock.isClosed) continue;
+        final prev = _prevStocks.firstWhere(
+          (p) => p.branchId == newStock.branchId,
+          orElse: () => newStock, // not found → treat as unchanged
+        );
+        if (!prev.isClosed) {
+          newlyClosedNames.add(newStock.branchName.trim().toLowerCase());
+        }
+      }
+      _prevStocks = List.from(stocks);
+
+      setState(() {
+        _branchMeatStocks = stocks;
+
+        // Auto-set on-duty cooks at newly closed branches to Rest Day
+        if (newlyClosedNames.isNotEmpty) {
+          for (int i = 0; i < _assignments.length; i++) {
+            final a = _assignments[i];
+            if (a.workStatus != WorkStatus.onDuty) continue;
+            final aBranch = a.branchName.trim().toLowerCase();
+            final isAtClosed = newlyClosedNames.any((cn) =>
+                aBranch == cn || aBranch.contains(cn) || cn.contains(aBranch));
+            if (!isAtClosed) continue;
+            final updated = a.copyWith(workStatus: WorkStatus.restDay);
+            _assignments[i] = updated;
+            _draftChanges[a.employeeId] = updated;
+            // Lock in memory cache immediately
+            AssignmentService.lockStatus(
+              username: '',
+              employeeId: a.employeeId,
+              status: WorkStatus.restDay,
+              branchName: a.branchName,
+            );
+          }
+          // Re-sort: on-duty first, rest-day last
+          final onDuty = _assignments.where((a) => a.workStatus == WorkStatus.onDuty).toList();
+          final restDay = _assignments.where((a) => a.workStatus != WorkStatus.onDuty).toList();
+          _assignments = [...onDuty, ...restDay];
+        }
+      });
+
+      // Consolidated debounced notification: pinagsasama ang notification sa dulo kahit maramihang branch ang magsara nang sabay/sunod-sunod
+      if (newlyClosedNames.isNotEmpty) {
+        _pendingClosedBranches.addAll(newlyClosedNames);
+        _closeNoticeDebounceTimer?.cancel();
+        _closeNoticeDebounceTimer = Timer(const Duration(milliseconds: 600), () {
+          if (!mounted) return;
+          final autoCount = _assignments.where((a) {
+            if (a.workStatus != WorkStatus.restDay) return false;
+            final aBranch = a.branchName.trim().toLowerCase();
+            return _pendingClosedBranches.any((cn) =>
+                aBranch == cn || aBranch.contains(cn) || cn.contains(aBranch));
+          }).length;
+          if (autoCount > 0) {
+            ScaffoldMessenger.of(context).clearSnackBars();
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Row(
+                  children: [
+                    const Icon(Icons.info_outline_rounded, color: Colors.white, size: 18),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        '$autoCount cook${autoCount == 1 ? "" : "s"} ay awtomatikong na-set sa Rest Day dahil sarado na ang kanilang assigned branch.',
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                  ],
+                ),
+                backgroundColor: const Color(0xFF0F172A),
+                duration: const Duration(seconds: 4),
+              ),
+            );
+          }
+          _pendingClosedBranches.clear();
+        });
+      }
+    });
     AuthService.syncApprovedUsersToStaffDirectory().then((_) {
       if (mounted) {
         _onAssignmentsChanged();
@@ -62,6 +187,8 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
 
   @override
   void dispose() {
+    _closeNoticeDebounceTimer?.cancel();
+    _meatStocksSub?.cancel();
     AssignmentService.changeNotifier.removeListener(_onAssignmentsChanged);
     _searchController.dispose();
     super.dispose();
@@ -171,6 +298,11 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
           ));
         }
       }
+
+      // Panatilihing laging nasa unahan ang On Duty cooks bago ang Rest Day
+      final onDuty = _assignments.where((a) => a.workStatus == WorkStatus.onDuty).toList();
+      final restDay = _assignments.where((a) => a.workStatus != WorkStatus.onDuty).toList();
+      _assignments = [...onDuty, ...restDay];
     });
   }
 
@@ -187,7 +319,7 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
         .toList();
     
     // 1. Synchronously read from AssignmentService cache first
-    _assignments = branchCooks.map((s) {
+    final initialList = branchCooks.map((s) {
       final cachedStatus = AssignmentService.getWorkStatus(
         s.username,
         fallback: AssignmentService.getWorkStatus(
@@ -219,6 +351,10 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
         workStatus: cachedStatus,
       );
     }).toList();
+
+    final onDuty = initialList.where((a) => a.workStatus == WorkStatus.onDuty).toList();
+    final restDay = initialList.where((a) => a.workStatus != WorkStatus.onDuty).toList();
+    _assignments = [...onDuty, ...restDay];
 
     // 2. Refresh from Supabase and Firestore cloud
     try {
@@ -280,8 +416,18 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
     if (a.workStatus == status) return;
     final updated = a.copyWith(workStatus: status);
     setState(() {
-      _assignments[originalIndex] = updated;
       _draftChanges[a.employeeId] = updated;
+      _assignments.removeAt(originalIndex);
+
+      if (status == WorkStatus.onDuty) {
+        // Plato stack / FILO logic: Ang pinakahuling in-on duty ay laging nasa pinakataas (index 0)
+        _assignments.insert(0, updated);
+      } else {
+        // Rest Day: Inilalagay sa ilalim / dulo pagkatapos ng mga on-duty cooks
+        _assignments.add(updated);
+      }
+      // NOTE: _currentPage is intentionally NOT reset here so the owner
+      // can continue setting multiple cooks across pages without jumping back to page 1.
     });
   }
 
@@ -296,6 +442,7 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
   }
 
   Future<void> _saveAll() async {
+    if (_isSaving) return;
     if (_savedToday) {
       showDialog(
         context: context,
@@ -384,6 +531,49 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
       return;
     }
 
+    // Check if any ON DUTY cook is assigned to a CLOSED branch
+    final closedAssignments = onDutyList
+        .where((a) => _isBranchClosed(a.branchId, a.branchName))
+        .toList();
+    if (closedAssignments.isNotEmpty) {
+      final closedDetails = closedAssignments
+          .map((a) => '• ${a.employeeName} → ${a.branchName} (SARADO / CLOSED)')
+          .join('\n');
+      if (!mounted) return;
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          title: const Row(
+            children: [
+              Icon(Icons.lock_rounded, color: Color(0xFFDC2626), size: 24),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text('Cannot Assign to Closed Branch', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+              ),
+            ],
+          ),
+          content: Text(
+            'Cannot save assignments because the following cooks are set to ON DUTY but their assigned branch is currently CLOSED in Inventory:\n\n'
+            '$closedDetails\n\n'
+            'Please open the branch in Inventory (Branch Allocation) or set these cooks to Rest Day / assign to an open branch before saving.',
+            style: const TextStyle(fontSize: 13, height: 1.4),
+          ),
+          actions: [
+            ElevatedButton(
+              onPressed: () => Navigator.pop(ctx),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AdminWebColors.accent,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('OK, I WILL FIX THIS'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
     // Show confirmation dialog
     final onDutyCount = _assignments.where((a) => a.workStatus == WorkStatus.onDuty).length;
     final restDayCount = _assignments.where((a) => a.workStatus == WorkStatus.restDay).length;
@@ -428,70 +618,95 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
 
     if (confirmed != true || !mounted) return;
 
-    // Commit all draft changes to AssignmentService + cloud
-    final allStaff = SupabaseService.getAllStaff();
-    for (final a in _assignments) {
-      final bNameClean = a.branchName.trim().toLowerCase();
-      final hasRealBranch = bNameClean.isNotEmpty && bNameClean != 'n/a' && bNameClean != 'unassigned';
-      if (!hasRealBranch && a.workStatus != WorkStatus.restDay) continue;
+    setState(() => _isSaving = true);
+    SystemBusyCoordinator.setBusy(true);
 
-      final staff = _findStaff(allStaff, a.employeeId, a.employeeName);
-      final username = (staff != null && staff.username.isNotEmpty) ? staff.username : a.employeeId;
+    try {
+      // Commit all draft changes to AssignmentService + cloud
+      final allStaff = SupabaseService.getAllStaff();
+      for (final a in _assignments) {
+        final bNameClean = a.branchName.trim().toLowerCase();
+        final hasRealBranch = bNameClean.isNotEmpty && bNameClean != 'n/a' && bNameClean != 'unassigned';
+        if (!hasRealBranch && a.workStatus != WorkStatus.restDay) continue;
 
-      // NOW write to AssignmentService cache + cloud
-      AssignmentService.lockStatus(
-        username: username,
-        employeeId: a.employeeId,
-        status: a.workStatus,
-        branchName: a.branchName,
-      );
-      if (hasRealBranch) {
-        AssignmentService.lockBranch(
+        final staff = _findStaff(allStaff, a.employeeId, a.employeeName);
+        final username = (staff != null && staff.username.isNotEmpty) ? staff.username : a.employeeId;
+
+        // NOW write to AssignmentService cache + cloud
+        AssignmentService.lockStatus(
           username: username,
           employeeId: a.employeeId,
+          status: a.workStatus,
           branchName: a.branchName,
         );
+        if (hasRealBranch) {
+          AssignmentService.lockBranch(
+            username: username,
+            employeeId: a.employeeId,
+            branchName: a.branchName,
+          );
+        }
+        await AssignmentService.setAssignment(
+          username: username,
+          employeeId: a.employeeId,
+          employeeName: a.employeeName,
+          branchId: a.branchId,
+          branchName: hasRealBranch ? a.branchName : '',
+          status: a.workStatus,
+        );
       }
-      await AssignmentService.setAssignment(
-        username: username,
-        employeeId: a.employeeId,
-        employeeName: a.employeeName,
-        branchId: a.branchId,
-        branchName: hasRealBranch ? a.branchName : '',
-        status: a.workStatus,
+
+      // Mark as saved today
+      final prefs = await SharedPreferences.getInstance();
+      final todayStr = '${_today.year}-${_today.month.toString().padLeft(2, '0')}-${_today.day.toString().padLeft(2, '0')}';
+      await prefs.setString('assignment_saved_date', todayStr);
+      _draftChanges.clear();
+
+      if (!mounted) return;
+      setState(() => _savedToday = true);
+
+      ScaffoldMessenger.of(context).clearSnackBars();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Row(
+            children: [
+              Icon(Icons.check_circle_rounded, color: Colors.white, size: 20),
+              SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Branch assignments saved successfully! Staff can now log in.',
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
+              ),
+            ],
+          ),
+          backgroundColor: Color(0xFF059669),
+        ),
       );
+
+      final adminName = AuthService.currentAppUser?.fullName ?? 'Admin';
+      FirestoreService.logActivity(
+        actor: adminName,
+        role: 'Admin',
+        action: 'Saved branch assignments for ${_today.day}/${_today.month}/${_today.year}',
+        detail: '$onDutyCount on duty, $restDayCount rest day',
+        type: 'Staff',
+      ).catchError((_) {});
+    } finally {
+      SystemBusyCoordinator.setBusy(false);
+      if (mounted) setState(() => _isSaving = false);
     }
-
-    // Mark as saved today
-    final prefs = await SharedPreferences.getInstance();
-    final todayStr = '${_today.year}-${_today.month.toString().padLeft(2, '0')}-${_today.day.toString().padLeft(2, '0')}';
-    await prefs.setString('assignment_saved_date', todayStr);
-    _draftChanges.clear();
-
-    if (!mounted) return;
-    setState(() => _savedToday = true);
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('✅ Branch assignments saved successfully! Staff can now log in.'),
-        backgroundColor: Color(0xFF059669),
-      ),
-    );
-
-    final adminName = AuthService.currentAppUser?.fullName ?? 'Admin';
-    FirestoreService.logActivity(
-      actor: adminName,
-      role: 'Admin',
-      action: 'Saved branch assignments for ${_today.day}/${_today.month}/${_today.year}',
-      detail: '$onDutyCount on duty, $restDayCount rest day',
-      type: 'Staff',
-    ).catchError((_) {});
   }
 
   List<BranchAssignment> get _filteredAssignments {
-    if (_query.trim().isEmpty) return _assignments;
-    final q = _query.toLowerCase().trim();
-    return _assignments.where((a) => a.employeeName.toLowerCase().contains(q)).toList();
+    var list = _assignments;
+    if (_query.trim().isNotEmpty) {
+      final q = _query.toLowerCase().trim();
+      list = list.where((a) => a.employeeName.toLowerCase().contains(q)).toList();
+    }
+    final onDuty = list.where((a) => a.workStatus == WorkStatus.onDuty).toList();
+    final restDay = list.where((a) => a.workStatus != WorkStatus.onDuty).toList();
+    return [...onDuty, ...restDay];
   }
 
   String _formatToday() {
@@ -503,7 +718,11 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
   Widget build(BuildContext context) {
     final list = _filteredAssignments;
 
-    return Container(
+    return AbsorbPointer(
+      absorbing: _isSaving,
+      child: Stack(
+        children: [
+          Container(
       color: AdminWebColors.background,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -550,7 +769,7 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
                   );
 
                   final restDayAllBtn = OutlinedButton.icon(
-                    onPressed: _savedToday ? null : _setRestDayAll,
+                    onPressed: (_savedToday || _isSaving) ? null : _setRestDayAll,
                     icon: const Icon(Icons.hotel_rounded, size: 16),
                     label: const Text(
                       'REST DAY ALL',
@@ -559,7 +778,7 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
                     style: OutlinedButton.styleFrom(
                       foregroundColor: const Color(0xFFDC2626),
                       side: BorderSide(
-                        color: _savedToday ? const Color(0xFFCBD5E1) : const Color(0xFFDC2626),
+                        color: (_savedToday || _isSaving) ? const Color(0xFFCBD5E1) : const Color(0xFFDC2626),
                       ),
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -567,21 +786,32 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
                   );
 
                   final saveBtn = ElevatedButton.icon(
-                    onPressed: _savedToday ? null : _saveAll,
-                    icon: Icon(
-                      _savedToday ? Icons.lock_rounded : Icons.save_rounded,
-                      size: 16,
-                      color: Colors.white,
-                    ),
+                    onPressed: (_savedToday || _isSaving) ? null : _saveAll,
+                    icon: _isSaving
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : Icon(
+                            _savedToday ? Icons.lock_rounded : Icons.save_rounded,
+                            size: 16,
+                            color: Colors.white,
+                          ),
                     label: Text(
-                      _savedToday ? 'SAVED FOR TODAY' : 'SAVE ASSIGNMENTS',
+                      _isSaving
+                          ? 'SAVING...'
+                          : (_savedToday ? 'SAVED FOR TODAY' : 'SAVE ASSIGNMENTS'),
                       style: const TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 13,
                       ),
                     ),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: _savedToday ? const Color(0xFF94A3B8) : AdminWebColors.accent,
+                      backgroundColor: (_savedToday || _isSaving) ? const Color(0xFF94A3B8) : AdminWebColors.accent,
                       foregroundColor: Colors.white,
                       elevation: 0,
                       padding: const EdgeInsets.symmetric(
@@ -684,8 +914,66 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
                   borderColor: const Color(0xFFFECACA),
                   icon: Icons.hotel_rounded,
                 ),
+                if (_branchMeatStocks.isNotEmpty) ...[
+                  _buildKpiChip(
+                    label: 'OPEN BRANCHES',
+                    count: _openBranchesCount,
+                    color: const Color(0xFF059669),
+                    bgColor: const Color(0xFFECFDF5),
+                    borderColor: const Color(0xFFA7F3D0),
+                    icon: Icons.storefront_rounded,
+                  ),
+                  if (_closedBranchesCount > 0)
+                    _buildKpiChip(
+                      label: 'CLOSED BRANCHES',
+                      count: _closedBranchesCount,
+                      color: const Color(0xFFDC2626),
+                      bgColor: const Color(0xFFFEF2F2),
+                      borderColor: const Color(0xFFFECACA),
+                      icon: Icons.lock_rounded,
+                    ),
+                ],
               ],
             ),
+
+            if (_areAllBranchesClosed) ...[
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFEF2F2),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFFECACA)),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.lock_rounded, color: Color(0xFFDC2626), size: 24),
+                    SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'ALL BRANCHES ARE CURRENTLY CLOSED IN INVENTORY',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w800,
+                              fontSize: 13,
+                              color: Color(0xFF991B1B),
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                          SizedBox(height: 2),
+                          Text(
+                            'Lahat ng branch ay sarado at may 0 stock allocation. Hindi maaaring mag-assign ng ON DUTY cooks sa mga saradong branch hangga\'t hindi ito binubuksan sa Inventory tab gamit ang "OPEN" o "OPEN ALL".',
+                            style: TextStyle(fontSize: 12, color: Color(0xFFB91C1C), height: 1.3),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
 
             const SizedBox(height: 20),
 
@@ -709,12 +997,13 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
                                 final a = list[(safePage * _pageSize) + index];
                                 return LayoutBuilder(
                                   builder: (context, constraints) {
-                                    final isWide = constraints.maxWidth >= 700;
+                                    final isWide = constraints.maxWidth >= 850;
                                     return _AssignmentCard(
                                       key: ValueKey('card-${a.employeeId}-${a.employeeName}'),
                                       assignment: a,
                                       allAssignments: _assignments,
                                       branches: _availableBranches,
+                                      isBranchClosed: _isBranchClosed,
                                       isWide: isWide,
                                       onBranchChanged: (branch) => _updateBranch(a, branch),
                                       onStatusChanged: (status) => _updateStatus(a, status),
@@ -738,6 +1027,43 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
             const SizedBox(height: 24),
           ],
         ),
+      ),
+          ),
+          if (_isSaving)
+            Positioned.fill(
+              child: Container(
+                color: Colors.black.withValues(alpha: 0.25),
+                child: Center(
+                  child: Material(
+                    elevation: 6,
+                    borderRadius: BorderRadius.circular(12),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2.5, color: AdminWebColors.accent),
+                          ),
+                          SizedBox(width: 14),
+                          Text(
+                            'Saving assignments... Please wait...',
+                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AdminWebColors.textPrimary),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -794,6 +1120,7 @@ class _AssignmentCard extends StatelessWidget {
     required this.assignment,
     required this.allAssignments,
     required this.branches,
+    required this.isBranchClosed,
     required this.isWide,
     required this.onBranchChanged,
     required this.onStatusChanged,
@@ -802,6 +1129,7 @@ class _AssignmentCard extends StatelessWidget {
   final BranchAssignment assignment;
   final List<BranchAssignment> allAssignments;
   final List<Branch> branches;
+  final bool Function(String branchId, String branchName) isBranchClosed;
   final bool isWide;
   final ValueChanged<Branch> onBranchChanged;
   final ValueChanged<WorkStatus> onStatusChanged;
@@ -867,6 +1195,8 @@ class _AssignmentCard extends StatelessWidget {
 
     final matchedStaff = _findStaff(SupabaseService.getAllStaff(), assignment.employeeId, assignment.employeeName);
     final photoUrl = matchedStaff?.photoUrl ?? '';
+    final isUnassigned = assignment.branchId == 'unassigned' || assignment.branchName == 'N/A';
+    final isCurrentBranchClosed = isBranchClosed(assignment.branchId, assignment.branchName);
 
     Widget avatarChild;
     if (photoUrl.isNotEmpty) {
@@ -963,7 +1293,7 @@ class _AssignmentCard extends StatelessWidget {
                   ],
                 ),
               ),
-              if (assignment.branchName == 'N/A' || assignment.branchId == 'unassigned') ...[
+              if (isUnassigned) ...[
                 const SizedBox(height: 6),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -977,12 +1307,46 @@ class _AssignmentCard extends StatelessWidget {
                     children: [
                       Icon(Icons.warning_amber_rounded, size: 13, color: Color(0xFFDC2626)),
                       SizedBox(width: 4),
-                      Text(
-                        'N/A: Select a branch below',
-                        style: TextStyle(
-                          fontSize: 10.5,
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFFDC2626),
+                      Flexible(
+                        child: Text(
+                          'N/A: Select a branch below',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFFDC2626),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+              if (isOnDuty && isCurrentBranchClosed && !isUnassigned) ...[
+                const SizedBox(height: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFEF2F2),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: const Color(0xFFFECACA)),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.lock_rounded, size: 13, color: Color(0xFFDC2626)),
+                      SizedBox(width: 4),
+                      Flexible(
+                        child: Text(
+                          'BRANCH CLOSED: Reassign or set Rest Day',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFFDC2626),
+                          ),
                         ),
                       ),
                     ],
@@ -1003,12 +1367,16 @@ class _AssignmentCard extends StatelessWidget {
                     children: [
                       const Icon(Icons.warning_amber_rounded, size: 13, color: Color(0xFFDC2626)),
                       const SizedBox(width: 4),
-                      Text(
-                        'Conflict: ${conflictingOnDutyCook.employeeName.split(" ").first} is also On Duty!',
-                        style: const TextStyle(
-                          fontSize: 10.5,
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFFDC2626),
+                      Flexible(
+                        child: Text(
+                          'Conflict: ${conflictingOnDutyCook.employeeName.split(" ").first} is also On Duty!',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFFDC2626),
+                          ),
                         ),
                       ),
                     ],
@@ -1021,7 +1389,6 @@ class _AssignmentCard extends StatelessWidget {
       ],
     );
 
-    final isUnassigned = assignment.branchId == 'unassigned' || assignment.branchName == 'N/A';
     final branchDropdown = DropdownButtonFormField<String>(
       key: ValueKey('dd-${assignment.employeeId}-${assignment.branchId}-${assignment.workStatus.name}'),
       initialValue: isUnassigned
@@ -1068,6 +1435,7 @@ class _AssignmentCard extends StatelessWidget {
             ),
           ),
         ...branches.map((b) {
+          final isBranchClosedItem = isBranchClosed(b.id, b.fullName);
           BranchAssignment? occupiedCook;
           for (final other in allAssignments) {
             final samePerson = other.employeeId == assignment.employeeId ||
@@ -1083,11 +1451,51 @@ class _AssignmentCard extends StatelessWidget {
           final isOccupied = occupiedCook != null;
           final isCurrent = b.id == assignment.branchId;
 
-          // If cook is ON DUTY, branches occupied by other ON DUTY cooks are disabled
-          final isSelectable = !isOnDuty || !isOccupied || isCurrent;
+          // If cook is ON DUTY, branches that are CLOSED or occupied by other ON DUTY cooks cannot be selected
+          final isSelectable = !isOnDuty || (!isBranchClosedItem && (!isOccupied || isCurrent));
 
           Widget itemChild;
-          if (isOnDuty && isOccupied && !isCurrent) {
+          if (isBranchClosedItem) {
+            itemChild = Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    '${b.fullName.toUpperCase()} — (CLOSED / SARADO)',
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: isCurrent && isOnDuty ? const Color(0xFFDC2626) : const Color(0xFF94A3B8),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFEF2F2),
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(color: const Color(0xFFFECACA)),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.lock_rounded, size: 10, color: Color(0xFFDC2626)),
+                      SizedBox(width: 3),
+                      Text(
+                        'CLOSED',
+                        style: TextStyle(
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFFDC2626),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            );
+          } else if (isOnDuty && isOccupied && !isCurrent) {
             itemChild = Text(
               '${b.fullName.toUpperCase()} — (Occupied: ${occupiedCook.employeeName.split(" ").first})',
               overflow: TextOverflow.ellipsis,
@@ -1150,7 +1558,28 @@ class _AssignmentCard extends StatelessWidget {
           Material(
             color: Colors.transparent,
             child: InkWell(
-              onTap: () => onStatusChanged(WorkStatus.onDuty),
+              onTap: () {
+                if (isCurrentBranchClosed && !isUnassigned) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Row(
+                        children: [
+                          const Icon(Icons.lock_rounded, color: Colors.white, size: 18),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Paalala: Naka-CLOSE ang ${assignment.branchName} sa Inventory. Pumili ng bukas na branch bago mag-save.',
+                            ),
+                          ),
+                        ],
+                      ),
+                      backgroundColor: const Color(0xFFDC2626),
+                      duration: const Duration(seconds: 4),
+                    ),
+                  );
+                }
+                onStatusChanged(WorkStatus.onDuty);
+              },
               borderRadius: BorderRadius.circular(8),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 180),
@@ -1243,16 +1672,18 @@ class _AssignmentCard extends StatelessWidget {
       ),
     );
 
+    final bool hasErrorBorder = conflictingOnDutyCook != null || (isOnDuty && isCurrentBranchClosed && !isUnassigned);
+
     return GlassCard(
       padding: const EdgeInsets.all(16),
-      borderColor: conflictingOnDutyCook != null ? const Color(0xFFFCA5A5) : null,
+      borderColor: hasErrorBorder ? const Color(0xFFFCA5A5) : null,
       child: isWide
           ? Row(
               children: [
-                Expanded(flex: 3, child: avatarAndName),
-                const SizedBox(width: 24),
-                Expanded(flex: 4, child: branchDropdown),
-                const SizedBox(width: 24),
+                Expanded(flex: 5, child: avatarAndName),
+                const SizedBox(width: 16),
+                Expanded(flex: 5, child: branchDropdown),
+                const SizedBox(width: 16),
                 statusToggle,
               ],
             )

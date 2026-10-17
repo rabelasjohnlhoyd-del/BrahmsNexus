@@ -486,191 +486,6 @@ class _MonthlyFinancialsScreenState extends State<MonthlyFinancialsScreen> {
     );
   }
 
-  void _editProductionLaborSettings() {
-    final sessionsCtrl =
-        TextEditingController(text: _period.productionCookingSessions.toString());
-    final cookRateCtrl =
-        TextEditingController(text: _period.productionCookDailyRate.toStringAsFixed(0));
-    final cutterRateCtrl =
-        TextEditingController(text: _period.productionCutterDailyRate.toStringAsFixed(0));
-
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Edit Production Staff Labor'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: sessionsCtrl,
-              decoration: const InputDecoration(
-                labelText: 'Total Cooking Sessions',
-                helperText: 'Also pulled from Warehouse cooking sessions',
-              ),
-              keyboardType: TextInputType.number,
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: cookRateCtrl,
-              decoration: const InputDecoration(
-                labelText: 'Production Cook Daily Rate (₱)',
-                prefixText: '₱ ',
-              ),
-              keyboardType: TextInputType.number,
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: cutterRateCtrl,
-              decoration: const InputDecoration(
-                labelText: 'Production Cutter Daily Rate (₱)',
-                prefixText: '₱ ',
-              ),
-              keyboardType: TextInputType.number,
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('CANCEL'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              setState(() {
-                _period = _period.copyWith(
-                  productionCookingSessions:
-                      int.tryParse(sessionsCtrl.text) ?? _period.productionCookingSessions,
-                  productionCookDailyRate:
-                      double.tryParse(cookRateCtrl.text) ?? _period.productionCookDailyRate,
-                  productionCutterDailyRate:
-                      double.tryParse(cutterRateCtrl.text) ?? _period.productionCutterDailyRate,
-                );
-              });
-              Navigator.pop(ctx);
-              _persistPeriod();
-            },
-            child: const Text('UPDATE'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _editDriverLaborSettings() {
-    final daysCtrl =
-        TextEditingController(text: _period.driverWorkingDays.toString());
-    final rateCtrl =
-        TextEditingController(text: _period.driverDailyWage.toStringAsFixed(0));
-
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Edit Driver Labor'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'The driver daily rate is ₱650. If the driver was absent and the owner drove instead, deduct those days here.',
-              style: TextStyle(fontSize: 12, color: AdminWebColors.textSecondary),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: daysCtrl,
-              decoration: const InputDecoration(
-                labelText: 'Driver Working Days',
-                helperText: 'Default 25 days (or actual days on duty)',
-              ),
-              keyboardType: TextInputType.number,
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: rateCtrl,
-              decoration: const InputDecoration(
-                labelText: 'Daily Rate (₱)',
-                prefixText: '₱ ',
-              ),
-              keyboardType: TextInputType.number,
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('CANCEL'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              setState(() {
-                _period = _period.copyWith(
-                  driverWorkingDays:
-                      int.tryParse(daysCtrl.text) ?? _period.driverWorkingDays,
-                  driverDailyWage:
-                      double.tryParse(rateCtrl.text) ?? _period.driverDailyWage,
-                );
-              });
-              Navigator.pop(ctx);
-              _persistPeriod();
-            },
-            child: const Text('UPDATE'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _editBranchCookLaborSettings() {
-    final laborCtrl = TextEditingController(
-      text: _period.effectiveBranchCookLabor.toStringAsFixed(0),
-    );
-
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Edit Branch Cook Labor Total'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Total Branch Cook labor across all 6 stores. Automatically calculated from sales, but you can override or adjust this amount manually.',
-              style: TextStyle(fontSize: 12, color: AdminWebColors.textSecondary),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: laborCtrl,
-              decoration: const InputDecoration(
-                labelText: 'Branch Cook Labor Total (₱)',
-                prefixText: '₱ ',
-                helperText: 'Total wages across all stores for this batch / month',
-              ),
-              keyboardType: TextInputType.number,
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('CANCEL'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              final newWage = double.tryParse(laborCtrl.text);
-              if (newWage != null) {
-                setState(() {
-                  _actualBranchCookWages = newWage;
-                  _period = _period.copyWith(branchCookLaborTotal: newWage);
-                });
-                Navigator.pop(ctx);
-                _persistPeriod();
-              }
-            },
-            child: const Text('UPDATE'),
-          ),
-        ],
-      ),
-    );
-  }
 
   void _editDaddyNetSettings() {
     final daysCtrl =
@@ -1727,32 +1542,29 @@ class _MonthlyFinancialsScreenState extends State<MonthlyFinancialsScreen> {
           const SizedBox(height: 18),
 
           // 1. Production Labor
-          _overheadRowWithAction(
+          _overheadRowNoAction(
             label: 'Production Labor (Cook & Meat Cutter)',
             val: '₱${_period.totalProductionLaborCost.toStringAsFixed(0)}',
             sub:
                 '${_period.productionCookingSessions} Cooking Sessions × (₱${_period.productionCookDailyRate.toStringAsFixed(0)} Cook + ₱${_period.productionCutterDailyRate.toStringAsFixed(0)} Cutter)',
-            onEdit: _editProductionLaborSettings,
           ),
           const Divider(height: 28),
 
-          // 2. Branch Cook Labor (Automated from Sales & Payroll, with manual override)
-          _overheadRowWithAction(
+          // 2. Branch Cook Labor (Automated from Sales & Payroll)
+          _overheadRowNoAction(
             label: 'Branch Cooks Labor (6 Stores)',
             val: '₱${_period.effectiveBranchCookLabor.toStringAsFixed(0)}',
             sub:
-                'Synced from Branch Cook sales or warehouse batch. Tap pencil to override.',
-            onEdit: _editBranchCookLaborSettings,
+                'Synced automatically from Branch Cook attendance & sales (No wage when absent).',
           ),
           const Divider(height: 28),
 
           // 3. Driver Labor
-          _overheadRowWithAction(
+          _overheadRowNoAction(
             label: 'Driver Labor (Driver Wages)',
             val: '₱${_period.totalDriverLaborCost.toStringAsFixed(0)}',
             sub:
-                '${_period.driverWorkingDays} Days × ₱${_period.driverDailyWage.toStringAsFixed(0)} daily rate (Edit if absent)',
-            onEdit: _editDriverLaborSettings,
+                '${_period.driverWorkingDays} Days × ₱${_period.driverDailyWage.toStringAsFixed(0)} daily rate (Absent days have no wage)',
           ),
           const Divider(height: 28),
 
@@ -1881,6 +1693,44 @@ class _MonthlyFinancialsScreenState extends State<MonthlyFinancialsScreen> {
               tooltip: 'Edit',
             ),
           ],
+        ),
+      ],
+    );
+  }
+
+  Widget _overheadRowNoAction({
+    required String label,
+    required String val,
+    required String sub,
+  }) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5),
+              ),
+              Text(
+                sub,
+                style: const TextStyle(
+                  fontSize: 11,
+                  color: AdminWebColors.textSecondary,
+                ),
+              ),
+            ],
+          ),
+        ),
+        Text(
+          val,
+          style: const TextStyle(
+            fontWeight: FontWeight.w900,
+            fontSize: 16,
+            color: AdminWebColors.textPrimary,
+          ),
         ),
       ],
     );

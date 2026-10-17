@@ -279,7 +279,15 @@ Payment:     ${order.paymentMethod.label} (${order.remainingBalance <= 0 ? 'PAID
             Clipboard.setData(ClipboardData(text: ticketSummary));
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
-                content: Text('📋 Na-copy ang Ticket Text! Handa nang i-print sa POS o idikit sa resibo.'),
+                content: Row(
+                  children: [
+                    Icon(Icons.check_circle_rounded, color: Colors.white, size: 18),
+                    SizedBox(width: 10),
+                    Expanded(
+                      child: Text('Na-copy ang Ticket Text! Handa nang i-print sa POS o idikit sa resibo.'),
+                    ),
+                  ],
+                ),
                 duration: Duration(seconds: 3),
               ),
             );

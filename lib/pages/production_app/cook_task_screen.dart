@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import '../../models/inventory_batch.dart';
 import '../../services/auth_service.dart';
 import '../../services/firestore_service.dart';
+import '../../services/system_busy_coordinator.dart';
 import '../../services/tutorial_service.dart';
 import '../../services/weather_service.dart';
 import '../../theme/app_theme.dart';
@@ -201,6 +202,7 @@ class CookTaskScreenState extends State<CookTaskScreen> {
               Navigator.pop(dialogCtx);
               if (!mounted || _isConfirmingCook) return;
               setState(() => _isConfirmingCook = true);
+              SystemBusyCoordinator.setBusy(true);
               try {
                 final user = AuthService.currentUser;
                 final empName = user?.fullName.isNotEmpty == true ? user!.fullName : AuthService.currentUsername;
@@ -233,6 +235,7 @@ class CookTaskScreenState extends State<CookTaskScreen> {
                   }
                 }
               } finally {
+                SystemBusyCoordinator.setBusy(false);
                 if (mounted) setState(() => _isConfirmingCook = false);
               }
             },
@@ -263,7 +266,11 @@ class CookTaskScreenState extends State<CookTaskScreen> {
         title: 'Home',
         trailing: StaffTopActions(),
       ),
-      child: SafeArea(
+      child: AbsorbPointer(
+        absorbing: _isConfirmingCook,
+        child: Stack(
+          children: [
+            SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
@@ -565,8 +572,37 @@ class CookTaskScreenState extends State<CookTaskScreen> {
           ],
         ),
       ),
-    );
-  }
+      if (_isConfirmingCook)
+        Positioned.fill(
+          child: Container(
+            color: CupertinoColors.black.withValues(alpha: 0.25),
+            child: Center(
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                decoration: BoxDecoration(
+                  color: CupertinoColors.white,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    CupertinoActivityIndicator(),
+                    SizedBox(width: 12),
+                    Text(
+                      'Confirming cooking... Please wait...',
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.textPrimary),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+    ],
+  ),
+),
+);
+}
 
   Widget _weatherWidget() {
     return StaffCard(

@@ -16,6 +16,7 @@ import '../../services/auth_service.dart';
 import '../../services/firestore_service.dart';
 import '../../services/notification_service.dart';
 import '../../services/supabase_service.dart';
+import '../../services/system_busy_coordinator.dart';
 import '../../theme/app_theme.dart';
 import '../../services/input_validators.dart';
 import '../auth/mock_accounts.dart';
@@ -96,6 +97,7 @@ class SalesScreenState extends State<SalesScreen> {
   // ── Rate Limiting & Debounce ─────────────────────────────────────────────
   bool _isPunching = false;
   bool _isUndoing = false;
+  bool _isSubmittingSales = false;
   int _spoilageReportsThisShift = 0;
   static const int _maxSpoilagePerShift = 5;
 
@@ -864,7 +866,7 @@ class SalesScreenState extends State<SalesScreen> {
     }
 
     NotificationService.sendNotification(
-      title: '⚠️ Spoilage / Wastage Report — $_currentBranchName',
+      title: 'Spoilage / Wastage Report — $_currentBranchName',
       message: '${AuthService.currentUsername} reported $qty x $item spoiled/wasted.\nReason: "$reason" (Wage penalty: ₱${penalty.toStringAsFixed(0)})',
       type: NotificationType.salesReport,
       targetRole: 'owner',
@@ -928,23 +930,19 @@ class SalesScreenState extends State<SalesScreen> {
     );
   }
 
+  bool _isSameDay(DateTime a, DateTime b) =>
+      a.year == b.year && a.month == b.month && a.day == b.day;
+
   bool get _isInventoryVerified {
-    if (_todayInventory != null) {
-      return _todayInventory!.status != InventoryVerificationStatus.pending;
-    }
-    if (_branchMeatStock != null) {
-      final isNotDefault = _branchMeatStock!.regular250gTotal != 20 ||
-          _branchMeatStock!.medium300gTotal != 10 ||
-          _branchMeatStock!.b1t1_400gTotal != 10 ||
-          _branchMeatStock!.mayoTotal != 40 ||
-          _branchMeatStock!.styroTotal != 40 ||
-          _branchMeatStock!.toyoTotal != 10;
-      if (isNotDefault) return true;
+    if (_todayInventory != null && _isSameDay(_todayInventory!.date, DateTime.now())) {
+      return _todayInventory!.status == InventoryVerificationStatus.confirmed ||
+          _todayInventory!.status == InventoryVerificationStatus.discrepancyReported;
     }
     return false;
   }
 
   Future<void> _confirmSubmit() async {
+    if (_isSubmittingSales) return;
     if (!_isInventoryVerified) {
       showCupertinoDialog<void>(
         context: context,
@@ -1020,45 +1018,69 @@ class SalesScreenState extends State<SalesScreen> {
   }
 
   Future<void> _submit({String? discrepancyNote}) async {
-    final computation = _computation;
+    if (_isSubmittingSales) return;
+    setState(() => _isSubmittingSales = true);
+    SystemBusyCoordinator.setBusy(true);
 
-    setState(() => _submitted = true);
+    try {
+      final computation = _computation;
+      final record = SalesRecord(
+        id: '',
+        branchId: _currentBranchId,
+        branchName: _currentBranchName,
+        employeeId: AuthService.currentUsername,
+        employeeName: AuthService.currentUser?.fullName ?? AuthService.currentUsername,
+        date: DateTime.now(),
+        portionsSold: computation.totalKarneUsed,
+        totalOrders: computation.totalOrders,
+        commissionRatePerPortion: 5.0,
+        totalSalesAmount: computation.totalRevenue.toDouble(),
+        wage: computation.salary.toDouble(),
+        regularSold: computation.regularSold,
+        mediumSold: computation.mediumSold,
+        b1t1OrdersSold: computation.b1t1OrdersSold,
+        discrepancyNote: discrepancyNote,
+        remainingStock: ActualReceivedCounts(
+          mayo: int.tryParse(_mayoController.text) ?? 0,
+          toyo: int.tryParse(_toyoController.text) ?? 0,
+          styro: int.tryParse(_styroController.text) ?? 0,
+          regular: int.tryParse(_karneController.text) ?? 0,
+          medium: int.tryParse(_mediumController.text) ?? 0,
+          b1t1: int.tryParse(_b1t1Controller.text) ?? 0,
+        ),
+      );
+      final success = await FirestoreService.submitDailySales(record);
 
-    final record = SalesRecord(
-      id: '',
-      branchId: _currentBranchId,
-      branchName: _currentBranchName,
-      employeeId: AuthService.currentUsername,
-      employeeName: AuthService.currentUser?.fullName ?? AuthService.currentUsername,
-      date: DateTime.now(),
-      portionsSold: computation.totalKarneUsed,
-      totalOrders: computation.totalOrders,
-      commissionRatePerPortion: 5.0,
-      totalSalesAmount: computation.totalRevenue.toDouble(),
-      wage: computation.salary.toDouble(),
-      regularSold: computation.regularSold,
-      mediumSold: computation.mediumSold,
-      b1t1OrdersSold: computation.b1t1OrdersSold,
-      discrepancyNote: discrepancyNote,
-      remainingStock: ActualReceivedCounts(
-        mayo: int.tryParse(_mayoController.text) ?? 0,
-        toyo: int.tryParse(_toyoController.text) ?? 0,
-        styro: int.tryParse(_styroController.text) ?? 0,
-        regular: int.tryParse(_karneController.text) ?? 0,
-        medium: int.tryParse(_mediumController.text) ?? 0,
-        b1t1: int.tryParse(_b1t1Controller.text) ?? 0,
-      ),
-    );
-    final success = await FirestoreService.submitDailySales(record);
+      if (!mounted) return;
+      if (!success) {
+        showCupertinoDialog<void>(
+          context: context,
+          builder: (context) => CupertinoAlertDialog(
+            title: const Text('Error Submitting Sales'),
+            content: const Text(
+              'Failed to save sales report to Firestore. Please check your internet connection.',
+            ),
+            actions: [
+              CupertinoDialogAction(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        );
+        return;
+      }
 
-    if (!mounted) return;
-    if (!success) {
+      setState(() => _submitted = true);
+
       showCupertinoDialog<void>(
         context: context,
         builder: (context) => CupertinoAlertDialog(
-          title: const Text('Error Submitting Sales'),
-          content: const Text(
-            'Failed to save sales report to Firestore. Please check your internet connection.',
+          title: const Text('Sales Submitted'),
+          content: Text(
+            'Sales report submitted successfully!\n'
+            'Earned Salary & Commission: ₱${computation.salary}\n'
+            'Expected Cash Remittance: ₱${computation.cashRemit}',
           ),
           actions: [
             CupertinoDialogAction(
@@ -1068,26 +1090,10 @@ class SalesScreenState extends State<SalesScreen> {
           ],
         ),
       );
-      return;
+    } finally {
+      SystemBusyCoordinator.setBusy(false);
+      if (mounted) setState(() => _isSubmittingSales = false);
     }
-
-    showCupertinoDialog<void>(
-      context: context,
-      builder: (context) => CupertinoAlertDialog(
-        title: const Text('Sales Submitted'),
-        content: Text(
-          'Sales report submitted successfully!\n'
-          'Earned Salary & Commission: ₱${computation.salary}\n'
-          'Expected Cash Remittance: ₱${computation.cashRemit}',
-        ),
-        actions: [
-          CupertinoDialogAction(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('OK'),
-          ),
-        ],
-      ),
-    );
   }
 
   Widget _buildPosButton({
@@ -1097,11 +1103,13 @@ class SalesScreenState extends State<SalesScreen> {
     required Color color,
     required VoidCallback onTap,
   }) {
+    final isLocked = !_isInventoryVerified;
+    final effectiveColor = isLocked ? const Color(0xFF94A3B8) : color;
     return Container(
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
+        color: effectiveColor.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withValues(alpha: 0.35), width: 1.2),
+        border: Border.all(color: effectiveColor.withValues(alpha: 0.35), width: 1.2),
       ),
       child: Material(
         color: Colors.transparent,
@@ -1114,8 +1122,8 @@ class SalesScreenState extends State<SalesScreen> {
               children: [
                 Container(
                   padding: const EdgeInsets.all(7),
-                  decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-                  child: Icon(icon, color: Colors.white, size: 16),
+                  decoration: BoxDecoration(color: effectiveColor, shape: BoxShape.circle),
+                  child: Icon(isLocked ? CupertinoIcons.lock_fill : icon, color: Colors.white, size: 16),
                 ),
                 const SizedBox(width: 8),
                 Expanded(
@@ -1127,10 +1135,10 @@ class SalesScreenState extends State<SalesScreen> {
                         label,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w800,
-                          color: AppColors.textPrimary,
+                          color: isLocked ? AppColors.textSecondary : AppColors.textPrimary,
                         ),
                       ),
                       Text(
@@ -1138,7 +1146,7 @@ class SalesScreenState extends State<SalesScreen> {
                         style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w700,
-                          color: color,
+                          color: effectiveColor,
                         ),
                       ),
                     ],
@@ -1156,6 +1164,7 @@ class SalesScreenState extends State<SalesScreen> {
   Widget build(BuildContext context) {
     final computation = _computation;
     final currentStock = _effectiveStock;
+    final isBusy = _isSubmittingSales || _isPunching || _isUndoing;
 
     return CupertinoPageScaffold(
       backgroundColor: AppColors.background,
@@ -1163,7 +1172,11 @@ class SalesScreenState extends State<SalesScreen> {
         title: 'Cook Quick POS',
         trailing: StaffTopActions(),
       ),
-      child: SafeArea(
+      child: AbsorbPointer(
+        absorbing: isBusy,
+        child: Stack(
+          children: [
+            SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
@@ -1214,6 +1227,34 @@ class SalesScreenState extends State<SalesScreen> {
               ],
             ),
             const SizedBox(height: 14),
+
+            if (!_isInventoryVerified) ...[
+              Container(
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFD97706).withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFD97706).withValues(alpha: 0.4)),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(CupertinoIcons.lock_shield_fill, color: Color(0xFFD97706), size: 22),
+                    SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Naka-lock ang Pag-punch: Kailangan munang bilangin at i-verify ang natanggap na stock sa Home tab bago makapag-punch ng benta.',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF92400E),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
 
             // 6 Quick POS Buttons Grid
             LayoutBuilder(
@@ -1506,8 +1547,37 @@ class SalesScreenState extends State<SalesScreen> {
           ],
         ),
       ),
-    );
-  }
+      if (_isSubmittingSales)
+        Positioned.fill(
+          child: Container(
+            color: CupertinoColors.black.withValues(alpha: 0.25),
+            child: Center(
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                decoration: BoxDecoration(
+                  color: CupertinoColors.white,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    CupertinoActivityIndicator(),
+                    SizedBox(width: 12),
+                    Text(
+                      'Submitting sales... Please wait...',
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.textPrimary),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+    ],
+  ),
+),
+);
+}
 
   Widget _stockMeter({
     required String label,

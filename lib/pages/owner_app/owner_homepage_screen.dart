@@ -545,10 +545,10 @@ class _OwnerHomepageScreenState extends State<OwnerHomepageScreen> {
   void _shareSummary() {
     final summary =
         "Brahms Nexus - Today's Summary (${DateTime.now().month}/${DateTime.now().day}/${DateTime.now().year})\n\n"
-        "💰 Total Sales: ₱${_todaysSales.toStringAsFixed(0)}\n"
-        "👨‍🍳 On Duty: $_onDutyCount/${_branchCooks.isNotEmpty ? _branchCooks.length : 6}\n"
-        "📦 Bilao Orders: $_activeBilaoOrdersCount Active\n"
-        "📝 Pending Reports: $_pendingReportsCount\n\n"
+        "Total Sales: ₱${_todaysSales.toStringAsFixed(0)}\n"
+        "On Duty: $_onDutyCount/${_branchCooks.isNotEmpty ? _branchCooks.length : 6}\n"
+        "Bilao Orders: $_activeBilaoOrdersCount Active\n"
+        "Pending Reports: $_pendingReportsCount\n\n"
         "Keep up the good work!";
     SharePlus.instance.share(ShareParams(text: summary));
   }

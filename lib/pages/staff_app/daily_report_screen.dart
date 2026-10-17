@@ -8,6 +8,7 @@ import '../../services/assignment_service.dart';
 import '../../services/auth_service.dart';
 import '../../services/firestore_service.dart';
 import '../../services/rate_limiter.dart';
+import '../../services/system_busy_coordinator.dart';
 import '../../services/tutorial_service.dart';
 import '../../theme/app_theme.dart';
 import '../../services/input_validators.dart';
@@ -213,6 +214,7 @@ class DailyReportScreenState extends State<DailyReportScreen> {
     }
 
     setState(() => _isSubmitting = true);
+    SystemBusyCoordinator.setBusy(true);
 
     final parts = <String>[];
     if (_mayoTorn) parts.add('The mayo we brought got punctured');
@@ -250,16 +252,22 @@ class DailyReportScreenState extends State<DailyReportScreen> {
       status: status,
     );
 
-    final success = await FirestoreService.submitDailyReport(report);
+    bool success = false;
+    try {
+      success = await FirestoreService.submitDailyReport(report);
+    } finally {
+      SystemBusyCoordinator.setBusy(false);
+      if (mounted) {
+        setState(() {
+          _isSubmitting = false;
+          _mayoTorn = false;
+          _gasEmpty = false;
+          _messageController.clear();
+        });
+      }
+    }
 
     if (!mounted) return;
-    setState(() {
-      _isSubmitting = false;
-      _mayoTorn = false;
-      _gasEmpty = false;
-      _messageController.clear();
-    });
-
     showCupertinoDialog<void>(
       context: context,
       builder: (dialogContext) => CupertinoAlertDialog(
@@ -335,7 +343,7 @@ class DailyReportScreenState extends State<DailyReportScreen> {
     showCupertinoDialog<void>(
       context: context,
       builder: (ctx) => CupertinoAlertDialog(
-        title: const Text('🎉 Onboarding Walkthrough Complete!'),
+        title: const Text('Onboarding Walkthrough Complete!'),
         content: const Text(
           'Magaling! Natapos mo ang buong Branch Cook Walkthrough Tutorial!\n\n'
           'Na-master mo na ang:\n'
@@ -410,7 +418,11 @@ class DailyReportScreenState extends State<DailyReportScreen> {
         title: 'Daily Report',
         trailing: StaffTopActions(),
       ),
-      child: SafeArea(
+      child: AbsorbPointer(
+        absorbing: _isSubmitting,
+        child: Stack(
+          children: [
+            SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
@@ -668,8 +680,37 @@ class DailyReportScreenState extends State<DailyReportScreen> {
           ],
         ),
       ),
-    );
-  }
+      if (_isSubmitting)
+        Positioned.fill(
+          child: Container(
+            color: CupertinoColors.black.withValues(alpha: 0.25),
+            child: Center(
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                decoration: BoxDecoration(
+                  color: CupertinoColors.white,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    CupertinoActivityIndicator(),
+                    SizedBox(width: 12),
+                    Text(
+                      'Sending report... Please wait...',
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.textPrimary),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+    ],
+  ),
+),
+);
+}
 
   Widget _checklistTile({
     required IconData icon,
