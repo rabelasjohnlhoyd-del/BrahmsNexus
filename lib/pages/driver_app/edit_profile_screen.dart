@@ -194,7 +194,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       if (mounted) {
         setState(() => _isUploadingPhoto = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to update photo: $e')),
+          SnackBar(content: Text('Unable to update profile photo. Please verify device permissions and try again.')),
         );
       }
     }

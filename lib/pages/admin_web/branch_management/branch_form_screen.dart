@@ -62,6 +62,13 @@ class _BranchFormScreenState extends State<BranchFormScreen> {
   }
 
   @override
+  void deactivate() {
+    final shell = context.findAncestorStateOfType<AdminWebShellState>();
+    shell?.setTitle(null);
+    super.deactivate();
+  }
+
+  @override
   void dispose() {
     _sequenceController.dispose();
     super.dispose();

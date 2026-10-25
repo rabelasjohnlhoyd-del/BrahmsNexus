@@ -1,3 +1,6 @@
+import '../../services/permission_service.dart';
+import '../../services/auth_service.dart';
+import '../../services/fcm_service.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import '../../services/system_busy_coordinator.dart';
@@ -26,6 +29,21 @@ class DriverShell extends StatefulWidget {
 
 class _DriverShellState extends State<DriverShell> {
   CupertinoTabController get tabController => DriverShell.tabController;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        PermissionService.checkAndShowOnboarding(context);
+        final user = AuthService.currentAppUser;
+        if (user != null) {
+          FcmService.syncUserToken(user);
+        }
+      }
+    });
+  }
+
 
   static const _systemBarStyle = SystemUiOverlayStyle(
     statusBarColor: Color(0x00000000),

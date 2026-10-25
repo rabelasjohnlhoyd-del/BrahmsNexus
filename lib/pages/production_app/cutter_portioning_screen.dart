@@ -52,6 +52,41 @@ class CutterPortioningScreenState extends State<CutterPortioningScreen> {
   final _meatLeftController = TextEditingController();
   final _remainingNotesController = TextEditingController();
   bool _showSubmitButton = false;
+  bool _isLocallySubmitted = false;
+
+  KarneSession? get _activeSession {
+    if (_activeBatch == null || _activeBatch!.sessions.isEmpty) return null;
+    final idx = _activeBatch!.sessions.lastIndexWhere(
+      (s) => s.status == 'cutting' || s.status == 'cooked',
+    );
+    if (idx != -1) return _activeBatch!.sessions[idx];
+    return _activeBatch!.sessions.last;
+  }
+
+  bool get _isBatchCompleted {
+    if (_isLocallySubmitted) return true;
+    final b = _activeBatch;
+    if (b == null) return false;
+
+    if (b.cookingStatus == 'completed') return true;
+    if (b.cutterReportedAt != null) return true;
+
+    final session = _activeSession;
+    if (session != null) {
+      if (session.status == 'completed' || session.cutterReportedAt != null) {
+        return true;
+      }
+      if (session.actual400g != null && session.actual400g! > 0) {
+        return true;
+      }
+    }
+
+    if (b.actual400g != null && b.actual400g! > 0) {
+      return true;
+    }
+
+    return false;
+  }
 
   // ── Guided Tour Keys (Live Spotlight) ───────────────────────────
   final GlobalKey _targetChipsKey = GlobalKey();
@@ -92,21 +127,21 @@ class CutterPortioningScreenState extends State<CutterPortioningScreen> {
           final sorted = List<KarneBatch>.from(batches)
             ..sort((a, b) => b.date.compareTo(a.date));
 
+          // Prioritize active batches awaiting cutting/cooked, then most recent completed
           _activeBatch = sorted.firstWhere(
-            (b) => b.cookingStatus == 'cutting' || b.cookingStatus == 'cooked' || b.target400g != null,
-            orElse: () => sorted.isNotEmpty ? sorted.first : KarneBatch(
-              id: 'default',
-              name: 'KARNE BATCH',
-              totalKilos: 150.0,
+            (b) => b.cookingStatus == 'cutting' || b.cookingStatus == 'cooked',
+            orElse: () => sorted.firstWhere(
+              (b) => b.cookingStatus == 'completed' && b.target400g != null,
+              orElse: () => sorted.isNotEmpty ? sorted.first : KarneBatch(
+                id: 'default',
+                name: 'KARNE BATCH',
+                totalKilos: 150.0,
+              ),
             ),
           );
 
           if (_activeBatch != null) {
-            final activeSession = _activeBatch!.sessions.isNotEmpty
-                ? (_activeBatch!.sessions.lastIndexWhere((s) => s.status == 'cutting' || s.status == 'cooked') != -1
-                    ? _activeBatch!.sessions.lastWhere((s) => s.status == 'cutting' || s.status == 'cooked')
-                    : _activeBatch!.sessions.last)
-                : null;
+            final activeSession = _activeSession;
             if (activeSession != null) {
               if (activeSession.target400g != null) _targets['400g'] = activeSession.target400g!;
               if (activeSession.target300g != null) _targets['300g'] = activeSession.target300g!;
@@ -115,6 +150,33 @@ class CutterPortioningScreenState extends State<CutterPortioningScreen> {
               if (_activeBatch!.target250g != null) _targets['250g'] = _activeBatch!.target250g!;
               if (_activeBatch!.target300g != null) _targets['300g'] = _activeBatch!.target300g!;
               if (_activeBatch!.target400g != null) _targets['400g'] = _activeBatch!.target400g!;
+            }
+
+            // Populate controllers with submitted numbers if batch is already completed
+            if (_isBatchCompleted) {
+              final s400 = activeSession?.actual400g ?? _activeBatch?.actual400g;
+              final s300 = activeSession?.actual300g ?? _activeBatch?.actual300g;
+              final s250 = activeSession?.actual250g ?? _activeBatch?.actual250g;
+              final rem = activeSession?.cutterRemainingGrams ?? _activeBatch?.cutterRemainingGrams;
+              final notes = activeSession?.cutterNotes ?? _activeBatch?.cutterNotes;
+
+              if (s400 != null && _controllers['400g']!.text.isEmpty) {
+                _controllers['400g']!.text = s400.toString();
+              }
+              if (s300 != null && _controllers['300g']!.text.isEmpty) {
+                _controllers['300g']!.text = s300.toString();
+              }
+              if (s250 != null && _controllers['250g']!.text.isEmpty) {
+                _controllers['250g']!.text = s250.toString();
+              }
+              if (rem != null && _meatLeftController.text.isEmpty) {
+                _meatLeftController.text = rem.toString();
+              }
+              if (notes != null && notes.isNotEmpty && _remainingNotesController.text.isEmpty) {
+                _remainingNotesController.text = notes;
+              }
+            } else {
+              _isLocallySubmitted = false;
             }
           }
         });
@@ -318,7 +380,16 @@ class CutterPortioningScreenState extends State<CutterPortioningScreen> {
   }
 
   void _submitPortions() {
-    if (_isSubmittingPortions) return;
+        if (_isSubmittingPortions) return;
+    if (_isBatchCompleted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Ang ulat para sa batch na ito ay naisumite na at naka-lock na.'),
+          backgroundColor: AppColors.warning,
+        ),
+      );
+      return;
+    }
     final messenger = ScaffoldMessenger.of(context);
     final batch = _activeBatch;
     final remainingG = int.tryParse(_meatLeftController.text.trim()) ?? 0;
@@ -420,11 +491,7 @@ class CutterPortioningScreenState extends State<CutterPortioningScreen> {
                   );
                   if (ok) {
                     setState(() {
-                      for (var controller in _controllers.values) {
-                        controller.clear();
-                      }
-                      _meatLeftController.clear();
-                      _remainingNotesController.clear();
+                      _isLocallySubmitted = true;
                     });
                   }
                 }
@@ -662,42 +729,71 @@ class CutterPortioningScreenState extends State<CutterPortioningScreen> {
               key: _meatLeftKey,
               padding: const EdgeInsets.all(20),
               highlighted: _meatLeftController.text.trim().isNotEmpty,
-              borderColor: _meatLeftController.text.trim().isNotEmpty ? AppColors.accent : null,
+              borderColor: _isBatchCompleted
+                  ? AppColors.success.withValues(alpha: 0.5)
+                  : (_meatLeftController.text.trim().isNotEmpty ? AppColors.accent : null),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'REMAINING WEIGHT (GRAMS)',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w800,
-                      color: AppColors.textSecondary,
-                      letterSpacing: 0.5,
-                    ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'REMAINING WEIGHT (GRAMS)',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.textSecondary,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                      if (_isBatchCompleted)
+                        const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(CupertinoIcons.lock_fill, size: 13, color: AppColors.success),
+                            SizedBox(width: 4),
+                            Text(
+                              'LOCKED',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w800,
+                                color: AppColors.success,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                          ],
+                        ),
+                    ],
                   ),
                   const SizedBox(height: 16),
                   CupertinoTextField(
                     controller: _meatLeftController,
+                    enabled: !_isBatchCompleted,
+                    readOnly: _isBatchCompleted,
                     placeholder: '0 g',
                     keyboardType: TextInputType.number,
                     inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                     maxLength: 6,
                     onChanged: _onFieldChanged,
                     textAlign: TextAlign.center,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 32,
                       fontWeight: FontWeight.w900,
-                      color: AppColors.accent,
+                      color: _isBatchCompleted ? AppColors.success : AppColors.accent,
                     ),
                     padding: const EdgeInsets.symmetric(
                         horizontal: 16, vertical: 10),
                     decoration: BoxDecoration(
-                      color: AppColors.background,
+                      color: _isBatchCompleted ? const Color(0xFFF0FDF4) : AppColors.background,
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: AppColors.border),
+                      border: Border.all(
+                        color: _isBatchCompleted
+                            ? AppColors.success.withValues(alpha: 0.5)
+                            : AppColors.border,
+                      ),
                     ),
                   ),
-
                 ],
               ),
             ),
@@ -765,6 +861,8 @@ class CutterPortioningScreenState extends State<CutterPortioningScreen> {
                       const SizedBox(height: 12),
                       CupertinoTextField(
                         controller: _remainingNotesController,
+                        enabled: !_isBatchCompleted,
+                        readOnly: _isBatchCompleted,
                         placeholder: 'e.g. Extra raw meat cooked, machine issue, bone density variation...',
                         keyboardType: TextInputType.multiline,
                         maxLines: 4,
@@ -830,62 +928,71 @@ class CutterPortioningScreenState extends State<CutterPortioningScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  if (!_showSubmitButton)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 4),
-                      child: Builder(builder: (context) {
-                        final c400 = int.tryParse(_controllers['400g']!.text.trim());
-                        final c300 = int.tryParse(_controllers['300g']!.text.trim());
-                        final t400 = _targets['400g'] ?? 0;
-                        final t300 = _targets['300g'] ?? 0;
-                        final remainingG = int.tryParse(_meatLeftController.text.trim()) ?? 0;
+                  if (_isBatchCompleted) ...[
+                    _buildSubmittedLockedCard(),
+                    const SizedBox(height: 14),
+                    const StaffButton(
+                      label: 'REPORT ALREADY SUBMITTED (LOCKED)',
+                      onPressed: null,
+                    ),
+                  ] else ...[
+                    if (!_showSubmitButton)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        child: Builder(builder: (context) {
+                          final c400 = int.tryParse(_controllers['400g']!.text.trim());
+                          final c300 = int.tryParse(_controllers['300g']!.text.trim());
+                          final t400 = _targets['400g'] ?? 0;
+                          final t300 = _targets['300g'] ?? 0;
+                          final remainingG = int.tryParse(_meatLeftController.text.trim()) ?? 0;
 
-                        final issues = <String>[];
-                        if (_controllers['400g']!.text.trim().isEmpty ||
-                            _controllers['300g']!.text.trim().isEmpty ||
-                            _controllers['250g']!.text.trim().isEmpty) {
-                          issues.add('Fill in all portioning fields.');
-                        }
-                        if (c400 != null && c400 != t400) {
-                          issues.add('400G: must be exactly $t400 pcs.');
-                        }
-                        if (c300 != null && c300 != t300) {
-                          issues.add('300G: must be exactly $t300 pcs.');
-                        }
-                        if (_meatLeftController.text.trim().isEmpty) {
-                          issues.add('Enter the remaining weight.');
-                        }
-                        if (remainingG > 0) {
-                          final v = InputValidators.validateMessage(
-                            _remainingNotesController.text,
-                            fieldName: 'Report reason',
-                            required: true,
-                            minLength: 10,
-                            maxLength: 300,
-                          );
-                          if (!v.isValid && v.errorMessage != null) {
-                            issues.add(v.errorMessage!);
+                          final issues = <String>[];
+                          if (_controllers['400g']!.text.trim().isEmpty ||
+                              _controllers['300g']!.text.trim().isEmpty ||
+                              _controllers['250g']!.text.trim().isEmpty) {
+                            issues.add('Fill in all portioning fields.');
                           }
-                        }
+                          if (c400 != null && c400 != t400) {
+                            issues.add('400G: must be exactly $t400 pcs.');
+                          }
+                          if (c300 != null && c300 != t300) {
+                            issues.add('300G: must be exactly $t300 pcs.');
+                          }
+                          if (_meatLeftController.text.trim().isEmpty) {
+                            issues.add('Enter the remaining weight.');
+                          }
+                          if (remainingG > 0) {
+                            final v = InputValidators.validateMessage(
+                              _remainingNotesController.text,
+                              fieldName: 'Report reason',
+                              required: true,
+                              minLength: 10,
+                              maxLength: 300,
+                            );
+                            if (!v.isValid && v.errorMessage != null) {
+                              issues.add(v.errorMessage!);
+                            }
+                          }
 
-                        return Text(
-                          issues.isNotEmpty ? issues.join(' ') : 'Complete all fields.',
-                          style: const TextStyle(
-                            fontSize: 11,
-                            color: AppColors.textSecondary,
-                            fontStyle: FontStyle.italic,
-                          ),
-                        );
-                      }),
-                    ),
-                  if (_showSubmitButton)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 24),
-                      child: StaffButton(
-                        label: 'SUBMIT REPORT',
-                        onPressed: _submitPortions,
+                          return Text(
+                            issues.isNotEmpty ? issues.join(' ') : 'Complete all fields.',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: AppColors.textSecondary,
+                              fontStyle: FontStyle.italic,
+                            ),
+                          );
+                        }),
                       ),
-                    ),
+                    if (_showSubmitButton)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 24),
+                        child: StaffButton(
+                          label: 'SUBMIT REPORT',
+                          onPressed: _submitPortions,
+                        ),
+                      ),
+                  ],
                 ],
               ),
             ),
@@ -1041,18 +1148,21 @@ class CutterPortioningScreenState extends State<CutterPortioningScreen> {
     final controller = _controllers[size]!;
     final current = int.tryParse(controller.text.trim());
     final hasInput = controller.text.trim().isNotEmpty;
+    final isLocked = _isBatchCompleted;
 
     final bool isStrict = size == '400g' || size == '300g';
     final bool isExact = hasInput && current == target;
-    final bool isError = isStrict && hasInput && current != target;
-    final bool isDone = isStrict ? isExact : (hasInput && (current ?? 0) > 0);
+    final bool isError = !isLocked && isStrict && hasInput && current != target;
+    final bool isDone = isLocked || (isStrict ? isExact : (hasInput && (current ?? 0) > 0));
 
-    // For 250G: ideal reference = kota - t400 - t300
     final ideal250 = size == '250g' ? _ideal250 : target;
 
     Color borderColor;
     Color textColor;
-    if (isError) {
+    if (isLocked) {
+      borderColor = AppColors.success.withValues(alpha: 0.6);
+      textColor = AppColors.success;
+    } else if (isError) {
       borderColor = AppColors.error;
       textColor = AppColors.error;
     } else if (isDone) {
@@ -1063,43 +1173,55 @@ class CutterPortioningScreenState extends State<CutterPortioningScreen> {
       textColor = AppColors.accent;
     }
 
-    // Max allowed: strict sizes cap at target; 250g caps at ideal250 + 100
     final int maxAllowed = isStrict ? target : (ideal250 + 100);
 
     final String subtitle;
-    if (isStrict) {
+    if (isLocked) {
+      subtitle = 'Submitted: ${current ?? target} pcs • Locked';
+    } else if (isStrict) {
       subtitle = isError
-          ? 'Must be exactly $target pcs — no more, no less'
+          ? 'Must be exactly $target pcs - no more, no less'
           : 'Target: $target pcs (exact)';
     } else {
-      // 250G — show ideal reference and max cap
-      subtitle = 'Ideal: $ideal250 pcs — max: $maxAllowed pcs';
+      subtitle = 'Ideal: $ideal250 pcs - max: $maxAllowed pcs';
     }
 
     return StaffCard(
       key: key,
       padding: const EdgeInsets.all(18),
       highlighted: isDone && !isError,
-      borderColor: isError ? AppColors.error : (isDone ? AppColors.accent : null),
+      borderColor: isLocked
+          ? AppColors.success.withValues(alpha: 0.5)
+          : (isError ? AppColors.error : (isDone ? AppColors.accent : null)),
       child: Row(
         children: [
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  size.toUpperCase(),
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w800,
-                    fontSize: 17,
-                    color: AppColors.textPrimary,
-                  ),
+                Row(
+                  children: [
+                    Text(
+                      size.toUpperCase(),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 17,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    if (isLocked) ...[
+                      const SizedBox(width: 8),
+                      const Icon(CupertinoIcons.lock_fill, size: 14, color: AppColors.success),
+                    ],
+                  ],
                 ),
                 const SizedBox(height: 2),
                 Text(
                   subtitle,
                   style: TextStyle(
-                    color: isError ? AppColors.error : (isDone ? AppColors.success : AppColors.textSecondary),
+                    color: isLocked
+                        ? AppColors.success
+                        : (isError ? AppColors.error : (isDone ? AppColors.success : AppColors.textSecondary)),
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
                   ),
@@ -1112,6 +1234,8 @@ class CutterPortioningScreenState extends State<CutterPortioningScreen> {
             width: 100,
             child: CupertinoTextField(
               controller: controller,
+              enabled: !isLocked,
+              readOnly: isLocked,
               keyboardType: TextInputType.number,
               textAlign: TextAlign.center,
               placeholder: '0',
@@ -1133,7 +1257,7 @@ class CutterPortioningScreenState extends State<CutterPortioningScreen> {
                 color: textColor,
               ),
               decoration: BoxDecoration(
-                color: AppColors.background,
+                color: isLocked ? const Color(0xFFF0FDF4) : AppColors.background,
                 borderRadius: BorderRadius.circular(10),
                 border: Border.all(color: borderColor),
               ),
@@ -1141,6 +1265,145 @@ class CutterPortioningScreenState extends State<CutterPortioningScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildSubmittedLockedCard() {
+    final session = _activeSession;
+    final cutterName = session?.cutterName ?? _activeBatch?.cutterName ?? 'Abby';
+    final reportedAt = session?.cutterReportedAt ?? _activeBatch?.cutterReportedAt;
+
+    final c400 = _controllers['400g']!.text.trim().isNotEmpty
+        ? _controllers['400g']!.text.trim()
+        : (session?.actual400g ?? _activeBatch?.actual400g ?? 0).toString();
+    final c300 = _controllers['300g']!.text.trim().isNotEmpty
+        ? _controllers['300g']!.text.trim()
+        : (session?.actual300g ?? _activeBatch?.actual300g ?? 0).toString();
+    final c250 = _controllers['250g']!.text.trim().isNotEmpty
+        ? _controllers['250g']!.text.trim()
+        : (session?.actual250g ?? _activeBatch?.actual250g ?? 0).toString();
+    final totalPcs = (int.tryParse(c400) ?? 0) + (int.tryParse(c300) ?? 0) + (int.tryParse(c250) ?? 0);
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF0FDF4),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFF86EFAC), width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.success.withValues(alpha: 0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(CupertinoIcons.checkmark_seal_fill, color: AppColors.success, size: 24),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'PORTIONING REPORT SUBMITTED',
+                      style: TextStyle(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w900,
+                        color: Color(0xFF166534),
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Nai-submit na ni $cutterName ${reportedAt != null ? "noong ${DateFormat('MMM d, yyyy • h:mm a').format(reportedAt)}" : "ngayong araw"}.',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Color(0xFF15803D),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: const Color(0xFFBBF7D0)),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _buildSummaryCol('400G', '$c400 pcs'),
+                Container(width: 1, height: 26, color: const Color(0xFFE2E8F0)),
+                _buildSummaryCol('300G', '$c300 pcs'),
+                Container(width: 1, height: 26, color: const Color(0xFFE2E8F0)),
+                _buildSummaryCol('250G', '$c250 pcs'),
+                Container(width: 1, height: 26, color: const Color(0xFFE2E8F0)),
+                _buildSummaryCol('TOTAL', '$totalPcs pcs', highlight: true),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Icon(CupertinoIcons.lock_fill, size: 14, color: Color(0xFF15803D)),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  'Naka-lock na ang record na ito. Kung may maling nailagay, makipag-ugnayan sa Admin o Owner para i-adjust sa Master Inventory.',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: const Color(0xFF166534).withValues(alpha: 0.9),
+                    height: 1.35,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSummaryCol(String label, String value, {bool highlight = false}) {
+    return Column(
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 10,
+            fontWeight: FontWeight.w700,
+            color: Color(0xFF64748B),
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 12.5,
+            fontWeight: FontWeight.w900,
+            color: highlight ? AppColors.accent : const Color(0xFF0F172A),
+          ),
+        ),
+      ],
     );
   }
 

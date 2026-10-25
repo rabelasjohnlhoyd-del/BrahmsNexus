@@ -1,3 +1,4 @@
+import '../../services/permission_service.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import '../../services/system_busy_coordinator.dart';
@@ -33,6 +34,17 @@ class ProductionShell extends StatefulWidget {
 
 class _ProductionShellState extends State<ProductionShell> {
   CupertinoTabController get tabController => ProductionShell.tabController;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        PermissionService.checkAndShowOnboarding(context);
+      }
+    });
+  }
+
 
   static const _systemBarStyle = SystemUiOverlayStyle(
     statusBarColor: Color(0x00000000),

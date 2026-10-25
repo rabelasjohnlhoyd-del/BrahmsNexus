@@ -348,6 +348,143 @@ class _RegisterScreenState extends State<RegisterScreen> {
     return trimmed[0].toUpperCase() + (trimmed.length > 1 ? trimmed.substring(1).toLowerCase() : '');
   }
 
+  // ── Live Real-Time Front-End Validators (onUserInteraction) ───────────────
+  String? _validateLiveName(String? value, String label, {bool required = true}) {
+    if (value == null || value.trim().isEmpty) {
+      return required ? '$label is required.' : null;
+    }
+    final trimmed = value.trim();
+    if (trimmed.length < 2) {
+      return '$label must be at least 2 characters.';
+    }
+    if (trimmed.length > 50) {
+      return '$label must not exceed 50 characters.';
+    }
+    if (value.contains(' ')) {
+      return '$label must not contain spaces in between letters.';
+    }
+    final nameRegex = RegExp(r'^[a-zA-ZñÑáéíóúÁÉÍÓÚ]+$');
+    if (!nameRegex.hasMatch(trimmed)) {
+      return '$label must contain letters only (no numbers or symbols).';
+    }
+    return null;
+  }
+
+  String? _validateLivePhone(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return 'Mobile number is required.';
+    }
+    if (value.contains(' ')) {
+      return 'Mobile number must not contain spaces.';
+    }
+    if (!value.startsWith('09')) {
+      return 'Mobile number must start with 09 (e.g. 09XXXXXXXXX).';
+    }
+    if (value.length < 11) {
+      return 'Mobile number must be 11 digits (${value.length}/11).';
+    }
+    if (value.length > 11 || !RegExp(r'^[0-9]+$').hasMatch(value)) {
+      return 'Mobile number must be exactly 11 numeric digits.';
+    }
+    if (RegExp(r'(.)\1{3,}').hasMatch(value)) {
+      return 'Cannot have more than 3 consecutive identical digits.';
+    }
+    return null;
+  }
+
+  String? _validateLiveStreet(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return 'Street or House No. is required.';
+    }
+    final street = value.trim();
+    if (street.length < 3) {
+      return 'Street address must be at least 3 characters.';
+    }
+    if (street.length > 100) {
+      return 'Street address must not exceed 100 characters.';
+    }
+    if (!RegExp(r"^[a-zA-Z0-9\s.,\-/#']+$").hasMatch(street)) {
+      return 'Street address contains invalid characters.';
+    }
+    if (RegExp(r'^[0-9\s.,\-/#]+$').hasMatch(street) && !RegExp(r'[a-zA-Z]').hasMatch(street)) {
+      return 'Street address cannot be numbers only. Please include a street name.';
+    }
+    return null;
+  }
+
+  String? _validateLiveUsername(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return 'Username is required.';
+    }
+    final username = value.trim().toLowerCase();
+    if (username.length < 5) {
+      return 'Username must be at least 5 characters (${username.length}/5).';
+    }
+    if (username.length > 30) {
+      return 'Username must not exceed 30 characters.';
+    }
+    if (!RegExp(r'^[a-z0-9_.]+$').hasMatch(username)) {
+      return 'Only letters, numbers, underscores (_), and periods (.) allowed.';
+    }
+    if (RegExp(r'^[_.]|[_.]$').hasMatch(username)) {
+      return 'Cannot start or end with underscore or period.';
+    }
+    if (RegExp(r'[_.]{2,}').hasMatch(username)) {
+      return 'Cannot have consecutive periods or underscores.';
+    }
+    return null;
+  }
+
+  String? _validateLiveEmail(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return 'Email address is required.';
+    }
+    final email = value.trim().toLowerCase();
+    final emailRegex = RegExp(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$');
+    if (!emailRegex.hasMatch(email)) {
+      return 'Please enter a valid email address (e.g. name@example.com).';
+    }
+    return null;
+  }
+
+  String? _validateLivePassword(String? value) {
+    if (value == null || value.isEmpty) {
+      return 'Password is required.';
+    }
+    if (value.length < 8) {
+      return 'Password must be at least 8 characters (${value.length}/8).';
+    }
+    if (value.length > 64) {
+      return 'Password must not exceed 64 characters.';
+    }
+    if (value.contains(' ')) {
+      return 'Password must not contain spaces.';
+    }
+    if (!RegExp(r'[A-Z]').hasMatch(value)) {
+      return 'Must contain at least one uppercase letter (A-Z).';
+    }
+    if (!RegExp(r'[a-z]').hasMatch(value)) {
+      return 'Must contain at least one lowercase letter (a-z).';
+    }
+    if (!RegExp(r'[0-9]').hasMatch(value)) {
+      return 'Must contain at least one number (0-9).';
+    }
+    if (!RegExp(r'[!@#\$%^&*(),.?":{}|<>\-_=+\[\]~`/]').hasMatch(value)) {
+      return 'Must contain at least one special character.';
+    }
+    return null;
+  }
+
+  String? _validateLiveConfirmPassword(String? value) {
+    if (value == null || value.isEmpty) {
+      return 'Please confirm your password.';
+    }
+    if (value != _passwordController.text) {
+      return 'Passwords do not match.';
+    }
+    return null;
+  }
+
   void _updateFullAddress() {
     final parts = <String>[];
     final street = _streetController.text.trim();
@@ -1309,6 +1446,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 controller: _firstNameController,
                 textInputAction: TextInputAction.next,
                 style: _fieldTextStyle,
+                autovalidateMode: AutovalidateMode.onUserInteraction,
+                validator: (val) => _validateLiveName(val, 'First name'),
                 decoration: _fieldDecoration(
                   label: 'First Name',
                   hint: 'Juan',
@@ -1321,6 +1460,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 controller: _lastNameController,
                 textInputAction: TextInputAction.next,
                 style: _fieldTextStyle,
+                autovalidateMode: AutovalidateMode.onUserInteraction,
+                validator: (val) => _validateLiveName(val, 'Last name'),
                 decoration: _fieldDecoration(
                   label: 'Last Name',
                   hint: 'Dela Cruz',
@@ -1339,6 +1480,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 controller: _middleNameController,
                 textInputAction: TextInputAction.next,
                 style: _fieldTextStyle,
+                autovalidateMode: AutovalidateMode.onUserInteraction,
+                validator: (val) => _validateLiveName(val, 'Middle name', required: false),
                 decoration: _fieldDecoration(
                   label: 'Middle Name',
                   hint: 'Optional',
@@ -1402,6 +1545,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
             LengthLimitingTextInputFormatter(11),
           ],
           style: _fieldTextStyle,
+          autovalidateMode: AutovalidateMode.onUserInteraction,
+          validator: _validateLivePhone,
           decoration: _fieldDecoration(
             label: 'Mobile Number',
             hint: '09XXXXXXXXX',
@@ -1684,6 +1829,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
           controller: _streetController,
           textInputAction: TextInputAction.next,
           style: _fieldTextStyle,
+          autovalidateMode: AutovalidateMode.onUserInteraction,
+          validator: _validateLiveStreet,
           onChanged: (_) => _updateFullAddress(),
           decoration: _fieldDecoration(
             label: 'Street or House No.',
@@ -1739,6 +1886,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
           focusNode: _usernameFocusNode,
           textInputAction: TextInputAction.next,
           style: _fieldTextStyle,
+          autovalidateMode: AutovalidateMode.onUserInteraction,
+          validator: _validateLiveUsername,
           decoration: _fieldDecoration(
             label: 'Username',
             hint: 'Choose a login username',
@@ -1766,6 +1915,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
           keyboardType: TextInputType.emailAddress,
           textInputAction: TextInputAction.next,
           style: _fieldTextStyle,
+          autovalidateMode: AutovalidateMode.onUserInteraction,
+          validator: _validateLiveEmail,
           decoration: _fieldDecoration(
             label: 'Email Address',
             hint: 'name@example.com',
@@ -1792,9 +1943,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
           obscureText: _obscurePassword,
           textInputAction: TextInputAction.next,
           style: _fieldTextStyle,
+          autovalidateMode: AutovalidateMode.onUserInteraction,
+          validator: _validateLivePassword,
+          onChanged: (_) {
+            if (_confirmPasswordController.text.isNotEmpty) {
+              setState(() {});
+            }
+          },
           decoration: _fieldDecoration(
             label: 'Password',
-            hint: 'Upper, lower, digit, symbol (min. 6)',
+            hint: 'Min. 8 chars, upper, lower, digit, symbol',
             prefixIcon: const Icon(Icons.lock_outline_rounded, size: 19),
             suffixIcon: IconButton(
               icon: Icon(
@@ -1813,6 +1971,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
           obscureText: _obscureConfirmPassword,
           textInputAction: TextInputAction.done,
           style: _fieldTextStyle,
+          autovalidateMode: AutovalidateMode.onUserInteraction,
+          validator: _validateLiveConfirmPassword,
           onFieldSubmitted: (_) => _handleRegister(),
           decoration: _fieldDecoration(
             label: 'Confirm Password',

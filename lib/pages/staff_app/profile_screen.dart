@@ -17,6 +17,8 @@ import 'edit_profile_screen.dart';
 import 'homepage_screen.dart';
 import 'staff_salary_screen.dart';
 import 'staff_shell.dart';
+import '../../widgets/terms_and_conditions_dialog.dart';
+import '../../widgets/app_info_modals.dart';
 
 /// Opened from the profile avatar at the top of every tab. Shows
 /// the actual logged-in staff member's account details.
@@ -207,12 +209,6 @@ class ProfileScreen extends StatelessWidget {
                   child: Column(
                     children: [
                       _settingsTile(
-                          CupertinoIcons.bell, 'Notifications', 'Enabled'),
-                      _divider(),
-                      _settingsTile(
-                          CupertinoIcons.lock_shield, 'Security'),
-                      _divider(),
-                      _settingsTile(
                           CupertinoIcons.play_circle, 'System Tutorial', 'Replay', () async {
                             final isProd = user?.position.toLowerCase().contains('production') ?? false;
                             if (!context.mounted) return;
@@ -220,19 +216,19 @@ class ProfileScreen extends StatelessWidget {
                             final confirmed = await showCupertinoDialog<bool>(
                               context: context,
                               builder: (ctx) => CupertinoAlertDialog(
-                                title: const Text('Panoorin Ulit ang Tutorial?'),
+                                title: const Text('Replay System Tutorial?'),
                                 content: const Text(
-                                  'Ipapakita muli ang step-by-step guided tour para sa iyong role. Gusto mo bang simulan ngayon?',
+                                  'Would you like to review the step-by-step guided tour for your operational role?',
                                 ),
                                 actions: [
                                   CupertinoDialogAction(
                                     onPressed: () => Navigator.of(ctx).pop(false),
-                                    child: const Text('Huwag Na'),
+                                    child: const Text('Cancel'),
                                   ),
                                   CupertinoDialogAction(
                                     onPressed: () => Navigator.of(ctx).pop(true),
                                     isDefaultAction: true,
-                                    child: const Text('Oo, Simulan Na'),
+                                    child: const Text('Start Tutorial'),
                                   ),
                                 ],
                               ),
@@ -271,7 +267,25 @@ class ProfileScreen extends StatelessWidget {
                           }),
                       _divider(),
                       _settingsTile(
-                          CupertinoIcons.question_circle, 'Support'),
+                        CupertinoIcons.doc_text,
+                        'Terms & Privacy Policy',
+                        null,
+                        () => showTermsDialog(context, isReviewOnly: true),
+                      ),
+                      _divider(),
+                      _settingsTile(
+                        CupertinoIcons.question_circle,
+                        'Help & Support',
+                        null,
+                        () => showHelpAndSupportDialog(context),
+                      ),
+                      _divider(),
+                      _settingsTile(
+                        CupertinoIcons.info_circle,
+                        'About Brahms Nexus',
+                        null,
+                        () => showAboutBrahmsNexusDialog(context),
+                      ),
                     ],
                   ),
                 ),

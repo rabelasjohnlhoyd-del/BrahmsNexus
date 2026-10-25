@@ -12,7 +12,8 @@ import '../admin_web_colors.dart';
 import '../admin_web_shell.dart';
 import '../admin_web_widgets/glass_card.dart';
 import '../admin_web_widgets/kpi_card.dart';
-import '../admin_web_widgets/simple_bar_chart.dart';
+
+import '../admin_web_widgets/smooth_area_chart.dart';
 
 /// Admin Web Dashboard — Streamlined operations & analytics view.
 /// Focused on real-time KPIs and perfectly aligned analytics charts.
@@ -190,22 +191,28 @@ class _DashboardScreenState extends State<DashboardScreen> {
       total7dBilao += dayBilaoCount;
     }
 
-    // Smooth baseline fallbacks if database is brand new
-    final bool hasLiveSales = orderSeriesValues.any((v) => v > 0);
-    final displayedOrderValues = hasLiveSales ? orderSeriesValues : const [90, 150, 70, 110, 60, 170, 95];
-    final bool hasLiveBilao = bilaoSeriesValues.any((v) => v > 0);
-    final displayedBilaoValues = hasLiveBilao ? bilaoSeriesValues : const [40, 60, 35, 55, 45, 130, 70];
+    // 100% Real Live Data Metrics (Zero Fake Mock Numbers)
+    final displayedOrderValues = orderSeriesValues;
+    final displayedBilaoValues = bilaoSeriesValues;
 
-    final effective7dOrders = hasLiveSales ? total7dOrders : 745;
-    final effective7dBilao = hasLiveBilao ? total7dBilao : 45;
-    final effectiveAvgValue = hasLiveSales
-        ? (total7dOrders > 0 ? (total7dRevenue / total7dOrders) : 0.0)
-        : 642.0;
+    final effective7dOrders = total7dOrders;
+    final effective7dBilao = total7dBilao;
+    final effectiveAvgValue = total7dOrders > 0 ? (total7dRevenue / total7dOrders) : 0.0;
 
     final int combinedTotal = effective7dOrders + effective7dBilao;
     final String channelShare = combinedTotal > 0
         ? '${((effective7dOrders / combinedTotal) * 100).toStringAsFixed(0)}% Store'
-        : '92% Store';
+        : '100% Store';
+
+    String ordersSubtitle;
+    if (todayOrders > 0) {
+      ordersSubtitle = '$todayPortions meat portions';
+    } else if (yesterdaySales.isNotEmpty) {
+      final yOrders = yesterdaySales.fold<int>(0, (s, r) => s + r.displayTotalOrders);
+      ordersSubtitle = '$yOrders orders yesterday';
+    } else {
+      ordersSubtitle = 'Awaiting branch EOD reports';
+    }
 
     return Container(
       color: AdminWebColors.background,
@@ -229,16 +236,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 // ── KPI CARDS GRID (4 Balanced Columns) ──
                 _KpiGrid(
                   crossAxisCount: isWide ? 4 : (isMedium ? 2 : 1),
-                  todayRevenue: todayRevenue > 0
-                      ? '₱${todayRevenue.toStringAsFixed(0)}'
-                      : (hasLiveSales ? '₱0' : '₱18,240'),
+                  todayRevenue: '₱${todayRevenue.toStringAsFixed(0)}',
                   revenueSubtitle: revenueSubtitle,
-                  todayOrders: todayOrders > 0
-                      ? '$todayOrders'
-                      : (hasLiveSales ? '0' : '128'),
-                  ordersSubtitle: todayPortions > 0
-                      ? '$todayPortions meat portions'
-                      : '+8% vs yesterday',
+                  todayOrders: '$todayOrders',
+                  ordersSubtitle: ordersSubtitle,
                   activeStaff: '$activeStaffCount',
                   staffSubtitle: '$restDayCount rest day · 6 branches',
                   bilaoOrders: '${activeBilaoOrders.length}',
@@ -507,13 +508,15 @@ class _OrderDetailsCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 16),
-          SimpleBarChart(
+          SmoothAreaChart(
             labels: labels,
-            height: 180,
+            height: 185,
             series: [
-              BarSeries(
+              AreaSeries(
+                name: 'Store Sisig Orders',
                 values: values,
                 color: AdminWebColors.chartBarPrimary,
+                unit: 'orders',
               ),
             ],
           ),
@@ -605,17 +608,21 @@ class _SalesReportCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 16),
-          SimpleBarChart(
+          SmoothAreaChart(
             labels: labels,
-            height: 180,
+            height: 185,
             series: [
-              BarSeries(
+              AreaSeries(
+                name: 'Store Sisig Orders',
                 values: storeSalesValues,
                 color: AdminWebColors.chartBarPrimary,
+                unit: 'orders',
               ),
-              BarSeries(
+              AreaSeries(
+                name: 'Advance Bilao Orders',
                 values: bilaoOrderValues,
                 color: AdminWebColors.chartBarSecondary,
+                unit: 'packages',
               ),
             ],
           ),

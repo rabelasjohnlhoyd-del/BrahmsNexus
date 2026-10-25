@@ -280,170 +280,6 @@ class _AddBilaoOrderScreenState extends State<AddBilaoOrderScreen> {
     });
   }
 
-  // ── Smart Chat Intake Dialog (AI) ──────────────────────────────────────────
-  void _showSmartChatPasteDialog() {
-    final chatInputController = TextEditingController();
-    bool isParsing = false;
-    String? parseError;
-
-    showDialog(
-      context: context,
-      builder: (dialogCtx) => StatefulBuilder(
-        builder: (ctx, setModalState) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: AdminWebColors.accent.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Icon(Icons.auto_awesome_rounded, color: AdminWebColors.accent, size: 20),
-              ),
-              const SizedBox(width: 12),
-              const Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Smart Chat Intake (AI)', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
-                    Text('Paste customer Messenger message', style: TextStyle(fontSize: 11, color: AdminWebColors.textSecondary)),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          content: SizedBox(
-            width: 520,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Copy the message from Facebook Messenger or SMS and paste it below. Gemini AI will automatically extract customer details, size, and schedule.',
-                  style: TextStyle(fontSize: 12, color: AdminWebColors.textSecondary),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: chatInputController,
-                  maxLines: 6,
-                  decoration: InputDecoration(
-                    hintText: 'e.g. "Hi po, order ako bilao medium para bukas 3pm pick up sa Imus branch. Maria Clara 09171234567, paki-hiwalay sili."',
-                    hintStyle: const TextStyle(fontSize: 12, color: Colors.grey),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                    filled: true,
-                    fillColor: AdminWebColors.background,
-                  ),
-                ),
-                if (isParsing) ...[
-                  const SizedBox(height: 14),
-                  const Row(
-                    children: [
-                      SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: AdminWebColors.accent)),
-                      SizedBox(width: 10),
-                      Text('Gemini AI is analyzing customer chat...', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AdminWebColors.accent)),
-                    ],
-                  ),
-                ],
-                if (parseError != null) ...[
-                  const SizedBox(height: 10),
-                  Text(parseError!, style: const TextStyle(fontSize: 12, color: AdminWebColors.error, fontWeight: FontWeight.w600)),
-                ],
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: isParsing ? null : () => Navigator.pop(dialogCtx),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton.icon(
-              onPressed: isParsing
-                  ? null
-                  : () async {
-                      final text = chatInputController.text.trim();
-                      if (text.isEmpty) {
-                        setModalState(() => parseError = 'Please paste a customer message first.');
-                        return;
-                      }
-                      setModalState(() {
-                        isParsing = true;
-                        parseError = null;
-                      });
-
-                      final result = await GeminiService.parseChatOrder(text);
-                      if (!dialogCtx.mounted) return;
-
-                      if (result.success) {
-                        Navigator.pop(dialogCtx);
-                        setState(() {
-                          if (result.customerName.isNotEmpty) {
-                            _nameController.text = result.customerName;
-                          }
-                          if (result.contactNumber.isNotEmpty) {
-                            _contactController.text = result.contactNumber;
-                          }
-                          if (result.quantity > 0) {
-                            _quantityController.text = result.quantity.toString();
-                          }
-                          final lowerSize = result.bilaoSize.toLowerCase();
-                          if (lowerSize.contains('small')) {
-                            _selectedSize = BilaoSize.small;
-                          } else if (lowerSize.contains('large')) {
-                            _selectedSize = BilaoSize.large;
-                          } else {
-                            _selectedSize = BilaoSize.medium;
-                          }
-                          _refreshDeposit();
-
-                          if (result.pickupBranchId.isNotEmpty) {
-                            _selectedBranchId = result.pickupBranchId;
-                          }
-                          try {
-                            if (result.pickupDate != null && result.pickupDate!.isNotEmpty) {
-                              final parts = result.pickupDate!.split('-');
-                              if (parts.length == 3) {
-                                final year = int.parse(parts[0]);
-                                final month = int.parse(parts[1]);
-                                final day = int.parse(parts[2]);
-                                int hour = 14;
-                                int minute = 0;
-                                if (result.pickupTime != null && result.pickupTime!.contains(':')) {
-                                  final timeParts = result.pickupTime!.split(':');
-                                  hour = int.parse(timeParts[0]);
-                                  minute = int.parse(timeParts[1]);
-                                }
-                                _scheduledDateTime = DateTime(year, month, day, hour, minute);
-                              }
-                            }
-                          } catch (_) {}
-                          if (result.specialInstructions.isNotEmpty) {
-                            _notesController.text = result.specialInstructions;
-                          }
-                          _orderChannel = BilaoOrderChannel.directToOwner;
-                        });
-                        _showSnack('Success! Order details populated from chat.');
-                      } else {
-                        setModalState(() {
-                          isParsing = false;
-                          parseError = result.errorMessage;
-                        });
-                      }
-                    },
-              icon: const Icon(Icons.auto_awesome_rounded, size: 16),
-              label: const Text('Analyze & Auto-Fill'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AdminWebColors.accent,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   // ── SnackBar Feedback ──────────────────────────────────────────────────────
   void _showSnack(String msg) {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -1450,7 +1286,7 @@ class _AddBilaoOrderScreenState extends State<AddBilaoOrderScreen> {
                         onTap: () => setState(() => _awaitingGcashProof = false),
                         borderRadius: BorderRadius.circular(8),
                         child: Container(
-                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
                           decoration: BoxDecoration(
                             color: !_awaitingGcashProof ? Colors.white : Colors.transparent,
                             borderRadius: BorderRadius.circular(8),
@@ -1461,17 +1297,22 @@ class _AddBilaoOrderScreenState extends State<AddBilaoOrderScreen> {
                           child: Center(
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.center,
+                              mainAxisSize: MainAxisSize.min,
                               children: [
                                 Icon(Icons.check_circle_outline_rounded,
                                     size: 14,
                                     color: !_awaitingGcashProof ? AdminWebColors.accent : AdminWebColors.textSecondary),
-                                const SizedBox(width: 6),
-                                Text(
-                                  'Resibo Hawak Na (Verify Now)',
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: !_awaitingGcashProof ? FontWeight.w700 : FontWeight.w500,
-                                    color: !_awaitingGcashProof ? AdminWebColors.textPrimary : AdminWebColors.textSecondary,
+                                const SizedBox(width: 5),
+                                Flexible(
+                                  child: Text(
+                                    'Resibo Hawak Na (Verify)',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: !_awaitingGcashProof ? FontWeight.w700 : FontWeight.w500,
+                                      color: !_awaitingGcashProof ? AdminWebColors.textPrimary : AdminWebColors.textSecondary,
+                                    ),
                                   ),
                                 ),
                               ],
@@ -1486,7 +1327,7 @@ class _AddBilaoOrderScreenState extends State<AddBilaoOrderScreen> {
                         onTap: () => setState(() => _awaitingGcashProof = true),
                         borderRadius: BorderRadius.circular(8),
                         child: Container(
-                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
                           decoration: BoxDecoration(
                             color: _awaitingGcashProof ? Colors.white : Colors.transparent,
                             borderRadius: BorderRadius.circular(8),
@@ -1497,17 +1338,22 @@ class _AddBilaoOrderScreenState extends State<AddBilaoOrderScreen> {
                           child: Center(
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.center,
+                              mainAxisSize: MainAxisSize.min,
                               children: [
                                 Icon(Icons.lock_clock_rounded,
                                     size: 14,
                                     color: _awaitingGcashProof ? AdminWebColors.warning : AdminWebColors.textSecondary),
-                                const SizedBox(width: 6),
-                                Text(
-                                  'To-Follow sa Messenger (Kitchen Lock)',
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: _awaitingGcashProof ? FontWeight.w700 : FontWeight.w500,
-                                    color: _awaitingGcashProof ? AdminWebColors.warning : AdminWebColors.textSecondary,
+                                const SizedBox(width: 5),
+                                Flexible(
+                                  child: Text(
+                                    'To-Follow (Kitchen Lock)',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: _awaitingGcashProof ? FontWeight.w700 : FontWeight.w500,
+                                      color: _awaitingGcashProof ? AdminWebColors.warning : AdminWebColors.textSecondary,
+                                    ),
                                   ),
                                 ),
                               ],
@@ -1956,19 +1802,6 @@ class _AddBilaoOrderScreenState extends State<AddBilaoOrderScreen> {
                         style: TextStyle(fontSize: 11, color: AdminWebColors.textSecondary),
                       ),
                     ],
-                  ),
-                  const Spacer(),
-                  ElevatedButton.icon(
-                    onPressed: _showSmartChatPasteDialog,
-                    icon: const Icon(Icons.auto_awesome_rounded, size: 16),
-                    label: const Text('Smart Paste Chat (AI)'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AdminWebColors.accent,
-                      foregroundColor: Colors.white,
-                      elevation: 0,
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                    ),
                   ),
                 ],
               ),

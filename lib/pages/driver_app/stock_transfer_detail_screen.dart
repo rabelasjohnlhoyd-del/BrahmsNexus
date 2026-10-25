@@ -40,10 +40,13 @@ class _StockTransferDetailScreenState
       showCupertinoDialog<void>(
         context: context,
         builder: (context) => CupertinoAlertDialog(
-          title: const Text("Can't access the camera"),
-          content: Text('$e'),
+          title: const Text('Camera Access Required'),
+          content: const Text(
+            'Unable to access device camera. Please ensure camera permissions are enabled in your device Settings to record stock transfer photos.',
+          ),
           actions: [
             CupertinoDialogAction(
+              isDefaultAction: true,
               onPressed: () => Navigator.of(context).pop(),
               child: const Text('OK'),
             ),

@@ -1666,43 +1666,158 @@ class _InventoryScreenState extends State<InventoryScreen>
 
   Widget _buildMeatConsumptionSummary() {
     final now = DateTime.now();
-    // 1. Total meat pieces produced by Production this month
-    int totalProducedPcs = 0;
+
+    // 1. Meat pieces cut/produced by Production this month for each portion type:
+    int produced250g = 0;
+    int produced300g = 0;
+    int produced400g = 0;
+
+    // OPTION A: Determine the start date of meat production/cutting for the active batch this month.
+    // Only sales and bilao orders on or after this batch was cut deplete its warehouse stock!
+    DateTime? batchCutStartDate;
+
     for (final b in _karneBatches) {
       if (b.date.year == now.year && b.date.month == now.month) {
-        totalProducedPcs += b.totalProducedMeatPcs;
+        if (b.sessions.isNotEmpty) {
+          for (final s in b.sessions) {
+            if (s.actual250g != null || s.actual300g != null || s.actual400g != null) {
+              produced250g += (s.actual250g ?? 0);
+              produced300g += (s.actual300g ?? 0);
+              produced400g += (s.actual400g ?? 0);
+            } else if (s.nagawa > 0) {
+              // Proportional fallback based on Brahms 20/10/10 ratio (50% 250g, 25% 300g, 25% 400g)
+              final p250 = (s.nagawa * 0.5).round();
+              final p300 = (s.nagawa * 0.25).round();
+              final p400 = s.nagawa - p250 - p300;
+              produced250g += p250;
+              produced300g += p300;
+              produced400g += p400;
+            }
+
+            final d = s.cutterReportedAt ?? s.cookedAt ?? s.date;
+            if (batchCutStartDate == null || d.isBefore(batchCutStartDate)) {
+              batchCutStartDate = d;
+            }
+          }
+        } else {
+          if (b.actual250g != null || b.actual300g != null || b.actual400g != null) {
+            produced250g += (b.actual250g ?? 0);
+            produced300g += (b.actual300g ?? 0);
+            produced400g += (b.actual400g ?? 0);
+          } else if (b.totalProducedMeatPcs > 0) {
+            final p250 = (b.totalProducedMeatPcs * 0.5).round();
+            final p300 = (b.totalProducedMeatPcs * 0.25).round();
+            final p400 = b.totalProducedMeatPcs - p250 - p300;
+            produced250g += p250;
+            produced300g += p300;
+            produced400g += p400;
+          }
+
+          final d = b.cutterReportedAt ?? b.cookedAt ?? b.targetsSetAt;
+          if (d != null && (batchCutStartDate == null || d.isBefore(batchCutStartDate))) {
+            batchCutStartDate = d;
+          }
+        }
       }
     }
 
-    // 2. Meat pieces consumed by POS sales today and this month
-    int posUsedToday = 0;
-    int posUsedMonth = 0;
+    // Default cutoff to start of day of batch cut, or today if no explicit cut date
+    final DateTime batchCutDay = batchCutStartDate != null
+        ? DateTime(batchCutStartDate.year, batchCutStartDate.month, batchCutStartDate.day)
+        : DateTime(now.year, now.month, now.day);
+
+    // 2. Meat pieces consumed by POS sales today, since batch cut, and this month:
+    int posUsedToday250g = 0;
+    int posUsedToday300g = 0;
+    int posUsedToday400g = 0;
+
+    int posUsedBatch250g = 0;
+    int posUsedBatch300g = 0;
+    int posUsedBatch400g = 0;
+
+    int posUsedMonth250g = 0;
+    int posUsedMonth300g = 0;
+    int posUsedMonth400g = 0;
+
     for (final s in _monthlySales) {
-      final orders = s.displayTotalOrders;
       if (s.date.year == now.year && s.date.month == now.month) {
-        posUsedMonth += orders;
+        int reg = s.regularSold ?? 0;
+        int med = s.mediumSold ?? 0;
+        int b1t1 = s.b1t1OrdersSold ?? 0;
+
+        if (reg == 0 && med == 0 && b1t1 == 0 && s.displayTotalOrders > 0) {
+          reg = (s.displayTotalOrders * 0.5).round();
+          med = (s.displayTotalOrders * 0.25).round();
+          b1t1 = s.displayTotalOrders - reg - med;
+        }
+
+        posUsedMonth250g += reg;
+        posUsedMonth300g += med;
+        posUsedMonth400g += b1t1;
+
+        // Sales on or after batch cut date deplete the active batch:
+        final sDay = DateTime(s.date.year, s.date.month, s.date.day);
+        if (!sDay.isBefore(batchCutDay)) {
+          posUsedBatch250g += reg;
+          posUsedBatch300g += med;
+          posUsedBatch400g += b1t1;
+        }
+
         if (s.date.day == now.day) {
-          posUsedToday += orders;
+          posUsedToday250g += reg;
+          posUsedToday300g += med;
+          posUsedToday400g += b1t1;
         }
       }
     }
 
-    // 3. Meat pieces consumed by Bilao Orders (5 reg for Small, 7 for Med, 10 for Large)
-    int bilaoUsedToday = 0;
-    int bilaoUsedMonth = 0;
+    // 3. Meat pieces consumed by Bilao Orders (Consumes 250g Regular Meat portions):
+    // - Small: 5 pcs of 250g
+    // - Medium: 7 pcs of 250g
+    // - Large: 10 pcs of 250g
+    int bilaoUsedToday250g = 0;
+    int bilaoUsedBatch250g = 0;
+    int bilaoUsedMonth250g = 0;
+
     for (final order in _bilaoOrders) {
-      final orderMeat = order.size.regularOrderEquivalent * order.quantity;
+      if (order.isCancelled) continue;
+      final orderMeat = order.size.regularOrderEquivalent * (order.quantity > 0 ? order.quantity : 1);
       if (order.scheduledDateTime.year == now.year && order.scheduledDateTime.month == now.month) {
-        bilaoUsedMonth += orderMeat;
+        bilaoUsedMonth250g += orderMeat;
+
+        final oDay = DateTime(order.scheduledDateTime.year, order.scheduledDateTime.month, order.scheduledDateTime.day);
+        if (!oDay.isBefore(batchCutDay)) {
+          bilaoUsedBatch250g += orderMeat;
+        }
+
         if (order.scheduledDateTime.day == now.day) {
-          bilaoUsedToday += orderMeat;
+          bilaoUsedToday250g += orderMeat;
         }
       }
     }
 
-    final int totalConsumedToday = posUsedToday + bilaoUsedToday;
-    final int totalConsumedMonth = posUsedMonth + bilaoUsedMonth;
-    final int remainingInventoryPcs = (totalProducedPcs - totalConsumedMonth).clamp(0, 999999);
+    // Itemized calculations for the 3 meat sizes:
+    final int totalConsumedToday250g = posUsedToday250g + bilaoUsedToday250g;
+    final int totalConsumedBatch250g = posUsedBatch250g + bilaoUsedBatch250g;
+    final int totalConsumedMonth250g = posUsedMonth250g + bilaoUsedMonth250g;
+    final int remaining250g = (produced250g - totalConsumedBatch250g).clamp(0, 999999);
+
+    final int totalConsumedToday300g = posUsedToday300g;
+    final int totalConsumedBatch300g = posUsedBatch300g;
+    final int totalConsumedMonth300g = posUsedMonth300g;
+    final int remaining300g = (produced300g - totalConsumedBatch300g).clamp(0, 999999);
+
+    final int totalConsumedToday400g = posUsedToday400g;
+    final int totalConsumedBatch400g = posUsedBatch400g;
+    final int totalConsumedMonth400g = posUsedMonth400g;
+    final int remaining400g = (produced400g - totalConsumedBatch400g).clamp(0, 999999);
+
+    // Consolidated grand totals:
+    final int grandProduced = produced250g + produced300g + produced400g;
+    final int grandConsumedToday = totalConsumedToday250g + totalConsumedToday300g + totalConsumedToday400g;
+    final int grandConsumedBatch = totalConsumedBatch250g + totalConsumedBatch300g + totalConsumedBatch400g;
+    final int grandConsumedMonth = totalConsumedMonth250g + totalConsumedMonth300g + totalConsumedMonth400g;
+    final int grandRemaining = remaining250g + remaining300g + remaining400g;
 
     return GlassCard(
       padding: const EdgeInsets.all(16),
@@ -1714,7 +1829,7 @@ class _InventoryScreenState extends State<InventoryScreen>
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: AdminWebColors.accent.withValues(alpha: 0.1),
+                  color: AdminWebColors.accent.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: const Icon(Icons.analytics_rounded, color: AdminWebColors.accent, size: 20),
@@ -1730,7 +1845,7 @@ class _InventoryScreenState extends State<InventoryScreen>
                     ),
                     const SizedBox(height: 2),
                     const Text(
-                      'Awtomatikong binabawas ang benta sa branch + bilao orders (Small: 5 pcs, Med: 7 pcs, Large: 10 pcs) sa ginawang karne ng Production.',
+                      'Itemized inventory tracking para sa 3 standard meat portions: Regular (250g), Medium (300g), at B1T1 (400g). Awtomatikong binabawas ang benta sa branch at bilao orders.',
                       style: TextStyle(fontSize: 11, color: AdminWebColors.textSecondary),
                     ),
                   ],
@@ -1738,118 +1853,336 @@ class _InventoryScreenState extends State<InventoryScreen>
               ),
             ],
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 16),
+
+          // 3 PORTION CARDS (250g, 300g, 400g)
           LayoutBuilder(
             builder: (context, constraints) {
-              final isWide = constraints.maxWidth >= 700;
-              final kpis = [
-                _buildKpiSummaryBox(
-                  title: 'TODAY CONSUMED',
-                  value: '$totalConsumedToday PCS',
-                  subtitle: 'Branch: $posUsedToday · Bilao: $bilaoUsedToday pcs',
-                  color: AdminWebColors.accent,
-                  icon: Icons.today_rounded,
-                ),
-                _buildKpiSummaryBox(
-                  title: 'MONTHLY ACCUMULATED',
-                  value: '$totalConsumedMonth PCS',
-                  subtitle: 'Branch: $posUsedMonth · Bilao: $bilaoUsedMonth pcs',
-                  color: const Color(0xFFD97706),
-                  icon: Icons.trending_up_rounded,
-                ),
-                _buildKpiSummaryBox(
-                  title: 'TOTAL PRODUCTION CUT',
-                  value: '$totalProducedPcs PCS',
-                  subtitle: 'Gawa ng Production Warehouse',
-                  color: const Color(0xFF2563EB),
-                  icon: Icons.inventory_2_rounded,
-                ),
-                _buildKpiSummaryBox(
-                  title: 'REMAINING INVENTORY',
-                  value: '$remainingInventoryPcs PCS',
-                  subtitle: 'Natitirang karne sa warehouse',
-                  color: remainingInventoryPcs > 0 ? const Color(0xFF059669) : AdminWebColors.error,
-                  icon: Icons.account_balance_wallet_rounded,
-                ),
-              ];
+              final isWide = constraints.maxWidth >= 900;
+
+              final card250g = _buildPortionInventoryCard(
+                portionLabel: 'Regular Karne',
+                gramLabel: '250 Grams / Pack',
+                srpLabel: '₱130 Single · Bilao Base',
+                remainingPcs: remaining250g,
+                producedPcs: produced250g,
+                consumedToday: totalConsumedToday250g,
+                consumedBatch: totalConsumedBatch250g,
+                consumedMonth: totalConsumedMonth250g,
+                accentColor: AdminWebColors.accent,
+                extraDetail: 'Branch: $posUsedToday250g pcs · Bilao: $bilaoUsedToday250g pcs',
+              );
+
+              final card300g = _buildPortionInventoryCard(
+                portionLabel: 'Medium Karne',
+                gramLabel: '300 Grams / Pack',
+                srpLabel: '₱160 Medium Solo',
+                remainingPcs: remaining300g,
+                producedPcs: produced300g,
+                consumedToday: totalConsumedToday300g,
+                consumedBatch: totalConsumedBatch300g,
+                consumedMonth: totalConsumedMonth300g,
+                accentColor: AdminWebColors.accent,
+                extraDetail: 'Store Sales: $posUsedToday300g pcs today',
+              );
+
+              final card400g = _buildPortionInventoryCard(
+                portionLabel: 'Buy 1 Take 1 (B1T1)',
+                gramLabel: '400 Grams Jumbo Pack',
+                srpLabel: '₱210 B1T1 Jumbo',
+                remainingPcs: remaining400g,
+                producedPcs: produced400g,
+                consumedToday: totalConsumedToday400g,
+                consumedBatch: totalConsumedBatch400g,
+                consumedMonth: totalConsumedMonth400g,
+                accentColor: AdminWebColors.accent,
+                extraDetail: 'Store Sales: $posUsedToday400g pcs today',
+              );
 
               if (isWide) {
                 return Row(
-                  children: kpis.map((kpi) => Expanded(child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 4),
-                    child: kpi,
-                  ))).toList(),
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(child: card250g),
+                    const SizedBox(width: 12),
+                    Expanded(child: card300g),
+                    const SizedBox(width: 12),
+                    Expanded(child: card400g),
+                  ],
                 );
               }
 
               return Column(
-                children: kpis.map((kpi) => Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: kpi,
-                )).toList(),
+                children: [
+                  card250g,
+                  const SizedBox(height: 12),
+                  card300g,
+                  const SizedBox(height: 12),
+                  card400g,
+                ],
               );
             },
+          ),
+          const SizedBox(height: 14),
+
+          // CONSOLIDATED GRAND TOTAL BAR
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: AdminWebColors.background,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: AdminWebColors.border),
+            ),
+            child: Wrap(
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 12,
+              runSpacing: 8,
+              children: [
+                const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.summarize_rounded, size: 16, color: AdminWebColors.accent),
+                    SizedBox(width: 6),
+                    Text(
+                      'CONSOLIDATED TOTAL (LAHAT NG SUKAT):',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w900,
+                        color: AdminWebColors.textPrimary,
+                        letterSpacing: 0.3,
+                      ),
+                    ),
+                  ],
+                ),
+                _grandStatPill('Cut: $grandProduced PCS', AdminWebColors.accent),
+                _grandStatPill('Today: $grandConsumedToday PCS', AdminWebColors.accent),
+                _grandStatPill('Batch Consumed: $grandConsumedBatch PCS', AdminWebColors.accentDark),
+                _grandStatPill('Month-to-Date: $grandConsumedMonth PCS', AdminWebColors.textSecondary),
+                _grandStatPill('Total Remaining: $grandRemaining PCS', AdminWebColors.accent, isHighlight: true),
+              ],
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildKpiSummaryBox({
-    required String title,
-    required String value,
-    required String subtitle,
-    required Color color,
-    required IconData icon,
+  Widget _buildPortionInventoryCard({
+    required String portionLabel,
+    required String gramLabel,
+    required String srpLabel,
+    required int remainingPcs,
+    required int producedPcs,
+    required int consumedToday,
+    required int consumedBatch,
+    required int consumedMonth,
+    required Color accentColor,
+    String? extraDetail,
   }) {
+    final bool isLowStock = remainingPcs <= 20;
+    final bool isOutOfStock = remainingPcs == 0;
+
+    final Color statusColor = isOutOfStock
+        ? AdminWebColors.error
+        : (isLowStock ? AdminWebColors.warning : AdminWebColors.accent);
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.06),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: color.withValues(alpha: 0.2)),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: accentColor.withValues(alpha: 0.35),
+          width: 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: accentColor.withValues(alpha: 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Icon(icon, size: 14, color: color),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(
-                  title,
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w800,
-                    color: color,
-                    letterSpacing: 0.5,
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: accentColor.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(Icons.kebab_dining_rounded, color: accentColor, size: 16),
                   ),
-                  overflow: TextOverflow.ellipsis,
+                  const SizedBox(width: 8),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        portionLabel.toUpperCase(),
+                        style: const TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w900,
+                          color: AdminWebColors.textPrimary,
+                          letterSpacing: 0.3,
+                        ),
+                      ),
+                      Text(
+                        gramLabel,
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: accentColor,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: AdminWebColors.surfaceTint,
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: AdminWebColors.border),
+                ),
+                child: Text(
+                  srpLabel,
+                  style: const TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    color: AdminWebColors.textSecondary,
+                  ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 6),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w900,
-              color: color,
+          const SizedBox(height: 12),
+
+          // Hero Remaining Stock Box
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: statusColor.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: statusColor.withValues(alpha: 0.25)),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'REMAINING IN WAREHOUSE',
+                      style: TextStyle(
+                        fontSize: 9.5,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.5,
+                        color: statusColor,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '$remainingPcs PCS',
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w900,
+                        color: statusColor,
+                        letterSpacing: -0.5,
+                      ),
+                    ),
+                  ],
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: statusColor,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    isOutOfStock ? 'OUT OF STOCK' : (isLowStock ? 'LOW STOCK' : 'AVAILABLE'),
+                    style: const TextStyle(
+                      fontSize: 9,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.white,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 2),
-          Text(
-            subtitle,
-            style: const TextStyle(
-              fontSize: 10,
-              color: AdminWebColors.textSecondary,
-              fontWeight: FontWeight.w600,
+          const SizedBox(height: 10),
+
+          // Detail rows
+          _portionStatRow('Total Cut (Gawa ng Warehouse):', '$producedPcs pcs', isBold: true),
+          const SizedBox(height: 4),
+          _portionStatRow('Consumed Today (Araw na Ito):', '$consumedToday pcs', color: AdminWebColors.accent),
+          if (extraDetail != null) ...[
+            Padding(
+              padding: const EdgeInsets.only(left: 8, top: 2),
+              child: Text(
+                extraDetail,
+                style: const TextStyle(fontSize: 10, color: AdminWebColors.textSecondary, fontStyle: FontStyle.italic),
+              ),
             ),
-            overflow: TextOverflow.ellipsis,
-          ),
+          ],
+          const SizedBox(height: 4),
+          _portionStatRow('Consumed (Simula ng Batch):', '$consumedBatch pcs', color: AdminWebColors.accentDark),
+          const SizedBox(height: 4),
+          _portionStatRow('Total Monthly Sales (Buong Buwan):', '$consumedMonth pcs', color: AdminWebColors.textSecondary),
         ],
+      ),
+    );
+  }
+
+  Widget _portionStatRow(String label, String value, {bool isBold = false, Color? color}) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 10.5,
+            fontWeight: isBold ? FontWeight.w700 : FontWeight.w500,
+            color: AdminWebColors.textSecondary,
+          ),
+        ),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: isBold ? FontWeight.w900 : FontWeight.w700,
+            color: color ?? AdminWebColors.textPrimary,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _grandStatPill(String text, Color color, {bool isHighlight = false}) {
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: isHighlight ? 10 : 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: isHighlight ? color : color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: color.withValues(alpha: isHighlight ? 1.0 : 0.3)),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontSize: 10.5,
+          fontWeight: FontWeight.w800,
+          color: isHighlight ? Colors.white : color,
+        ),
       ),
     );
   }

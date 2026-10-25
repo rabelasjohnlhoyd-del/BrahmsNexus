@@ -14,6 +14,8 @@ import 'firestore_cache.dart';
 import 'notification_service.dart';
 import 'otp_service.dart';
 import 'supabase_service.dart';
+import 'dart:async' show unawaited;
+import 'fcm_service.dart';
 
 /// Central place for every Firebase Auth + the `users` Firestore
 /// collection interaction. Nothing outside this file should call
@@ -267,6 +269,7 @@ class AuthService {
                   final uid = snap.docs.first.id;
                   final user = AppUser.fromMap(uid, snap.docs.first.data());
                   currentAppUser = user;
+                  unawaited(FcmService.syncUserToken(user));
                   return user;
                 }
               }
@@ -292,6 +295,7 @@ class AuthService {
 
       final user = AppUser.fromMap(uid, doc.data()!);
       currentAppUser = user;
+      unawaited(FcmService.syncUserToken(user));
       return user;
     } on FirebaseAuthException catch (e) {
       onError(_friendlyAuthError(e));
@@ -473,6 +477,7 @@ class AuthService {
 
       if (resolvedStatus == AccountStatus.approved) {
         currentAppUser = user;
+        unawaited(FcmService.syncUserToken(user));
       }
       return user;
     } catch (_) {
@@ -481,7 +486,11 @@ class AuthService {
   }
 
   static Future<void> signOut() async {
+    final prevUserId = currentAppUser?.uid;
     currentAppUser = null;
+    try {
+      unawaited(FcmService.clearUserToken(prevUserId));
+    } catch (_) {}
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool('remember_me', false);
@@ -561,6 +570,7 @@ class AuthService {
 
       final user = AppUser.fromMap(firebaseUser.uid, data);
       currentAppUser = user;
+      unawaited(FcmService.syncUserToken(user));
       return user;
     } catch (e) {
       debugPrint('AuthService.tryAutoLoginWithRememberMe error: $e');

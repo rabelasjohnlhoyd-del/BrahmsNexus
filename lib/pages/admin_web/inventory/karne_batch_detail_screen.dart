@@ -609,12 +609,12 @@ class _KarneBatchDetailScreenState extends State<KarneBatchDetailScreen> {
                 if (s.cookedBy != null && s.cookedBy!.isNotEmpty)
                   Text(
                     'COOK: ${s.cookedBy}',
-                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.blue, letterSpacing: 0.3),
+                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AdminWebColors.accent, letterSpacing: 0.3),
                   ),
                 if (s.cutterName != null && s.cutterName!.isNotEmpty)
                   Text(
                     'CUTTER: ${s.cutterName}',
-                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.purple, letterSpacing: 0.3),
+                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AdminWebColors.accentDark, letterSpacing: 0.3),
                   ),
               ],
             ),
@@ -623,13 +623,13 @@ class _KarneBatchDetailScreenState extends State<KarneBatchDetailScreen> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                 decoration: BoxDecoration(
-                  color: Colors.amber.withValues(alpha: 0.08),
+                  color: AdminWebColors.accent.withValues(alpha: 0.08),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.amber.withValues(alpha: 0.3)),
+                  border: Border.all(color: AdminWebColors.accent.withValues(alpha: 0.25)),
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.note_alt_outlined, size: 16, color: Colors.amber),
+                    const Icon(Icons.note_alt_outlined, size: 16, color: AdminWebColors.accent),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
@@ -686,7 +686,7 @@ class _KarneBatchDetailScreenState extends State<KarneBatchDetailScreen> {
                   subtext: hasBreakdown
                       ? '400G = ${s.actual400g ?? 0} pcs\n300G = ${s.actual300g ?? 0} pcs\n250G = ${s.actual250g ?? 0} pcs'
                       : null,
-                  color: hasActual ? AdminWebColors.success : null,
+                  color: hasActual ? AdminWebColors.accent : null,
                   isMain: true,
                 ),
                 _sessionDetail(
@@ -699,14 +699,14 @@ class _KarneBatchDetailScreenState extends State<KarneBatchDetailScreen> {
                               : '0 (EXACT)'))
                       : '--',
                   color: hasActual
-                      ? (s.resultDifference >= 0 ? AdminWebColors.success : AdminWebColors.error)
+                      ? (s.resultDifference >= 0 ? AdminWebColors.accent : AdminWebColors.error)
                       : null,
                 ),
                 _sessionDetail(
                   'ACTUAL RESEKO',
                   hasActual && s.actualReseko != null ? '${s.actualReseko!.toStringAsFixed(1)}%' : '--',
                   color: hasActual && s.actualReseko != null
-                      ? (s.actualReseko! <= s.resekoApplied ? AdminWebColors.success : AdminWebColors.error)
+                      ? (s.actualReseko! <= s.resekoApplied ? AdminWebColors.accentDark : AdminWebColors.error)
                       : null,
                 ),
               ],

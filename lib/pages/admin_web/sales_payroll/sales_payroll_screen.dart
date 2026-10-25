@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import '../../../models/inventory_batch.dart';
 import '../../../models/sales_record.dart';
 import '../../../models/branch.dart';
@@ -377,29 +378,20 @@ class _SalesPayrollScreenState extends State<SalesPayrollScreen> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     // Navigation Switcher Tabs
-                    Container(
-                      padding: const EdgeInsets.all(4),
-                      decoration: BoxDecoration(
-                        color: AdminWebColors.accent.withValues(alpha: 0.08),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                            color: AdminWebColors.accent.withValues(alpha: 0.15)),
-                      ),
-                      child: Row(
-                        children: [
-                          _tabButton(
-                            index: 0,
-                            title: 'BRANCH COOKS (6 STORES)',
-                            icon: Icons.storefront_rounded,
-                          ),
-                          const SizedBox(width: 4),
-                          _tabButton(
-                            index: 1,
-                            title: 'PRODUCTION STAFF & DRIVER',
-                            icon: Icons.badge_rounded,
-                          ),
-                        ],
-                      ),
+                    Row(
+                      children: [
+                        _tabButton(
+                          index: 0,
+                          title: 'BRANCH COOKS (6 STORES)',
+                          icon: Icons.storefront_rounded,
+                        ),
+                        const SizedBox(width: 10),
+                        _tabButton(
+                          index: 1,
+                          title: 'PRODUCTION STAFF & DRIVER',
+                          icon: Icons.badge_rounded,
+                        ),
+                      ],
                     ),
 
                     // Export Button
@@ -623,34 +615,39 @@ class _SalesPayrollScreenState extends State<SalesPayrollScreen> {
     required IconData icon,
   }) {
     final isSelected = _selectedTab == index;
-    return InkWell(
-      onTap: () => setState(() => _selectedTab = index),
-      borderRadius: BorderRadius.circular(10),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        decoration: BoxDecoration(
-          color: isSelected ? AdminWebColors.accent : Colors.transparent,
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Row(
-          children: [
-            Icon(
-              icon,
-              size: 16,
-              color: isSelected ? Colors.white : AdminWebColors.textSecondary,
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => setState(() => _selectedTab = index),
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+          decoration: BoxDecoration(
+            color: isSelected ? AdminWebColors.accent : Colors.white,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: isSelected ? AdminWebColors.accent : AdminWebColors.border,
             ),
-            const SizedBox(width: 8),
-            Text(
-              title,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 0.5,
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                icon,
+                size: 16,
                 color: isSelected ? Colors.white : AdminWebColors.textSecondary,
               ),
-            ),
-          ],
+              const SizedBox(width: 8),
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  color: isSelected ? Colors.white : AdminWebColors.textPrimary,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -821,10 +818,7 @@ class _SalesPayrollScreenState extends State<SalesPayrollScreen> {
                             ),
                             Expanded(
                               flex: 2,
-                              child: Text(
-                                '${r.displayPortions} portions (${r.displayTotalOrders} orders)',
-                                style: const TextStyle(fontSize: 12),
-                              ),
+                              child: _buildPortionsHoverCell(context, r),
                             ),
                             Expanded(
                               flex: 2,
@@ -960,7 +954,7 @@ class _SalesPayrollScreenState extends State<SalesPayrollScreen> {
                 dailyRate: _productionCookRate,
                 totalPay: cookTotal,
                 icon: Icons.outdoor_grill_rounded,
-                color: const Color(0xFFE65100),
+                color: AdminWebColors.accent,
               ),
             ),
             const SizedBox(width: 16),
@@ -974,7 +968,7 @@ class _SalesPayrollScreenState extends State<SalesPayrollScreen> {
                 dailyRate: _productionCutterRate,
                 totalPay: cutterTotal,
                 icon: Icons.content_cut_rounded,
-                color: const Color(0xFF00695C),
+                color: AdminWebColors.accentDark,
               ),
             ),
           ],
@@ -1010,11 +1004,11 @@ class _SalesPayrollScreenState extends State<SalesPayrollScreen> {
                 width: 50,
                 height: 50,
                 decoration: BoxDecoration(
-                  color: const Color(0xFF1565C0).withValues(alpha: 0.1),
+                  color: AdminWebColors.accent.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: const Icon(Icons.local_shipping_rounded,
-                    size: 26, color: Color(0xFF1565C0)),
+                    size: 26, color: AdminWebColors.accent),
               ),
               const SizedBox(width: 16),
               Expanded(
@@ -1058,7 +1052,7 @@ class _SalesPayrollScreenState extends State<SalesPayrollScreen> {
                     style: const TextStyle(
                       fontSize: 22,
                       fontWeight: FontWeight.w900,
-                      color: Color(0xFF1565C0),
+                      color: AdminWebColors.accent,
                     ),
                   ),
                 ],
@@ -1255,7 +1249,23 @@ class _SalesRecordCard extends StatelessWidget {
 
     final stats = [
       _miniStat('TOTAL ORDERS', '${r.displayTotalOrders}'),
-      _miniStat('PORTIONS', '${r.displayPortions}'),
+      InkWell(
+        onTap: () {
+          int reg = r.regularSold ?? 0;
+          int med = r.mediumSold ?? 0;
+          int b1t1 = r.b1t1OrdersSold ?? 0;
+          bool isEstimated = false;
+          if (reg == 0 && med == 0 && b1t1 == 0 && r.displayTotalOrders > 0) {
+            reg = (r.displayTotalOrders * 0.5).round();
+            med = (r.displayTotalOrders * 0.25).round();
+            b1t1 = r.displayTotalOrders - reg - med;
+            isEstimated = true;
+          }
+          _showSalesBreakdownDialog(context, r, reg, med, b1t1, isEstimated);
+        },
+        borderRadius: BorderRadius.circular(4),
+        child: _miniStat('PORTIONS', '${r.displayPortions} ℹ️'),
+      ),
       _miniStat('TOTAL SALES', '₱${r.totalSalesAmount.toStringAsFixed(0)}'),
       _miniStat('WAGE', '₱${r.computedWage.toStringAsFixed(0)}'),
       _miniStat(
@@ -1365,3 +1375,311 @@ class _SalesRecordCard extends StatelessWidget {
     );
   }
 }
+
+Widget _buildPortionsHoverCell(BuildContext context, SalesRecord r) {
+    int reg = r.regularSold ?? 0;
+    int med = r.mediumSold ?? 0;
+    int b1t1 = r.b1t1OrdersSold ?? 0;
+    bool isEstimated = false;
+
+    if (reg == 0 && med == 0 && b1t1 == 0 && r.displayTotalOrders > 0) {
+      reg = (r.displayTotalOrders * 0.5).round();
+      med = (r.displayTotalOrders * 0.25).round();
+      b1t1 = r.displayTotalOrders - reg - med;
+      isEstimated = true;
+    }
+
+    final int regPcs = reg;
+    final int medPcs = med;
+    final int b1t1Pcs = b1t1 * 2;
+    final richTooltip = TextSpan(
+      style: const TextStyle(
+        color: AdminWebColors.textPrimary,
+        fontSize: 12,
+        height: 1.5,
+      ),
+      children: [
+        TextSpan(
+          text: '${r.branchName} — Break-down ng Benta\n',
+          style: const TextStyle(
+            fontWeight: FontWeight.w900,
+            fontSize: 13,
+            color: AdminWebColors.accent,
+          ),
+        ),
+        TextSpan(
+          text: 'Cook: ${r.employeeName} · ${DateFormat('MMM dd, yyyy').format(r.date)}\n\n',
+          style: TextStyle(
+            fontSize: 11,
+            color: AdminWebColors.textPrimary.withValues(alpha: 0.65),
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        const TextSpan(
+          text: '• Regular (250g): ',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            color: AdminWebColors.textPrimary,
+          ),
+        ),
+        TextSpan(
+          text: '$reg orders ($regPcs pcs karne)\n',
+          style: const TextStyle(
+            color: AdminWebColors.accentDark,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const TextSpan(
+          text: '• Medium (300g): ',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            color: AdminWebColors.textPrimary,
+          ),
+        ),
+        TextSpan(
+          text: '$med orders ($medPcs pcs karne)\n',
+          style: const TextStyle(
+            color: AdminWebColors.accentDark,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const TextSpan(
+          text: '• B1T1 Jumbo (400g): ',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            color: AdminWebColors.textPrimary,
+          ),
+        ),
+        TextSpan(
+          text: '$b1t1 orders ($b1t1Pcs pcs karne)\n\n',
+          style: const TextStyle(
+            color: AdminWebColors.accentDark,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        TextSpan(
+          text: 'Total Customer Orders: ${r.displayTotalOrders} orders',
+          style: const TextStyle(
+            fontWeight: FontWeight.bold,
+            color: AdminWebColors.textPrimary,
+          ),
+        ),
+        if (isEstimated)
+          TextSpan(
+            text: '\n(Estimated distribution)',
+            style: TextStyle(
+              fontSize: 10,
+              color: AdminWebColors.textPrimary.withValues(alpha: 0.45),
+              fontStyle: FontStyle.italic,
+            ),
+          ),
+      ],
+    );
+
+    return Tooltip(
+      richMessage: richTooltip,
+      waitDuration: const Duration(milliseconds: 60),
+      showDuration: const Duration(seconds: 8),
+      verticalOffset: 16,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFFDF9), // Warm Ivory Card
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: AdminWebColors.border,
+          width: 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: AdminWebColors.textPrimary.withValues(alpha: 0.16),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: InkWell(
+          onTap: () => _showSalesBreakdownDialog(context, r, reg, med, b1t1, isEstimated),
+          borderRadius: BorderRadius.circular(6),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+            child: Text(
+              '${r.displayPortions} portions',
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                decoration: TextDecoration.underline,
+                decorationStyle: TextDecorationStyle.dotted,
+                decorationColor: AdminWebColors.accent,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showSalesBreakdownDialog(BuildContext context, SalesRecord r, int reg, int med, int b1t1, bool isEstimated) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        titlePadding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+        contentPadding: const EdgeInsets.fromLTRB(20, 14, 20, 20),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: AdminWebColors.accent.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(Icons.receipt_long_rounded, color: AdminWebColors.accent, size: 22),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    r.branchName,
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                  Text(
+                    'Cook: ${r.employeeName} · ${DateFormat('MMMM dd, yyyy').format(r.date)}',
+                    style: const TextStyle(fontSize: 12, color: AdminWebColors.textSecondary),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        content: SizedBox(
+          width: 420,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Divider(height: 20),
+              const Text(
+                'ITEMIZED MEAT PORTIONS & ORDERS SOLD:',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                  color: AdminWebColors.textSecondary,
+                  letterSpacing: 0.5,
+                ),
+              ),
+              const SizedBox(height: 10),
+              _breakdownRow('Regular Karne (250g)', '$reg orders', '$reg pcs meat', AdminWebColors.accent),
+              const SizedBox(height: 6),
+              _breakdownRow('Medium Karne (300g)', '$med orders', '$med pcs meat', AdminWebColors.accentDark),
+              const SizedBox(height: 6),
+              _breakdownRow('Buy 1 Take 1 (400g Jumbo)', '$b1t1 orders', '${b1t1 * 2} pcs meat', AdminWebColors.accent),
+              const Divider(height: 20),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('Total Customer Orders:', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                  Text('${r.displayTotalOrders} orders', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('Total Karne Portions:', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: AdminWebColors.accent)),
+                  Text('${r.displayPortions} portions (pcs)', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14, color: AdminWebColors.accent)),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('Total Sales Amount:', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                  Text('₱${NumberFormat('#,##0').format(r.totalSalesAmount)}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AdminWebColors.accent)),
+                ],
+              ),
+              if (r.remainingStock != null) ...[
+                const Divider(height: 20),
+                const Text(
+                  'REPORTED REMAINING STOCK (EOD):',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    color: AdminWebColors.textSecondary,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: AdminWebColors.background,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: AdminWebColors.border),
+                  ),
+                  child: Text(
+                    'Regular: ${r.remainingStock!.regular} pcs  |  Medium: ${r.remainingStock!.medium} pcs  |  B1T1: ${r.remainingStock!.b1t1} pcs\n'
+                    'Mayo: ${r.remainingStock!.mayo}  |  Styro: ${r.remainingStock!.styro}  |  Toyo: ${r.remainingStock!.toyo}',
+                    style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: AdminWebColors.textPrimary, height: 1.4),
+                  ),
+                ),
+              ],
+              if (r.discrepancyNote != null && r.discrepancyNote!.trim().isNotEmpty) ...[
+                const SizedBox(height: 10),
+                Text(
+                  'Note: ${r.discrepancyNote!}',
+                  style: const TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: AdminWebColors.textSecondary),
+                ),
+              ],
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('ISARA (CLOSE)', style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _breakdownRow(String title, String orders, String pcs, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              title,
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: color),
+            ),
+          ),
+          Text(
+            orders,
+            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
+          ),
+          const SizedBox(width: 10),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Text(
+              pcs,
+              style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Colors.white),
+            ),
+          ),
+        ],
+      ),
+    );
+  }

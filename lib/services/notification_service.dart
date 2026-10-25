@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/app_notification.dart';
 import '../models/daily_report.dart';
+import 'fcm_service.dart';
 
 class NotificationService {
   const NotificationService._();
@@ -250,6 +251,43 @@ class NotificationService {
         ...notif.toMap(),
         'createdAt': FieldValue.serverTimestamp(),
       });
+
+      // Dispatch push notification via FCM / Supabase Edge Function.
+      // Maps targetRole to the FCM topic that devices subscribed to in FcmService.syncUserToken().
+      final String fcmTopic;
+      final trLower = targetRole.toLowerCase().trim();
+      if (trLower == 'all' ||
+          trLower == 'all positions' ||
+          trLower == 'all_positions' ||
+          trLower == 'staff' ||
+          trLower == 'announcement') {
+        // Broadcast to ALL staff and drivers
+        fcmTopic = 'all_staff';
+      } else if (trLower == 'owner') {
+        fcmTopic = 'admin_alerts';
+      } else if (trLower.contains('driver')) {
+        fcmTopic = 'drivers';
+      } else if (trLower.contains('cutter') || trLower.contains('production')) {
+        fcmTopic = 'production';
+      } else if (trLower.contains('cook') || trLower.contains('branch')) {
+        fcmTopic = 'branch_cook';
+      } else {
+        // Fallback: broadcast to all staff for any unrecognized role
+        fcmTopic = 'all_staff';
+      }
+
+      unawaited(FcmService.sendPushViaSupabase(
+        topic: fcmTopic,
+        targetUserId: targetUserId,
+        title: title,
+        body: message,
+        data: {
+          'notificationId': newId,
+          'type': type.name,
+          'route': route ?? '',
+        },
+      ));
+
       return true;
     } catch (_) {
       return true; // Still true because in-memory broadcast succeeded

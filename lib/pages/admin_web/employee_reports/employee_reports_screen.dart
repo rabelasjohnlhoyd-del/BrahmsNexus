@@ -93,6 +93,7 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
   void initState() {
     super.initState();
     _updateShellActions();
+    FirestoreService.syncExistingDailyReportsToSupabase();
     _reportsSub = FirestoreService.watchDailyReports().listen((list) {
       if (mounted) {
         setState(() {

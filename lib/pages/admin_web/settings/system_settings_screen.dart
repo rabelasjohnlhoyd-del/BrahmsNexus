@@ -3,7 +3,11 @@ import '../admin_web_colors.dart';
 import '../admin_web_shell.dart';
 import '../admin_web_widgets/glass_card.dart';
 import '../../../services/tutorial_service.dart';
+import '../../../widgets/terms_and_conditions_dialog.dart';
+import '../../../widgets/app_info_modals.dart';
 
+/// Clean, professional, and fully functional System Settings & Operations Directory
+/// screen for the Owner Web portal.
 class SystemSettingsScreen extends StatefulWidget {
   const SystemSettingsScreen({super.key});
 
@@ -12,9 +16,6 @@ class SystemSettingsScreen extends StatefulWidget {
 }
 
 class _SystemSettingsScreenState extends State<SystemSettingsScreen> {
-  final _commissionController = TextEditingController(text: '5.00');
-  final _lowStockController = TextEditingController(text: '10.0');
-
   @override
   void initState() {
     super.initState();
@@ -27,12 +28,6 @@ class _SystemSettingsScreenState extends State<SystemSettingsScreen> {
     _updateShellActions();
   }
 
-  void _saveSettings() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('System settings saved successfully.')),
-    );
-  }
-
   void _updateShellActions() {
     final shell = context.findAncestorStateOfType<AdminWebShellState>();
     shell?.setActions([]);
@@ -43,246 +38,256 @@ class _SystemSettingsScreenState extends State<SystemSettingsScreen> {
     return Container(
       color: AdminWebColors.background,
       child: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
         child: Center(
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 800),
+            constraints: const BoxConstraints(maxWidth: 820),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const SizedBox(height: 20),
-                _buildSection('Financial Parameters', [
-                _buildSettingRow(
-                  'Default Commission Rate',
-                  'Base pay (in ₱) added to staff salary for each portion sold.',
-                  _commissionController,
-                  prefixText: '₱',
-                ),
-                const Divider(height: 32),
-                _buildToggleRow(
-                  'Automatic Tax Calculation',
-                  'Apply standard sales tax to all recorded orders by default.',
-                  true,
-                ),
-              ]),
-              const SizedBox(height: 24),
-              _buildSection('Inventory & Operations', [
-                _buildSettingRow(
-                  'Low Stock Threshold',
-                  'The quantity (in kg) that triggers a "Running Low" warning across branches.',
-                  _lowStockController,
-                  suffixText: 'kg',
-                ),
-                const Divider(height: 32),
-                _buildToggleRow(
-                  'Enable Inter-Branch Transfers',
-                  'Allow warehouse managers to record stock movement between branches.',
-                  true,
-                ),
-              ]),
-              const SizedBox(height: 24),
-              _buildSection('Application Preferences', [
-                _buildToggleRow(
-                  'Push Notifications',
-                  'Send alerts for new account approvals and critical inventory levels.',
-                  true,
-                ),
-                const Divider(height: 32),
-                _buildToggleRow(
-                  'Daily Summary Reports',
-                  'Generate and email a PDF summary of daily gross sales every midnight.',
-                  false,
-                ),
-              ]),
-              const SizedBox(height: 24),
-              _buildSection('System Help & Tutorials', [
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: AdminWebColors.accent.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Icon(Icons.school_outlined, color: AdminWebColors.accent, size: 20),
-                  ),
-                  title: const Text(
-                    'View Owner System Tutorial',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                  ),
-                  subtitle: const Text(
-                    'Interactive walkthrough explaining each module of the Owner Web system.',
-                    style: TextStyle(fontSize: 12, color: AdminWebColors.textSecondary),
-                  ),
-                  trailing: const Icon(Icons.chevron_right, color: AdminWebColors.textSecondary),
-                  onTap: () async {
-                    final confirmed = await showDialog<bool>(
-                      context: context,
-                      builder: (ctx) => AlertDialog(
-                        title: const Text('Replay Guided Tour?'),
-                        content: const Text(
-                          'This will show the step-by-step guided tour for the Owner Web system again. Would you like to start now?',
-                        ),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.of(ctx).pop(false),
-                            child: const Text('Not Now'),
-                          ),
-                          TextButton(
-                            onPressed: () => Navigator.of(ctx).pop(true),
-                            child: const Text(
-                              'Yes, Start Tour',
-                              style: TextStyle(fontWeight: FontWeight.bold),
-                            ),
-                          ),
-                        ],
+                // Header Title
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: AdminWebColors.accent.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(10),
                       ),
-                    );
-                    if (confirmed != true) return;
-                    if (!context.mounted) return;
-                    final shell = context.findAncestorStateOfType<AdminWebShellState>();
-                    await TutorialService.resetTutorial('owner_spotlight');
-                    shell?.showTutorial();
-                  },
-                ),
-              ]),
-              const SizedBox(height: 32),
-              SizedBox(
-                width: double.infinity,
-                height: 48,
-                child: ElevatedButton.icon(
-                  onPressed: _saveSettings,
-                  icon: const Icon(Icons.save_rounded, size: 18),
-                  label: const Text(
-                    'SAVE SETTINGS',
-                    style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 0.5),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AdminWebColors.accent,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
+                      child: const Icon(
+                        Icons.tune_rounded,
+                        color: AdminWebColors.accent,
+                        size: 24,
+                      ),
                     ),
+                    const SizedBox(width: 14),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: const [
+                        Text(
+                          'System Settings & Operations',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w800,
+                            color: AdminWebColors.textPrimary,
+                            letterSpacing: -0.3,
+                          ),
+                        ),
+                        SizedBox(height: 2),
+                        Text(
+                          'System tutorials, compliance policies, operational directory, and platform details.',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: AdminWebColors.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 28),
+
+                // ── 1. SYSTEM HELP & GUIDED TOURS ────────────────────────────
+                _buildSectionHeader('System Help & Guided Tours'),
+                GlassCard(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    children: [
+                      _buildActionRow(
+                        icon: Icons.school_outlined,
+                        title: 'Owner Interactive Guided Tour',
+                        description:
+                            'Replay the step-by-step interactive walkthrough explaining each operational module of the Admin Web portal.',
+                        actionLabel: 'Replay Tour',
+                        actionIcon: Icons.play_circle_outline_rounded,
+                        onTap: () => _replayOwnerTour(context),
+                      ),
+                    ],
                   ),
                 ),
-              ),
-              const SizedBox(height: 40),
-            ],
+                const SizedBox(height: 24),
+
+                // ── 2. LEGAL, COMPLIANCE & POLICIES ──────────────────────────
+                _buildSectionHeader('Legal, Compliance & Operational Policies'),
+                GlassCard(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    children: [
+                      _buildActionRow(
+                        icon: Icons.gavel_rounded,
+                        title: 'Terms of Service & Operational Guidelines',
+                        description:
+                            'Standard enterprise usage terms, employee accountability rules, and inventory management guidelines.',
+                        actionLabel: 'View Terms',
+                        actionIcon: Icons.visibility_outlined,
+                        onTap: () => showTermsDialog(context, isReviewOnly: true),
+                      ),
+                      const Divider(height: 28),
+                      _buildActionRow(
+                        icon: Icons.privacy_tip_outlined,
+                        title: 'Data Privacy Policy (RA 10173 Compliance)',
+                        description:
+                            'Guidelines governing the lawful collection, processing, and protection of employee records and operational data.',
+                        actionLabel: 'View Policy',
+                        actionIcon: Icons.shield_outlined,
+                        onTap: () => showTermsDialog(context, isReviewOnly: true),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
+
+                // ── 3. OPERATIONAL DIRECTORY & SUPPORT ───────────────────────
+                _buildSectionHeader('Operational Support & Store Directory'),
+                GlassCard(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    children: [
+                      _buildActionRow(
+                        icon: Icons.support_agent_rounded,
+                        title: 'Operational Support & Emergency Directory',
+                        description:
+                            'Emergency contacts for delivery logistics, commissary dispatch lines, and technical administration.',
+                        actionLabel: 'Open Directory',
+                        actionIcon: Icons.contact_phone_outlined,
+                        onTap: () => showHelpAndSupportDialog(context),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
+
+                // ── 4. ABOUT BRAHMS NEXUS ────────────────────────────────────
+                _buildSectionHeader('About Brahms Nexus'),
+                GlassCard(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    children: [
+                      _buildActionRow(
+                        icon: Icons.info_outline_rounded,
+                        title: 'Platform Information & Release Details',
+                        description:
+                            'Version 1.0.0 (Release Build 2026). Engineered specifically for Brahms Sisig & Bagnet multi-branch operations.',
+                        actionLabel: 'View Details',
+                        actionIcon: Icons.open_in_new_rounded,
+                        onTap: () => showAboutBrahmsNexusDialog(context),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 40),
+              ],
+            ),
           ),
         ),
       ),
-    ),
-  );
-}
+    );
+  }
 
-  Widget _buildSection(String title, List<Widget> children) {
-    return Column(
+  Widget _buildSectionHeader(String title) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 4, bottom: 12),
+      child: Text(
+        title.toUpperCase(),
+        style: const TextStyle(
+          fontWeight: FontWeight.w800,
+          fontSize: 12,
+          letterSpacing: 1.1,
+          color: AdminWebColors.accent,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActionRow({
+    required IconData icon,
+    required String title,
+    required String description,
+    required String actionLabel,
+    required IconData actionIcon,
+    required VoidCallback onTap,
+  }) {
+    return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
-          padding: const EdgeInsets.only(left: 4, bottom: 12),
-          child: Text(
-            title.toUpperCase(),
-            style: const TextStyle(
-              fontWeight: FontWeight.w800,
-              fontSize: 12,
-              letterSpacing: 1.2,
-              color: AdminWebColors.accent,
-            ),
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: AdminWebColors.accent.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(8),
           ),
+          child: Icon(icon, color: AdminWebColors.accent, size: 22),
         ),
-        GlassCard(
-          padding: const EdgeInsets.all(20),
-          child: Column(children: children),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildSettingRow(
-      String label, String hint, TextEditingController controller,
-      {String? prefixText, String? suffixText}) {
-    return Row(
-      children: [
+        const SizedBox(width: 16),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                label,
+                title,
                 style: const TextStyle(
                   fontWeight: FontWeight.w700,
-                  fontSize: 15,
+                  fontSize: 14.5,
                   color: AdminWebColors.textPrimary,
                 ),
               ),
               const SizedBox(height: 4),
               Text(
-                hint,
+                description,
                 style: const TextStyle(
-                  fontSize: 13,
+                  fontSize: 12.5,
                   color: AdminWebColors.textSecondary,
-                  height: 1.4,
+                  height: 1.45,
                 ),
               ),
             ],
           ),
         ),
-        const SizedBox(width: 32),
-        SizedBox(
-          width: 120,
-          child: TextField(
-            controller: controller,
-            keyboardType: TextInputType.number,
-            textAlign: TextAlign.right,
-            style: const TextStyle(fontWeight: FontWeight.bold),
-            decoration: InputDecoration(
-              prefixText: prefixText,
-              suffixText: suffixText,
-              isDense: true,
-              contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-            ),
+        const SizedBox(width: 20),
+        OutlinedButton.icon(
+          onPressed: onTap,
+          icon: Icon(actionIcon, size: 16),
+          label: Text(actionLabel),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: AdminWebColors.accent,
+            side: const BorderSide(color: AdminWebColors.accent, width: 1.2),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            textStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
           ),
         ),
       ],
     );
   }
 
-  Widget _buildToggleRow(String label, String hint, bool initialValue) {
-    return Row(
-      children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                label,
-                style: const TextStyle(
-                  fontWeight: FontWeight.w700,
-                  fontSize: 15,
-                  color: AdminWebColors.textPrimary,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                hint,
-                style: const TextStyle(
-                  fontSize: 13,
-                  color: AdminWebColors.textSecondary,
-                  height: 1.4,
-                ),
-              ),
-            ],
+  Future<void> _replayOwnerTour(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Replay Guided Tour?'),
+        content: const Text(
+          'This will restart the interactive step-by-step guided tour explaining all modules of the Owner Web portal. Would you like to start now?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
           ),
-        ),
-        const SizedBox(width: 32),
-        Switch(
-          value: initialValue,
-          onChanged: (v) {},
-        ),
-      ],
+          ElevatedButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AdminWebColors.accent,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Start Tour'),
+          ),
+        ],
+      ),
     );
+    if (confirmed != true) return;
+    if (!context.mounted) return;
+    final shell = context.findAncestorStateOfType<AdminWebShellState>();
+    await TutorialService.resetTutorial('owner_spotlight');
+    shell?.showTutorial();
   }
 }
-

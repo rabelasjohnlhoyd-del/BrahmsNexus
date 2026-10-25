@@ -392,7 +392,7 @@ class RouteScreenState extends State<RouteScreen> {
                 }
               } catch (e) {
                 messenger.showSnackBar(
-                  SnackBar(content: Text('Error placing call: $e')),
+                  SnackBar(content: Text('Unable to open phone dialer. Please check device calling capabilities.')),
                 );
               }
             },

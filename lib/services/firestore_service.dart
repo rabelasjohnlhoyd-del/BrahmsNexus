@@ -202,6 +202,12 @@ class FirestoreService {
         'updatedAt': FieldValue.serverTimestamp(),
       });
 
+      final orderWithId = order.copyWith(id: docRef.id);
+      SupabaseService.saveBilaoOrder(orderWithId).catchError((e) {
+        debugPrint('SupabaseService.saveBilaoOrder in createBilaoOrder failed: $e');
+        return false;
+      });
+
       // Notify driver of the new pending bilao order so they are aware of the upcoming delivery
       NotificationService.notifyDriverOfPendingBilao(
         customerName: order.customerName,
@@ -409,6 +415,17 @@ class FirestoreService {
       }
 
       await _db.collection('bilao_orders').doc(orderId).update(data);
+
+      final client = SupabaseService.client;
+      if (client != null) {
+        final sbData = <String, dynamic>{};
+        if (preparationStatus != null) sbData['preparation_status'] = preparationStatus.name;
+        if (deliveryStatus != null) sbData['delivery_status'] = deliveryStatus.name;
+        if (sbData.isNotEmpty) {
+          client.from('bilao_orders').update(sbData).eq('id', orderId).catchError((_) {});
+        }
+      }
+
       return true;
     } catch (e) {
       debugPrint('FirestoreService.updateBilaoStatus error: $e');
@@ -420,6 +437,10 @@ class FirestoreService {
   static Future<bool> deleteBilaoOrder(String orderId) async {
     try {
       await _db.collection('bilao_orders').doc(orderId).delete();
+      final client = SupabaseService.client;
+      if (client != null) {
+        client.from('bilao_orders').delete().eq('id', orderId).catchError((_) {});
+      }
       return true;
     } catch (e) {
       debugPrint('FirestoreService.deleteBilaoOrder error: $e');
@@ -435,6 +456,13 @@ class FirestoreService {
         'cancellationReason': reason,
         'updatedAt': FieldValue.serverTimestamp(),
       });
+      final client = SupabaseService.client;
+      if (client != null) {
+        client.from('bilao_orders').update({
+          'is_cancelled': true,
+          'cancellation_reason': reason,
+        }).eq('id', orderId).catchError((_) {});
+      }
       return true;
     } catch (e) {
       debugPrint('FirestoreService.cancelBilaoOrder error: $e');
@@ -1503,6 +1531,54 @@ class FirestoreService {
         );
       }).toList();
     });
+  }
+
+  static bool _hasSyncedReportsToSupabase = false;
+
+  /// Syncs existing Firestore daily reports to Supabase so that Supabase
+  /// PostgreSQL daily_reports table contains all historical reports.
+  static Future<int> syncExistingDailyReportsToSupabase() async {
+    if (_hasSyncedReportsToSupabase) return 0;
+    _hasSyncedReportsToSupabase = true;
+    try {
+      final snap = await _db.collection('daily_reports').limit(100).get();
+      int count = 0;
+      for (final doc in snap.docs) {
+        final data = doc.data();
+        DateTime parsedDate = DateTime.now();
+        final rawDate = data['date'];
+        if (rawDate is Timestamp) {
+          parsedDate = rawDate.toDate();
+        } else if (rawDate is String) {
+          parsedDate = DateTime.tryParse(rawDate) ?? DateTime.now();
+        }
+
+        final statusStr = data['status']?.toString() ?? 'submitted';
+        final report = DailyReport(
+          id: doc.id,
+          employeeId: data['employeeId']?.toString() ?? '',
+          employeeName: data['employeeName']?.toString() ?? '',
+          branchId: data['branchId']?.toString() ?? '',
+          branchName: data['branchName']?.toString() ?? '',
+          date: parsedDate,
+          content: data['content']?.toString() ?? '',
+          reportType: data['reportType']?.toString() ?? 'branch',
+          status: ReportSubmissionStatus.values.firstWhere(
+            (e) => e.name == statusStr,
+            orElse: () => ReportSubmissionStatus.submitted,
+          ),
+          ownerReply: data['ownerReply']?.toString(),
+        );
+
+        final ok = await SupabaseService.saveDailyReport(report);
+        if (ok) count++;
+      }
+      debugPrint('syncExistingDailyReportsToSupabase: synced $count reports to Supabase');
+      return count;
+    } catch (e) {
+      debugPrint('syncExistingDailyReportsToSupabase error: $e');
+      return 0;
+    }
   }
 
   /// Saves an employee daily incident report in Firestore and notifies the owner.
@@ -2584,7 +2660,7 @@ class FirestoreService {
       );
 
       // Write to daily_reports so the driver's stock delivery shows in Employee Reports
-      await _db.collection('daily_reports').add({
+      final dispatchReportDoc = await _db.collection('daily_reports').add({
         'employeeId': driverLabel,
         'employeeName': driverLabel,
         'branchId': 'driver',
@@ -2594,6 +2670,21 @@ class FirestoreService {
         'content': 'Naihatid ni $driverLabel ang ${dispatch.itemsSummary} sa ${dispatch.destinationBranchName}.',
         'status': ReportSubmissionStatus.submitted.name,
         'submittedAt': FieldValue.serverTimestamp(),
+      });
+
+      SupabaseService.saveDailyReport(DailyReport(
+        id: dispatchReportDoc.id,
+        employeeId: driverLabel,
+        employeeName: driverLabel,
+        branchId: 'driver',
+        branchName: 'Driver',
+        reportType: 'driver',
+        date: now,
+        content: 'Naihatid ni $driverLabel ang ${dispatch.itemsSummary} sa ${dispatch.destinationBranchName}.',
+        status: ReportSubmissionStatus.submitted,
+      )).catchError((e) {
+        debugPrint('SupabaseService.saveDailyReport in recordDispatchDelivery error: $e');
+        return false;
       });
 
       // 6. Resolve any open discrepancy reports for this branch since restock has been delivered
@@ -2649,7 +2740,7 @@ class FirestoreService {
       final dName = (driverName != null && driverName.isNotEmpty) ? driverName : 'Driver';
       final desc = '$sizeLabel x $quantity para kay $customerName sa $deliveryAddress';
 
-      await _db.collection('daily_reports').add({
+      final deliveryReportDoc = await _db.collection('daily_reports').add({
         'employeeId': dName,
         'employeeName': dName,
         'branchId': 'driver',
@@ -2659,6 +2750,21 @@ class FirestoreService {
         'content': 'Naihatid ni $dName ang Bilao Order ($desc).',
         'status': ReportSubmissionStatus.submitted.name,
         'submittedAt': FieldValue.serverTimestamp(),
+      });
+
+      SupabaseService.saveDailyReport(DailyReport(
+        id: deliveryReportDoc.id,
+        employeeId: dName,
+        employeeName: dName,
+        branchId: 'driver',
+        branchName: 'Driver',
+        reportType: 'driver',
+        date: now,
+        content: 'Naihatid ni $dName ang Bilao Order ($desc).',
+        status: ReportSubmissionStatus.submitted,
+      )).catchError((e) {
+        debugPrint('SupabaseService.saveDailyReport in recordBilaoDeliveryReport error: $e');
+        return false;
       });
 
       await NotificationService.sendNotification(

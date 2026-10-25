@@ -7,7 +7,8 @@ import '../../../services/firestore_service.dart';
 import '../admin_web_colors.dart';
 import '../admin_web_shell.dart';
 import '../admin_web_widgets/glass_card.dart';
-import '../admin_web_widgets/simple_bar_chart.dart';
+import '../admin_web_widgets/forecast_line_chart.dart';
+import '../admin_web_widgets/smooth_area_chart.dart';
 
 /// DSS Analytics — Descriptive, Predictive, and Prescriptive Decision Support System
 /// Built for Brahms Crispy Sisig Bagnet Owner / Executive Management.
@@ -213,29 +214,11 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                 // =============================================================
                 const _SectionHeader(
                   title: '2. Predictive Analytics',
-                  subtitle: 'Estimated meat depletion rate and upcoming sales demand',
+                  subtitle: 'Statistical Simple Moving Average (SMA) demand forecasting for upcoming operational cycles',
                   icon: Icons.trending_up_rounded,
                 ),
                 const SizedBox(height: 10),
-                if (isNarrow)
-                  Column(
-                    children: [
-                      _buildForecastCard(),
-                      const SizedBox(height: 16),
-                      _buildDepletionCard(),
-                    ],
-                  )
-                else
-                  IntrinsicHeight(
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Expanded(child: _buildForecastCard()),
-                        const SizedBox(width: 18),
-                        Expanded(child: _buildDepletionCard()),
-                      ],
-                    ),
-                  ),
+                _buildForecastCard(),
 
                 const SizedBox(height: 20),
 
@@ -289,9 +272,10 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
         }
       }
 
-      // Realistic visual representation
-      values.add(portionsForDay > 0 ? portionsForDay : (18 + (i * 4)));
+      values.add(portionsForDay);
     }
+
+    final total7Days = values.fold<num>(0, (a, b) => a + b);
 
     return GlassCard(
       padding: const EdgeInsets.all(16),
@@ -315,9 +299,9 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                   color: AdminWebColors.accent.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(6),
                 ),
-                child: const Text(
-                  'Last 7 Days',
-                  style: TextStyle(
+                child: Text(
+                  '$total7Days Portions (7d)',
+                  style: const TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
                     color: AdminWebColors.accent,
@@ -334,14 +318,17 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
               color: AdminWebColors.textSecondary,
             ),
           ),
-          const SizedBox(height: 12),
-          SimpleBarChart(
+          const SizedBox(height: 14),
+          SmoothAreaChart(
             labels: labels,
             height: 160,
+            emptyMessage: 'No sales portions recorded yet',
             series: [
-              BarSeries(
+              AreaSeries(
+                name: 'Combined Sold Portions',
                 values: values,
                 color: AdminWebColors.accent,
+                unit: 'portions',
               ),
             ],
           ),
@@ -462,6 +449,74 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
 
   Widget _buildForecastCard() {
     final now = DateTime.now();
+    final dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+    // 1. Compute Historical Actual Demand (Past 4 Days + Today = 5 data points)
+    final histLabels = <String>[];
+    final histValues = <num>[];
+
+    for (int i = 4; i >= 0; i--) {
+      final date = now.subtract(Duration(days: i));
+      final label = i == 0 ? 'Today' : dayNames[date.weekday - 1];
+      histLabels.add(label);
+
+      int demand = 0;
+      for (final s in _salesRecords) {
+        if (s.date.year == date.year &&
+            s.date.month == date.month &&
+            s.date.day == date.day) {
+          demand += s.displayPortions;
+        }
+      }
+      for (final b in _bilaoOrders) {
+        if (b.scheduledDateTime.year == date.year &&
+            b.scheduledDateTime.month == date.month &&
+            b.scheduledDateTime.day == date.day) {
+          demand += (b.quantity * 8);
+        }
+      }
+      histValues.add(demand);
+    }
+
+    // 2. Compute Simple Moving Average (SMA_3) for Forecasting Next 3 Days
+    final nonZeroHist = histValues.where((v) => v > 0).toList();
+    double baseDemand = 38.0;
+    if (nonZeroHist.isNotEmpty) {
+      baseDemand = nonZeroHist.reduce((a, b) => a + b) / nonZeroHist.length;
+    }
+
+    final forecastLabels = <String>[];
+    final forecastValues = <num>[];
+    final rollingWindow = List<double>.from(
+      histValues.map((v) => v > 0 ? v.toDouble() : baseDemand),
+    );
+
+    for (int i = 1; i <= 3; i++) {
+      final futureDate = now.add(Duration(days: i));
+      final label = i == 1 ? 'Tomorrow' : dayNames[futureDate.weekday - 1];
+      forecastLabels.add(label);
+
+      final windowSlice = rollingWindow.length >= 3
+          ? rollingWindow.sublist(rollingWindow.length - 3)
+          : rollingWindow;
+      double sma = windowSlice.reduce((a, b) => a + b) / windowSlice.length;
+
+      // Adjust for weekend surge
+      final weekday = futureDate.weekday;
+      if (weekday == DateTime.saturday || weekday == DateTime.sunday) {
+        sma *= 1.22;
+      } else if (weekday == DateTime.friday) {
+        sma *= 1.10;
+      }
+
+      final rounded = sma.round();
+      forecastValues.add(rounded);
+      rollingWindow.add(sma);
+    }
+
+    final isWeekendApproaching = now.weekday >= 4;
+    final projectedTomorrow = forecastValues.isNotEmpty ? forecastValues.first.toInt() : 38;
+
     int upcomingBilao = 0;
     for (final order in _bilaoOrders) {
       final diff = order.scheduledDateTime.difference(now).inHours;
@@ -470,10 +525,8 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
       }
     }
 
-    final isWeekendApproaching = now.weekday >= 4;
-
     return GlassCard(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(18),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -482,41 +535,52 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
             children: [
               const Row(
                 children: [
-                  Icon(Icons.timeline_rounded, color: AdminWebColors.accent, size: 20),
+                  Icon(Icons.timeline_rounded, color: AdminWebColors.accent, size: 22),
                   SizedBox(width: 8),
                   Text(
                     '7-Day Demand Forecast (SMA)',
                     style: TextStyle(
                       fontWeight: FontWeight.w800,
-                      fontSize: 15,
+                      fontSize: 16,
                       color: AdminWebColors.textPrimary,
                     ),
                   ),
                 ],
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
                   color: isWeekendApproaching
                       ? const Color(0xFFFFF3E0)
                       : const Color(0xFFE8F5E9),
-                  borderRadius: BorderRadius.circular(4),
+                  borderRadius: BorderRadius.circular(6),
                   border: Border.all(
                     color: isWeekendApproaching
                         ? const Color(0xFFFFB74D)
                         : const Color(0xFF81C784),
                   ),
                 ),
-                child: Text(
-                  isWeekendApproaching ? 'WEEKEND SURGE' : 'STEADY DEMAND',
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w800,
-                    color: isWeekendApproaching
-                        ? const Color(0xFFE65100)
-                        : const Color(0xFF2E7D32),
-                    letterSpacing: 0.4,
-                  ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      isWeekendApproaching ? Icons.trending_up_rounded : Icons.check_circle_outline_rounded,
+                      size: 13,
+                      color: isWeekendApproaching ? const Color(0xFFE65100) : const Color(0xFF2E7D32),
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      isWeekendApproaching ? 'WEEKEND SURGE' : 'STEADY DEMAND',
+                      style: TextStyle(
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w800,
+                        color: isWeekendApproaching
+                            ? const Color(0xFFE65100)
+                            : const Color(0xFF2E7D32),
+                        letterSpacing: 0.4,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -524,259 +588,195 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
           const SizedBox(height: 6),
           Text(
             isWeekendApproaching
-                ? 'The weekend is approaching! Moving average projections indicate a 15%–25% surge during lunch peak hours (11:00 AM – 1:30 PM).'
-                : 'Projected daily demand remains steady for regular weekdays. Prepare standard inventory quantities per branch.',
+                ? 'Moving average projections indicate a 15%–25% surge during lunch peak hours (11:00 AM – 1:30 PM). Ensure adequate portions are prepped in advance.'
+                : 'Projected daily demand remains steady for regular weekdays. Prepare standard inventory portion batches per branch.',
             style: const TextStyle(
               fontSize: 12.5,
               color: AdminWebColors.textSecondary,
               height: 1.45,
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 12),
 
-          // Two mini forecast indicator cards
+          // Chart Legends
           Row(
             children: [
-              Expanded(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF7F3EE),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: const Color(0xFFEBE2D8)),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 14,
+                    height: 3.5,
+                    decoration: BoxDecoration(
+                      color: AdminWebColors.accent,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
                   ),
-                  child: const Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'PROJECTED DAILY SALES',
-                        style: TextStyle(
-                          fontSize: 9.5,
-                          fontWeight: FontWeight.w800,
-                          color: AdminWebColors.textSecondary,
-                          letterSpacing: 0.3,
-                        ),
-                      ),
-                      SizedBox(height: 3),
-                      Text(
-                        '35–45 Portions',
-                        style: TextStyle(
-                          fontSize: 13.5,
-                          fontWeight: FontWeight.w800,
-                          color: AdminWebColors.textPrimary,
-                        ),
-                      ),
-                    ],
+                  const SizedBox(width: 6),
+                  const Text(
+                    'Actual Demand (Recorded)',
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w700,
+                      color: AdminWebColors.textSecondary,
+                    ),
                   ),
-                ),
+                ],
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF7F3EE),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: const Color(0xFFEBE2D8)),
+              const SizedBox(width: 20),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 14,
+                    height: 3.5,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE65100),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
                   ),
-                  child: const Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'PEAK SHIFT WINDOW',
-                        style: TextStyle(
-                          fontSize: 9.5,
-                          fontWeight: FontWeight.w800,
-                          color: AdminWebColors.textSecondary,
-                          letterSpacing: 0.3,
-                        ),
-                      ),
-                      SizedBox(height: 3),
-                      Text(
-                        '11:00 AM – 1:30 PM',
-                        style: TextStyle(
-                          fontSize: 13.5,
-                          fontWeight: FontWeight.w800,
-                          color: AdminWebColors.textPrimary,
-                        ),
-                      ),
-                    ],
+                  const SizedBox(width: 6),
+                  const Text(
+                    'SMA Forecast Projection',
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFFE65100),
+                    ),
                   ),
-                ),
+                ],
               ),
             ],
-          ),
-
-          const Spacer(),
-
-          // Upcoming Bilao Banner
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            decoration: BoxDecoration(
-              color: AdminWebColors.accent.withValues(alpha: 0.07),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: AdminWebColors.accent.withValues(alpha: 0.2)),
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.calendar_month_rounded, color: AdminWebColors.accent, size: 24),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Scheduled Bilao Orders (Next 72 Hours)',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          color: AdminWebColors.textSecondary,
-                        ),
-                      ),
-                      Text(
-                        upcomingBilao > 0
-                            ? '$upcomingBilao Scheduled Bilao Orders'
-                            : 'No scheduled bilao orders at this time',
-                        style: const TextStyle(
-                          fontSize: 13.5,
-                          fontWeight: FontWeight.w800,
-                          color: AdminWebColors.textPrimary,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDepletionCard() {
-    final displayStocks = _meatStocks.isNotEmpty ? _meatStocks : _defaultStocksFallback();
-
-    return GlassCard(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Branch Meat Depletion Rate',
-                style: TextStyle(
-                  fontWeight: FontWeight.w800,
-                  fontSize: 15,
-                  color: AdminWebColors.textPrimary,
-                ),
-              ),
-              Text(
-                'Estimated Depletion',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: AdminWebColors.textSecondary,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          const Text(
-            'Estimated days remaining before meat runs out based on current stock.',
-            style: TextStyle(fontSize: 12, color: AdminWebColors.textSecondary),
           ),
           const SizedBox(height: 12),
-          for (int i = 0; i < displayStocks.take(4).length; i++) ...[
-            if (i > 0) const Divider(height: 12, color: Color(0xFFF2ECE4)),
-            _buildBranchDepletionRow(displayStocks[i], i),
-          ],
+
+          // The Forecast Line Chart (Full-width)
+          ForecastLineChart(
+            historicalLabels: histLabels,
+            historicalValues: histValues,
+            forecastLabels: forecastLabels,
+            forecastValues: forecastValues,
+            height: 180,
+            unit: 'portions',
+          ),
+          const SizedBox(height: 16),
+
+          // Three KPI Indicator Cards in a responsive layout
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final isCardNarrow = constraints.maxWidth < 680;
+              final items = [
+                _buildForecastKpi(
+                  icon: Icons.insights_rounded,
+                  label: 'PROJECTED DEMAND (TOMORROW)',
+                  value: '~$projectedTomorrow Portions',
+                  subtext: 'Simple Moving Average (SMA_3)',
+                  color: const Color(0xFFE65100),
+                ),
+                _buildForecastKpi(
+                  icon: Icons.schedule_rounded,
+                  label: 'PEAK SHIFT WINDOW',
+                  value: '11:00 AM – 1:30 PM',
+                  subtext: 'Optimal branch prep time',
+                  color: AdminWebColors.accent,
+                ),
+                _buildForecastKpi(
+                  icon: Icons.calendar_month_rounded,
+                  label: 'SCHEDULED BILAO (NEXT 72H)',
+                  value: upcomingBilao > 0 ? '$upcomingBilao Packages' : 'None Scheduled',
+                  subtext: upcomingBilao > 0 ? 'Fulfill at branch pickups' : 'Regular commissary quota',
+                  color: const Color(0xFF2E7D32),
+                ),
+              ];
+
+              if (isCardNarrow) {
+                return Column(
+                  children: items
+                      .map((item) => Padding(
+                            padding: const EdgeInsets.only(bottom: 10),
+                            child: item,
+                          ))
+                      .toList(),
+                );
+              }
+
+              return Row(
+                children: [
+                  Expanded(child: items[0]),
+                  const SizedBox(width: 12),
+                  Expanded(child: items[1]),
+                  const SizedBox(width: 12),
+                  Expanded(child: items[2]),
+                ],
+              );
+            },
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildBranchDepletionRow(BranchMeatStock stock, int index) {
-    // Clean up branch name for neat presentation
-    String cleanName = stock.branchName;
-    if (cleanName.contains('Sta. Cruz')) {
-      cleanName = 'Sta. Cruz (Brgy. Gatid)';
-    } else if (cleanName.contains('Labuin')) {
-      cleanName = 'Pila (Brgy. Labuin)';
-    } else if (cleanName.contains('Dayap')) {
-      cleanName = 'Calauan (Brgy. Dayap)';
-    } else if (cleanName.contains('Nanhaya')) {
-      cleanName = 'Victoria (Brgy. Nanhaya)';
-    }
-
-    // Compute realistic burn rate based on branch operational footprint
-    final burnRates = [24.0, 16.0, 18.0, 12.0];
-    final burnRate = burnRates[index % burnRates.length];
-    final remaining = stock.totalRemainingPcs;
-    final double daysLeft = (remaining / burnRate).clamp(0.8, 4.5);
-
-    Color badgeColor;
-    String statusLabel;
-    if (daysLeft < 1.6 || stock.isRunningLow) {
-      badgeColor = AdminWebColors.error;
-      statusLabel = '${daysLeft.toStringAsFixed(1)} Days (Critical)';
-    } else if (daysLeft < 2.5) {
-      badgeColor = AdminWebColors.warning;
-      statusLabel = '${daysLeft.toStringAsFixed(1)} Days (Moderate)';
-    } else {
-      badgeColor = AdminWebColors.success;
-      statusLabel = '${daysLeft.toStringAsFixed(1)} Days (Safe)';
-    }
-
-    final approxKg = ((stock.regular250gRemaining * 0.25) +
-            (stock.medium300gRemaining * 0.30) +
-            (stock.b1t1_400gRemaining * 0.40))
-        .toStringAsFixed(1);
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 3),
+  Widget _buildForecastKpi({
+    required IconData icon,
+    required String label,
+    required String value,
+    required String subtext,
+    required Color color,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF7F3EE),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFEBE2D8)),
+      ),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, size: 20, color: color),
+          ),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  cleanName,
+                  label,
                   style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
+                    fontSize: 9.5,
+                    fontWeight: FontWeight.w800,
+                    color: AdminWebColors.textSecondary,
+                    letterSpacing: 0.3,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  value,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
                     color: AdminWebColors.textPrimary,
                   ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
                 Text(
-                  '$remaining portions remaining (~$approxKg kg)',
-                  style: const TextStyle(
-                    fontSize: 11.5,
-                    color: AdminWebColors.textSecondary,
+                  subtext,
+                  style: TextStyle(
+                    fontSize: 10.5,
+                    color: AdminWebColors.textSecondary.withValues(alpha: 0.8),
                   ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ],
-            ),
-          ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
-            decoration: BoxDecoration(
-              color: badgeColor.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(5),
-              border: Border.all(color: badgeColor.withValues(alpha: 0.3)),
-            ),
-            child: Text(
-              statusLabel,
-              style: TextStyle(
-                fontSize: 10.5,
-                fontWeight: FontWeight.w800,
-                color: badgeColor,
-                letterSpacing: 0.2,
-              ),
             ),
           ),
         ],
@@ -880,42 +880,6 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     return recommendations;
   }
 
-  List<BranchMeatStock> _defaultStocksFallback() {
-    return [
-      BranchMeatStock(
-        branchId: 'b_stacruz',
-        branchName: 'Sta. Cruz',
-        date: DateTime.now(),
-        regular250gRemaining: 14,
-        medium300gRemaining: 6,
-        b1t1_400gRemaining: 6,
-      ),
-      BranchMeatStock(
-        branchId: 'b_dayap',
-        branchName: 'Dayap',
-        date: DateTime.now(),
-        regular250gRemaining: 24,
-        medium300gRemaining: 10,
-        b1t1_400gRemaining: 8,
-      ),
-      BranchMeatStock(
-        branchId: 'b_pila',
-        branchName: 'Pila',
-        date: DateTime.now(),
-        regular250gRemaining: 18,
-        medium300gRemaining: 8,
-        b1t1_400gRemaining: 8,
-      ),
-      BranchMeatStock(
-        branchId: 'b_labuin',
-        branchName: 'Labuin',
-        date: DateTime.now(),
-        regular250gRemaining: 16,
-        medium300gRemaining: 6,
-        b1t1_400gRemaining: 6,
-      ),
-    ];
-  }
 }
 
 // =============================================================================

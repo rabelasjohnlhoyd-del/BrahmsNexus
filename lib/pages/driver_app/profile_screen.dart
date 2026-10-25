@@ -14,6 +14,8 @@ import 'driver_shell.dart';
 import 'edit_profile_screen.dart';
 import 'route_screen.dart';
 import '../staff_app/staff_salary_screen.dart';
+import '../../widgets/terms_and_conditions_dialog.dart';
+import '../../widgets/app_info_modals.dart';
 
 /// Refined Driver Profile — displays the logged-in driver's real account details.
 class DriverProfileScreen extends StatefulWidget {
@@ -206,13 +208,6 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
                   padding: EdgeInsets.zero,
                   child: Column(
                     children: [
-                      _listTile(CupertinoIcons.bell, 'Notifications', 'Enabled',
-                          showChevron: true),
-                      _divider(),
-                      _listTile(CupertinoIcons.lock_shield,
-                          'Security & Privacy', null,
-                          showChevron: true),
-                      _divider(),
                       _listTile(CupertinoIcons.play_circle,
                           'System Tutorial', 'Replay',
                           showChevron: true,
@@ -221,19 +216,19 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
                             final confirmed = await showCupertinoDialog<bool>(
                               context: context,
                               builder: (ctx) => CupertinoAlertDialog(
-                                title: const Text('Panoorin Ulit ang Tutorial?'),
+                                title: const Text('Replay System Tutorial?'),
                                 content: const Text(
-                                  'Ipapakita muli ang step-by-step guided tour para sa iyong role. Gusto mo bang simulan ngayon?',
+                                  'Would you like to review the step-by-step guided tour for your operational role?',
                                 ),
                                 actions: [
                                   CupertinoDialogAction(
                                     onPressed: () => Navigator.of(ctx).pop(false),
-                                    child: const Text('Huwag Na'),
+                                    child: const Text('Cancel'),
                                   ),
                                   CupertinoDialogAction(
                                     onPressed: () => Navigator.of(ctx).pop(true),
                                     isDefaultAction: true,
-                                    child: const Text('Oo, Simulan Na'),
+                                    child: const Text('Start Tutorial'),
                                   ),
                                 ],
                               ),
@@ -249,13 +244,29 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
                             }
                           }),
                       _divider(),
-                      _listTile(CupertinoIcons.question_circle,
-                          'Help & Support', null,
-                          showChevron: true),
+                      _listTile(
+                        CupertinoIcons.doc_text,
+                        'Terms & Privacy Policy',
+                        null,
+                        showChevron: true,
+                        onTap: () => showTermsDialog(context, isReviewOnly: true),
+                      ),
                       _divider(),
-                      _listTile(CupertinoIcons.info_circle,
-                          'About Brahms Nexus', null,
-                          showChevron: true),
+                      _listTile(
+                        CupertinoIcons.question_circle,
+                        'Help & Support',
+                        null,
+                        showChevron: true,
+                        onTap: () => showHelpAndSupportDialog(context),
+                      ),
+                      _divider(),
+                      _listTile(
+                        CupertinoIcons.info_circle,
+                        'About Brahms Nexus',
+                        null,
+                        showChevron: true,
+                        onTap: () => showAboutBrahmsNexusDialog(context),
+                      ),
                     ],
                   ),
                 ),

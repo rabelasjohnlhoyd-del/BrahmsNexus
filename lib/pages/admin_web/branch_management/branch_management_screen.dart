@@ -97,6 +97,9 @@ class _BranchManagementScreenState extends State<BranchManagementScreen> {
       ),
     );
 
+    if (!mounted) return;
+    _updateShellActions();
+
     if (result != null) {
       await SupabaseService.saveBranch(result);
       await _loadBranches();

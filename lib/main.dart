@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'config/supabase_config.dart';
 import 'firebase_options.dart';
+import 'services/fcm_service.dart';
 import 'pages/auth/login_screen.dart';
 import 'pages/auth/splash_screen.dart';
 import 'theme/app_theme.dart';
@@ -44,6 +45,13 @@ void main() async {
     }
   } catch (e) {
     debugPrint('Firebase.initializeApp error: $e');
+  }
+
+  // Initialize Firebase Cloud Messaging (FCM) push notifications
+  try {
+    await FcmService.initialize();
+  } catch (e) {
+    debugPrint('FcmService.initialize note: $e');
   }
 
   // Enable Firestore persistence for offline support (safely wrapped)

@@ -1732,5 +1732,37 @@ class SupabaseService {
       return false;
     }
   }
+
+  // ===========================================================================
+  // 9. INVENTORY MASTER CATALOG (Supabase PostgreSQL)
+  // ===========================================================================
+
+  static final List<Map<String, dynamic>> _defaultMasterItems = [
+    {'id': 'item-karne-reg', 'item_name': 'Karne Regular (250g - ₱130)', 'unit': 'pcs', 'category': 'Meat', 'default_allocation': 20},
+    {'id': 'item-karne-med', 'item_name': 'Karne Medium (300g - ₱160)', 'unit': 'pcs', 'category': 'Meat', 'default_allocation': 10},
+    {'id': 'item-karne-b1t1', 'item_name': 'Karne B1T1 (400g - ₱210)', 'unit': 'pcs', 'category': 'Meat', 'default_allocation': 10},
+    {'id': 'item-mayo', 'item_name': 'Mayonnaise', 'unit': 'packs', 'category': 'Sauces', 'default_allocation': 40},
+    {'id': 'item-toyo', 'item_name': 'Special Toyo Bagnet Sauce', 'unit': 'bottles', 'category': 'Sauces', 'default_allocation': 7},
+    {'id': 'item-styro', 'item_name': 'Styro Food Container Box', 'unit': 'pcs', 'category': 'Packaging', 'default_allocation': 40},
+    {'id': 'item-sibuyas', 'item_name': 'Sibuyas (Red Onion)', 'unit': 'kg', 'category': 'Perishables', 'default_allocation': 5},
+    {'id': 'item-sili', 'item_name': 'Sili (Green Chili)', 'unit': 'kg', 'category': 'Perishables', 'default_allocation': 2},
+  ];
+
+  /// Fetches the master catalog of standardized inventory items and ingredients from Supabase.
+  static Future<List<Map<String, dynamic>>> getInventoryMasterItems() async {
+    final client = _client;
+    if (client == null) return List.from(_defaultMasterItems);
+    try {
+      final data = await client
+          .from('inventory_master_items')
+          .select()
+          .order('category', ascending: true);
+      final list = List<Map<String, dynamic>>.from(data);
+      return list.isNotEmpty ? list : List.from(_defaultMasterItems);
+    } catch (e) {
+      debugPrint('SupabaseService.getInventoryMasterItems error: $e');
+      return List.from(_defaultMasterItems);
+    }
+  }
 }
 
