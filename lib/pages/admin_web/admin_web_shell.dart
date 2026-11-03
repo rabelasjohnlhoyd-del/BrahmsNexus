@@ -1,6 +1,7 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'admin_web_colors.dart';
+import '../../services/attendance_service.dart';
 import '../../services/auth_service.dart';
 import '../../services/notification_service.dart';
 import '../../services/tutorial_service.dart';
@@ -16,6 +17,7 @@ import 'bilao_orders/bilao_order_screen.dart';
 import 'branch_assignments/branch_assignments_screen.dart';
 import 'dashboard/dashboard_screen.dart';
 import 'employee_reports/employee_reports_screen.dart';
+import 'attendance_dtr/attendance_dtr_screen.dart';
 import 'inventory/inventory_screen.dart';
 import 'sales_payroll/sales_payroll_screen.dart';
 import 'staff_management/staff_management_screen.dart';
@@ -87,21 +89,22 @@ class AdminWebShellState extends State<AdminWebShell> {
   // Indices match _items list: 0=Dashboard, 1=Staff, 2=Approvals, 3=Branch Assignments,
   // 4=Inventory, 5=Sales&Payroll, 6=Bilao, 7=Employee Reports, 8=Announcements,
   // 9=DSS Analytics, 10=Branch Management, 11=Activity Log, 12=System Settings
-  final List<GlobalKey?> _sidebarItemKeys = List.generate(13, (i) {
+  final List<GlobalKey?> _sidebarItemKeys = List.generate(14, (i) {
     // Only create keys for the 4 spotlighted sidebar items
-    if (i == 10 || i == 2 || i == 4 || i == 5) return GlobalKey();
+    if (i == 11 || i == 2 || i == 5 || i == 6) return GlobalKey();
     return null;
   });
 
-  GlobalKey get _branchMgmtKey  => _sidebarItemKeys[10]!;
+  GlobalKey get _branchMgmtKey  => _sidebarItemKeys[11]!;
   GlobalKey get _approvalsKey   => _sidebarItemKeys[2]!;
-  GlobalKey get _inventoryKey   => _sidebarItemKeys[4]!;
-  GlobalKey get _salesPayrollKey => _sidebarItemKeys[5]!;
+  GlobalKey get _inventoryKey   => _sidebarItemKeys[5]!;
+  GlobalKey get _salesPayrollKey => _sidebarItemKeys[6]!;
 
 
   @override
   void initState() {
     super.initState();
+    AttendanceService.ensureAttendanceSync();
     // Disabled automatic pop-up of tutorial on launch.
     // The tour can still be accessed on-demand via System Settings.
   }
@@ -168,11 +171,11 @@ class AdminWebShellState extends State<AdminWebShell> {
       _customTitle = null;
       if (inventoryTab != null) {
         _inventoryInitialTab = inventoryTab;
-        _pageCache.remove(4);
+        _pageCache.remove(5);
       }
       if (activityLogTab != null) {
         _activityLogInitialTab = activityLogTab;
-        _pageCache.remove(11);
+        _pageCache.remove(12);
       }
     });
 
@@ -202,6 +205,9 @@ class AdminWebShellState extends State<AdminWebShell> {
     AdminSidebarItem(
         icon: Icons.store_mall_directory_rounded,
         label: 'Branch Assignments'),
+    AdminSidebarItem(
+        icon: Icons.access_time_filled_rounded,
+        label: 'Attendance & DTR'),
     AdminSidebarItem(icon: Icons.inventory_2_rounded, label: 'Inventory'),
     AdminSidebarItem(icon: Icons.payments_rounded, label: 'Sales & Payroll'),
     AdminSidebarItem(icon: Icons.shopping_bag_rounded, label: 'Bilao Orders'),
@@ -231,22 +237,24 @@ class AdminWebShellState extends State<AdminWebShell> {
         case 3:
           return const BranchAssignmentsScreen();
         case 4:
-          return InventoryScreen(initialTab: _inventoryInitialTab);
+          return const AttendanceDtrScreen();
         case 5:
-          return const SalesPayrollScreen();
+          return InventoryScreen(initialTab: _inventoryInitialTab);
         case 6:
-          return const BilaoOrderScreen();
+          return const SalesPayrollScreen();
         case 7:
-          return const EmployeeReportsScreen();
+          return const BilaoOrderScreen();
         case 8:
-          return const AnnouncementsScreen();
+          return const EmployeeReportsScreen();
         case 9:
-          return const AnalyticsScreen();
+          return const AnnouncementsScreen();
         case 10:
-          return const BranchManagementScreen();
+          return const AnalyticsScreen();
         case 11:
-          return ActivityLogScreen(initialTab: _activityLogInitialTab);
+          return const BranchManagementScreen();
         case 12:
+          return ActivityLogScreen(initialTab: _activityLogInitialTab);
+        case 13:
           return const SystemSettingsScreen();
         default:
           return DashboardScreen(onLogout: _handleLogout);

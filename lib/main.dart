@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'config/supabase_config.dart';
 import 'firebase_options.dart';
+import 'services/attendance_service.dart';
 import 'services/fcm_service.dart';
 import 'pages/auth/login_screen.dart';
 import 'pages/auth/splash_screen.dart';
@@ -78,6 +79,7 @@ void main() async {
     }
   }
 
+  AttendanceService.ensureAttendanceSync();
   runApp(const BrahmsNexusApp());
 }
 

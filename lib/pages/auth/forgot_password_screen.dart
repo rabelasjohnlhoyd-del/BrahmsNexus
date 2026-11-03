@@ -161,10 +161,21 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   Future<void> _handleVerifyOtp() async {
     FocusScope.of(context).unfocus();
 
-    // Enforce OTP attempt limit (prevent brute-forcing 6-digit code)
-    if (_otpAttempts >= _maxOtpAttempts) {
-      setState(() => _errorMessage = 'Maximum verification attempts reached ($_maxOtpAttempts). Please request a new code.');
-      return;
+    // 1. LAYER 1: Anti-AutoClicker Hardware Debounce
+    if (_isLoading) return;
+    if (_targetEmail != null && !RateLimiter.tryTap('verify_fp_otp_' + _targetEmail!)) {
+      return; // Silently drop rapid auto-clicker clicks
+    }
+
+    // 2. Check persistent lockout
+    if (_targetEmail != null) {
+      final lockout = await RateLimiter.otpLockoutRemaining(_targetEmail!);
+      if (lockout > Duration.zero) {
+        final mins = lockout.inMinutes;
+        final secs = lockout.inSeconds % 60;
+        setState(() => _errorMessage = 'Maximum attempts reached. Locked for ${mins}m ${secs}s.');
+        return;
+      }
     }
 
     final code = _otpController.text.trim();
@@ -187,13 +198,25 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
       if (!mounted) return;
       if (!isValid) {
+        final lockoutAfter = await RateLimiter.otpLockoutRemaining(_targetEmail!);
+        if (lockoutAfter > Duration.zero) {
+          final mins = lockoutAfter.inMinutes;
+          final secs = lockoutAfter.inSeconds % 60;
+          setState(() {
+            _isLoading = false;
+            _errorMessage = 'Maximum attempts reached (5/5). Your OTP has been burned. Locked for ${mins}m ${secs}s.';
+          });
+          return;
+        }
+
+        final fails = await RateLimiter.getOtpFailCount(_targetEmail!);
+        final remaining = RateLimiter.maxOtpAttempts - fails;
+
         setState(() {
           _isLoading = false;
-          _otpAttempts++;
-          final remaining = _maxOtpAttempts - _otpAttempts;
           _errorMessage = remaining > 0
-              ? 'Incorrect or expired verification code. ($remaining attempt${remaining == 1 ? "" : "s"} remaining)'
-              : 'Maximum attempts reached ($_maxOtpAttempts). Please request a new code.';
+              ? 'Incorrect or expired verification code. (${remaining} attempt${remaining == 1 ? "" : "s"} remaining)'
+              : 'Maximum attempts reached. Please request a new code.';
         });
         return;
       }
@@ -214,9 +237,16 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       if (mounted) setState(() => _isLoading = false);
     }
   }
-
   Future<void> _handleResendOtp() async {
     if (_resendCountdown > 0 || _targetEmail == null) return;
+
+    final lockout = await RateLimiter.otpLockoutRemaining(_targetEmail!);
+    if (lockout > Duration.zero) {
+      final mins = lockout.inMinutes;
+      final secs = lockout.inSeconds % 60;
+      setState(() => _errorMessage = 'Locked due to too many failed attempts. Please wait ${mins}m ${secs}s.');
+      return;
+    }
 
     if (_resendCount >= _maxResends) {
       setState(() => _errorMessage = 'Maximum resend limit reached (${_maxResends}x). Please restart the recovery process.');

@@ -29,7 +29,7 @@ class AppUser {
     this.driverLicenseExpiry = '',
     this.isLicenseVerified = false,
     this.isEmailVerified = false,
-    this.isPhoneVerified = false,
+    this.isPhoneVerified = true,
     this.createdAt,
   });
 
@@ -80,7 +80,7 @@ class AppUser {
       driverLicenseExpiry: map['driverLicenseExpiry'] as String? ?? '',
       isLicenseVerified: map['isLicenseVerified'] as bool? ?? false,
       isEmailVerified: map['isEmailVerified'] as bool? ?? false,
-      isPhoneVerified: map['isPhoneVerified'] as bool? ?? false,
+      isPhoneVerified: map['isPhoneVerified'] as bool? ?? true,
       createdAt: (map['createdAt'] as Timestamp?)?.toDate(),
     );
   }

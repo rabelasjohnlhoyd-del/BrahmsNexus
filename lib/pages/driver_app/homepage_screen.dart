@@ -1,10 +1,12 @@
 import 'dart:async';
 import 'package:flutter/cupertino.dart';
+import '../../services/driver_ble_service.dart';
 import '../../models/branch.dart';
 import '../../models/branch_assignment.dart';
 import '../../models/branch_meat_inventory.dart';
 import '../../models/staff_member.dart';
 import '../../services/assignment_service.dart';
+import '../../services/attendance_service.dart';
 import '../../services/auth_service.dart';
 import '../../services/firestore_service.dart';
 import '../../services/supabase_service.dart';
@@ -58,6 +60,8 @@ class _DriverHomepageScreenState extends State<DriverHomepageScreen> {
         setState(() {
           _branchClosedMap.clear();
           for (final s in stocks) {
+            final canonId = AttendanceService.normalizeBranchId(s.branchId, s.branchName);
+            _branchClosedMap[canonId] = s.isClosed;
             _branchClosedMap[s.branchId.toLowerCase()] = s.isClosed;
             _branchClosedMap[s.branchName.trim().toLowerCase()] = s.isClosed;
           }
@@ -67,6 +71,8 @@ class _DriverHomepageScreenState extends State<DriverHomepageScreen> {
   }
 
   bool _isBranchClosed(Branch branch) {
+    final canonId = AttendanceService.normalizeBranchId(branch.id, branch.name);
+    if (_branchClosedMap[canonId] == true) return true;
     if (_branchClosedMap[branch.id.toLowerCase()] == true) return true;
     final fullName = branch.fullName.trim().toLowerCase();
     if (_branchClosedMap[fullName] == true) return true;
@@ -150,8 +156,12 @@ class _DriverHomepageScreenState extends State<DriverHomepageScreen> {
 
   /// Helper to find who is assigned to a branch today based on AssignmentService.
   String? _getStaffForBranch(Branch branch) {
+    final branchCanonId = AttendanceService.normalizeBranchId(branch.id, branch.name);
+    final bNameLower = branch.name.toLowerCase().trim();
+    final bFullNameLower = branch.fullName.toLowerCase().trim();
+
     for (final s in _allStaff) {
-      if (s.isArchived) continue;
+      if (s.isArchived || !s.isActive) continue;
 
       final status = AssignmentService.getWorkStatus(
         s.username,
@@ -166,10 +176,34 @@ class _DriverHomepageScreenState extends State<DriverHomepageScreen> {
       final assignedBranch = AssignmentService.getAssignedBranch(
         s.username,
         fallback: AssignmentService.getAssignedBranch(s.id, fallback: s.branch),
+      ).trim();
+      final abLower = assignedBranch.toLowerCase();
+      final staffCanonId = AttendanceService.normalizeBranchId(
+        abLower.isNotEmpty ? abLower : s.branch,
+        s.fullName,
       );
 
-      if (assignedBranch == branch.fullName) {
+      if (staffCanonId == branchCanonId && staffCanonId.isNotEmpty && staffCanonId != 'unassigned') {
         return s.fullName;
+      }
+
+      if (abLower.isNotEmpty) {
+        if (abLower == bFullNameLower ||
+            abLower == bNameLower ||
+            bFullNameLower.contains(abLower) ||
+            abLower.contains(bNameLower)) {
+          return s.fullName;
+        }
+      }
+
+      final origBranchLower = s.branch.toLowerCase().trim();
+      if (origBranchLower.isNotEmpty && origBranchLower != 'n/a' && origBranchLower != 'unassigned') {
+        if (origBranchLower == bFullNameLower ||
+            origBranchLower == bNameLower ||
+            bFullNameLower.contains(origBranchLower) ||
+            origBranchLower.contains(bNameLower)) {
+          return s.fullName;
+        }
       }
     }
     return null;
@@ -208,6 +242,66 @@ class _DriverHomepageScreenState extends State<DriverHomepageScreen> {
     final minute = now.minute.toString().padLeft(2, '0');
     final period = now.hour >= 12 ? 'PM' : 'AM';
     return '$day $hour:$minute $period';
+  }
+
+  Widget _rfidReaderBadge() {
+    return ValueListenableBuilder<bool>(
+      valueListenable: DriverBleService().isConnectedNotifier,
+      builder: (context, isConnected, _) {
+        return ValueListenableBuilder<String>(
+          valueListenable: DriverBleService().statusNotifier,
+          builder: (context, status, _) {
+            final bgColor = isConnected ? const Color(0xFFE8F5E9) : const Color(0xFFFFF3E0);
+            final borderColor = isConnected ? const Color(0xFF81C784) : const Color(0xFFFFB74D);
+            final textColor = isConnected ? const Color(0xFF2E7D32) : const Color(0xFFE65100);
+
+            return GestureDetector(
+              onTap: () {
+                if (!isConnected) {
+                  DriverBleService().manualReconnect();
+                }
+              },
+              child: Container(
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+                decoration: BoxDecoration(
+                  color: bgColor,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: borderColor, width: 1),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      isConnected ? CupertinoIcons.bluetooth : CupertinoIcons.bluetooth,
+                      size: 16,
+                      color: textColor,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      isConnected ? 'RFID Reader: Connected' : 'RFID Reader: ',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: textColor,
+                      ),
+                    ),
+                    const Spacer(),
+                    Text(
+                      isConnected ? 'Ready for Taps' : 'Tap to Reconnect',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: textColor,
+                        decoration: isConnected ? TextDecoration.none : TextDecoration.underline,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
   Widget _weatherWidget() {
@@ -441,6 +535,7 @@ class _DriverHomepageScreenState extends State<DriverHomepageScreen> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
+            _rfidReaderBadge(),
             _weatherWidget(),
             const SizedBox(height: 20),
             DriverSectionHeader(

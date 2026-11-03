@@ -16,6 +16,7 @@ import '../production_app/production_shell.dart';
 import 'edit_profile_screen.dart';
 import 'homepage_screen.dart';
 import 'staff_salary_screen.dart';
+import '../../widgets/staff_attendance_card.dart';
 import 'staff_shell.dart';
 import '../../widgets/terms_and_conditions_dialog.dart';
 import '../../widgets/app_info_modals.dart';
@@ -169,6 +170,75 @@ class ProfileScreen extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 24),
+                // --- ATTENDANCE & DTR HISTORY BANNER ---
+                GestureDetector(
+                  onTap: () => StaffDtrHistorySheet.show(context),
+                  child: Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF1E293B), Color(0xFF334155)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF1E293B).withValues(alpha: 0.2),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 44,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            color: CupertinoColors.white.withValues(alpha: 0.15),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            CupertinoIcons.clock_fill,
+                            color: Color(0xFF38BDF8),
+                            size: 24,
+                          ),
+                        ),
+                        const SizedBox(width: 14),
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Attendance & DTR History',
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w800,
+                                  color: CupertinoColors.white,
+                                ),
+                              ),
+                              SizedBox(height: 2),
+                              Text(
+                                'Tingnan ang iyong Time-In, Time-Out, at kabuuang oras',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: Color(0xFFCBD5E1),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const Icon(
+                          CupertinoIcons.chevron_forward,
+                          color: Color(0xFF94A3B8),
+                          size: 18,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 18),
                 const StaffSectionHeader(label: 'Account Details'),
                 const SizedBox(height: 8),
                 StaffCard(

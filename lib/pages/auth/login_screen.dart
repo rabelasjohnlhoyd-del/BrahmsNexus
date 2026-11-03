@@ -126,157 +126,167 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _handleLogin() async {
     FocusScope.of(context).unfocus();
 
-    // Check persistent login lockout
-    final lockout = await RateLimiter.loginLockoutRemaining();
-    if (lockout > Duration.zero) {
-      final minutes = lockout.inMinutes;
-      final seconds = lockout.inSeconds % 60;
-      setState(() {
-        _lockoutRemaining = lockout;
-        _authError = 'Account temporarily locked. Please wait ${minutes}m ${seconds}s before trying again.';
-      });
-      _startLockoutCountdown();
-      return;
-    }
-
-    setState(() => _authError = null);
-
-    if (!_formKey.currentState!.validate()) return;
-
-    setState(() => _isLoading = true);
-
-    final username = _usernameController.text.trim();
-    final password = _passwordController.text;
-
-    if (username.toLowerCase() != 'owner' && username.toLowerCase() != 'admin') {
-      final isDeactivated = await AuthService.isAccountDeactivated(username);
-      if (isDeactivated) {
-        if (!mounted) return;
+    try {
+      // Check persistent login lockout
+      final lockout = await RateLimiter.loginLockoutRemaining();
+      if (lockout > Duration.zero) {
+        final minutes = lockout.inMinutes;
+        final seconds = lockout.inSeconds % 60;
         setState(() {
-          _isLoading = false;
-          _authError =
-              'This account is currently deactivated. Please contact the administrator for assistance.';
+          _lockoutRemaining = lockout;
+          _authError = 'Account temporarily locked. Please wait ${minutes}m ${seconds}s before trying again.';
         });
+        _startLockoutCountdown();
         return;
       }
 
-      final isOnRestDay = await AuthService.isAccountOnRestDay(username);
-      if (isOnRestDay) {
-        if (!mounted) return;
-        setState(() {
-          _isLoading = false;
-          _authError =
-              'You are on scheduled rest day today and cannot sign in. Please enjoy your day off!';
-        });
-        return;
-      }
-    }
+      setState(() => _authError = null);
 
-    final mock = kMockAccounts[username];
-    if (mock != null && mock.password == password) {
-      AppUser? liveUser;
-      if (mock.role == UserRole.owner) {
-        liveUser = await AuthService.signInOrSeedOwner(
-          username: username,
-          password: password,
-        );
-      } else {
-        liveUser = await AuthService.signInOrSeedStaff(
-          username: username,
-          password: password,
-          fullName: mock.fullName,
-          contactNumber: mock.phone.isNotEmpty ? mock.phone : '09123456789',
-          role: mock.role,
-          position: mock.position,
-        );
-      }
+      if (!_formKey.currentState!.validate()) return;
 
-      if (liveUser != null) {
-        if (!kIsWeb && liveUser.role == UserRole.owner) {
-          await AuthService.signOut();
+      setState(() => _isLoading = true);
+
+      final username = _usernameController.text.trim();
+      final password = _passwordController.text;
+
+      if (username.toLowerCase() != 'owner' && username.toLowerCase() != 'admin') {
+        final isDeactivated = await AuthService.isAccountDeactivated(username);
+        if (isDeactivated) {
           if (!mounted) return;
           setState(() {
             _isLoading = false;
-            _authError = 'Administrator and Owner accounts can only be accessed on the Web Portal.';
+            _authError =
+                'This account is currently deactivated. Please contact the administrator for assistance.';
           });
           return;
         }
-        if (kIsWeb && liveUser.role != UserRole.owner) {
-          await AuthService.signOut();
+
+        final isOnRestDay = await AuthService.isAccountOnRestDay(username);
+        if (isOnRestDay) {
           if (!mounted) return;
           setState(() {
             _isLoading = false;
-            _authError = 'Staff and Driver accounts can only be accessed using the mobile app.';
+            _authError =
+                'You are on scheduled rest day today and cannot sign in. Please enjoy your day off!';
           });
           return;
         }
+      }
+
+      final mock = kMockAccounts[username];
+      if (mock != null && mock.password == password) {
+        AppUser? liveUser;
+        if (mock.role == UserRole.owner) {
+          liveUser = await AuthService.signInOrSeedOwner(
+            username: username,
+            password: password,
+          );
+        } else {
+          liveUser = await AuthService.signInOrSeedStaff(
+            username: username,
+            password: password,
+            fullName: mock.fullName,
+            contactNumber: mock.phone.isNotEmpty ? mock.phone : '09123456789',
+            role: mock.role,
+            position: mock.position,
+          );
+        }
+
+        if (liveUser != null) {
+          if (!kIsWeb && liveUser.role == UserRole.owner) {
+            await AuthService.signOut();
+            if (!mounted) return;
+            setState(() {
+              _isLoading = false;
+              _authError = 'Administrator and Owner accounts can only be accessed on the Web Portal.';
+            });
+            return;
+          }
+          if (kIsWeb && liveUser.role != UserRole.owner) {
+            await AuthService.signOut();
+            if (!mounted) return;
+            setState(() {
+              _isLoading = false;
+              _authError = 'Staff and Driver accounts can only be accessed using the mobile app.';
+            });
+            return;
+          }
+          if (!mounted) return;
+          setState(() => _isLoading = false);
+          await RateLimiter.clearLoginFailures();
+          _navigateToRole(liveUser);
+          return;
+        }
+      }
+
+      String? signInError;
+      final user = await AuthService.signIn(
+        username: username,
+        password: password,
+        onError: (msg) => signInError = msg,
+      );
+
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+
+      if (user == null) {
+        final remaining = await RateLimiter.recordLoginFailure();
         if (!mounted) return;
-        setState(() => _isLoading = false);
-        await RateLimiter.clearLoginFailures();
-        _navigateToRole(liveUser);
+        if (remaining == null) {
+          final lockoutDuration = await RateLimiter.loginLockoutRemaining();
+          if (mounted) {
+            setState(() {
+              _lockoutRemaining = lockoutDuration;
+              _authError = 'Account temporarily locked after too many failed attempts. Please try again in 30 minutes.';
+            });
+            _startLockoutCountdown();
+          }
+        } else {
+          setState(() {
+            _authError = '${signInError ?? "Invalid username or password"} ($remaining attempt${remaining == 1 ? "" : "s"} remaining before lockout)';
+          });
+        }
         return;
       }
-    }
 
-    String? signInError;
-    final user = await AuthService.signIn(
-      username: username,
-      password: password,
-      onError: (msg) => signInError = msg,
-    );
-
-    if (!mounted) return;
-    setState(() => _isLoading = false);
-
-    if (user == null) {
-      final remaining = await RateLimiter.recordLoginFailure();
-      if (!mounted) return;
-      if (remaining == null) {
-        final lockoutDuration = await RateLimiter.loginLockoutRemaining();
-        if (mounted) {
-          setState(() {
-            _lockoutRemaining = lockoutDuration;
-            _authError = 'Account temporarily locked after too many failed attempts. Please try again in 30 minutes.';
-          });
-          _startLockoutCountdown();
-        }
-      } else {
+      if (user.status == AccountStatus.rejected) {
         setState(() {
-          _authError = '${signInError ?? "Invalid username or password"} ($remaining attempt${remaining == 1 ? "" : "s"} remaining before lockout)';
+          _authError = 'Your registration was not approved. Contact management.';
+        });
+        return;
+      }
+
+      // Web-Only Admin Guard: Prevent Owner from accessing the mobile app
+      if (!kIsWeb && user.role == UserRole.owner) {
+        await AuthService.signOut();
+        if (!mounted) return;
+        setState(() {
+          _authError = 'Administrator and Owner accounts can only be accessed on the Web Portal.';
+        });
+        return;
+      }
+
+      // Mobile-Only Staff Guard: Prevent Staff/Driver from logging in on Web Portal
+      if (kIsWeb && user.role != UserRole.owner) {
+        await AuthService.signOut();
+        if (!mounted) return;
+        setState(() {
+          _authError = 'Staff and Driver accounts can only be accessed using the mobile app.';
+        });
+        return;
+      }
+
+      await RateLimiter.clearLoginFailures();
+      _navigateToRole(user);
+    } catch (e, stack) {
+      debugPrint('Login exception: $e\n$stack');
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _authError = 'An unexpected error occurred during sign-in. Please restart the app and try again.';
         });
       }
-      return;
     }
-
-    if (user.status == AccountStatus.rejected) {
-      setState(() {
-        _authError = 'Your registration was not approved. Contact management.';
-      });
-      return;
-    }
-
-    // Web-Only Admin Guard: Prevent Owner from accessing the mobile app
-    if (!kIsWeb && user.role == UserRole.owner) {
-      await AuthService.signOut();
-      if (!mounted) return;
-      setState(() {
-        _authError = 'Administrator and Owner accounts can only be accessed on the Web Portal.';
-      });
-      return;
-    }
-
-    // Mobile-Only Staff Guard: Prevent Staff/Driver from logging in on Web Portal
-    if (kIsWeb && user.role != UserRole.owner) {
-      await AuthService.signOut();
-      if (!mounted) return;
-      setState(() {
-        _authError = 'Staff and Driver accounts can only be accessed using the mobile app.';
-      });
-      return;
-    }
-
-    await RateLimiter.clearLoginFailures();
-    _navigateToRole(user);
   }
 
   void _navigateToRole(AppUser user) {

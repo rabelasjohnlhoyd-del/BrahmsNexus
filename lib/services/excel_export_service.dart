@@ -2170,6 +2170,153 @@ class ExcelExportService {
     sheet.setColumnWidth(4, 26.0);
     sheet.setColumnWidth(5, 42.0);
   }
+
+  // ===========================================================================
+  // ATTENDANCE & DTR AUDIT WORKBOOK
+  // ===========================================================================
+
+  /// Generates and immediately downloads a comprehensive DTR & Attendance Report (.xlsx).
+  static Future<void> exportAttendanceDtrReport({
+    required List<Map<String, dynamic>> records,
+    String? selectedDate,
+    String? selectedBranch,
+  }) async {
+    final excel = Excel.createExcel();
+    const defaultSheet = 'Sheet1';
+    const sheetName = 'Daily Time Record';
+    excel.rename(defaultSheet, sheetName);
+    final sheet = excel[sheetName];
+
+    // Title Row
+    sheet.merge(
+      CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: 0),
+      CellIndex.indexByColumnRow(columnIndex: 8, rowIndex: 0),
+    );
+    final titleCell = sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: 0));
+    titleCell.value = TextCellValue('BRAHMS FOOD VENTURES — DAILY TIME RECORD (DTR) & ATTENDANCE AUDIT');
+    titleCell.cellStyle = _titleStyle;
+
+    // Subtitle Row
+    final nowStr = DateFormat('MMMM d, yyyy • h:mm a').format(DateTime.now());
+    final filterInfo = 'Generated on: $nowStr | Filter Date: ${selectedDate ?? 'All Dates'} | Branch: ${selectedBranch ?? 'All Branches'}';
+    sheet.merge(
+      CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: 1),
+      CellIndex.indexByColumnRow(columnIndex: 8, rowIndex: 1),
+    );
+    final subCell = sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: 1));
+    subCell.value = TextCellValue(filterInfo);
+    subCell.cellStyle = _subtotalStyle;
+
+    // Header Row 3
+    final headers = [
+      'Date',
+      'Staff ID',
+      'Staff Name',
+      'Role / Position',
+      'Assigned Branch / Station',
+      'Time-In',
+      'Time-Out',
+      'Hours Rendered',
+      'Verification / Device',
+    ];
+
+    for (int i = 0; i < headers.length; i++) {
+      final cell = sheet.cell(CellIndex.indexByColumnRow(columnIndex: i, rowIndex: 3));
+      cell.value = TextCellValue(headers[i]);
+      cell.cellStyle = _headerStyle;
+    }
+
+    // Data Rows starting at row 4
+    int rowIdx = 4;
+    double totalHours = 0.0;
+
+    for (final r in records) {
+      final date = r['date']?.toString() ?? '--';
+      final staffId = r['staff_id']?.toString() ?? '--';
+      final staffName = r['staff_name']?.toString() ?? '--';
+      final pos = r['position']?.toString() ?? '--';
+      final branch = r['branch_name']?.toString() ?? '--';
+
+      String timeInStr = '--';
+      if (r['time_in'] != null) {
+        try {
+          final dt = DateTime.parse(r['time_in'].toString()).toLocal();
+          timeInStr = DateFormat('h:mm a').format(dt);
+        } catch (_) {
+          timeInStr = r['time_in'].toString();
+        }
+      }
+
+      String timeOutStr = '--';
+      if (r['time_out'] != null) {
+        try {
+          final dt = DateTime.parse(r['time_out'].toString()).toLocal();
+          timeOutStr = DateFormat('h:mm a').format(dt);
+        } catch (_) {
+          timeOutStr = r['time_out'].toString();
+        }
+      } else if (r['time_in'] != null) {
+        timeOutStr = 'On Shift (Pending Out)';
+      }
+
+      final rawH = r['total_hours'];
+      double h = 0.0;
+      if (rawH != null) {
+        h = double.tryParse(rawH.toString()) ?? 0.0;
+        totalHours += h;
+      }
+
+      final device = r['device_id']?.toString() ?? 'RFID Reader';
+      final rfid = r['rfid_uid']?.toString() ?? '';
+      final verifyStr = 'RFID Verified ($device${rfid.isNotEmpty ? ' • $rfid' : ''})';
+
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIdx)).value = TextCellValue(date);
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: rowIdx)).value = TextCellValue(staffId);
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 2, rowIndex: rowIdx)).value = TextCellValue(staffName);
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: rowIdx)).value = TextCellValue(pos);
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 4, rowIndex: rowIdx)).value = TextCellValue(branch);
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 5, rowIndex: rowIdx)).value = TextCellValue(timeInStr);
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 6, rowIndex: rowIdx)).value = TextCellValue(timeOutStr);
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 7, rowIndex: rowIdx)).value = DoubleCellValue(h);
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: 8, rowIndex: rowIdx)).value = TextCellValue(verifyStr);
+
+      rowIdx++;
+    }
+
+    // Total Row
+    final totalCell = sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIdx));
+    totalCell.value = TextCellValue('TOTAL LOGS: ${records.length}');
+    totalCell.cellStyle = _grandTotalStyle;
+
+    for (int c = 1; c <= 6; c++) {
+      sheet.cell(CellIndex.indexByColumnRow(columnIndex: c, rowIndex: rowIdx)).cellStyle = _grandTotalStyle;
+    }
+
+    final hCell = sheet.cell(CellIndex.indexByColumnRow(columnIndex: 7, rowIndex: rowIdx));
+    hCell.value = DoubleCellValue(totalHours);
+    hCell.cellStyle = _grandTotalStyle;
+
+    sheet.cell(CellIndex.indexByColumnRow(columnIndex: 8, rowIndex: rowIdx)).cellStyle = _grandTotalStyle;
+
+    // Set Column widths
+    sheet.setColumnWidth(0, 16.0);
+    sheet.setColumnWidth(1, 14.0);
+    sheet.setColumnWidth(2, 26.0);
+    sheet.setColumnWidth(3, 20.0);
+    sheet.setColumnWidth(4, 28.0);
+    sheet.setColumnWidth(5, 14.0);
+    sheet.setColumnWidth(6, 22.0);
+    sheet.setColumnWidth(7, 16.0);
+    sheet.setColumnWidth(8, 36.0);
+
+    // Save and launch download
+    final fileBytes = excel.save();
+    if (fileBytes != null) {
+      final stamp = DateFormat('yyyyMMdd_HHmm').format(DateTime.now());
+      final fileName = 'Brahms_Attendance_DTR_$stamp.xlsx';
+      await saveAndLaunchExcel(Uint8List.fromList(fileBytes), fileName);
+    }
+  }
 }
 
 

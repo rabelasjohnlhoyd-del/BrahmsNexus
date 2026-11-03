@@ -8,6 +8,7 @@ import 'admin_web_only_screen.dart';
 import '../production_app/production_shell.dart';
 import '../staff_app/staff_shell.dart';
 import 'account_status_screen.dart';
+import '../../models/app_user.dart';
 
 /// Central place for the "where to go after login/register" logic.
 /// All decisions like this should live here, so they don't end up
@@ -21,16 +22,8 @@ import 'account_status_screen.dart';
 ///    - Owner + running on Web (kIsWeb) -> [AdminWebShell] (account/
 ///      system management: Dashboard, Staff Management, Account
 ///      Approvals, DSS Analytics)
-///    - Owner + running on the INSTALLED APP (not web) -> [OwnerShell]
-///      — day-to-day operations and staff monitoring (Assignments,
-///      Inventory, Sales & Payroll, Bilao Orders, Employee Reports,
-///      Announcements)
 ///    - Staff -> [StaffShell]
 ///    - Driver -> [DriverShell]
-import '../../models/app_user.dart';
-import '../../services/auth_service.dart';
-import 'phone_sms_screen.dart';
-
 class RoleRouter {
   const RoleRouter._();
 
@@ -42,17 +35,6 @@ class RoleRouter {
   }) {
     if (status != AccountStatus.approved) {
       return AccountStatusScreen(status: status);
-    }
-
-    // Two-Step Security Verification Guard:
-    // If the account is approved, but the mobile phone number has not yet been
-    // verified via SMS OTP, route them to the PhoneSmsScreen first.
-    final currentUser = user ?? AuthService.currentAppUser;
-    if (currentUser != null &&
-        currentUser.role != UserRole.owner &&
-        !currentUser.isPhoneVerified &&
-        currentUser.contactNumber.trim().isNotEmpty) {
-      return PhoneSmsScreen(user: currentUser);
     }
 
     if (role == UserRole.owner) {

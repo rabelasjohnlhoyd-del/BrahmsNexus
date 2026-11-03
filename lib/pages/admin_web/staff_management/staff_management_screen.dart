@@ -136,7 +136,18 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
 
     if (result == null) return;
 
-    await SupabaseService.updateStaffProfile(result);
+    final saved = await SupabaseService.updateStaffProfile(result);
+    if (!saved) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Failed to update staff in database. Please check connection.'),
+            backgroundColor: AdminWebColors.error,
+          ),
+        );
+      }
+      return;
+    }
 
     // Sync updated info to Firestore users/{uid} so mobile app role routing immediately updates
     try {

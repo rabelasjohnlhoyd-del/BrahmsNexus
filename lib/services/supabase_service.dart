@@ -313,7 +313,18 @@ class SupabaseService {
     if (client == null) return true;
 
     try {
-      await client.from('staff_profiles').upsert(staff.toMap());
+      final cleanRfid = staff.rfidTag.trim().toUpperCase();
+      if (cleanRfid.isNotEmpty) {
+        await client
+            .from('staff_profiles')
+            .update({'rfid_tag': null})
+            .eq('rfid_tag', cleanRfid);
+      }
+
+      final insertMap = Map<String, dynamic>.from(staff.toMap());
+      insertMap['rfid_tag'] = cleanRfid.isNotEmpty ? cleanRfid : null;
+
+      await client.from('staff_profiles').upsert(insertMap);
       return true;
     } catch (e) {
       debugPrint('SupabaseService.createStaffProfile error: $e');
@@ -332,9 +343,24 @@ class SupabaseService {
     if (client == null) return true;
 
     try {
+      final cleanRfid = staff.rfidTag.trim().toUpperCase();
+
+      // If an RFID card is assigned, clear it from any other profile to avoid UNIQUE collision
+      if (cleanRfid.isNotEmpty) {
+        await client
+            .from('staff_profiles')
+            .update({'rfid_tag': null})
+            .eq('rfid_tag', cleanRfid)
+            .neq('id', staff.id);
+      }
+
+      final updateMap = Map<String, dynamic>.from(staff.toMap());
+      updateMap.remove('id');
+      updateMap['rfid_tag'] = cleanRfid.isNotEmpty ? cleanRfid : null;
+
       await client
           .from('staff_profiles')
-          .update(staff.toMap())
+          .update(updateMap)
           .eq('id', staff.id);
       return true;
     } catch (e) {

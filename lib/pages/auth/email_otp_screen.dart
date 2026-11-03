@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../services/otp_service.dart';
+import '../../services/rate_limiter.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/auth_admin_layout.dart';
 import '../../widgets/primary_button.dart';
@@ -33,10 +34,13 @@ class _EmailOtpScreenState extends State<EmailOtpScreen> {
   bool _isResending = false;
   String? _errorMessage;
   String? _sentCodeForHint;
+  int _cooldownPenaltySeconds = 0;
+  Timer? _penaltyTimer;
 
   @override
   void initState() {
     super.initState();
+    _checkLockoutStatus();
     _startCountdown();
     _sendInitialOtp();
   }
@@ -44,6 +48,7 @@ class _EmailOtpScreenState extends State<EmailOtpScreen> {
   @override
   void dispose() {
     _timer?.cancel();
+    _penaltyTimer?.cancel();
     for (final c in _controllers) {
       c.dispose();
     }
@@ -53,6 +58,18 @@ class _EmailOtpScreenState extends State<EmailOtpScreen> {
     super.dispose();
   }
 
+  Future<void> _checkLockoutStatus() async {
+    final lockout = await RateLimiter.otpLockoutRemaining(widget.email);
+    if (!mounted) return;
+    if (lockout > Duration.zero) {
+      final mins = lockout.inMinutes;
+      final secs = lockout.inSeconds % 60;
+      setState(() {
+        _errorMessage = 'Too many failed attempts. Locked out for ${mins}m ${secs}s.';
+      });
+    }
+  }
+
   void _startCountdown() {
     setState(() => _resendCountdown = 60);
     _timer?.cancel();
@@ -60,6 +77,19 @@ class _EmailOtpScreenState extends State<EmailOtpScreen> {
       if (!mounted) return;
       if (_resendCountdown > 0) {
         setState(() => _resendCountdown--);
+      } else {
+        t.cancel();
+      }
+    });
+  }
+
+  void _startPenaltyTimer(int seconds) {
+    setState(() => _cooldownPenaltySeconds = seconds);
+    _penaltyTimer?.cancel();
+    _penaltyTimer = Timer.periodic(const Duration(seconds: 1), (t) {
+      if (!mounted) return;
+      if (_cooldownPenaltySeconds > 0) {
+        setState(() => _cooldownPenaltySeconds--);
       } else {
         t.cancel();
       }
@@ -78,7 +108,19 @@ class _EmailOtpScreenState extends State<EmailOtpScreen> {
   }
 
   Future<void> _resendCode() async {
-    if (_resendCountdown > 0 || _isResending) return;
+    if (_resendCountdown > 0 || _isResending || _cooldownPenaltySeconds > 0) return;
+
+    // Check if currently locked out before sending
+    final lockout = await RateLimiter.otpLockoutRemaining(widget.email);
+    if (lockout > Duration.zero) {
+      final mins = lockout.inMinutes;
+      final secs = lockout.inSeconds % 60;
+      setState(() {
+        _errorMessage = 'Account locked due to failed attempts. Please wait ${mins}m ${secs}s.';
+      });
+      return;
+    }
+
     setState(() {
       _isResending = true;
       _errorMessage = null;
@@ -94,7 +136,7 @@ class _EmailOtpScreenState extends State<EmailOtpScreen> {
         _startCountdown();
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('A new 6-digit verification code has been sent.'),
+            content: Text('A new 6-digit verification code has been sent (valid for 5 mins).'),
             backgroundColor: AppColors.accent,
           ),
         );
@@ -114,6 +156,26 @@ class _EmailOtpScreenState extends State<EmailOtpScreen> {
   }
 
   Future<void> _handleVerify() async {
+    // 1. LAYER 1: Anti-AutoClicker Hardware Debounce
+    // Drop sub-second button spam instantly
+    if (_isVerifying) return;
+    if (_cooldownPenaltySeconds > 0) {
+      setState(() => _errorMessage = 'Please wait ${_cooldownPenaltySeconds}s before trying again.');
+      return;
+    }
+    if (!RateLimiter.tryTap('verify_email_otp_${widget.email}')) {
+      return; // Silently drop rapid auto-clicker clicks
+    }
+
+    // 2. Check persistent lockout
+    final lockout = await RateLimiter.otpLockoutRemaining(widget.email);
+    if (lockout > Duration.zero) {
+      final mins = lockout.inMinutes;
+      final secs = lockout.inSeconds % 60;
+      setState(() => _errorMessage = 'Maximum attempts reached. Locked for ${mins}m ${secs}s.');
+      return;
+    }
+
     final code = _enteredCode.trim();
     if (code.length < 6) {
       setState(() => _errorMessage = 'Please enter all 6 digits of the code.');
@@ -130,9 +192,31 @@ class _EmailOtpScreenState extends State<EmailOtpScreen> {
     if (!mounted) return;
 
     if (!isValid) {
+      // Check persistent attempts and lockout status
+      final lockoutAfter = await RateLimiter.otpLockoutRemaining(widget.email);
+      if (lockoutAfter > Duration.zero) {
+        final mins = lockoutAfter.inMinutes;
+        final secs = lockoutAfter.inSeconds % 60;
+        setState(() {
+          _isVerifying = false;
+          _errorMessage = 'Maximum attempts reached (5/5). Your OTP has been burned. Locked for ${mins}m ${secs}s.';
+        });
+        return;
+      }
+
+      final fails = await RateLimiter.getOtpFailCount(widget.email);
+      final remaining = RateLimiter.maxOtpAttempts - fails;
+
+      // Progressive penalty: If 3 fails, enforce a 60-second cooldown penalty
+      if (fails == 3) {
+        _startPenaltyTimer(60);
+      }
+
       setState(() {
         _isVerifying = false;
-        _errorMessage = 'Invalid or expired verification code. Try again.';
+        _errorMessage = remaining > 0
+            ? 'Invalid or expired verification code. ($remaining attempt${remaining == 1 ? "" : "s"} remaining)'
+            : 'Maximum attempts reached. Please request a new code.';
       });
       return;
     }

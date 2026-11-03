@@ -4,6 +4,10 @@ import '../../../models/branch.dart';
 import '../../../models/branch_daily_inventory.dart';
 import '../../../models/branch_meat_inventory.dart';
 import '../../../models/daily_report.dart';
+import '../../../services/attendance_service.dart';
+import '../../../services/supabase_service.dart';
+import '../../../models/staff_member.dart';
+import 'package:intl/intl.dart';
 import '../../../services/firestore_service.dart';
 import '../admin_web_colors.dart';
 import '../admin_web_shell.dart';
@@ -40,6 +44,18 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
   StreamSubscription<List<BranchDailyInventory>>? _verifSub;
   StreamSubscription<List<BranchMeatStock>>? _meatStocksSub;
   final Map<String, bool> _branchClosedMap = {};
+
+  // ── Tab 2: Attendance & DTR (RFID) State ──────────────────────────────
+  StreamSubscription<List<Map<String, dynamic>>>? _attendanceSub;
+  List<Map<String, dynamic>> _attendanceLogs = [];
+  List<StaffMember> _allStaffList = [];
+  bool _isLoadingAttendance = false;
+  DateTime _attendanceDate = DateTime.now();
+  String? _attendanceBranchFilter;
+  String _attendanceSearchQuery = '';
+  final _attendanceSearchController = TextEditingController();
+  int _attendanceCurrentPage = 0;
+  static const int _attendancePageSize = 8;
 
   final List<DailyReport> _reports = [
     DailyReport(
@@ -94,6 +110,15 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
     super.initState();
     _updateShellActions();
     FirestoreService.syncExistingDailyReportsToSupabase();
+    _loadAttendance();
+    _attendanceSub = AttendanceService.watchTodayAttendance().listen((logs) {
+      if (mounted) {
+        setState(() {
+          _attendanceLogs = logs;
+        });
+      }
+    });
+
     _reportsSub = FirestoreService.watchDailyReports().listen((list) {
       if (mounted) {
         setState(() {
@@ -151,7 +176,13 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
 
   void _updateShellActions() {
     final shell = context.findAncestorStateOfType<AdminWebShellState>();
-    shell?.setTitle(_selectedTab == 0 ? 'EMPLOYEE REPORTS' : 'INVENTORY VERIFICATION');
+    if (_selectedTab == 0) {
+      shell?.setTitle('EMPLOYEE REPORTS');
+    } else if (_selectedTab == 1) {
+      shell?.setTitle('INVENTORY VERIFICATION');
+    } else {
+      shell?.setTitle('ATTENDANCE & DTR (RFID)');
+    }
     shell?.setActions([]);
   }
 
@@ -161,6 +192,8 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
     _reportsSub?.cancel();
     _verifSub?.cancel();
     _meatStocksSub?.cancel();
+    _attendanceSub?.cancel();
+    _attendanceSearchController.dispose();
     super.dispose();
   }
 
@@ -996,10 +1029,618 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
                             ),
                 ),
               ],
+
+              // ── TAB 2: ATTENDANCE & DTR (RFID) ──────────────────────────────
+              if (_selectedTab == 2) ...[
+                _buildAttendanceTab(isWide),
+              ],
             ],
           ),
         );
       },
+    );
+  }
+
+  Future<void> _loadAttendance() async {
+    if (_isLoadingAttendance) return;
+    setState(() => _isLoadingAttendance = true);
+    try {
+      final dateStr = DateFormat('yyyy-MM-dd').format(_attendanceDate);
+      final logs = await AttendanceService.getAttendanceLogs(
+        dateStr: dateStr,
+        branchId: _attendanceBranchFilter,
+        query: _attendanceSearchQuery,
+        limit: 100,
+      );
+      final staff = SupabaseService.getAllStaff();
+      if (mounted) {
+        setState(() {
+          _attendanceLogs = logs;
+          _allStaffList = staff;
+          _isLoadingAttendance = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) setState(() => _isLoadingAttendance = false);
+    }
+  }
+
+  Future<void> _pickAttendanceDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _attendanceDate,
+      firstDate: DateTime(2025, 1, 1),
+      lastDate: DateTime.now().add(const Duration(days: 365)),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: AdminWebColors.accent,
+              onPrimary: Colors.white,
+              onSurface: AdminWebColors.textPrimary,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+    if (picked != null && picked != _attendanceDate) {
+      setState(() {
+        _attendanceDate = picked;
+        _attendanceCurrentPage = 0;
+      });
+      _loadAttendance();
+    }
+  }
+
+  Widget _buildAttendanceTab(bool isWide) {
+    final isToday = DateFormat('yyyy-MM-dd').format(_attendanceDate) ==
+        DateFormat('yyyy-MM-dd').format(DateTime.now());
+
+    // Build unified rows: each active staff member paired with their attendance log if present
+    final List<Map<String, dynamic>> combinedRows = [];
+    final Set<String> matchedStaffIds = {};
+
+    // 1. Process logs recorded for this date
+    for (final log in _attendanceLogs) {
+      final sId = log['staff_id']?.toString() ?? '';
+      matchedStaffIds.add(sId);
+      combinedRows.add({
+        'staff_id': sId,
+        'staff_name': log['staff_name'] ?? 'Staff',
+        'position': log['position'] ?? 'Staff',
+        'branch_id': log['branch_id'] ?? '',
+        'branch_name': log['branch_name'] ?? 'Branch',
+        'time_in': log['time_in'],
+        'time_out': log['time_out'],
+        'total_hours': log['total_hours'],
+        'status': log['status'] ?? 'on_time',
+        'rfid_uid': log['rfid_uid'] ?? '',
+        'device_id': log['device_id'] ?? 'esp32_reader',
+        'has_tapped': true,
+      });
+    }
+
+    // 2. If viewing today, also show active employees who have not clocked in yet
+    if (isToday) {
+      for (final staff in _allStaffList) {
+        if (!staff.isArchived && !matchedStaffIds.contains(staff.id)) {
+          combinedRows.add({
+            'staff_id': staff.id,
+            'staff_name': staff.fullName,
+            'position': staff.position,
+            'branch_id': '',
+            'branch_name': staff.branch.isNotEmpty ? staff.branch : 'Not Assigned',
+            'time_in': null,
+            'time_out': null,
+            'total_hours': null,
+            'status': 'no_tap',
+            'rfid_uid': staff.rfidTag,
+            'device_id': '',
+            'has_tapped': false,
+          });
+        }
+      }
+    }
+
+    // 3. Filter by search query and branch
+    final filtered = combinedRows.where((r) {
+      final sName = (r['staff_name']?.toString() ?? '').toLowerCase();
+      final pos = (r['position']?.toString() ?? '').toLowerCase();
+      final bName = (r['branch_name']?.toString() ?? '').toLowerCase();
+      final rfid = (r['rfid_uid']?.toString() ?? '').toLowerCase();
+
+      final q = _attendanceSearchQuery.trim().toLowerCase();
+      final matchesQ = q.isEmpty || sName.contains(q) || pos.contains(q) || bName.contains(q) || rfid.contains(q);
+
+      final matchesBranch = _attendanceBranchFilter == null ||
+          _attendanceBranchFilter == 'All' ||
+          bName.toLowerCase().contains(_attendanceBranchFilter!.toLowerCase()) ||
+          pos.toLowerCase().contains(_attendanceBranchFilter!.toLowerCase());
+
+      return matchesQ && matchesBranch;
+    }).toList();
+
+    // 4. Calculate KPIs
+        final totalClockedIn = combinedRows.where((r) => r['time_in'] != null).length;
+    final onTimeCount = combinedRows.where((r) => r['status'] == 'on_time').length;
+    final lateCount = combinedRows.where((r) => r['status'] == 'late').length;
+    final clockedOutCount = combinedRows.where((r) => r['time_out'] != null).length;
+
+    // Pagination
+    final startIndex = _attendanceCurrentPage * _attendancePageSize;
+    final paginated = filtered.skip(startIndex).take(_attendancePageSize).toList();
+
+    final branchFilterOptions = <String>[
+      'All',
+      ...kSampleBranches.map((b) => b.fullName),
+      'Central Commissary',
+      'Branch Cook',
+      'Production Meat Cutter',
+      'Production Cook',
+      'Driver',
+    ];
+
+    return Expanded(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // KPI Metric Cards
+          Row(
+            children: [
+              Expanded(
+                child: _statusCard(
+                  'Clocked In Today',
+                  totalClockedIn,
+                  AdminWebColors.accent,
+                  Icons.how_to_reg_rounded,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _statusCard(
+                  'On Time',
+                  onTimeCount,
+                  AdminWebColors.success,
+                  Icons.check_circle_rounded,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _statusCard(
+                  'Late Arrival',
+                  lateCount,
+                  AdminWebColors.warning,
+                  Icons.schedule_rounded,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _statusCard(
+                  'Clocked Out',
+                  clockedOutCount,
+                  const Color(0xFF1976D2),
+                  Icons.logout_rounded,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+
+          // Search & Filter Toolbar
+          GlassCard(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: Row(
+              children: [
+                // Search Input
+                Expanded(
+                  flex: 3,
+                  child: TextField(
+                    controller: _attendanceSearchController,
+                    onChanged: (val) {
+                      setState(() {
+                        _attendanceSearchQuery = val;
+                        _attendanceCurrentPage = 0;
+                      });
+                    },
+                    decoration: InputDecoration(
+                      hintText: 'Search employee name, role, station, or RFID UID...',
+                      hintStyle: const TextStyle(fontSize: 13, color: AdminWebColors.textSecondary),
+                      prefixIcon: const Icon(Icons.search, size: 20, color: AdminWebColors.accent),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: const BorderSide(color: AdminWebColors.border),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: const BorderSide(color: AdminWebColors.border),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      isDense: true,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+
+                // Date Picker Button
+                InkWell(
+                  onTap: _pickAttendanceDate,
+                  borderRadius: BorderRadius.circular(10),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+                    decoration: BoxDecoration(
+                      color: AdminWebColors.surfaceTint,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: AdminWebColors.border),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.calendar_month_rounded, size: 16, color: AdminWebColors.accent),
+                        const SizedBox(width: 8),
+                        Text(
+                          DateFormat('MMM dd, yyyy').format(_attendanceDate),
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: AdminWebColors.textPrimary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                if (!isToday) ...[
+                  const SizedBox(width: 6),
+                  TextButton(
+                    onPressed: () {
+                      setState(() {
+                        _attendanceDate = DateTime.now();
+                        _attendanceCurrentPage = 0;
+                      });
+                      _loadAttendance();
+                    },
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    ),
+                    child: const Text('Reset Today', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AdminWebColors.accent)),
+                  ),
+                ],
+                const SizedBox(width: 12),
+
+                // Branch / Role Filter Dropdown
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: AdminWebColors.border),
+                  ),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<String>(
+                      value: _attendanceBranchFilter ?? 'All',
+                      items: branchFilterOptions.map((opt) {
+                        return DropdownMenuItem<String>(
+                          value: opt,
+                          child: Text(
+                            opt,
+                            style: const TextStyle(fontSize: 12.5, color: AdminWebColors.textPrimary),
+                          ),
+                        );
+                      }).toList(),
+                      onChanged: (val) {
+                        setState(() {
+                          _attendanceBranchFilter = val;
+                          _attendanceCurrentPage = 0;
+                        });
+                      },
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+
+                // Refresh Button
+                IconButton(
+                  tooltip: 'Refresh Attendance',
+                  icon: _isLoadingAttendance
+                      ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Icon(Icons.refresh_rounded, color: AdminWebColors.accent),
+                  onPressed: _loadAttendance,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // Main Attendance Table / Cards
+          Expanded(
+            child: filtered.isEmpty
+                ? GlassCard(
+                    padding: const EdgeInsets.all(32),
+                    child: Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.access_time_filled_rounded, size: 48, color: AdminWebColors.accent.withValues(alpha: 0.4)),
+                          const SizedBox(height: 12),
+                          const Text(
+                            'Walang natagpuang attendance records.',
+                            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: AdminWebColors.textPrimary),
+                          ),
+                          const SizedBox(height: 6),
+                          const Text(
+                            'Mag-tap ng RFID card sa reader upang mai-record ang Time-In at Time-Out.',
+                            style: TextStyle(fontSize: 12, color: AdminWebColors.textSecondary),
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
+                : GlassCard(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      children: [
+                        // Header Row (Wide View)
+                        if (isWide)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                            decoration: BoxDecoration(
+                              color: AdminWebColors.surfaceTint,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Row(
+                              children: [
+                                Expanded(flex: 3, child: Text('EMPLOYEE & ROLE', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: AdminWebColors.textSecondary))),
+                                Expanded(flex: 3, child: Text('BRANCH / STATION', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: AdminWebColors.textSecondary))),
+                                Expanded(flex: 2, child: Text('TIME IN', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: AdminWebColors.textSecondary))),
+                                Expanded(flex: 2, child: Text('TIME OUT', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: AdminWebColors.textSecondary))),
+                                Expanded(flex: 2, child: Text('HOURS', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: AdminWebColors.textSecondary))),
+                                Expanded(flex: 2, child: Text('RFID & DEVICE', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: AdminWebColors.textSecondary))),
+                              ],
+                            ),
+                          ),
+                        if (isWide) const SizedBox(height: 8),
+
+                        // List Rows
+                        Expanded(
+                          child: ListView.separated(
+                            itemCount: paginated.length,
+                            separatorBuilder: (_, _) => const Divider(height: 1, color: AdminWebColors.border),
+                            itemBuilder: (context, idx) {
+                              final row = paginated[idx];
+                              final staffName = row['staff_name']?.toString() ?? 'Staff';
+                              final position = row['position']?.toString() ?? 'Staff';
+                              final branch = row['branch_name']?.toString() ?? 'Branch';
+                              final timeIn = AttendanceService.formatTime(row['time_in']);
+                              final timeOut = AttendanceService.formatTime(row['time_out']);
+                              final hasTimeIn = row['time_in'] != null;
+                              final hasTimeOut = row['time_out'] != null;
+                              final status = (row['status']?.toString() ?? 'on_time').toLowerCase();
+                              final isLate = status == 'late';
+                              final rfidUid = row['rfid_uid']?.toString() ?? '';
+                              final deviceId = row['device_id']?.toString() ?? '';
+                              final totalHours = (hasTimeIn && hasTimeOut)
+                                  ? AttendanceService.formatDuration(row['time_in'], row['time_out'])
+                                  : (hasTimeIn ? AttendanceService.formatDuration(row['time_in'], null) : '--');
+
+                              Color statusBg;
+                              Color statusFg;
+                              String statusText;
+
+                              if (hasTimeOut) {
+                                statusBg = const Color(0xFF1976D2).withValues(alpha: 0.12);
+                                statusFg = const Color(0xFF1976D2);
+                                statusText = 'TIMED OUT';
+                              } else if (hasTimeIn) {
+                                statusBg = (isLate ? const Color(0xFFD97706) : AdminWebColors.success).withValues(alpha: 0.12);
+                                statusFg = isLate ? const Color(0xFFD97706) : AdminWebColors.success;
+                                statusText = isLate ? 'LATE IN' : 'ON TIME';
+                              } else {
+                                statusBg = Colors.grey.withValues(alpha: 0.12);
+                                statusFg = Colors.grey.shade700;
+                                statusText = 'NOT IN YET';
+                              }
+
+                              if (!isWide) {
+                                // Responsive Mobile Card
+                                return Container(
+                                  padding: const EdgeInsets.symmetric(vertical: 12),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          CircleAvatar(
+                                            radius: 16,
+                                            backgroundColor: AdminWebColors.accent.withValues(alpha: 0.15),
+                                            child: Text(
+                                              staffName.isNotEmpty ? staffName[0].toUpperCase() : 'S',
+                                              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: AdminWebColors.accent),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 10),
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
+                                                Text(staffName, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14, color: AdminWebColors.textPrimary)),
+                                                Text('$position · $branch', style: const TextStyle(fontSize: 11.5, color: AdminWebColors.textSecondary)),
+                                              ],
+                                            ),
+                                          ),
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                            decoration: BoxDecoration(color: statusBg, borderRadius: BorderRadius.circular(6)),
+                                            child: Text(statusText, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: statusFg)),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Row(
+                                        children: [
+                                          Expanded(child: Text('In: $timeIn', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AdminWebColors.textPrimary))),
+                                          Expanded(child: Text('Out: $timeOut', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AdminWebColors.textPrimary))),
+                                          Text('Hours: $totalHours', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: AdminWebColors.accent)),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              }
+
+                              // Wide Table Row
+                              return Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                child: Row(
+                                  children: [
+                                    // Employee
+                                    Expanded(
+                                      flex: 3,
+                                      child: Row(
+                                        children: [
+                                          CircleAvatar(
+                                            radius: 16,
+                                            backgroundColor: AdminWebColors.accent.withValues(alpha: 0.12),
+                                            child: Text(
+                                              staffName.isNotEmpty ? staffName[0].toUpperCase() : 'S',
+                                              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: AdminWebColors.accent),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 10),
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  staffName,
+                                                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AdminWebColors.textPrimary),
+                                                  overflow: TextOverflow.ellipsis,
+                                                ),
+                                                Text(
+                                                  position,
+                                                  style: const TextStyle(fontSize: 11, color: AdminWebColors.textSecondary),
+                                                  overflow: TextOverflow.ellipsis,
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+
+                                    // Branch / Station
+                                    Expanded(
+                                      flex: 3,
+                                      child: Row(
+                                        children: [
+                                          const Icon(Icons.storefront_rounded, size: 15, color: AdminWebColors.accent),
+                                          const SizedBox(width: 6),
+                                          Expanded(
+                                            child: Text(
+                                              branch,
+                                              style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: AdminWebColors.textPrimary),
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+
+                                    // Time In
+                                    Expanded(
+                                      flex: 2,
+                                      child: Row(
+                                        children: [
+                                          Text(
+                                            timeIn,
+                                            style: TextStyle(
+                                              fontSize: 13,
+                                              fontWeight: FontWeight.w800,
+                                              color: hasTimeIn ? AdminWebColors.textPrimary : AdminWebColors.textSecondary,
+                                            ),
+                                          ),
+                                          if (hasTimeIn) ...[
+                                            const SizedBox(width: 6),
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                              decoration: BoxDecoration(color: statusBg, borderRadius: BorderRadius.circular(4)),
+                                              child: Text(
+                                                statusText,
+                                                style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: statusFg),
+                                              ),
+                                            ),
+                                          ],
+                                        ],
+                                      ),
+                                    ),
+
+                                    // Time Out
+                                    Expanded(
+                                      flex: 2,
+                                      child: Text(
+                                        hasTimeOut ? timeOut : (hasTimeIn ? 'Active (On Shift)' : '-- : --'),
+                                        style: TextStyle(
+                                          fontSize: 12.5,
+                                          fontWeight: hasTimeOut ? FontWeight.w800 : FontWeight.w600,
+                                          color: hasTimeOut ? const Color(0xFF1976D2) : (hasTimeIn ? AdminWebColors.success : AdminWebColors.textSecondary),
+                                        ),
+                                      ),
+                                    ),
+
+                                    // Hours
+                                    Expanded(
+                                      flex: 2,
+                                      child: Text(
+                                        totalHours,
+                                        style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: AdminWebColors.accent),
+                                      ),
+                                    ),
+
+                                    // RFID & Device
+                                    Expanded(
+                                      flex: 2,
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            rfidUid.isNotEmpty ? rfidUid : 'No Tag Assigned',
+                                            style: TextStyle(
+                                              fontSize: 11,
+                                              fontFamily: 'monospace',
+                                              fontWeight: FontWeight.w700,
+                                              color: rfidUid.isNotEmpty ? AdminWebColors.textPrimary : AdminWebColors.textSecondary,
+                                            ),
+                                          ),
+                                          if (deviceId.isNotEmpty)
+                                            Text(
+                                              deviceId == 'esp32_driver_portable' ? 'Driver Reader' : (deviceId == 'esp32_commissary_base' ? 'Commissary Base' : deviceId),
+                                              style: const TextStyle(fontSize: 10, color: AdminWebColors.textSecondary),
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+
+                        // Pagination Bar
+                        AdminPaginationBar(
+                          currentPage: _attendanceCurrentPage,
+                          totalItems: filtered.length,
+                          pageSize: _attendancePageSize,
+                          onPageChanged: (p) => setState(() => _attendanceCurrentPage = p),
+                        ),
+                      ],
+                    ),
+                  ),
+          ),
+        ],
+      ),
     );
   }
 

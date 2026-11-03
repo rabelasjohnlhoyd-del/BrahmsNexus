@@ -809,7 +809,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
           priority: 'High',
           icon: Icons.inventory_2_rounded,
           actionLabel: 'Go to Inventory',
-          onAction: () => _navigateShellTab(4),
+          onAction: () => _navigateShellTab(5),
         ),
       );
       recommendations.add(const SizedBox(height: 12));
@@ -834,7 +834,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
           priority: tomorrowBilaoCount >= 3 ? 'High' : 'Medium',
           icon: Icons.shopping_bag_rounded,
           actionLabel: 'View Bilao Orders',
-          onAction: () => _navigateShellTab(6),
+          onAction: () => _navigateShellTab(7),
         ),
       );
       recommendations.add(const SizedBox(height: 12));

@@ -8,7 +8,9 @@ import '../../models/branch_daily_inventory.dart';
 import '../../models/branch_meat_inventory.dart';
 import '../../models/staff_member.dart';
 import '../../services/assignment_service.dart';
+import '../../services/attendance_service.dart';
 import '../../services/auth_service.dart';
+
 import '../../services/firestore_service.dart';
 import '../../services/supabase_service.dart';
 import '../../theme/app_theme.dart';
@@ -404,6 +406,7 @@ class HomepageScreenState extends State<HomepageScreen> with WidgetsBindingObser
   @override
   void initState() {
     super.initState();
+    AttendanceService.ensureAttendanceSync();
     WidgetsBinding.instance.addObserver(this);
     AssignmentService.ensureInitialized();
     _setupBranchAndStreams();
@@ -1164,7 +1167,8 @@ class HomepageScreenState extends State<HomepageScreen> with WidgetsBindingObser
                 ],
               ),
             ),
-            const SizedBox(height: 22),
+            const SizedBox(height: 14),
+
 
             // Allocated inventory — 2x2 grid
             StaffSectionHeader(

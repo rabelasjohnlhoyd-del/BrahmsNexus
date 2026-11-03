@@ -2,6 +2,7 @@ import '../../services/permission_service.dart';
 import '../../services/auth_service.dart';
 import '../../services/fcm_service.dart';
 import 'package:flutter/cupertino.dart';
+import '../../services/driver_ble_service.dart';
 import 'package:flutter/services.dart';
 import '../../services/system_busy_coordinator.dart';
 import '../../theme/app_theme.dart';
@@ -36,6 +37,7 @@ class _DriverShellState extends State<DriverShell> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         PermissionService.checkAndShowOnboarding(context);
+        DriverBleService().initialize();
         final user = AuthService.currentAppUser;
         if (user != null) {
           FcmService.syncUserToken(user);

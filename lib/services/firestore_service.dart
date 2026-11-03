@@ -1753,6 +1753,15 @@ class FirestoreService {
     String rfidTag = 'RFID_TAG',
     String deviceId = 'esp32_unit_2_portable',
   }) async {
+    final cleanBId = branchId.toLowerCase().trim();
+    if (cleanBId.isEmpty ||
+        cleanBId == 'n/a' ||
+        cleanBId.contains('/') ||
+        cleanBId == 'commissary' ||
+        cleanBId == 'unassigned') {
+      return false; // Skip invalid branch IDs like n/a to prevent Firestore path errors
+    }
+
     try {
       final batch = _db.batch();
 
@@ -1762,7 +1771,7 @@ class FirestoreService {
         'rfidTag': rfidTag,
         'employeeId': cookId,
         'employeeName': cookName,
-        'branchId': branchId,
+        'branchId': cleanBId,
         'branchName': branchName,
         'tapType': isDeployment ? 'deployment_opening' : 'retrieval_closing',
         'deviceId': deviceId,
@@ -1770,26 +1779,32 @@ class FirestoreService {
       });
 
       // 2. Update real-time branch status
-      final statusRef = _db.collection('branch_status').doc(branchId);
+      final statusRef = _db.collection('branch_status').doc(cleanBId);
       batch.set(statusRef, {
-        'branchId': branchId,
+        'branchId': cleanBId,
         'branchName': branchName,
         'isOpen': isDeployment, // true if opening, false if closing
-        'isClosed': false, // RFID tap never locks a branch permanently
+        'isClosed': !isDeployment, // true if retrieval closing, false if deployment opening
         'driverOnWay': false,
+        'driverOnWayMode': null,
         'cookName': cookName,
         'lastUpdated': FieldValue.serverTimestamp(),
         'lastTapType': isDeployment ? 'deployment_opening' : 'retrieval_closing',
         // Track which calendar date this was opened/closed for daily reset logic
-        if (isDeployment) 'openedAt': FieldValue.serverTimestamp(),
-        if (!isDeployment) 'closedAt': FieldValue.serverTimestamp(),
-        if (isDeployment)
+        if (isDeployment) ...{
+          'openedAt': FieldValue.serverTimestamp(),
           'openedDateStr': DateTime.now().toIso8601String().substring(0, 10),
-        if (!isDeployment)
+          'closedDateStr': null,
+          'closedAt': null,
+        },
+        if (!isDeployment) ...{
+          'closedAt': FieldValue.serverTimestamp(),
           'closedDateStr': DateTime.now().toIso8601String().substring(0, 10),
+        },
       }, SetOptions(merge: true));
 
       await batch.commit();
+
       return true;
     } catch (e) {
       debugPrint('FirestoreService.processBranchCookRfidTap error: $e');
@@ -1805,15 +1820,41 @@ class FirestoreService {
     required String driverName,
     required bool isDeployment,
   }) async {
+    final cleanBId = branchId.toLowerCase().trim();
+    if (cleanBId.isEmpty || cleanBId == 'n/a' || cleanBId.contains('/') || cleanBId == 'commissary' || cleanBId == 'unassigned') {
+      debugPrint('FirestoreService.setDriverOnTheWay: Skipping invalid branchId: $branchId');
+      return;
+    }
+
+    // 1. Synchronize to Supabase driver_dispatch_status FIRST (Direct RFID hardware gating)
     try {
-      await _db.collection('branch_status').doc(branchId).set({
-        'branchId': branchId,
+      final client = SupabaseService.client;
+      if (client != null) {
+        await client.from('driver_dispatch_status').upsert({
+          'branch_id': cleanBId,
+          'branch_name': branchName,
+          'driver_name': driverName,
+          'driver_on_the_way': true,
+          'mode': isDeployment ? 'deployment' : 'retrieval',
+          'updated_at': DateTime.now().toUtc().toIso8601String(),
+        }).timeout(const Duration(milliseconds: 1500));
+      }
+    } catch (e) {
+      debugPrint('Supabase driver_dispatch_status sync error: $e');
+    }
+
+    // 2. Synchronize to Firestore branch_status (UI Status)
+    try {
+      await _db.collection('branch_status').doc(cleanBId).set({
+        'branchId': cleanBId,
         'branchName': branchName,
         'driverOnWay': true,
+        'driverOnWayMode': isDeployment ? 'deployment' : 'retrieval',
+        'isClosed': false,
         'cookName': cookName,
         'driverName': driverName,
         'lastUpdated': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
+      }, SetOptions(merge: true)).timeout(const Duration(milliseconds: 1500));
     } catch (e) {
       debugPrint('FirestoreService.setDriverOnTheWay error: $e');
     }
@@ -2904,11 +2945,11 @@ class FirestoreService {
 
   /// Streams packaging / supply requests from Central Kitchen.
   static Stream<List<SupplyRequest>> watchSupplyRequests() {
-    return _db
+    final query = _db
         .collection('supply_requests')
         .orderBy('createdAt', descending: true)
-        .limit(50)
-        .snapshots()
+        .limit(50);
+    return FirestoreListenCache.query('supply_requests:50', query)
         .map((snap) => snap.docs
             .map((doc) => SupplyRequest.fromMap(doc.data(), docId: doc.id))
             .toList());
@@ -3310,7 +3351,10 @@ class FirestoreService {
 
   /// Streams real-time monthly financial period by periodId (e.g. '2026_09').
   static Stream<FinancialPeriod?> watchMonthlyFinancialPeriod(String periodId) {
-    return _db.collection('monthly_financials').doc(periodId).snapshots().map((snap) {
+    return FirestoreListenCache.doc(
+      'monthly_financials/$periodId',
+      _db.collection('monthly_financials').doc(periodId),
+    ).map((snap) {
       if (!snap.exists || snap.data() == null) {
         return null;
       }

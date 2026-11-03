@@ -11,8 +11,9 @@ import '../../services/assignment_service.dart';
 import '../../services/auth_service.dart';
 import '../../services/notification_service.dart';
 import '../../services/firestore_service.dart';
+import '../../services/attendance_service.dart';
+import '../../services/driver_ble_service.dart';
 import '../../services/supabase_service.dart';
-import '../../services/system_busy_coordinator.dart';
 import '../../services/tutorial_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/driver_card.dart';
@@ -44,12 +45,24 @@ class RouteScreenState extends State<RouteScreen> {
   final Set<String> _completedDeploymentIds = {};
   final Set<String> _completedRetrievalIds = {};
 
-  // Track who has been notified in the current session
-  final Set<String> _notifiedStaffIds = {};
+  // Confirmed attendance from direct Supabase attendance_logs stream
+  final Set<String> _attendanceConfirmedRetrievalIds = {};
+  final Set<String> _attendanceConfirmedDeploymentIds = {};
+
+  // Branches opened today (either via cook arrival RFID, open status, or attendance time-in)
+  final Set<String> _openedBranchIdsToday = {};
+
+  // Track who has been notified in the current session (split by mode)
+  final Set<String> _notifiedDeploymentIds = {};
+  final Set<String> _notifiedRetrievalIds = {};
+
+  Set<String> get _notifiedStaffIds =>
+      _activeMode == RouteMode.deployment ? _notifiedDeploymentIds : _notifiedRetrievalIds;
 
   List<Branch> _branches = [];
   StreamSubscription? _statusSubscription;
   StreamSubscription? _meatStocksSubscription;
+  StreamSubscription? _attendanceSubscription;
 
   // Track closed branches (set by owner via Branch Allocation / branch_status)
   final Set<String> _closedBranchIds = {};
@@ -58,7 +71,6 @@ class RouteScreenState extends State<RouteScreen> {
   // Tracks the current route calendar date; at midnight, stops are cleared.
   Timer? _dayResetTimer;
   String _routeDateStr = DateTime.now().toIso8601String().substring(0, 10);
-  bool _isProcessing = false;
 
   // ── Guided Tour Keys (Live Spotlight) ───────────────────────────
   final GlobalKey _rfidBannerKey = GlobalKey();
@@ -68,9 +80,11 @@ class RouteScreenState extends State<RouteScreen> {
   @override
   void initState() {
     super.initState();
+    AttendanceService.ensureAttendanceSync();
     _loadData();
     AssignmentService.changeNotifier.addListener(_onAssignmentsChanged);
     _listenToBranchStatus();
+    _listenToAttendanceLogs();
     _listenToMeatStocks();
     _startDayResetTimer();
     _maybeTriggerGuidedTour();
@@ -99,20 +113,20 @@ class RouteScreenState extends State<RouteScreen> {
         GuidedTourStep(
           targetKey: _firstStopCardKey,
           roleBadge: 'DRIVER ROUTE ONBOARDING',
-          title: '1. Unang Destinasyon (Sequential Route)',
-          instruction: 'PINDUTIN: I-tap ang Stop 1 para magpatuloy.',
+          title: '1. First Destination (Sequential Route)',
+          instruction: 'TAP: Tap Stop 1 to proceed.',
           explanation:
-              'Ito ang iyong unang deployment stop (Brgy. Gatid). Naka-lock ang Stop 2 hangga\'t hindi natatapos ang nauna upang masiguro ang tamang pagkakasunod-sunod.',
-          tip: 'Magsisimula ang ruta sa Main Warehouse kung saan ikinakarga ang mga sariwang karne.',
+              'This is your first deployment stop. Stop 2 remains locked until preceding stops are completed to ensure correct sequence.',
+          tip: 'The route begins at the Main Warehouse where fresh meats are loaded.',
         ),
         GuidedTourStep(
           targetKey: _notifyBtnKey,
           roleBadge: 'DRIVER ROUTE ONBOARDING',
-          title: '2. Alerto sa Branch Cook (On The Way)',
-          instruction: 'PINDUTIN: I-tap ang "On the way" button.',
+          title: '2. Notify Branch Cook (On The Way)',
+          instruction: 'TAP: Tap the "On the way" button.',
           explanation:
-              'Pindutin ito bago bumiyahe. Awtomatikong magpapadala ng alert sa cellphone ng branch cook upang makapaghanda siya sa pagdating ng mga supplies.',
-          tip: 'Pindutin ito mga 10-15 minuto bago makarating sa sangay.',
+              'Tap this before departing. It automatically sends an alert to the branch cook so they can prepare for supply arrival.',
+          tip: 'Send this alert approximately 10-15 minutes prior to arriving at the branch.',
           onTargetTapped: () {
             // Haptic only during tour — do NOT open the real confirm dialog
             // (that would dismiss the overlay and break the flow)
@@ -123,10 +137,10 @@ class RouteScreenState extends State<RouteScreen> {
           targetKey: _rfidBannerKey,
           roleBadge: 'DRIVER ROUTE ONBOARDING',
           title: '3. RFID Auto-Completion System',
-          instruction: 'PINDUTIN: I-tap ang RFID notice banner upang magpatuloy.',
+          instruction: 'TAP: Tap the RFID notice banner to proceed.',
           explanation:
-              'WALA NANG DROPPED OFF BUTTON: Pagdating mo sa branch, ipa-tap lang sa Cook ang kanyang RFID card sa portable reader. Kusa nang magbubukas ang tindahan at magiging COMPLETED ang stop!',
-          tip: 'Ang RFID tap ang opisyal na time-in ng branch cook at verification ng supply arrival.',
+              'AUTOMATED ARRIVAL: Upon arriving at the branch, have the Cook tap their RFID card on the portable reader. The store automatically opens and the stop completes.',
+          tip: 'The RFID tap serves as the cook\'s official time-in and verifies supply arrival.',
         ),
       ],
       onCompleted: () => TutorialService.markTutorialSeen('driver_spotlight'),
@@ -138,9 +152,50 @@ class RouteScreenState extends State<RouteScreen> {
   void dispose() {
     _statusSubscription?.cancel();
     _meatStocksSubscription?.cancel();
+    _attendanceSubscription?.cancel();
     _dayResetTimer?.cancel();
     AssignmentService.changeNotifier.removeListener(_onAssignmentsChanged);
     super.dispose();
+  }
+
+  void _listenToAttendanceLogs() {
+    _attendanceSubscription?.cancel();
+    _attendanceSubscription = AttendanceService.watchTodayAttendance().listen((todayLogs) {
+      if (!mounted) return;
+      setState(() {
+        for (final log in todayLogs) {
+          final sName = log['staff_name']?.toString() ?? '';
+          final sId = log['staff_id']?.toString() ?? '';
+          final rawBId = (log['branch_id']?.toString() ?? '').toLowerCase();
+          final branchCanonId = AttendanceService.resolveBranchForStaff(rawBId, sName, sId);
+          if (branchCanonId.isEmpty || branchCanonId == 'commissary' || branchCanonId == 'unassigned') continue;
+
+          final hasTimeIn = log['time_in'] != null && log['time_in'].toString().isNotEmpty;
+          final hasTimeOut = log['time_out'] != null && log['time_out'].toString().isNotEmpty;
+
+          if (hasTimeIn) {
+            _openedBranchIdsToday.add(branchCanonId);
+            _openedBranchIdsToday.add(rawBId);
+          }
+
+          if (hasTimeOut) {
+            _attendanceConfirmedRetrievalIds.add(branchCanonId);
+            _completedRetrievalIds.add(branchCanonId);
+            _completedDeploymentIds.add(branchCanonId);
+            _notifiedRetrievalIds.remove(branchCanonId);
+          } else if (hasTimeIn) {
+            _attendanceConfirmedDeploymentIds.add(branchCanonId);
+            _completedDeploymentIds.add(branchCanonId);
+            _notifiedDeploymentIds.remove(branchCanonId);
+            // Cook has timed in for deployment, but not timed out: Retrieval is NOT completed!
+            _attendanceConfirmedRetrievalIds.remove(branchCanonId);
+            _completedRetrievalIds.remove(branchCanonId);
+          }
+        }
+      });
+    }, onError: (e) {
+      debugPrint('Driver route attendance stream error: $e');
+    });
   }
 
   void _onAssignmentsChanged() {
@@ -177,7 +232,11 @@ class RouteScreenState extends State<RouteScreen> {
     setState(() {
       _completedDeploymentIds.clear();
       _completedRetrievalIds.clear();
-      _notifiedStaffIds.clear();
+      _attendanceConfirmedDeploymentIds.clear();
+      _attendanceConfirmedRetrievalIds.clear();
+      _openedBranchIdsToday.clear();
+      _notifiedDeploymentIds.clear();
+      _notifiedRetrievalIds.clear();
       // Closed branches remain as-is until owner explicitly opens them
       _activeMode = RouteMode.deployment;
       _routeDateStr = DateTime.now().toIso8601String().substring(0, 10);
@@ -198,52 +257,95 @@ class RouteScreenState extends State<RouteScreen> {
           final isOpen = data['isOpen'] == true;
           final isClosed = data['isClosed'] == true;
           final lastTapType = data['lastTapType'] as String?;
+          final rawBranchId = data['branchId']?.toString() ?? doc.id;
+          final cookName = data['cookName']?.toString() ?? '';
+          final branchId = AttendanceService.normalizeBranchId(rawBranchId, cookName);
           // openedDateStr tells us which calendar day this branch was opened.
           // If it was opened on a previous day, it does NOT count as a completed
           // deployment stop for today's route.
           final openedDateStr = data['openedDateStr'] as String?;
           final openedToday = openedDateStr == todayStr;
 
-          // Owner-closed branches: must never be in completed sets or notified sets
-          if (isClosed) {
-            _closedBranchIds.add(doc.id);
-            _completedDeploymentIds.remove(doc.id);
-            _completedRetrievalIds.remove(doc.id);
-            _notifiedStaffIds.remove(doc.id);
-            continue;
+          final closedDateStr = data['closedDateStr'] as String?;
+          final closedToday = closedDateStr == todayStr;
+
+          // Track branches that were opened today
+          if (openedToday) {
+            _openedBranchIdsToday.add(branchId);
+            _openedBranchIdsToday.add(doc.id);
+            _openedBranchIdsToday.add(rawBranchId);
           }
 
-          _closedBranchIds.remove(doc.id);
+          // A branch is considered closed for retrieval today ONLY if:
+          // it was opened today, explicitly closed today, lastTapType is retrieval_closing,
+          // and it is currently marked closed and not open.
+          final isRetrievalClosingTap = openedToday &&
+              closedToday &&
+              lastTapType == 'retrieval_closing' &&
+              isClosed &&
+              !isOpen;
 
-          // Deployment stop is completed when cook has performed an arrival RFID tap today
-          final isDeploymentOpeningTap = lastTapType == 'deployment_opening' && openedToday;
-          final isRetrievalClosingTap = lastTapType == 'retrieval_closing' && openedToday;
+          // Deployment stop is completed when cook tapped arrival today or branch is open today
+          final isDeploymentOpeningTap = (lastTapType == 'deployment_opening' || (isOpen && !isClosed)) && openedToday;
 
-          if (isDeploymentOpeningTap && !isRetrievalClosingTap) {
+          if (isDeploymentOpeningTap) {
+            _completedDeploymentIds.add(branchId);
             _completedDeploymentIds.add(doc.id);
-            // Self-heal: ensure isOpen is true in Firestore if it was cleared by any other write
-            if (!isOpen) {
-              FirebaseFirestore.instance.collection('branch_status').doc(doc.id).set({
-                'isOpen': true,
-              }, SetOptions(merge: true)).catchError((_) {});
+            // Branch is currently open in deployment; retrieval CANNOT be completed!
+            _completedRetrievalIds.remove(branchId);
+            _completedRetrievalIds.remove(doc.id);
+            _attendanceConfirmedRetrievalIds.remove(branchId);
+            _attendanceConfirmedRetrievalIds.remove(doc.id);
+          } else if (!isRetrievalClosingTap) {
+            if (!_attendanceConfirmedDeploymentIds.contains(branchId) &&
+                !_attendanceConfirmedDeploymentIds.contains(doc.id)) {
+              _completedDeploymentIds.remove(branchId);
+              _completedDeploymentIds.remove(doc.id);
             }
-          } else if (!isDeploymentOpeningTap) {
-            _completedDeploymentIds.remove(doc.id);
           }
 
           // Retrieval stop is completed ONLY when cook has performed a closing RFID tap today
           if (isRetrievalClosingTap) {
+            _completedRetrievalIds.add(branchId);
             _completedRetrievalIds.add(doc.id);
+            // If retrieval is closed, deployment was naturally completed earlier today
+            _completedDeploymentIds.add(branchId);
+            _completedDeploymentIds.add(doc.id);
+            _closedBranchIds.remove(branchId);
+            _closedBranchIds.remove(doc.id);
           } else {
-            _completedRetrievalIds.remove(doc.id);
+            // Guard: Never keep in completed retrieval if not closed today
+            if (!_attendanceConfirmedRetrievalIds.contains(branchId) &&
+                !_attendanceConfirmedRetrievalIds.contains(doc.id)) {
+              _completedRetrievalIds.remove(branchId);
+              _completedRetrievalIds.remove(doc.id);
+            }
           }
 
-          // driverOnWay flag — live push from Firestore
-          if (data['driverOnWay'] == true) {
-            _notifiedStaffIds.add(doc.id);
-          } else {
-            // When driverOnWay is reset (after RFID tap completes stop), remove it
-            _notifiedStaffIds.remove(doc.id);
+          // driverOnWay flag — live push from Firestore (scoped to mode)
+          final isDriverOnWay = data['driverOnWay'] == true;
+          final driverOnWayMode = data['driverOnWayMode'] as String?;
+
+          // Deployment notification tracking
+          if (isDriverOnWay && (driverOnWayMode == 'deployment' || driverOnWayMode == null)) {
+            _notifiedDeploymentIds.add(branchId);
+            _notifiedDeploymentIds.add(doc.id);
+            _notifiedDeploymentIds.add(rawBranchId);
+          } else if (isDeploymentOpeningTap || (isDriverOnWay == false && driverOnWayMode == 'deployment')) {
+            _notifiedDeploymentIds.remove(branchId);
+            _notifiedDeploymentIds.remove(doc.id);
+            _notifiedDeploymentIds.remove(rawBranchId);
+          }
+
+          // Retrieval notification tracking
+          if (isDriverOnWay && driverOnWayMode == 'retrieval') {
+            _notifiedRetrievalIds.add(branchId);
+            _notifiedRetrievalIds.add(doc.id);
+            _notifiedRetrievalIds.add(rawBranchId);
+          } else if (isRetrievalClosingTap || (isDriverOnWay == false && driverOnWayMode == 'retrieval')) {
+            _notifiedRetrievalIds.remove(branchId);
+            _notifiedRetrievalIds.remove(doc.id);
+            _notifiedRetrievalIds.remove(rawBranchId);
           }
         }
       });
@@ -257,9 +359,12 @@ class RouteScreenState extends State<RouteScreen> {
       if (!mounted) return;
       setState(() {
         for (final s in stocks) {
-          if (s.isClosed) {
+          final canonId = AttendanceService.normalizeBranchId(s.branchId, s.branchName);
+          if (s.isClosed && _activeMode == RouteMode.retrieval) {
+            _closedBranchIds.add(canonId);
             _closedBranchIds.add(s.branchId);
           } else {
+            _closedBranchIds.remove(canonId);
             _closedBranchIds.remove(s.branchId);
           }
         }
@@ -276,6 +381,7 @@ class RouteScreenState extends State<RouteScreen> {
       setState(() {
         _branches = branches.isNotEmpty ? branches : List.from(kSampleBranches);
       });
+      await SupabaseService.refreshStaffFromRemote();
       await AssignmentService.ensureInitialized();
       if (mounted) setState(() {});
     } catch (_) {
@@ -291,16 +397,49 @@ class RouteScreenState extends State<RouteScreen> {
   /// live assignments (AssignmentService + Supabase).
   StaffMember? _getAssignedStaff(Branch branch) {
     final allStaff = SupabaseService.getAllStaff();
+    final branchCanonId = AttendanceService.normalizeBranchId(branch.id, branch.name);
+    final bNameLower = branch.name.toLowerCase().trim();
+    final bFullNameLower = branch.fullName.toLowerCase().trim();
+
     // 1. Find staff whose effective assigned branch matches this branch
     final matching = allStaff.where((s) {
       if (s.isArchived || !s.isActive) return false;
       final assignedBranch = AssignmentService.getAssignedBranch(
         s.username,
         fallback: AssignmentService.getAssignedBranch(s.id, fallback: s.branch),
+      ).trim();
+      final abLower = assignedBranch.toLowerCase();
+      final staffCanonId = AttendanceService.normalizeBranchId(
+        abLower.isNotEmpty ? abLower : s.branch,
+        s.fullName,
       );
-      return assignedBranch == branch.fullName ||
-          assignedBranch == branch.name ||
-          (assignedBranch.isNotEmpty && branch.fullName.contains(assignedBranch));
+
+      // Match by canonical branch ID (e.g., br1..br6)
+      if (staffCanonId == branchCanonId && staffCanonId.isNotEmpty && staffCanonId != 'unassigned') {
+        return true;
+      }
+
+      // Match by case-insensitive fuzzy string comparison
+      if (abLower.isNotEmpty) {
+        if (abLower == bFullNameLower ||
+            abLower == bNameLower ||
+            bFullNameLower.contains(abLower) ||
+            abLower.contains(bNameLower)) {
+          return true;
+        }
+      }
+
+      final origBranchLower = s.branch.toLowerCase().trim();
+      if (origBranchLower.isNotEmpty && origBranchLower != 'n/a' && origBranchLower != 'unassigned') {
+        if (origBranchLower == bFullNameLower ||
+            origBranchLower == bNameLower ||
+            bFullNameLower.contains(origBranchLower) ||
+            origBranchLower.contains(bNameLower)) {
+          return true;
+        }
+      }
+
+      return false;
     }).toList();
 
     if (matching.isEmpty) return null;
@@ -351,14 +490,37 @@ class RouteScreenState extends State<RouteScreen> {
     'br6': '8:30 AM - 8:30 PM',
   };
 
-  Set<String> get _currentCompletedSet =>
-      _activeMode == RouteMode.deployment ? _completedDeploymentIds : _completedRetrievalIds;
+  Set<String> get _currentCompletedSet {
+    if (_activeMode == RouteMode.deployment) {
+      return {..._completedDeploymentIds, ..._attendanceConfirmedDeploymentIds};
+    } else {
+      return {..._completedRetrievalIds, ..._attendanceConfirmedRetrievalIds};
+    }
+  }
+
+  /// Determines if a branch was opened today via deployment arrival, cook time-in, or open status.
+  bool _wasBranchOpenedToday(Branch branch) {
+    final canonId = AttendanceService.normalizeBranchId(branch.id, branch.name);
+    final bId = branch.id.toLowerCase().trim();
+    final bName = branch.name.toLowerCase().trim();
+    final bFullName = branch.fullName.toLowerCase().trim();
+
+    return _openedBranchIdsToday.contains(bId) ||
+        _openedBranchIdsToday.contains(canonId) ||
+        _openedBranchIdsToday.contains(bName) ||
+        _openedBranchIdsToday.contains(bFullName) ||
+        _completedDeploymentIds.contains(bId) ||
+        _completedDeploymentIds.contains(canonId) ||
+        _attendanceConfirmedDeploymentIds.contains(canonId) ||
+        _attendanceConfirmedRetrievalIds.contains(canonId) ||
+        _completedRetrievalIds.contains(bId) ||
+        _completedRetrievalIds.contains(canonId);
+  }
 
   void _toggleMode(RouteMode? mode) {
-    if (mode != null) {
+    if (mode != null && mode != _activeMode) {
       setState(() {
         _activeMode = mode;
-        _notifiedStaffIds.clear();
       });
     }
   }
@@ -406,7 +568,24 @@ class RouteScreenState extends State<RouteScreen> {
 
 
   void _confirmNotifyStaff(Branch branch, StaffMember? staff) {
-    if (_isProcessing) return;
+    if (_activeMode == RouteMode.retrieval && !_wasBranchOpenedToday(branch)) {
+      showCupertinoDialog(
+        context: context,
+        builder: (ctx) => CupertinoAlertDialog(
+          title: const Text('Retrieval Unavailable'),
+          content: Text(
+            '${branch.fullName} was not opened during deployment today. Retrieval cannot be performed on an unopened branch.',
+          ),
+          actions: [
+            CupertinoDialogAction(
+              child: const Text('OK'),
+              onPressed: () => Navigator.pop(ctx),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
     final messenger = ScaffoldMessenger.of(context);
     if (staff == null) {
       messenger.showSnackBar(
@@ -435,42 +614,55 @@ class RouteScreenState extends State<RouteScreen> {
           ),
           CupertinoDialogAction(
             isDefaultAction: true,
-            onPressed: () async {
+            onPressed: () {
               Navigator.pop(dialogCtx);
-              if (!mounted || _isProcessing) return;
-              setState(() => _isProcessing = true);
-              SystemBusyCoordinator.setBusy(true);
-              try {
-                setState(() {
-                  _notifiedStaffIds.add(branch.id);
-                });
-                final driverName = AuthService.currentAppUser?.fullName ?? 'Driver';
-                await NotificationService.notifyStaffDriverOnTheWay(
-                  staffName: staffName,
-                  branchName: branch.fullName,
-                  mode: _activeMode.name,
-                  staffId: staff.id,
-                  staffUsername: staff.username,
-                  driverName: driverName,
-                );
-                // Update branch_status in Firestore so the owner's Branch Status
-                // overview reflects "DRIVER ON THE WAY" in real-time.
-                await FirestoreService.setDriverOnTheWay(
-                  branchId: branch.id,
-                  branchName: branch.fullName,
-                  cookName: staffName,
-                  driverName: driverName,
-                  isDeployment: _activeMode == RouteMode.deployment,
-                );
-                if (mounted) {
-                  messenger.showSnackBar(
-                    SnackBar(content: Text('Notified $staffName: "Driver is on the way"')),
-                  );
+              if (!mounted) return;
+
+              final canonId = AttendanceService.normalizeBranchId(branch.id, branch.name);
+
+              // 1. Instant local Bluetooth Driver State (0ms, no waiting!)
+              DriverBleService().setActiveDispatch(
+                branchId: branch.id,
+                branchName: branch.fullName,
+                cookName: staffName,
+                isOnTheWay: true,
+              );
+
+              // 2. Instant UI update to "Awaiting RFID Card Tap" (No endless spinner!)
+              setState(() {
+                if (_activeMode == RouteMode.deployment) {
+                  _notifiedDeploymentIds.add(branch.id);
+                  _notifiedDeploymentIds.add(canonId);
+                } else {
+                  _notifiedRetrievalIds.add(branch.id);
+                  _notifiedRetrievalIds.add(canonId);
                 }
-              } finally {
-                SystemBusyCoordinator.setBusy(false);
-                if (mounted) setState(() => _isProcessing = false);
-              }
+              });
+
+              messenger.showSnackBar(
+                SnackBar(content: Text('Status set: "Driver is on the way" to ${branch.fullName}')),
+              );
+
+              // 3. Cloud update in background (Hindi mag-hahang kahit walang internet!)
+              final driverName = AuthService.currentAppUser?.fullName ?? 'Driver';
+              FirestoreService.setDriverOnTheWay(
+                branchId: branch.id,
+                branchName: branch.fullName,
+                cookName: staffName,
+                driverName: driverName,
+                isDeployment: _activeMode == RouteMode.deployment,
+              ).catchError((e) {
+                debugPrint('setDriverOnTheWay background sync note: $e');
+              });
+
+              NotificationService.notifyStaffDriverOnTheWay(
+                staffName: staffName,
+                branchName: branch.fullName,
+                mode: _activeMode.name,
+                staffId: staff.id,
+                staffUsername: staff.username,
+                driverName: driverName,
+              ).catchError((_) {});
             },
             child: const Text('Yes'),
           ),
@@ -479,18 +671,36 @@ class RouteScreenState extends State<RouteScreen> {
     );
   }
 
-  void _confirmSimulatedRfidTap(Branch branch, StaffMember? staff) {
+  void _confirmManualArrivalVerification(Branch branch, StaffMember? staff) {
+    if (_activeMode == RouteMode.retrieval && !_wasBranchOpenedToday(branch)) {
+      showCupertinoDialog(
+        context: context,
+        builder: (ctx) => CupertinoAlertDialog(
+          title: const Text('Retrieval Unavailable'),
+          content: Text(
+            '${branch.fullName} was not opened during deployment today. Cannot close or retrieve an unopened branch.',
+          ),
+          actions: [
+            CupertinoDialogAction(
+              child: const Text('OK'),
+              onPressed: () => Navigator.pop(ctx),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
     final isDeployment = _activeMode == RouteMode.deployment;
-    final action = isDeployment ? 'Opening (Arrival)' : 'Closing (Departure)';
+    final action = isDeployment ? 'Arrival (Store Opening)' : 'Departure (Store Closing)';
     final staffName = staff?.fullName ?? 'Assigned Cook';
 
     showCupertinoDialog(
       context: context,
       builder: (dialogCtx) => CupertinoAlertDialog(
-        title: Text('Simulate Cook RFID $action'),
+        title: Text('Manual Verification ($action)'),
         content: Text(
-          'Simulate RFID card tap for $staffName at ${branch.name}?\n\n'
-          'This will mark ${branch.name} as ${isDeployment ? "OPEN" : "CLOSED"} in real-time and complete this stop.',
+          'Manually verify ${isDeployment ? "arrival" : "departure"} for $staffName at ${branch.name}?\n\n'
+          'Use this fallback only if the Cook\'s physical RFID card is unavailable or the portable reader is offline.',
         ),
         actions: [
           CupertinoDialogAction(
@@ -501,7 +711,7 @@ class RouteScreenState extends State<RouteScreen> {
             isDefaultAction: true,
             onPressed: () {
               Navigator.pop(dialogCtx);
-              _handleSimulatedRfidTap(branch, staff);
+              _handleManualArrivalVerification(branch, staff);
             },
             child: Text(isDeployment ? 'Confirm & Open' : 'Confirm & Close'),
           ),
@@ -510,37 +720,38 @@ class RouteScreenState extends State<RouteScreen> {
     );
   }
 
-  Future<void> _handleSimulatedRfidTap(Branch branch, StaffMember? staff) async {
-    if (_isProcessing) return;
-    setState(() => _isProcessing = true);
-    SystemBusyCoordinator.setBusy(true);
-    try {
-      final isDeployment = _activeMode == RouteMode.deployment;
-      final staffName = staff?.fullName ?? 'Assigned Cook';
-      final cookId = staff?.id ?? 'cook_${branch.id}';
-      final rfidTag = (staff?.rfidTag != null && staff!.rfidTag.isNotEmpty)
-          ? staff.rfidTag
-          : 'SIM_${isDeployment ? "OPEN" : "CLOSE"}_${branch.id}';
+  Future<void> _handleManualArrivalVerification(Branch branch, StaffMember? staff) async {
+    final isDeployment = _activeMode == RouteMode.deployment;
+    if (!isDeployment && !_wasBranchOpenedToday(branch)) return;
+    final staffName = staff?.fullName ?? 'Assigned Cook';
+    final cookId = staff?.id ?? 'cook_${branch.id}';
+    final rfidTag = (staff?.rfidTag != null && staff!.rfidTag.isNotEmpty)
+        ? staff.rfidTag
+        : 'MANUAL_${isDeployment ? "OPEN" : "CLOSE"}_${branch.id}';
 
-      setState(() {
-        if (isDeployment) {
-          _completedDeploymentIds.add(branch.id);
-        } else {
-          _completedRetrievalIds.add(branch.id);
-        }
-      });
+    final branchCanonId = AttendanceService.normalizeBranchId(branch.id, branch.name);
+    setState(() {
+      if (isDeployment) {
+        _notifiedDeploymentIds.remove(branch.id);
+        _notifiedDeploymentIds.remove(branchCanonId);
+        _completedDeploymentIds.add(branch.id);
+        _completedDeploymentIds.add(branchCanonId);
+        _openedBranchIdsToday.add(branch.id);
+        _openedBranchIdsToday.add(branchCanonId);
+        // Deployment opened; retrieval is definitely NOT completed
+        _completedRetrievalIds.remove(branch.id);
+        _completedRetrievalIds.remove(branchCanonId);
+        _attendanceConfirmedRetrievalIds.remove(branch.id);
+        _attendanceConfirmedRetrievalIds.remove(branchCanonId);
+      } else {
+        _notifiedRetrievalIds.remove(branch.id);
+        _notifiedRetrievalIds.remove(branchCanonId);
+        _completedRetrievalIds.add(branch.id);
+        _completedRetrievalIds.add(branchCanonId);
+      }
+    });
 
-      await FirestoreService.processBranchCookRfidTap(
-        branchId: branch.id,
-        branchName: branch.fullName,
-        cookName: staffName,
-        cookId: cookId,
-        isDeployment: isDeployment,
-        rfidTag: rfidTag,
-        deviceId: 'simulated_driver_route',
-      );
-
-      if (!mounted) return;
+    if (mounted) {
       final messenger = ScaffoldMessenger.of(context);
       messenger.showSnackBar(
         SnackBar(
@@ -555,8 +766,8 @@ class RouteScreenState extends State<RouteScreen> {
               Expanded(
                 child: Text(
                   isDeployment
-                      ? '${branch.name} is now OPEN. Simulated Cook Tap logged.'
-                      : '${branch.name} is now CLOSED. Simulated Cook Tap logged.',
+                      ? '${branch.name} is now OPEN. Manual arrival verified.'
+                      : '${branch.name} is now CLOSED. Manual departure verified.',
                 ),
               ),
             ],
@@ -564,9 +775,33 @@ class RouteScreenState extends State<RouteScreen> {
           backgroundColor: isDeployment ? AppColors.success : const Color(0xFFC62828),
         ),
       );
-    } finally {
-      SystemBusyCoordinator.setBusy(false);
-      if (mounted) setState(() => _isProcessing = false);
+    }
+
+    // Cloud updates in background with fast timeout so UI NEVER freezes when offline!
+    FirestoreService.processBranchCookRfidTap(
+      branchId: branch.id,
+      branchName: branch.fullName,
+      cookName: staffName,
+      cookId: cookId,
+      isDeployment: isDeployment,
+      rfidTag: rfidTag,
+      deviceId: 'driver_manual_override',
+    ).timeout(const Duration(milliseconds: 1500)).catchError((e) {
+      debugPrint('Manual override Firestore note: $e');
+      return false;
+    });
+
+    if (staff != null) {
+      AttendanceService.ensureSupabaseAttendanceLog(
+        staff: staff,
+        branchId: branch.id,
+        branchName: branch.fullName,
+        rfidUid: rfidTag,
+        deviceId: 'driver_manual_override',
+        isDeployment: isDeployment,
+      ).timeout(const Duration(milliseconds: 1500)).catchError((e) {
+        debugPrint('Manual override Supabase note: $e');
+      });
     }
   }
 
@@ -577,10 +812,38 @@ class RouteScreenState extends State<RouteScreen> {
     final branches = (_branches.isNotEmpty ? [..._branches] : [...kSampleBranches])
       ..sort((a, b) => a.dailyRouteSequence.compareTo(b.dailyRouteSequence));
 
-    // Only count non-closed branches towards active route completion
-    final activeBranches = branches.where((b) => !_closedBranchIds.contains(b.id)).toList();
-    final completedCount = _currentCompletedSet.where((id) => !_closedBranchIds.contains(id)).length;
-    final allDone = activeBranches.isNotEmpty && completedCount == activeBranches.length;
+    // A branch is active in the driver's route ONLY if:
+    // 1. It is OPEN (not closed by owner in inventory/status)
+    // 2. It has an assigned staff member who is ON DUTY today (not rest day, not unassigned)
+    final activeBranches = branches.where((b) {
+      final canonId = AttendanceService.normalizeBranchId(b.id, b.name);
+      if (_activeMode == RouteMode.retrieval) {
+        final isCompleted = _currentCompletedSet.contains(b.id) || _currentCompletedSet.contains(canonId);
+        if (!isCompleted) {
+          final isClosed = _closedBranchIds.contains(b.id) ||
+              _closedBranchIds.contains(canonId) ||
+              _closedBranchIds.contains(b.name.trim().toLowerCase()) ||
+              _closedBranchIds.contains(b.fullName.trim().toLowerCase());
+          if (isClosed) return false;
+        }
+      }
+
+      final staff = _getAssignedStaff(b);
+      if (staff == null) return false;
+      if (_isRestDay(staff)) return false;
+
+      return true;
+    }).toList();
+
+    final totalTargets = _activeMode == RouteMode.retrieval
+        ? activeBranches.where((b) => _wasBranchOpenedToday(b)).toList()
+        : activeBranches;
+
+    final completedCount = totalTargets.where((b) {
+      final canonId = AttendanceService.normalizeBranchId(b.id, b.name);
+      return _currentCompletedSet.contains(b.id) || _currentCompletedSet.contains(canonId);
+    }).length;
+    final allDone = totalTargets.isNotEmpty && completedCount == totalTargets.length;
 
     return CupertinoPageScaffold(
       backgroundColor: AppColors.background,
@@ -589,7 +852,7 @@ class RouteScreenState extends State<RouteScreen> {
         trailing: DriverTopActions(),
       ),
       child: AbsorbPointer(
-        absorbing: _isProcessing,
+        absorbing: false,
         child: Stack(
           children: [
             SafeArea(
@@ -693,9 +956,13 @@ class RouteScreenState extends State<RouteScreen> {
                                     ),
                                   ),
                                   Text(
-                                    activeBranches.isEmpty
-                                        ? 'No active branches today'
-                                        : '$completedCount of ${activeBranches.length} active stops reached',
+                                    totalTargets.isEmpty
+                                        ? (_activeMode == RouteMode.retrieval
+                                            ? 'No branches opened for retrieval today'
+                                            : 'No active branches today')
+                                        : (_activeMode == RouteMode.retrieval
+                                            ? '$completedCount of ${totalTargets.length} branches retrieved'
+                                            : '$completedCount of ${activeBranches.length} active stops reached'),
                                     style: const TextStyle(
                                       fontSize: 13,
                                       fontWeight: FontWeight.w500,
@@ -712,7 +979,7 @@ class RouteScreenState extends State<RouteScreen> {
                         ClipRRect(
                           borderRadius: BorderRadius.circular(8),
                           child: LinearProgressIndicator(
-                            value: activeBranches.isEmpty ? 0 : completedCount / activeBranches.length,
+                            value: totalTargets.isEmpty ? 0 : completedCount / totalTargets.length,
                             minHeight: 8,
                             backgroundColor: AppColors.border.withValues(alpha: 0.4),
                             valueColor: AlwaysStoppedAnimation<Color>(
@@ -772,7 +1039,7 @@ class RouteScreenState extends State<RouteScreen> {
                           Icon(CupertinoIcons.moon_zzz_fill, size: 36, color: AppColors.accent),
                           SizedBox(height: 12),
                           Text(
-                            'Walang Delivery Route Ngayong Araw',
+                            'No Delivery Route Today',
                             style: TextStyle(
                               fontSize: 15,
                               fontWeight: FontWeight.w800,
@@ -782,7 +1049,7 @@ class RouteScreenState extends State<RouteScreen> {
                           ),
                           SizedBox(height: 6),
                           Text(
-                            'Lahat ng sangay ay kasalukuyang sarado mula sa Branch Allocation ng Owner.',
+                            'All branches are currently closed in Branch Allocation by the Owner.',
                             style: TextStyle(
                               fontSize: 12.5,
                               color: AppColors.textSecondary,
@@ -796,20 +1063,35 @@ class RouteScreenState extends State<RouteScreen> {
                     ...List.generate(activeBranches.length, (index) {
                       final branch = activeBranches[index];
                       final isLast = index == activeBranches.length - 1;
-                      final completed = _currentCompletedSet.contains(branch.id);
-                      final notified = _notifiedStaffIds.contains(branch.id);
+                      final branchCanonId = AttendanceService.normalizeBranchId(branch.id, branch.name);
+                      final completed = _currentCompletedSet.contains(branch.id) ||
+                          _currentCompletedSet.contains(branchCanonId);
+                      final notified = _notifiedStaffIds.contains(branch.id) ||
+                          _notifiedStaffIds.contains(branchCanonId);
                       final staff = _getAssignedStaff(branch);
                       final hasStaff = staff != null;
                       final staffName = staff?.fullName ?? 'Unassigned';
-                      final hours = _branchHours[branch.id] ?? '8:00 AM - 8:00 PM';
+                      final hours = _branchHours[branch.id] ?? _branchHours[branchCanonId] ?? '8:00 AM - 8:00 PM';
+                      final wasOpenedToday = _wasBranchOpenedToday(branch);
+                      final isUnopenedRetrieval = _activeMode == RouteMode.retrieval && !wasOpenedToday && !completed;
 
                       // Sequence Enforcement: A stop is active ONLY if all preceding active stops are completed.
                       bool isLocked = false;
-                      for (int i = 0; i < index; i++) {
-                        final prevBranch = activeBranches[i];
-                        if (!_currentCompletedSet.contains(prevBranch.id)) {
-                          isLocked = true;
-                          break;
+                      if (isUnopenedRetrieval) {
+                        isLocked = true;
+                      } else {
+                        for (int i = 0; i < index; i++) {
+                          final prevBranch = activeBranches[i];
+                          if (_activeMode == RouteMode.retrieval && !_wasBranchOpenedToday(prevBranch)) {
+                            continue;
+                          }
+                          final prevCanonId = AttendanceService.normalizeBranchId(prevBranch.id, prevBranch.name);
+                          final isPrevDone = _currentCompletedSet.contains(prevBranch.id) ||
+                              _currentCompletedSet.contains(prevCanonId);
+                          if (!isPrevDone) {
+                            isLocked = true;
+                            break;
+                          }
                         }
                       }
 
@@ -876,6 +1158,29 @@ class RouteScreenState extends State<RouteScreen> {
                                             child: Column(
                                               crossAxisAlignment: CrossAxisAlignment.start,
                                               children: [
+                                                Row(
+                                                  children: [
+                                                    Flexible(
+                                                      child: Container(
+                                                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+                                                        decoration: BoxDecoration(
+                                                          color: AppColors.accent.withValues(alpha: 0.1),
+                                                          borderRadius: BorderRadius.circular(5),
+                                                        ),
+                                                        child: Text(
+                                                          'Stop ${index + 1} of ${activeBranches.length} • Route #${branch.dailyRouteSequence}',
+                                                          style: const TextStyle(
+                                                            fontSize: 10.5,
+                                                            fontWeight: FontWeight.w700,
+                                                            color: AppColors.accent,
+                                                          ),
+                                                          overflow: TextOverflow.ellipsis,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                                const SizedBox(height: 5),
                                                 Text(
                                                   branch.fullName,
                                                   style: TextStyle(
@@ -889,12 +1194,15 @@ class RouteScreenState extends State<RouteScreen> {
                                                   children: [
                                                     const Icon(CupertinoIcons.time, size: 12, color: AppColors.textSecondary),
                                                     const SizedBox(width: 4),
-                                                    Text(
-                                                      'Hours: $hours',
-                                                      style: const TextStyle(
-                                                        fontSize: 12,
-                                                        color: AppColors.textSecondary,
-                                                        fontWeight: FontWeight.w500,
+                                                    Expanded(
+                                                      child: Text(
+                                                        'Hours: $hours',
+                                                        style: const TextStyle(
+                                                          fontSize: 12,
+                                                          color: AppColors.textSecondary,
+                                                          fontWeight: FontWeight.w500,
+                                                        ),
+                                                        overflow: TextOverflow.ellipsis,
                                                       ),
                                                     ),
                                                   ],
@@ -1052,55 +1360,94 @@ class RouteScreenState extends State<RouteScreen> {
                                     if (!completed) ...[
                                       const SizedBox(height: 16),
                                       if (notified) ...[
-                                        // Temporary Simulated Cook RFID Tap Button (Opening for Deployment, Closing for Retrieval)
-                                        CupertinoButton(
-                                          padding: EdgeInsets.zero,
-                                          minimumSize: const Size(double.infinity, 42),
-                                          color: _activeMode == RouteMode.deployment
-                                              ? AppColors.success
-                                              : const Color(0xFFC62828),
-                                          borderRadius: BorderRadius.circular(12),
-                                          onPressed: isLocked ? null : () => _confirmSimulatedRfidTap(branch, staff),
-                                          child: Row(
-                                            mainAxisAlignment: MainAxisAlignment.center,
+                                        Container(
+                                          width: double.infinity,
+                                          padding: const EdgeInsets.all(12),
+                                          decoration: BoxDecoration(
+                                            color: (_activeMode == RouteMode.deployment
+                                                    ? AppColors.success
+                                                    : const Color(0xFFC62828))
+                                                .withValues(alpha: 0.08),
+                                            borderRadius: BorderRadius.circular(12),
+                                            border: Border.all(
+                                              color: (_activeMode == RouteMode.deployment
+                                                      ? AppColors.success
+                                                      : const Color(0xFFC62828))
+                                                  .withValues(alpha: 0.35),
+                                            ),
+                                          ),
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
                                             children: [
-                                              const Icon(
-                                                CupertinoIcons.radiowaves_right,
-                                                size: 16,
-                                                color: CupertinoColors.white,
+                                              Row(
+                                                children: [
+                                                  Icon(
+                                                    CupertinoIcons.radiowaves_right,
+                                                    size: 16,
+                                                    color: _activeMode == RouteMode.deployment
+                                                        ? AppColors.success
+                                                        : const Color(0xFFC62828),
+                                                  ),
+                                                  const SizedBox(width: 8),
+                                                  Expanded(
+                                                    child: Text(
+                                                      _activeMode == RouteMode.deployment
+                                                          ? 'AWAITING COOK RFID TAP (ARRIVAL)'
+                                                          : 'AWAITING COOK RFID TAP (CLOSING)',
+                                                      style: TextStyle(
+                                                        fontSize: 11.5,
+                                                        fontWeight: FontWeight.w800,
+                                                        letterSpacing: 0.3,
+                                                        color: _activeMode == RouteMode.deployment
+                                                            ? AppColors.success
+                                                            : const Color(0xFFC62828),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ],
                                               ),
-                                              const SizedBox(width: 8),
+                                              const SizedBox(height: 6),
                                               Text(
                                                 _activeMode == RouteMode.deployment
-                                                    ? 'Simulate Cook Tap (Open Branch)'
-                                                    : 'Simulate Cook Tap (Close Branch)',
+                                                    ? 'Have the cook tap their RFID card on the portable reader to automatically open the branch and complete this stop.'
+                                                    : 'Have the cook tap their RFID card on the portable reader to close the branch and record time-out.',
                                                 style: const TextStyle(
-                                                  fontSize: 12.5,
-                                                  fontWeight: FontWeight.w800,
-                                                  color: CupertinoColors.white,
-                                                  letterSpacing: 0.3,
+                                                  fontSize: 11,
+                                                  color: AppColors.textSecondary,
+                                                  height: 1.4,
+                                                ),
+                                              ),
+                                              const SizedBox(height: 10),
+                                              SizedBox(
+                                                width: double.infinity,
+                                                height: 34,
+                                                child: CupertinoButton(
+                                                  padding: EdgeInsets.zero,
+                                                  color: AppColors.accent.withValues(alpha: 0.12),
+                                                  borderRadius: BorderRadius.circular(8),
+                                                  onPressed: isLocked
+                                                      ? null
+                                                      : () => _confirmManualArrivalVerification(branch, staff),
+                                                  child: Row(
+                                                    mainAxisAlignment: MainAxisAlignment.center,
+                                                    children: const [
+                                                      Icon(CupertinoIcons.checkmark_shield_fill,
+                                                          size: 13, color: AppColors.accent),
+                                                      SizedBox(width: 6),
+                                                      Text(
+                                                        'Manual Verification (Fallback)',
+                                                        style: TextStyle(
+                                                          fontSize: 11,
+                                                          fontWeight: FontWeight.w700,
+                                                          color: AppColors.accent,
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
                                                 ),
                                               ),
                                             ],
                                           ),
-                                        ),
-                                        const SizedBox(height: 6),
-                                        Row(
-                                          mainAxisAlignment: MainAxisAlignment.center,
-                                          children: [
-                                            const Icon(CupertinoIcons.info_circle, size: 11, color: AppColors.textSecondary),
-                                            const SizedBox(width: 4),
-                                            Text(
-                                              _activeMode == RouteMode.deployment
-                                                  ? 'Temporary trigger for branch opening arrival'
-                                                  : 'Temporary trigger for branch closing retrieval',
-                                              style: const TextStyle(
-                                                fontSize: 10.5,
-                                                color: AppColors.textSecondary,
-                                                fontStyle: FontStyle.italic,
-                                              ),
-                                            ),
-                                          ],
                                         ),
                                       ]
                                       else
@@ -1120,21 +1467,28 @@ class RouteScreenState extends State<RouteScreen> {
                                             mainAxisAlignment: MainAxisAlignment.center,
                                             children: [
                                               Icon(
-                                                CupertinoIcons.bell,
+                                                isUnopenedRetrieval
+                                                    ? CupertinoIcons.slash_circle
+                                                    : CupertinoIcons.bell,
                                                 size: 14,
                                                 color: (isLocked || !hasStaff)
                                                     ? AppColors.border
                                                     : AppColors.accent,
                                               ),
                                               const SizedBox(width: 6),
-                                              Text(
-                                                !hasStaff ? 'No Staff' : 'On the way',
-                                                style: TextStyle(
-                                                  fontSize: 12,
-                                                  fontWeight: FontWeight.w700,
-                                                  color: (isLocked || !hasStaff)
-                                                      ? AppColors.border
-                                                      : AppColors.accent,
+                                              Flexible(
+                                                child: Text(
+                                                  isUnopenedRetrieval
+                                                      ? 'Branch Not Opened Today'
+                                                      : (!hasStaff ? 'No Staff' : 'On the way'),
+                                                  style: TextStyle(
+                                                    fontSize: 12,
+                                                    fontWeight: FontWeight.w700,
+                                                    color: (isLocked || !hasStaff)
+                                                        ? AppColors.border
+                                                        : AppColors.accent,
+                                                  ),
+                                                  overflow: TextOverflow.ellipsis,
                                                 ),
                                               ),
                                             ],
@@ -1158,32 +1512,6 @@ class RouteScreenState extends State<RouteScreen> {
           ],
         ),
       ),
-      if (_isProcessing)
-        Positioned.fill(
-          child: Container(
-            color: CupertinoColors.black.withValues(alpha: 0.25),
-            child: Center(
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-                decoration: BoxDecoration(
-                  color: CupertinoColors.white,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    CupertinoActivityIndicator(),
-                    SizedBox(width: 12),
-                    Text(
-                      'Processing... Please wait...',
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.textPrimary),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
     ],
   ),
 ),

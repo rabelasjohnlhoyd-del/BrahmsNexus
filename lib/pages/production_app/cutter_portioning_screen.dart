@@ -18,6 +18,7 @@ import '../../widgets/staff_card.dart';
 import '../../widgets/staff_nav_bar.dart';
 import '../../widgets/staff_section_header.dart';
 import '../../widgets/staff_top_actions.dart';
+import '../../widgets/staff_attendance_card.dart';
 import '../staff_app/staff_salary_screen.dart';
 import 'production_shell.dart';
 
@@ -590,6 +591,9 @@ class CutterPortioningScreenState extends State<CutterPortioningScreen> {
                 ),
               ),
             ),
+            const SizedBox(height: 18),
+
+            const StaffAttendanceCard(),
             const SizedBox(height: 18),
 
             // ASSIGNED BATCH CARD (MULA SA NILUTO NI COOK)

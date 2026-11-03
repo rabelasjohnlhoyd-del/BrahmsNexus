@@ -38,6 +38,12 @@ class _PhoneSmsScreenState extends State<PhoneSmsScreen> {
   String? _errorMessage;
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _completeVerification());
+  }
+
+  @override
   void dispose() {
     _timer?.cancel();
     for (final c in _controllers) {

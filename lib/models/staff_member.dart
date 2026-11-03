@@ -102,7 +102,7 @@ class StaffMember {
       'age': age,
       if (photoUrl.isNotEmpty) 'photo_url': photoUrl,
       // rfid_tag has UNIQUE constraint — never send empty string, use null
-      if (rfidTag.isNotEmpty) 'rfid_tag': rfidTag,
+      'rfid_tag': rfidTag.trim().isNotEmpty ? rfidTag.trim().toUpperCase() : null,
       'is_active': isActive,
       'is_archived': isArchived,
       'date_added': dateAdded.toIso8601String(),

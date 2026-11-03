@@ -2,6 +2,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../models/branch.dart';
+import '../../../services/attendance_service.dart';
+import '../../../services/firestore_service.dart';
 import '../../../services/supabase_service.dart';
 import '../admin_web_colors.dart';
 import '../admin_web_shell.dart';
@@ -9,8 +11,8 @@ import '../admin_web_widgets/glass_card.dart';
 
 /// Real-time Branch Status Overview — replaces the old Map screen.
 /// Shows which branches are OPEN, CLOSED, or have Driver On the Way.
-/// Data flows from [branch_status] Firestore collection updated by
-/// Driver route actions and Branch Cook RFID taps.
+/// Data flows from Supabase [attendance_logs] (RFID taps from portable driver reader)
+/// and [branch_status] Firestore collection.
 class BranchStatusScreen extends StatefulWidget {
   const BranchStatusScreen({super.key, this.isEmbedded = false});
 
@@ -22,6 +24,7 @@ class BranchStatusScreen extends StatefulWidget {
 
 class _BranchStatusScreenState extends State<BranchStatusScreen> {
   StreamSubscription<QuerySnapshot>? _sub;
+  StreamSubscription<List<Map<String, dynamic>>>? _attendanceSub;
 
   // Map of documentId or branchId -> live status data
   final Map<String, _BranchLiveStatus> _statuses = {};
@@ -34,6 +37,60 @@ class _BranchStatusScreenState extends State<BranchStatusScreen> {
       _updateShellActions();
     }
     _loadBranches();
+    AttendanceService.ensureAttendanceSync();
+
+    // 1. Direct real-time stream of Supabase attendance_logs (ESP32 RFID card taps)
+    _attendanceSub = AttendanceService.watchTodayAttendance().listen((todayLogs) {
+      if (!mounted) return;
+      final todayStr = DateTime.now().toIso8601String().substring(0, 10);
+      setState(() {
+        for (final log in todayLogs) {
+          final sName = log['staff_name']?.toString() ?? '';
+          final sId = log['staff_id']?.toString() ?? '';
+          final rawBId = (log['branch_id']?.toString() ?? '').toLowerCase();
+          final bName = log['branch_name']?.toString() ?? '';
+          final canonId = AttendanceService.resolveBranchForStaff(rawBId.isNotEmpty ? rawBId : bName, sName, sId);
+
+          if (canonId.isNotEmpty && canonId != 'commissary' && canonId != 'unassigned') {
+            final hasTimeIn = log['time_in'] != null;
+            final hasTimeOut = log['time_out'] != null;
+            final effectiveIsOpen = hasTimeIn && !hasTimeOut;
+
+            final prev = _statuses[canonId];
+            final status = _BranchLiveStatus(
+              branchId: canonId,
+              branchName: bName.isNotEmpty ? bName : (prev?.branchName ?? canonId),
+              isOpen: effectiveIsOpen,
+              isClosed: hasTimeOut,
+              driverOnWay: false,
+              cookName: sName.isNotEmpty ? sName : (prev?.cookName ?? ''),
+              driverName: prev?.driverName ?? '',
+              lastUpdated: DateTime.now(),
+              timeIn: log['time_in'] != null ? AttendanceService.formatTime(log['time_in']) : prev?.timeIn,
+              timeOut: log['time_out'] != null ? AttendanceService.formatTime(log['time_out']) : prev?.timeOut,
+              rfidUid: log['rfid_uid']?.toString() ?? prev?.rfidUid,
+            );
+            _statuses[canonId] = status;
+            if (rawBId.isNotEmpty) _statuses[rawBId] = status;
+
+            // Sync to Firestore branch_status doc for cross-platform app sync
+            FirebaseFirestore.instance.collection('branch_status').doc(canonId).set({
+              'branchId': canonId,
+              'branchName': bName,
+              'isOpen': effectiveIsOpen,
+              'isClosed': hasTimeOut,
+              'driverOnWay': false,
+              'cookName': sName,
+              'openedDateStr': todayStr,
+              'lastTapType': hasTimeOut ? 'retrieval_closing' : 'deployment_opening',
+              'lastUpdated': FieldValue.serverTimestamp(),
+            }, SetOptions(merge: true)).catchError((_) {});
+          }
+        }
+      });
+    });
+
+    // 2. Listen to Firestore branch_status collection
     _sub = FirebaseFirestore.instance
         .collection('branch_status')
         .snapshots()
@@ -41,7 +98,6 @@ class _BranchStatusScreenState extends State<BranchStatusScreen> {
       if (!mounted) return;
       final todayStr = DateTime.now().toIso8601String().substring(0, 10);
       setState(() {
-        _statuses.clear();
         for (final doc in snap.docs) {
           final data = doc.data();
           final rawIsOpen = data['isOpen'] as bool? ?? false;
@@ -54,26 +110,27 @@ class _BranchStatusScreenState extends State<BranchStatusScreen> {
           // Store is strictly OPEN if cook tapped arrival RFID today and branch is not closed
           final effectiveIsOpen = !isClosed && !isClosedByRetrieval && (rawIsOpen || hasRfidArrivalToday);
 
-          if (effectiveIsOpen && !rawIsOpen) {
-            FirebaseFirestore.instance.collection('branch_status').doc(doc.id).set({
-              'isOpen': true,
-            }, SetOptions(merge: true)).catchError((_) {});
-          }
+          final rawId = (data['branchId']?.toString() ?? doc.id).toLowerCase();
+          final cookName = data['cookName']?.toString() ?? '';
+          final canonId = AttendanceService.normalizeBranchId(rawId, cookName);
 
+          final prev = _statuses[canonId];
           final status = _BranchLiveStatus(
-            branchId: (data['branchId']?.toString() ?? doc.id).toLowerCase(),
-            branchName: data['branchName']?.toString() ?? '',
+            branchId: canonId,
+            branchName: data['branchName']?.toString() ?? prev?.branchName ?? '',
             isOpen: effectiveIsOpen,
-            isClosed: isClosed,
+            isClosed: isClosed || isClosedByRetrieval,
             driverOnWay: data['driverOnWay'] as bool? ?? false,
-            cookName: data['cookName']?.toString() ?? '',
-            driverName: data['driverName']?.toString() ?? '',
-            lastUpdated: (data['lastUpdated'] as Timestamp?)?.toDate(),
+            cookName: cookName.isNotEmpty ? cookName : (prev?.cookName ?? ''),
+            driverName: data['driverName']?.toString() ?? prev?.driverName ?? '',
+            lastUpdated: (data['lastUpdated'] as Timestamp?)?.toDate() ?? prev?.lastUpdated,
+            timeIn: prev?.timeIn,
+            timeOut: prev?.timeOut,
+            rfidUid: data['rfidTag']?.toString() ?? prev?.rfidUid,
           );
           _statuses[doc.id.toLowerCase()] = status;
-          if (status.branchId.isNotEmpty) {
-            _statuses[status.branchId] = status;
-          }
+          _statuses[canonId] = status;
+          if (rawId.isNotEmpty) _statuses[rawId] = status;
         }
       });
     });
@@ -92,6 +149,7 @@ class _BranchStatusScreenState extends State<BranchStatusScreen> {
   @override
   void dispose() {
     _sub?.cancel();
+    _attendanceSub?.cancel();
     super.dispose();
   }
 
@@ -107,6 +165,135 @@ class _BranchStatusScreenState extends State<BranchStatusScreen> {
     if (!widget.isEmbedded) {
       _updateShellActions();
     }
+  }
+
+  void _showBranchDetailDialog(Branch branch, _BranchLiveStatus? status) {
+    final isOpen = status?.isOpen ?? false;
+    final cookName = (status?.cookName ?? '').isNotEmpty ? status!.cookName : 'Assigned Branch Cook';
+    final timeIn = status?.timeIn ?? 'Awaiting RFID Tap';
+    final rfidTag = status?.rfidUid ?? 'None';
+
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: (isOpen ? AdminWebColors.success : AdminWebColors.accent).withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(
+                isOpen ? Icons.store_rounded : Icons.storefront_outlined,
+                color: isOpen ? AdminWebColors.success : AdminWebColors.accent,
+                size: 22,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(branch.fullName, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+                  Text(
+                    isOpen ? 'STORE CURRENTLY OPEN' : 'STORE CURRENTLY CLOSED',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      color: isOpen ? AdminWebColors.success : AdminWebColors.error,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Divider(color: AdminWebColors.border),
+            const SizedBox(height: 8),
+            _dialogInfoRow('Assigned Cook', cookName, Icons.person_rounded),
+            const SizedBox(height: 10),
+            _dialogInfoRow(
+              'Status',
+              isOpen ? 'OPEN (Live Active)' : (status?.driverOnWay == true ? 'Driver On The Way' : 'CLOSED'),
+              Icons.info_outline_rounded,
+            ),
+            const SizedBox(height: 10),
+            _dialogInfoRow('RFID Time-In', timeIn, Icons.nfc_rounded),
+            if (rfidTag.isNotEmpty && rfidTag != 'None') ...[
+              const SizedBox(height: 10),
+              _dialogInfoRow('RFID Card UID', rfidTag, Icons.credit_card_rounded),
+            ],
+            const SizedBox(height: 14),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: AdminWebColors.accent.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.wifi_tethering_rounded, size: 16, color: AdminWebColors.accent),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Awtomatikong magiging OPEN kapag nag-tap ang cook sa portable RFID reader ng driver.',
+                      style: TextStyle(fontSize: 11, color: AdminWebColors.textPrimary),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Close'),
+          ),
+          if (!isOpen)
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AdminWebColors.accent,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              icon: const Icon(Icons.nfc_rounded, size: 16),
+              label: const Text('Simulate / Open Store'),
+              onPressed: () async {
+                Navigator.pop(ctx);
+                await FirestoreService.processBranchCookRfidTap(
+                  branchId: branch.id,
+                  branchName: branch.fullName,
+                  cookName: cookName,
+                  cookId: 'cook_${branch.id}',
+                  isDeployment: true,
+                  rfidTag: 'ADMIN_MANUAL_TAP',
+                  deviceId: 'admin_web_override',
+                );
+              },
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _dialogInfoRow(String label, String value, IconData icon) {
+    return Row(
+      children: [
+        Icon(icon, size: 16, color: AdminWebColors.accent),
+        const SizedBox(width: 8),
+        Text('$label: ', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AdminWebColors.textSecondary)),
+        Expanded(
+          child: Text(value, style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: AdminWebColors.textPrimary)),
+        ),
+      ],
+    );
   }
 
   _BranchLiveStatus? _getStatusForBranch(Branch branch) {
@@ -271,126 +458,149 @@ class _BranchStatusScreenState extends State<BranchStatusScreen> {
       lastUpdatedText = 'Last update: $h:$m';
     }
 
-    return GlassCard(
-      padding: EdgeInsets.zero,
-      child: Column(
-        children: [
-          // Colored status bar at top
-          Container(
-            height: 6,
-            decoration: BoxDecoration(
-              color: statusColor,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+    return InkWell(
+      onTap: () => _showBranchDetailDialog(branch, status),
+      borderRadius: BorderRadius.circular(16),
+      child: GlassCard(
+        padding: EdgeInsets.zero,
+        child: Column(
+          children: [
+            // Colored status bar at top
+            Container(
+              height: 6,
+              decoration: BoxDecoration(
+                color: statusColor,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+              ),
             ),
-          ),
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(18, 14, 18, 14),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'STOP $stopNumber · ROUTE SEQUENCE ${branch.dailyRouteSequence}',
-                              style: const TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w800,
-                                color: AdminWebColors.textSecondary,
-                                letterSpacing: 0.8,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              branch.name,
-                              style: const TextStyle(
-                                fontSize: 17,
-                                fontWeight: FontWeight.w900,
-                                color: AdminWebColors.textPrimary,
-                              ),
-                            ),
-                            Text(
-                              branch.municipality.isNotEmpty
-                                  ? 'Brgy. ${branch.municipality}'
-                                  : branch.fullName,
-                              style: const TextStyle(
-                                fontSize: 12,
-                                color: AdminWebColors.textSecondary,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                        decoration: BoxDecoration(
-                          color: statusColor.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: statusColor.withValues(alpha: 0.35)),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(statusIcon, size: 13, color: statusColor),
-                            const SizedBox(width: 4),
-                            Text(
-                              statusText,
-                              style: TextStyle(
-                                fontSize: 10.5,
-                                fontWeight: FontWeight.w900,
-                                color: statusColor,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  const Spacer(),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      if ((status?.cookName ?? '').isNotEmpty)
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(18, 14, 18, 14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
                         Expanded(
-                          child: Row(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Icon(Icons.person_rounded,
-                                  size: 13, color: AdminWebColors.textSecondary),
-                              const SizedBox(width: 4),
-                              Expanded(
-                                child: Text(
-                                  'Cook: ${status!.cookName}',
-                                  style: const TextStyle(
-                                    fontSize: 11.5,
-                                    color: AdminWebColors.textSecondary,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
+                              Text(
+                                'STOP $stopNumber · ROUTE SEQUENCE ${branch.dailyRouteSequence}',
+                                style: const TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w800,
+                                  color: AdminWebColors.accent,
+                                  letterSpacing: 0.8,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                branch.name,
+                                style: const TextStyle(
+                                  fontSize: 17,
+                                  fontWeight: FontWeight.w900,
+                                  color: AdminWebColors.textPrimary,
+                                ),
+                              ),
+                              Text(
+                                branch.municipality.isNotEmpty
+                                    ? 'Brgy. ${branch.municipality}'
+                                    : branch.fullName,
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: AdminWebColors.textSecondary,
                                 ),
                               ),
                             ],
                           ),
                         ),
-                      if (lastUpdatedText.isNotEmpty)
-                        Text(
-                          lastUpdatedText,
-                          style: const TextStyle(
-                            fontSize: 10.5,
-                            color: AdminWebColors.textSecondary,
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: statusColor.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: statusColor.withValues(alpha: 0.35)),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(statusIcon, size: 13, color: statusColor),
+                              const SizedBox(width: 4),
+                              Text(
+                                statusText,
+                                style: TextStyle(
+                                  fontSize: 10.5,
+                                  fontWeight: FontWeight.w900,
+                                  color: statusColor,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                    ],
-                  ),
-                ],
+                      ],
+                    ),
+                    const Spacer(),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        if ((status?.cookName ?? '').isNotEmpty)
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Row(
+                                  children: [
+                                    const Icon(Icons.person_rounded,
+                                        size: 13, color: AdminWebColors.textSecondary),
+                                    const SizedBox(width: 4),
+                                    Expanded(
+                                      child: Text(
+                                        'Cook: ${status!.cookName}',
+                                        style: const TextStyle(
+                                          fontSize: 11.5,
+                                          color: AdminWebColors.textSecondary,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                if (isOpen && (status.timeIn ?? '').isNotEmpty) ...[
+                                  const SizedBox(height: 2),
+                                  Row(
+                                    children: [
+                                      const Icon(Icons.nfc_rounded, size: 11, color: AdminWebColors.success),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        'RFID In: ${status.timeIn}',
+                                        style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, color: AdminWebColors.success),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                        if (lastUpdatedText.isNotEmpty)
+                          Text(
+                            lastUpdatedText,
+                            style: const TextStyle(
+                              fontSize: 10.5,
+                              color: AdminWebColors.textSecondary,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -406,6 +616,9 @@ class _BranchLiveStatus {
     required this.cookName,
     required this.driverName,
     this.lastUpdated,
+    this.timeIn,
+    this.timeOut,
+    this.rfidUid,
   });
   final String branchId;
   final String branchName;
@@ -415,4 +628,7 @@ class _BranchLiveStatus {
   final String cookName;
   final String driverName;
   final DateTime? lastUpdated;
+  final String? timeIn;
+  final String? timeOut;
+  final String? rfidUid;
 }

@@ -953,7 +953,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               driverLicenseExpiry: _selectedPosition == 'Driver' ? (_photoLicenseResult?.expiryDate ?? '') : '',
               isLicenseVerified: _selectedPosition == 'Driver' && _photoLicenseResult?.isValid == true,
               isEmailVerified: true,
-              isPhoneVerified: false,
+              isPhoneVerified: true,
               firstName: normFirst,
               middleName: normMiddle,
               lastName: normLast,

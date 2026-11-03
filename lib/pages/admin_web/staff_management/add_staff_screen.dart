@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../models/staff_member.dart';
+import 'dart:async';
 import '../../../services/auth_service.dart';
+import '../../../services/attendance_service.dart';
 import '../../../services/rate_limiter.dart';
 import '../../../widgets/address_edit_dialog.dart';
 import '../admin_web_widgets/glass_card.dart';
@@ -31,6 +33,9 @@ class _AddStaffScreenState extends State<AddStaffScreen> {
   final _otherBranchController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
+  final _rfidController = TextEditingController();
+  StreamSubscription<String>? _scanSubscription;
+  bool _isScanningRfid = false;
 
   DateTime? _selectedBirthdate;
   String? _selectedSuffix;
@@ -62,6 +67,8 @@ class _AddStaffScreenState extends State<AddStaffScreen> {
     _otherBranchController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
+    _rfidController.dispose();
+    _scanSubscription?.cancel();
     super.dispose();
   }
 
@@ -206,7 +213,42 @@ class _AddStaffScreenState extends State<AddStaffScreen> {
     }
   }
 
-  Future<void> _handleSave() async {
+    void _startRfidScan() {
+    _scanSubscription?.cancel();
+    setState(() => _isScanningRfid = true);
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('📡 Waiting for card tap on Base Reader... Tap your RFID card now.'),
+        duration: Duration(seconds: 4),
+      ),
+    );
+
+    _scanSubscription = AttendanceService.listenForCardEnrollment(
+      timeout: const Duration(seconds: 45),
+    ).listen((scannedUid) {
+      if (!mounted) return;
+      setState(() {
+        _rfidController.text = scannedUid;
+        _isScanningRfid = false;
+      });
+      _scanSubscription?.cancel();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('✅ RFID Card Detected: $scannedUid'),
+          backgroundColor: const Color(0xFF2E7D32),
+        ),
+      );
+    }, onError: (_) {
+      if (mounted) setState(() => _isScanningRfid = false);
+    }, onDone: () {
+      if (mounted && _isScanningRfid) {
+        setState(() => _isScanningRfid = false);
+      }
+    });
+  }
+
+Future<void> _handleSave() async {
     FocusScope.of(context).unfocus();
 
     // Rate limit: prevent duplicate staff creation from rapid tapping
@@ -258,6 +300,7 @@ class _AddStaffScreenState extends State<AddStaffScreen> {
       age: _ageController.text.trim(),
       address: _addressController.text.trim(),
       birthdate: _selectedBirthdate,
+      rfidTag: _rfidController.text.trim().toUpperCase(),
       isActive: _isActive,
     );
 
@@ -290,6 +333,7 @@ class _AddStaffScreenState extends State<AddStaffScreen> {
       age: _ageController.text.trim(),
       address: _addressController.text.trim(),
       isActive: _isActive,
+      rfidTag: _rfidController.text.trim().toUpperCase(),
     );
 
     setState(() {
@@ -635,6 +679,90 @@ class _AddStaffScreenState extends State<AddStaffScreen> {
                             style: TextStyle(
                                 fontSize: 12, color: AdminWebColors.textSecondary),
                           ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 24),
+                  GlassCard(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            const Icon(Icons.nfc_rounded, size: 18, color: AdminWebColors.accent),
+                            const SizedBox(width: 8),
+                            const Text(
+                              'RFID ATTENDANCE CARD',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 1.0,
+                                color: AdminWebColors.textSecondary,
+                              ),
+                            ),
+                            const Spacer(),
+                            if (_isScanningRfid)
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: Colors.amber.shade100,
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(color: Colors.amber.shade400),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: const [
+                                    SizedBox(width: 10, height: 10, child: CircularProgressIndicator(strokeWidth: 2)),
+                                    SizedBox(width: 6),
+                                    Text('LISTENING FOR TAP...', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.brown)),
+                                  ],
+                                ),
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 18),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: TextFormField(
+                                controller: _rfidController,
+                                textCapitalization: TextCapitalization.characters,
+                                decoration: InputDecoration(
+                                  labelText: 'CARD UID (HEX / SERIAL)',
+                                  hintText: 'e.g. 9A:F3:1B:7C or scan with reader',
+                                  isDense: true,
+                                  prefixIcon: const Icon(Icons.credit_card_outlined, size: 20),
+                                  suffixIcon: _rfidController.text.isNotEmpty
+                                      ? IconButton(
+                                          icon: const Icon(Icons.clear, size: 18),
+                                          onPressed: () => setState(() => _rfidController.clear()),
+                                        )
+                                      : null,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            ElevatedButton.icon(
+                              onPressed: _isScanningRfid ? null : _startRfidScan,
+                              icon: Icon(_isScanningRfid ? Icons.sensors_rounded : Icons.tap_and_play_rounded, size: 18),
+                              label: Text(_isScanningRfid ? 'Listening...' : 'Scan on Base Reader'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AdminWebColors.accent,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        const Text(
+                          'Used by staff to clock in/out via the ESP32 reader. For Branch Cooks, tapping also automatically opens the branch and unlocks supply counting.',
+                          style: TextStyle(fontSize: 12, color: AdminWebColors.textSecondary),
                         ),
                       ],
                     ),

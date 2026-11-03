@@ -23,7 +23,7 @@ class RegistrationRequest {
     this.driverLicenseExpiry = '',
     this.isLicenseVerified = false,
     this.isEmailVerified = false,
-    this.isPhoneVerified = false,
+    this.isPhoneVerified = true,
     DateTime? dateRequested,
   }) : dateRequested = dateRequested ?? DateTime.now();
 
