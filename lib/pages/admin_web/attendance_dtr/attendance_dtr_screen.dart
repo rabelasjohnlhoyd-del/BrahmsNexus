@@ -66,7 +66,10 @@ class _AttendanceDtrScreenState extends State<AttendanceDtrScreen> {
 
     // Auto-refresh periodically for real-time live attendance feed
     _autoRefreshTimer = Timer.periodic(const Duration(seconds: 10), (_) {
-      if (mounted) _loadLogs(isSilent: true);
+      if (mounted) {
+        _loadLogs(isSilent: true);
+        _loadProductionGate();
+      }
     });
   }
 
@@ -79,7 +82,10 @@ class _AttendanceDtrScreenState extends State<AttendanceDtrScreen> {
   }
 
   void _onAttendanceChanged() {
-    if (mounted) _loadLogs(isSilent: true);
+    if (mounted) {
+      _loadLogs(isSilent: true);
+      _loadProductionGate();
+    }
   }
 
   void _updateShellActions() {
@@ -883,46 +889,54 @@ class _AttendanceDtrScreenState extends State<AttendanceDtrScreen> {
                     ),
                   ),
 
-                  // Production Gate Toggle
-                  _isProductionGateLoading
-                      ? const SizedBox(
-                          width: 24,
-                          height: 24,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: AdminWebColors.accent),
-                        )
-                      : GestureDetector(
-                          onTap: _toggleProductionGate,
-                          child: Container(
-                            height: 42,
-                            padding: const EdgeInsets.symmetric(horizontal: 14),
-                            decoration: BoxDecoration(
-                              color: _productionGateOpen ? const Color(0xFFECFDF5) : AdminWebColors.error.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(
-                                color: _productionGateOpen ? const Color(0xFF059669) : AdminWebColors.error,
-                              ),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  _productionGateOpen ? Icons.lock_open_rounded : Icons.lock_rounded,
-                                  size: 15,
-                                  color: _productionGateOpen ? const Color(0xFF059669) : AdminWebColors.error,
-                                ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  _productionGateOpen ? 'Production: OPEN' : 'Production: CLOSED',
-                                  style: TextStyle(
-                                    fontSize: 12.5,
-                                    fontWeight: FontWeight.w700,
-                                    color: _productionGateOpen ? const Color(0xFF065F46) : AdminWebColors.error,
-                                  ),
-                                ),
-                              ],
+                  // Production Gate Status (Automated based on Cooking Sessions & Staff Time-Out)
+                  Tooltip(
+                    message: _productionGateOpen
+                        ? 'Production shift is OPEN (Active cooking session). Staff can time in via Base Reader.'
+                        : 'Production shift is CLOSED (Both staff timed out or no cooking session scheduled today).',
+                    child: Container(
+                      height: 42,
+                      padding: const EdgeInsets.symmetric(horizontal: 14),
+                      decoration: BoxDecoration(
+                        color: _productionGateOpen
+                            ? const Color(0xFFECFDF5)
+                            : const Color(0xFFF3F4F6),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: _productionGateOpen
+                              ? const Color(0xFF059669)
+                              : const Color(0xFF9CA3AF),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            _productionGateOpen
+                                ? Icons.lock_open_rounded
+                                : Icons.lock_rounded,
+                            size: 15,
+                            color: _productionGateOpen
+                                ? const Color(0xFF059669)
+                                : const Color(0xFF6B7280),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            _productionGateOpen
+                                ? 'Production: OPEN'
+                                : 'Production: CLOSED',
+                            style: TextStyle(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w700,
+                              color: _productionGateOpen
+                                  ? const Color(0xFF065F46)
+                                  : const Color(0xFF374151),
                             ),
                           ),
-                        ),
+                        ],
+                      ),
+                    ),
+                  ),
 
                   // Reset Filters Button (if active)
                   if (_hasActiveFilters)

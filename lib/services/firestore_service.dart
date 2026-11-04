@@ -2444,27 +2444,27 @@ class FirestoreService {
       final newlyLowItems = <String>[];
 
       if (isRegLow && !regSent) {
-        newlyLowItems.add('Regular Meat: ${stock.regular250gRemaining}/20 (<=8)');
+        newlyLowItems.add('Regular Meat: ${stock.regular250gRemaining}/20');
         regSent = true;
       }
       if (isMedLow && !medSent) {
-        newlyLowItems.add('Medium Meat: ${stock.medium300gRemaining}/10 (<=4)');
+        newlyLowItems.add('Medium Meat: ${stock.medium300gRemaining}/10');
         medSent = true;
       }
       if (isB1t1Low && !b1t1Sent) {
-        newlyLowItems.add('B1T1 Meat: ${stock.b1t1_400gRemaining}/10 (<=4)');
+        newlyLowItems.add('B1T1 Meat: ${stock.b1t1_400gRemaining}/10');
         b1t1Sent = true;
       }
       if (isMayoLow && !mayoSent) {
-        newlyLowItems.add('Mayo Packs: ${stock.mayoRemaining}/40 (<=8)');
+        newlyLowItems.add('Mayo Packs: ${stock.mayoRemaining}/40');
         mayoSent = true;
       }
       if (isToyoLow && !toyoSent) {
-        newlyLowItems.add('Toyo Packs: ${stock.toyoRemaining}/10 (<=4)');
+        newlyLowItems.add('Toyo Packs: ${stock.toyoRemaining}/10');
         toyoSent = true;
       }
       if (isStyroLow && !styroSent) {
-        newlyLowItems.add('Styro Boxes: ${stock.styroRemaining}/40 (<=8)');
+        newlyLowItems.add('Styro Boxes: ${stock.styroRemaining}/40');
         styroSent = true;
       }
 

@@ -289,27 +289,30 @@ BEGIN
       );
     END IF;
 
-    -- Production/Cutter staff: kailangang authorized ni admin ang time-out
-    IF p_device_id = 'esp32_commissary_base'
-       AND (v_staff.position ILIKE '%cutter%' OR v_staff.position ILIKE '%production%')
-    THEN
-      IF v_log.timeout_allowed IS NOT TRUE THEN
-        RETURN json_build_object(
-          'success',    false,
-          'code',       'TIMEOUT_NOT_ALLOWED',
-          'message',    'Shift time-out is not yet authorized by administrator.',
-          'staff_name', v_full_name,
-          'device_id',  p_device_id
-        );
-      END IF;
-    END IF;
-
     -- Kalkulahin ang kabuuang oras (hours worked)
     v_hours := abs(round(extract(epoch from (now() - v_log.time_in))::numeric / 3600.0, 2));
 
     UPDATE public.attendance_logs
     SET time_out = now(), total_hours = v_hours
     WHERE id = v_log.id;
+
+    -- Auto-close Production Area kapag nakapag-Time-Out na ang lahat ng nag-time-in na production staff
+    IF p_device_id = 'esp32_commissary_base'
+       AND (v_staff.position ILIKE '%cutter%' OR v_staff.position ILIKE '%production%' OR v_staff.position ILIKE '%cook%')
+    THEN
+      IF NOT EXISTS (
+        SELECT 1
+        FROM public.attendance_logs al
+        WHERE al.date = v_today
+          AND al.device_id = 'esp32_commissary_base'
+          AND (al.position ILIKE '%cutter%' OR al.position ILIKE '%production%' OR al.position ILIKE '%cook%')
+          AND al.time_out IS NULL
+      ) THEN
+        UPDATE public.production_shift_control
+        SET is_open = false, closed_at = now()
+        WHERE date = v_today;
+      END IF;
+    END IF;
 
     -- I-clear ang on_the_way flag pagkatapos mag-time-out si branch cook
     IF p_device_id = 'esp32_driver_portable'

@@ -13,6 +13,8 @@ class FinancialPeriod {
     int? productionCookingSessions,
     this.productionCookDailyRate = 1000.0,
     this.productionCutterDailyRate = 1100.0,
+    this.cookRfidDays,
+    this.cutterRfidDays,
     this.driverWorkingDays = 25,
     this.driverDailyWage = 650.0,
     this.branchCookLaborTotal = 0.0,
@@ -46,6 +48,8 @@ class FinancialPeriod {
   final int productionCookingSessions;
   final double productionCookDailyRate;
   final double productionCutterDailyRate;
+  final int? cookRfidDays;
+  final int? cutterRfidDays;
 
   // Driver labor settings
   final int driverWorkingDays;
@@ -87,9 +91,16 @@ class FinancialPeriod {
   double get totalProcurementCost =>
       procurementGroups.fold(0, (sum, g) => sum + g.total);
 
-  double get totalProductionLaborCost =>
-      productionCookingSessions *
-      (productionCookDailyRate + productionCutterDailyRate);
+  double get totalProductionLaborCost {
+    if (cookRfidDays != null || cutterRfidDays != null) {
+      final cDays = cookRfidDays ?? 0;
+      final cutDays = cutterRfidDays ?? 0;
+      return (cDays * productionCookDailyRate) +
+          (cutDays * productionCutterDailyRate);
+    }
+    return productionCookingSessions *
+        (productionCookDailyRate + productionCutterDailyRate);
+  }
 
   double get totalDriverLaborCost => driverWorkingDays * driverDailyWage;
 
@@ -154,6 +165,8 @@ class FinancialPeriod {
     int? productionCookingSessions,
     double? productionCookDailyRate,
     double? productionCutterDailyRate,
+    int? cookRfidDays,
+    int? cutterRfidDays,
     int? driverWorkingDays,
     double? driverDailyWage,
     double? branchCookLaborTotal,
@@ -180,6 +193,8 @@ class FinancialPeriod {
           productionCookDailyRate ?? this.productionCookDailyRate,
       productionCutterDailyRate:
           productionCutterDailyRate ?? this.productionCutterDailyRate,
+      cookRfidDays: cookRfidDays ?? this.cookRfidDays,
+      cutterRfidDays: cutterRfidDays ?? this.cutterRfidDays,
       driverWorkingDays: driverWorkingDays ?? this.driverWorkingDays,
       driverDailyWage: driverDailyWage ?? this.driverDailyWage,
       branchCookLaborTotal:
@@ -207,6 +222,8 @@ class FinancialPeriod {
       'productionCookingSessions': productionCookingSessions,
       'productionCookDailyRate': productionCookDailyRate,
       'productionCutterDailyRate': productionCutterDailyRate,
+      'cookRfidDays': cookRfidDays,
+      'cutterRfidDays': cutterRfidDays,
       'driverWorkingDays': driverWorkingDays,
       'driverDailyWage': driverDailyWage,
       'branchCookLaborTotal': branchCookLaborTotal,
@@ -239,6 +256,8 @@ class FinancialPeriod {
           (map['productionCookDailyRate'] as num?)?.toDouble() ?? 1000.0,
       productionCutterDailyRate:
           (map['productionCutterDailyRate'] as num?)?.toDouble() ?? 1100.0,
+      cookRfidDays: (map['cookRfidDays'] as num?)?.toInt(),
+      cutterRfidDays: (map['cutterRfidDays'] as num?)?.toInt(),
       driverWorkingDays: (map['driverWorkingDays'] as num?)?.toInt() ?? 25,
       driverDailyWage: (map['driverDailyWage'] as num?)?.toDouble() ?? 650.0,
       branchCookLaborTotal:

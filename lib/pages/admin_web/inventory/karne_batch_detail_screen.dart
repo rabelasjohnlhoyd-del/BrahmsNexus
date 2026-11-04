@@ -5,6 +5,7 @@ import '../../../models/app_notification.dart';
 import '../../../models/inventory_batch.dart';
 import '../../../services/firestore_service.dart';
 import '../../../services/notification_service.dart';
+import '../../../services/supabase_service.dart';
 import '../admin_web_colors.dart';
 import '../admin_web_shell.dart';
 import '../admin_web_widgets/glass_card.dart';
@@ -266,6 +267,18 @@ class _KarneBatchDetailScreenState extends State<KarneBatchDetailScreen> {
                 widget.onBatchChanged?.call(_batch);
                 FirestoreService.saveProductionBatch(_batch);
 
+                // Auto-open production shift gate in Supabase for today's cooking session
+                try {
+                  final todayStr = DateTime.now().toIso8601String().substring(0, 10);
+                  SupabaseService.client?.from('production_shift_control').upsert({
+                    'date': todayStr,
+                    'is_open': true,
+                    'opened_at': DateTime.now().toIso8601String(),
+                  }, onConflict: 'date');
+                } catch (e) {
+                  debugPrint('Error syncing production shift gate: $e');
+                }
+
                 // Notify production cook
                 NotificationService.sendNotification(
                   title: 'New Cooking Task: ${_batch.name}',
@@ -443,6 +456,25 @@ class _KarneBatchDetailScreenState extends State<KarneBatchDetailScreen> {
               });
               widget.onBatchChanged?.call(_batch);
               FirestoreService.saveProductionBatch(_batch);
+
+              // Auto-close production shift gate if no active cooking session remains today
+              try {
+                final todayStr = DateTime.now().toIso8601String().substring(0, 10);
+                final hasSessionToday = _batch.sessions.any((s) {
+                  final sDate = s.date.toIso8601String().substring(0, 10);
+                  return sDate == todayStr;
+                });
+                if (!hasSessionToday) {
+                  SupabaseService.client?.from('production_shift_control').upsert({
+                    'date': todayStr,
+                    'is_open': false,
+                    'closed_at': DateTime.now().toIso8601String(),
+                  }, onConflict: 'date');
+                }
+              } catch (e) {
+                debugPrint('Error closing production shift gate on delete: $e');
+              }
+
               Navigator.pop(context);
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(content: Text('Cooking session deleted.')),

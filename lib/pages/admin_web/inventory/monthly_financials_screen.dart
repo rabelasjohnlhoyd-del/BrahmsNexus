@@ -5,6 +5,7 @@ import '../../../models/inventory_batch.dart';
 import '../../../models/procurement_list.dart';
 import '../../../models/sales_record.dart';
 import '../../../services/firestore_service.dart';
+import '../../../services/attendance_service.dart';
 import '../../../services/excel_export_service.dart';
 import '../admin_web_colors.dart';
 import '../admin_web_widgets/glass_card.dart';
@@ -24,6 +25,7 @@ class _MonthlyFinancialsScreenState extends State<MonthlyFinancialsScreen> {
   StreamSubscription<List<SalesRecord>>? _salesSub;
   StreamSubscription<List<KarneBatch>>? _internalBatchesSub;
   StreamSubscription<List<FinancialPeriod>>? _allPeriodsSub;
+  StreamSubscription<List<Map<String, dynamic>>>? _attendanceSub;
   List<KarneBatch> _internalBatches = [];
   List<String> _availablePeriodIds = [];
 
@@ -62,6 +64,11 @@ class _MonthlyFinancialsScreenState extends State<MonthlyFinancialsScreen> {
     _subscribeToAllPeriods();
     _subscribeToLivePeriod();
     _subscribeToLiveSales();
+    _loadRfidAttendance();
+    _attendanceSub = AttendanceService.watchTodayAttendance().listen((_) {
+      if (!mounted) return;
+      _loadRfidAttendance();
+    });
     if (widget.karneBatches.isEmpty) {
       _internalBatchesSub = FirestoreService.watchProductionBatches().listen((batches) {
         if (!mounted) return;
@@ -151,6 +158,9 @@ class _MonthlyFinancialsScreenState extends State<MonthlyFinancialsScreen> {
             medium300gCount: counts.count300g,
             b1t1400gCount: counts.count400g,
             productionCookingSessions: counts.sessionsCount,
+            cookRfidDays: _period.cookRfidDays,
+            cutterRfidDays: _period.cutterRfidDays,
+            driverWorkingDays: _period.driverWorkingDays,
             branchCookLaborTotal: _actualBranchCookWages > 0
                 ? _actualBranchCookWages
                 : remotePeriod.branchCookLaborTotal,
@@ -195,6 +205,7 @@ class _MonthlyFinancialsScreenState extends State<MonthlyFinancialsScreen> {
     });
     _subscribeToLivePeriod();
     _subscribeToLiveSales();
+    _loadRfidAttendance();
   }
 
   @override
@@ -220,7 +231,48 @@ class _MonthlyFinancialsScreenState extends State<MonthlyFinancialsScreen> {
     _salesSub?.cancel();
     _internalBatchesSub?.cancel();
     _allPeriodsSub?.cancel();
+    _attendanceSub?.cancel();
     super.dispose();
+  }
+
+  Future<void> _loadRfidAttendance() async {
+    final targetMonth = _getMonthNumber(_activePeriodId);
+    final targetYear = _getYearNumber(_activePeriodId);
+
+    try {
+      final results = await Future.wait([
+        AttendanceService.getRfidDaysWorkedForMonth(
+          positionKeywords: ['Production Cook'],
+          year: targetYear,
+          month: targetMonth,
+        ),
+        AttendanceService.getRfidDaysWorkedForMonth(
+          positionKeywords: ['Meat Cutter', 'Production Meat'],
+          year: targetYear,
+          month: targetMonth,
+        ),
+        AttendanceService.getRfidDaysWorkedForMonth(
+          positionKeywords: ['Driver'],
+          year: targetYear,
+          month: targetMonth,
+        ),
+      ]);
+
+      if (!mounted) return;
+      final cookDays = results[0];
+      final cutterDays = results[1];
+      final driverDays = results[2];
+
+      setState(() {
+        _period = _period.copyWith(
+          cookRfidDays: cookDays,
+          cutterRfidDays: cutterDays,
+          driverWorkingDays: driverDays,
+        );
+      });
+    } catch (e) {
+      debugPrint('_loadRfidAttendance error in MonthlyFinancials: $e');
+    }
   }
 
   _MeatCountResult _extractMeatCounts([int? year, int? month]) {
@@ -413,13 +465,44 @@ class _MonthlyFinancialsScreenState extends State<MonthlyFinancialsScreen> {
         ),
         actions: [
           TextButton(
-            onPressed: () {
-              // Delete item
-              setState(() {
-                group.items.removeWhere((i) => i.id == item.id);
-              });
-              Navigator.pop(ctx);
-              _persistPeriod();
+            onPressed: () async {
+              final confirm = await showDialog<bool>(
+                context: context,
+                builder: (confirmCtx) => AlertDialog(
+                  title: Text('Delete ${item.name}?'),
+                  content: Text(
+                    'Are you sure you want to remove "${item.name}" from ${group.title}?',
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(confirmCtx, false),
+                      child: const Text('CANCEL'),
+                    ),
+                    ElevatedButton(
+                      onPressed: () => Navigator.pop(confirmCtx, true),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AdminWebColors.error,
+                        foregroundColor: Colors.white,
+                      ),
+                      child: const Text('DELETE'),
+                    ),
+                  ],
+                ),
+              );
+
+              if (confirm == true && mounted) {
+                setState(() {
+                  group.items.removeWhere((i) => i.id == item.id);
+                });
+                Navigator.pop(ctx);
+                _persistPeriod();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Item "${item.name}" deleted.'),
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              }
             },
             child: const Text('DELETE', style: TextStyle(color: AdminWebColors.error)),
           ),
@@ -428,13 +511,48 @@ class _MonthlyFinancialsScreenState extends State<MonthlyFinancialsScreen> {
             child: const Text('CANCEL'),
           ),
           ElevatedButton(
-            onPressed: () {
-              setState(() {
-                item.name = nameCtrl.text.trim();
-                item.price = double.tryParse(priceCtrl.text) ?? 0.0;
-              });
-              Navigator.pop(ctx);
-              _persistPeriod();
+            onPressed: () async {
+              final newName = nameCtrl.text.trim();
+              final newPrice = double.tryParse(priceCtrl.text) ?? 0.0;
+
+              final confirm = await showDialog<bool>(
+                context: context,
+                builder: (confirmCtx) => AlertDialog(
+                  title: const Text('Save Changes?'),
+                  content: Text(
+                    'Are you sure you want to update item to "$newName" with price ₱${newPrice.toStringAsFixed(2)}?',
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(confirmCtx, false),
+                      child: const Text('CANCEL'),
+                    ),
+                    ElevatedButton(
+                      onPressed: () => Navigator.pop(confirmCtx, true),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AdminWebColors.accent,
+                        foregroundColor: Colors.white,
+                      ),
+                      child: const Text('SAVE'),
+                    ),
+                  ],
+                ),
+              );
+
+              if (confirm == true && mounted) {
+                setState(() {
+                  item.name = newName;
+                  item.price = newPrice;
+                });
+                Navigator.pop(ctx);
+                _persistPeriod();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Item "$newName" saved successfully.'),
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              }
             },
             child: const Text('SAVE'),
           ),
@@ -2046,8 +2164,9 @@ class _MonthlyFinancialsScreenState extends State<MonthlyFinancialsScreen> {
           _overheadRowNoAction(
             label: 'Production Labor (Cook & Meat Cutter)',
             val: '₱${_period.totalProductionLaborCost.toStringAsFixed(0)}',
-            sub:
-                '${_period.productionCookingSessions} Cooking Sessions × (₱${_period.productionCookDailyRate.toStringAsFixed(0)} Cook + ₱${_period.productionCutterDailyRate.toStringAsFixed(0)} Cutter)',
+            sub: (_period.cookRfidDays != null || _period.cutterRfidDays != null)
+                ? '${_period.cookRfidDays ?? 0} Days Cook (₱${_period.productionCookDailyRate.toStringAsFixed(0)}) + ${_period.cutterRfidDays ?? 0} Days Cutter (₱${_period.productionCutterDailyRate.toStringAsFixed(0)}) [RFID-verified]'
+                : '${_period.productionCookingSessions} Cooking Sessions × (₱${_period.productionCookDailyRate.toStringAsFixed(0)} Cook + ₱${_period.productionCutterDailyRate.toStringAsFixed(0)} Cutter)',
           ),
           const Divider(height: 28),
 
@@ -2065,7 +2184,7 @@ class _MonthlyFinancialsScreenState extends State<MonthlyFinancialsScreen> {
             label: 'Driver Labor (Driver Wages)',
             val: '₱${_period.totalDriverLaborCost.toStringAsFixed(0)}',
             sub:
-                '${_period.driverWorkingDays} Days × ₱${_period.driverDailyWage.toStringAsFixed(0)} daily rate (Absent days have no wage)',
+                '${_period.driverWorkingDays} Days × ₱${_period.driverDailyWage.toStringAsFixed(0)} daily rate (RFID-verified)',
           ),
           const Divider(height: 28),
 
