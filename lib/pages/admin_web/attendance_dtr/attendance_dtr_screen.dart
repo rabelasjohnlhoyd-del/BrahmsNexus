@@ -363,11 +363,15 @@ class _AttendanceDtrScreenState extends State<AttendanceDtrScreen> {
             ),
           ],
         ),
-        content: SizedBox(
-          width: 480,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
+        content: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: 480,
+            maxHeight: MediaQuery.of(context).size.height * 0.75,
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
               const Divider(height: 1, color: AdminWebColors.border),
               const SizedBox(height: 16),
               _buildDetailRow('Employee ID', staffId),
@@ -493,6 +497,7 @@ class _AttendanceDtrScreenState extends State<AttendanceDtrScreen> {
               ),
             ],
           ),
+        ),
         ),
         actions: [
           ElevatedButton(
@@ -634,109 +639,9 @@ class _AttendanceDtrScreenState extends State<AttendanceDtrScreen> {
       color: AdminWebColors.background,
       child: Column(
         children: [
-          // 1. TOP ACTIONS & LIVE NETWORK BAR
+          // 1. TOP KPI CARDS ROW (Staff Present, On Shift Now, Completed Shifts)
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
-            child: Row(
-              children: [
-                // Live RFID Network Status Badge
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: AdminWebColors.border),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        width: 8,
-                        height: 8,
-                        decoration: const BoxDecoration(
-                          color: AdminWebColors.success,
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      const Text(
-                        'RFID Biometric Network: ',
-                        style: TextStyle(
-                          fontSize: 11.5,
-                          fontWeight: FontWeight.w600,
-                          color: AdminWebColors.textSecondary,
-                        ),
-                      ),
-                      const Text(
-                        'Live & Active',
-                        style: TextStyle(
-                          fontSize: 11.5,
-                          fontWeight: FontWeight.w800,
-                          color: AdminWebColors.success,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const Spacer(),
-                // Refresh Button
-                OutlinedButton.icon(
-                  onPressed: _isLoading ? null : () => _loadLogs(),
-                  icon: _isLoading
-                      ? const SizedBox(
-                          width: 14,
-                          height: 14,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: AdminWebColors.accent,
-                          ),
-                        )
-                      : const Icon(Icons.refresh_rounded, size: 16),
-                  label: const Text(
-                    'REFRESH',
-                    style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold),
-                  ),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AdminWebColors.accent,
-                    backgroundColor: Colors.white,
-                    side: const BorderSide(color: AdminWebColors.border),
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                // Export DTR Excel Button
-                ElevatedButton.icon(
-                  onPressed: _isExporting ? null : _handleExportExcel,
-                  icon: _isExporting
-                      ? const SizedBox(
-                          width: 14,
-                          height: 14,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
-                          ),
-                        )
-                      : const Icon(Icons.download_rounded, size: 16),
-                  label: Text(
-                    _isExporting ? 'EXPORTING...' : 'EXPORT DTR (.XLSX)',
-                    style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF2E7D32), // Excel green
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                    elevation: 0,
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // 2. TOP KPI CARDS ROW
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
             child: LayoutBuilder(
               builder: (context, constraints) {
                 final isWide = constraints.maxWidth > 800;
@@ -745,19 +650,19 @@ class _AttendanceDtrScreenState extends State<AttendanceDtrScreen> {
                     icon: Icons.groups_rounded,
                     label: 'STAFF PRESENT',
                     value: '${uniqueStaff.length}',
-                    subtitle: 'Unique staff clocked-in',
+                    subtitle: '',
                   ),
                   KpiCard(
                     icon: Icons.schedule_rounded,
                     label: 'ON SHIFT NOW',
                     value: '$onShiftNow',
-                    subtitle: 'Active at assigned branch',
+                    subtitle: '',
                   ),
                   KpiCard(
                     icon: Icons.check_circle_outline_rounded,
                     label: 'COMPLETED SHIFTS',
                     value: '$completedShifts',
-                    subtitle: 'Time-out recorded today',
+                    subtitle: '',
                   ),
                 ];
 
@@ -790,7 +695,8 @@ class _AttendanceDtrScreenState extends State<AttendanceDtrScreen> {
               },
             ),
           ),
-          const SizedBox(height: 14),
+
+          
 
           // 3. FILTER & SEARCH CONTROLS
           Padding(
@@ -990,10 +896,10 @@ class _AttendanceDtrScreenState extends State<AttendanceDtrScreen> {
                             height: 42,
                             padding: const EdgeInsets.symmetric(horizontal: 14),
                             decoration: BoxDecoration(
-                              color: _productionGateOpen ? const Color(0xFFECFDF5) : const Color(0xFFFFFBEB),
+                              color: _productionGateOpen ? const Color(0xFFECFDF5) : AdminWebColors.error.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(8),
                               border: Border.all(
-                                color: _productionGateOpen ? const Color(0xFF059669) : const Color(0xFFD97706),
+                                color: _productionGateOpen ? const Color(0xFF059669) : AdminWebColors.error,
                               ),
                             ),
                             child: Row(
@@ -1002,7 +908,7 @@ class _AttendanceDtrScreenState extends State<AttendanceDtrScreen> {
                                 Icon(
                                   _productionGateOpen ? Icons.lock_open_rounded : Icons.lock_rounded,
                                   size: 15,
-                                  color: _productionGateOpen ? const Color(0xFF059669) : const Color(0xFFD97706),
+                                  color: _productionGateOpen ? const Color(0xFF059669) : AdminWebColors.error,
                                 ),
                                 const SizedBox(width: 8),
                                 Text(
@@ -1010,7 +916,7 @@ class _AttendanceDtrScreenState extends State<AttendanceDtrScreen> {
                                   style: TextStyle(
                                     fontSize: 12.5,
                                     fontWeight: FontWeight.w700,
-                                    color: _productionGateOpen ? const Color(0xFF065F46) : const Color(0xFF92400E),
+                                    color: _productionGateOpen ? const Color(0xFF065F46) : AdminWebColors.error,
                                   ),
                                 ),
                               ],
@@ -1034,6 +940,38 @@ class _AttendanceDtrScreenState extends State<AttendanceDtrScreen> {
             ),
           ),
           const SizedBox(height: 14),
+
+          // 4. EXPORT DTR BUTTON (BELOW PRODUCTION CLOSED BOX)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 14),
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: ElevatedButton.icon(
+                onPressed: _isExporting ? null : _handleExportExcel,
+                icon: _isExporting
+                    ? const SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Icon(Icons.download_rounded, size: 16),
+                label: Text(
+                  _isExporting ? 'EXPORTING...' : 'EXPORT DTR (.XLSX)',
+                  style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF2E7D32),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  elevation: 0,
+                ),
+              ),
+            ),
+          ),
 
           // 4. MAIN ATTENDANCE DATA TABLE (FULL WIDTH & BALANCED)
           Expanded(

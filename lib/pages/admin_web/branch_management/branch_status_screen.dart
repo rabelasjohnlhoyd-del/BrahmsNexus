@@ -256,28 +256,6 @@ class _BranchStatusScreenState extends State<BranchStatusScreen> {
             onPressed: () => Navigator.pop(ctx),
             child: const Text('Close'),
           ),
-          if (!isOpen)
-            ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AdminWebColors.accent,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-              ),
-              icon: const Icon(Icons.nfc_rounded, size: 16),
-              label: const Text('Simulate / Open Store'),
-              onPressed: () async {
-                Navigator.pop(ctx);
-                await FirestoreService.processBranchCookRfidTap(
-                  branchId: branch.id,
-                  branchName: branch.fullName,
-                  cookName: cookName,
-                  cookId: 'cook_${branch.id}',
-                  isDeployment: true,
-                  rfidTag: 'ADMIN_MANUAL_TAP',
-                  deviceId: 'admin_web_override',
-                );
-              },
-            ),
         ],
       ),
     );
@@ -374,18 +352,6 @@ class _BranchStatusScreenState extends State<BranchStatusScreen> {
             label: '$closedCount BRANCHES CLOSED',
             color: AdminWebColors.error,
             icon: Icons.lock_rounded,
-          ),
-          const Spacer(),
-          const Icon(Icons.circle, size: 10, color: AdminWebColors.success),
-          const SizedBox(width: 6),
-          const Text(
-            'REAL-TIME',
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w800,
-              color: AdminWebColors.textSecondary,
-              letterSpacing: 0.8,
-            ),
           ),
         ],
       ),

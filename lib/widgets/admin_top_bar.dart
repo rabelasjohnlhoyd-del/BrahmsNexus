@@ -131,46 +131,8 @@ class AdminTopBar extends StatelessWidget implements PreferredSizeWidget {
 
               const Spacer(),
 
-              // ── SYSTEM ONLINE STATUS PILL — hidden on narrow screens ──
+              // ── DATE CHIP — hidden on narrow screens ──
               if (!isNarrow) ...[
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      width: 8,
-                      height: 8,
-                      decoration: BoxDecoration(
-                        color: AdminWebColors.success,
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: AdminWebColors.success.withValues(alpha: 0.4),
-                            blurRadius: 4,
-                            spreadRadius: 1,
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 7),
-                    const Text(
-                      'System Online',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: AdminWebColors.textPrimary,
-                      ),
-                    ),
-                  ],
-                ),
-
-                // Divider
-                Container(
-                  height: 18,
-                  width: 1,
-                  margin: const EdgeInsets.symmetric(horizontal: 16),
-                  color: AdminWebColors.border,
-                ),
-
                 // ── DATE CHIP ──
                 Row(
                   mainAxisSize: MainAxisSize.min,

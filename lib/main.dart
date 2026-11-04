@@ -100,7 +100,7 @@ class BrahmsNexusApp extends StatelessWidget {
           child: child!,
         );
       },
-      home: kIsWeb ? const LoginScreen() : const SplashScreen(),
+      home: const SplashScreen(),
     );
   }
 }

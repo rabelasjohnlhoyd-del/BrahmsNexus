@@ -349,16 +349,6 @@ class _LoginScreenState extends State<LoginScreen> {
                       letterSpacing: -0.3,
                     ),
                   ),
-                  const SizedBox(height: 5),
-                  const Text(
-                    'Enter your owner credentials to access the Brahms Nexus management system.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: Color(0xFF7A6556),
-                      height: 1.35,
-                    ),
-                  ),
                   const SizedBox(height: 24),
                   ..._buildFormFields(),
                   const SizedBox(height: 12),

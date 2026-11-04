@@ -142,12 +142,9 @@ class _AddStaffScreenState extends State<AddStaffScreen> {
     final trimmed = value?.trim() ?? '';
     if (trimmed.isEmpty) return 'Phone number is required';
     final digits = trimmed.replaceAll(RegExp(r'\D'), '');
-    if (digits.length < 7 || digits.length > 12) {
-      return 'Enter a valid phone number (7 to 12 digits, e.g. 0917 123 4567)';
-    }
-    final phRegex = RegExp(r'^(09|\+639)\d{9}$');
-    if (digits.length >= 10 && !phRegex.hasMatch(trimmed.replaceAll(RegExp(r'[\s\-]'), ''))) {
-      return 'Enter a valid Philippine mobile number (e.g. 0917 123 4567)';
+    final phRegex = RegExp(r'^(09\d{9}|639\d{9})$');
+    if (!phRegex.hasMatch(digits)) {
+      return 'Enter a valid 11-digit Philippine mobile number (e.g. 0917 123 4567)';
     }
     return null;
   }
@@ -219,7 +216,7 @@ class _AddStaffScreenState extends State<AddStaffScreen> {
 
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text('📡 Waiting for card tap on Base Reader... Tap your RFID card now.'),
+        content: Text(' Waiting for card tap on Base Reader... Tap your RFID card now.'),
         duration: Duration(seconds: 4),
       ),
     );
@@ -235,7 +232,7 @@ class _AddStaffScreenState extends State<AddStaffScreen> {
       _scanSubscription?.cancel();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('✅ RFID Card Detected: $scannedUid'),
+          content: Text(' RFID Card Detected: $scannedUid'),
           backgroundColor: const Color(0xFF2E7D32),
         ),
       );

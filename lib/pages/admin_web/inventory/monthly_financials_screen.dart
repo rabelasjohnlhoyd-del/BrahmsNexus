@@ -22,6 +22,8 @@ class _MonthlyFinancialsScreenState extends State<MonthlyFinancialsScreen> {
   late FinancialPeriod _period;
   StreamSubscription<FinancialPeriod?>? _periodSub;
   StreamSubscription<List<SalesRecord>>? _salesSub;
+  StreamSubscription<List<KarneBatch>>? _internalBatchesSub;
+  List<KarneBatch> _internalBatches = [];
 
   final String _currentPeriodId =
       '${DateTime.now().year}_${DateTime.now().month.toString().padLeft(2, '0')}';
@@ -36,6 +38,23 @@ class _MonthlyFinancialsScreenState extends State<MonthlyFinancialsScreen> {
     _initializeDefaultPeriod();
     _subscribeToLivePeriod();
     _subscribeToLiveSales();
+    if (widget.karneBatches.isEmpty) {
+      _internalBatchesSub = FirestoreService.watchProductionBatches().listen((batches) {
+        if (!mounted) return;
+        setState(() {
+          _internalBatches = batches;
+          final counts = _extractMeatCounts();
+          _period = _period.copyWith(
+            regular250gCount: counts.count250g > 0 ? counts.count250g : _period.regular250gCount,
+            medium300gCount: counts.count300g > 0 ? counts.count300g : _period.medium300gCount,
+            b1t1400gCount: counts.count400g > 0 ? counts.count400g : _period.b1t1400gCount,
+            productionCookingSessions: counts.sessionsCount > 0
+                ? counts.sessionsCount
+                : _period.productionCookingSessions,
+          );
+        });
+      });
+    }
   }
 
   void _initializeDefaultPeriod() {
@@ -134,6 +153,7 @@ class _MonthlyFinancialsScreenState extends State<MonthlyFinancialsScreen> {
   void dispose() {
     _periodSub?.cancel();
     _salesSub?.cancel();
+    _internalBatchesSub?.cancel();
     super.dispose();
   }
 
@@ -143,9 +163,12 @@ class _MonthlyFinancialsScreenState extends State<MonthlyFinancialsScreen> {
     int c400 = 0;
     int sessions = 0;
 
-    final batchesToUse = _selectedBatchId == null
+    final availableBatches = widget.karneBatches.isNotEmpty
         ? widget.karneBatches
-        : widget.karneBatches.where((b) => b.id == _selectedBatchId).toList();
+        : _internalBatches;
+    final batchesToUse = _selectedBatchId == null
+        ? availableBatches
+        : availableBatches.where((b) => b.id == _selectedBatchId).toList();
 
     for (var b in batchesToUse) {
       if (b.sessions.isNotEmpty) {
@@ -649,53 +672,14 @@ class _MonthlyFinancialsScreenState extends State<MonthlyFinancialsScreen> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final isWide = constraints.maxWidth >= 650;
-        final titleContent = Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Wrap(
-              crossAxisAlignment: WrapCrossAlignment.center,
-              spacing: 10,
-              children: [
-                Text(
-                  '${_period.monthName.toUpperCase()} ${_period.year} FINANCIAL STATEMENT',
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w900,
-                    color: AdminWebColors.textPrimary,
-                    letterSpacing: 0.5,
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: (_period.isRoiAchieved ? AdminWebColors.success : AdminWebColors.warning)
-                        .withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: (_period.isRoiAchieved ? AdminWebColors.success : AdminWebColors.warning)
-                          .withValues(alpha: 0.4),
-                    ),
-                  ),
-                  child: Text(
-                    _period.isRoiAchieved ? 'ROI ACHIEVED' : 'ROI IN PROGRESS',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w800,
-                      color: _period.isRoiAchieved ? AdminWebColors.success : AdminWebColors.warning,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 4),
-            const Text(
-              'Consolidated Profit & Loss (P&L), Commissary Production, Procurement & Payroll',
-              style: TextStyle(
-                fontSize: 12.5,
-                color: AdminWebColors.textSecondary,
-              ),
-            ),
-          ],
+        final titleContent = Text(
+          '${_period.monthName.toUpperCase()} ${_period.year} FINANCIAL STATEMENT',
+          style: const TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w900,
+            color: AdminWebColors.textPrimary,
+            letterSpacing: 0.5,
+          ),
         );
 
         final exportBtn = ElevatedButton.icon(
@@ -1077,26 +1061,14 @@ class _MonthlyFinancialsScreenState extends State<MonthlyFinancialsScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'TOTAL KARNE PRODUCTION (MAIN WAREHOUSE)',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w900,
-                      color: AdminWebColors.accent,
-                      letterSpacing: 0.5,
-                      fontSize: 14,
-                    ),
-                  ),
-                  Text(
-                    'Automatically calculated from cooking sessions in Main Warehouse',
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: AdminWebColors.textSecondary,
-                    ),
-                  ),
-                ],
+              const Text(
+                'TOTAL KARNE PRODUCTION (MAIN WAREHOUSE)',
+                style: TextStyle(
+                  fontWeight: FontWeight.w900,
+                  color: AdminWebColors.accent,
+                  letterSpacing: 0.5,
+                  fontSize: 14,
+                ),
               ),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -1138,27 +1110,31 @@ class _MonthlyFinancialsScreenState extends State<MonthlyFinancialsScreen> {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  DropdownButton<String?>(
-                    value: _selectedBatchId,
-                    isDense: true,
-                    underline: const SizedBox.shrink(),
-                    items: [
-                      const DropdownMenuItem<String?>(
-                        value: null,
-                        child: Text(
-                          'All Monthly Batches (Combined)',
-                          style: TextStyle(
-                              fontSize: 12, fontWeight: FontWeight.bold),
+                  Expanded(
+                    child: DropdownButton<String?>(
+                      value: _selectedBatchId,
+                      isDense: true,
+                      isExpanded: true,
+                      underline: const SizedBox.shrink(),
+                      items: [
+                        const DropdownMenuItem<String?>(
+                          value: null,
+                          child: Text(
+                            'All Monthly Batches (Combined)',
+                            style: TextStyle(
+                                fontSize: 12, fontWeight: FontWeight.bold),
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
-                      ),
-                      ...widget.karneBatches.map((b) => DropdownMenuItem<String?>(
-                            value: b.id,
-                            child: Text(
-                              '${b.name} (${b.totalKilos.toStringAsFixed(1)} kg)',
-                              style: const TextStyle(fontSize: 12),
-                            ),
-                          )),
-                    ],
+                        ...widget.karneBatches.map((b) => DropdownMenuItem<String?>(
+                              value: b.id,
+                              child: Text(
+                                '${b.name} (${b.totalKilos.toStringAsFixed(1)} kg)',
+                                style: const TextStyle(fontSize: 12),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            )),
+                      ],
                     onChanged: (val) {
                       setState(() {
                         _selectedBatchId = val;
@@ -1174,6 +1150,7 @@ class _MonthlyFinancialsScreenState extends State<MonthlyFinancialsScreen> {
                       });
                       _persistPeriod();
                     },
+                  ),
                   ),
                 ],
               ),

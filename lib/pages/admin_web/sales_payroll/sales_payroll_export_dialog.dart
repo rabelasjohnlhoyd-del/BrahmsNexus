@@ -272,9 +272,9 @@ class _SalesPayrollExportDialogState extends State<SalesPayrollExportDialog> {
           ),
         ],
       ),
-      content: SizedBox(
-        width: 560,
-        child: SingleChildScrollView(
+      content: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 560),
+          child: SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,

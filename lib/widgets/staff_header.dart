@@ -14,7 +14,7 @@ import 'staff_top_actions.dart';
 /// [StaffShell]), so a second, redundant menu button was removed.
 ///
 /// Two modes:
-/// - `isHome: true` — a time-of-day greeting ("Good Evening, Staff 👋")
+/// - `isHome: true` — a time-of-day greeting ("Good Evening, Staff ")
 ///   plus today's date, used only on the Homepage tab.
 /// - `isHome: false` — a simple icon + title row, used on the other
 ///   three tabs (Sales, Daily Report, Timer) so the whole app shares
@@ -107,7 +107,7 @@ class StaffHeader extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(width: 6),
-                        const Text('👋', style: TextStyle(fontSize: 22)),
+                        const Text('', style: TextStyle(fontSize: 22)),
                       ],
                     ),
                     if (dateLabel != null) ...[

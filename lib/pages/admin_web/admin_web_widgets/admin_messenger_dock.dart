@@ -57,9 +57,9 @@ class _AdminMessengerDockState extends State<AdminMessengerDock> {
       '- Contact Number: 09171234567\n'
       '- Bilao Size (Small PHP 650 / Medium PHP 900 / Large PHP 1,300): Large PHP 1,300\n'
       '- Quantity: 1\n'
-      '- Pickup Date & Time: Bukas ng 3:30 PM\n'
+      '- Pickup Date & Time: Tomorrow at 3:30 PM\n'
       '- Preferred Branch (Gatid / Labuin / Sta. Clara / Nanhaya / San Francisco / Dayap): Labuin\n'
-      '- Pickup or Delivery (provide address): Pickup (Paki-hiwalay ang sili)';
+      '- Pickup or Delivery (provide address): Pickup (Separate the chili)';
 
   Future<void> _openMetaBusinessSuite() async {
     final uri = Uri.parse(brahmsInboxUrl);
@@ -88,7 +88,7 @@ class _AdminMessengerDockState extends State<AdminMessengerDock> {
     Clipboard.setData(const ClipboardData(text: brahmsOrderTemplate));
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text('Nai-kopya ang Order Template sa clipboard! Handa nang i-paste sa Messenger.'),
+        content: Text('Order Template copied to clipboard! Ready to paste into Messenger.'),
         duration: Duration(seconds: 2),
         backgroundColor: AdminWebColors.accent,
       ),
@@ -109,7 +109,7 @@ class _AdminMessengerDockState extends State<AdminMessengerDock> {
 
     if (rawText.isEmpty) {
       setState(() {
-        _errorMessage = 'Paki-paste ang sinagutang template o usapan mula sa Messenger/tawag.';
+        _errorMessage = 'Please paste the filled template or conversation from Messenger or phone call.';
       });
       return;
     }
@@ -147,7 +147,7 @@ class _AdminMessengerDockState extends State<AdminMessengerDock> {
       if (mounted) {
         setState(() {
           _isParsing = false;
-          _errorMessage = 'Error sa pagsuri ng order: $e';
+          _errorMessage = 'Error parsing order: $e';
         });
       }
     }
@@ -155,16 +155,20 @@ class _AdminMessengerDockState extends State<AdminMessengerDock> {
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isMobile = screenWidth < 600;
+
     return Positioned(
-      bottom: 24,
-      right: 24,
+      bottom: isMobile ? 12 : 24,
+      right: isMobile ? 12 : 24,
+      left: (_isOpen && isMobile) ? 12 : null,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.end,
         mainAxisSize: MainAxisSize.min,
         children: [
           // Expandable Intake Card
           if (_isOpen) ...[
-            _buildDockCard(),
+            _buildDockCard(screenWidth),
             const SizedBox(height: 12),
           ],
 
@@ -178,8 +182,8 @@ class _AdminMessengerDockState extends State<AdminMessengerDock> {
   Widget _buildFloatingButton() {
     return Tooltip(
       message: _isOpen
-          ? 'Isara ang Intake Dock'
-          : 'Buksan ang Messenger & Phone Intake Dock',
+          ? 'Close Intake Dock'
+          : 'Open Messenger & Phone Intake Dock',
       child: Material(
         color: Colors.transparent,
         child: InkWell(
@@ -221,11 +225,17 @@ class _AdminMessengerDockState extends State<AdminMessengerDock> {
     );
   }
 
-  Widget _buildDockCard() {
+  Widget _buildDockCard(double screenWidth) {
+    final isMobile = screenWidth < 600;
+    final cardWidth = isMobile ? (screenWidth - 24) : 410.0;
+
     return Material(
       color: Colors.transparent,
       child: Container(
-        width: 410,
+        width: cardWidth,
+        constraints: BoxConstraints(
+          maxHeight: isMobile ? MediaQuery.of(context).size.height * 0.75 : 620,
+        ),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
@@ -272,31 +282,19 @@ class _AdminMessengerDockState extends State<AdminMessengerDock> {
                   ),
                   const SizedBox(width: 10),
                   const Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Direct-to-Owner Intake',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: -0.2,
-                          ),
-                        ),
-                        Text(
-                          'Messenger, FB Page & Phone (AI Powered)',
-                          style: TextStyle(
-                            color: Colors.white70,
-                            fontSize: 10.5,
-                          ),
-                        ),
-                      ],
+                    child: Text(
+                      'Direct-to-Owner Intake',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: -0.2,
+                      ),
                     ),
                   ),
                   // Button to open Brahms Facebook Page
                   Tooltip(
-                    message: 'Buksan ang Brahms Facebook Page',
+                    message: 'Open Brahms Facebook Page',
                     child: InkWell(
                       onTap: _openBrahmsPage,
                       borderRadius: BorderRadius.circular(8),
@@ -329,7 +327,7 @@ class _AdminMessengerDockState extends State<AdminMessengerDock> {
                   const SizedBox(width: 6),
                   // Button to open Meta Business Suite Inbox in browser
                   Tooltip(
-                    message: 'Buksan ang Meta Business Suite Inbox ng Brahms',
+                    message: 'Open Brahms Meta Business Suite Inbox',
                     child: InkWell(
                       onTap: _openMetaBusinessSuite,
                       borderRadius: BorderRadius.circular(8),
@@ -373,12 +371,13 @@ class _AdminMessengerDockState extends State<AdminMessengerDock> {
             ),
 
             // Content Body
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                mainAxisSize: MainAxisSize.min,
-                children: [
+            Flexible(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
                   // Dedicated Template Copy Banner
                   InkWell(
                     onTap: _copyTemplateToClipboard,
@@ -396,7 +395,7 @@ class _AdminMessengerDockState extends State<AdminMessengerDock> {
                           Icon(Icons.copy_rounded, size: 13, color: AdminWebColors.accent),
                           SizedBox(width: 6),
                           Text(
-                            'Kopyahin ang Order Template para sa Customer',
+                            'Copy Order Template for Customer',
                             style: TextStyle(
                               fontSize: 11.5,
                               fontWeight: FontWeight.w700,
@@ -414,7 +413,7 @@ class _AdminMessengerDockState extends State<AdminMessengerDock> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       const Text(
-                        'I-paste ang Template o Usapan:',
+                        'Paste Template or Conversation:',
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w700,
@@ -432,7 +431,7 @@ class _AdminMessengerDockState extends State<AdminMessengerDock> {
                                 size: 12, color: AdminWebColors.accent),
                             SizedBox(width: 4),
                             Text(
-                              'Subukan ang Sample',
+                              'Try Sample',
                               style: TextStyle(
                                 fontSize: 11.5,
                                 fontWeight: FontWeight.w600,
@@ -453,7 +452,7 @@ class _AdminMessengerDockState extends State<AdminMessengerDock> {
                     style: const TextStyle(fontSize: 12),
                     decoration: InputDecoration(
                       hintText:
-                          'I-paste dito ang sinagutang template mula sa Messenger, o i-type ang usapan / tala mula sa tawag...',
+                          'Paste the answered template from Messenger here, or type conversation notes from the call...',
                       hintStyle: TextStyle(
                           fontSize: 11.5, color: Colors.grey.shade400),
                       contentPadding: const EdgeInsets.all(12),
@@ -474,19 +473,19 @@ class _AdminMessengerDockState extends State<AdminMessengerDock> {
                     child: Row(
                       children: [
                         _chip(
-                          'Hiwalay Sili',
-                          onTap: () => _insertQuickChip('Paki-hiwalay ang sili'),
+                          'Separate Chili',
+                          onTap: () => _insertQuickChip('Please separate the chili'),
                         ),
                         const SizedBox(width: 6),
                         _chip(
-                          'Cash sa Branch',
+                          'Cash at Branch',
                           onTap: () => _insertQuickChip('Payment: Cash upon branch pickup'),
                         ),
                         const SizedBox(width: 6),
                         _chip(
                           'GCash to follow via Messenger',
                           onTap: () => _insertQuickChip(
-                              'Payment: GCash isesend mamaya sa Messenger (Pending Payment / Kitchen Locked)'),
+                              'Payment: GCash to follow via Messenger (Pending Payment / Kitchen Locked)'),
                         ),
                       ],
                     ),
@@ -550,7 +549,7 @@ class _AdminMessengerDockState extends State<AdminMessengerDock> {
                               ),
                               SizedBox(width: 8),
                               Text(
-                                'Sinusuri ng Gemini AI...',
+                                'Analyzing with Gemini AI...',
                                 style: TextStyle(
                                   fontSize: 12,
                                   fontWeight: FontWeight.w700,
@@ -565,7 +564,7 @@ class _AdminMessengerDockState extends State<AdminMessengerDock> {
                                   size: 16, color: Colors.white),
                               SizedBox(width: 6),
                               Text(
-                                'I-parse sa AI at Gumawa ng Order',
+                                'Parse with AI & Create Order',
                                 style: TextStyle(
                                   fontSize: 12.5,
                                   fontWeight: FontWeight.w700,
@@ -576,6 +575,7 @@ class _AdminMessengerDockState extends State<AdminMessengerDock> {
                   ),
                 ],
               ),
+            ),
             ),
           ],
         ),

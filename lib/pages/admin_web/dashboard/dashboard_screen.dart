@@ -12,12 +12,21 @@ import '../admin_web_colors.dart';
 import '../admin_web_shell.dart';
 import '../admin_web_widgets/glass_card.dart';
 import '../admin_web_widgets/kpi_card.dart';
-
 import '../admin_web_widgets/smooth_area_chart.dart';
 
-/// Admin Web Dashboard — Streamlined operations & analytics view.
-/// Focused on real-time KPIs and perfectly aligned analytics charts.
-/// Uses FirestoreListenCache shared query listeners to minimize reads.
+/// Admin Web Dashboard — Executive Operations & Analytics View.
+/// Layout:
+/// - Desktop (>= 950px):
+///   - Left Column (68%):
+///     - Top: Today's Revenue card (occupying the former "My Card" position)
+///     - Middle: 2 cards — Today's Orders & Bilao Orders
+///     - Bottom: Graph card (Weekly Order Analytics with toggle button to view Sales & Distribution Breakdown)
+///   - Right Column (32%):
+///     - Top: Active Staff card (occupying the former Transactions position)
+///     - Bottom: Available Branches card
+/// - Mobile / Phone (< 950px):
+///   - Clean vertical stack: Today's Revenue, 2x2 grid (Orders, Bilao, Staff, Branches),
+///     followed by the toggleable Analytics Graph card.
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key, this.onLogout});
 
@@ -34,6 +43,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
   List<SalesRecord> _salesRecords = [];
   List<BilaoOrder> _bilaoOrders = [];
   List<StaffMember> _allStaff = [];
+
+  // Toggle between 0: Weekly Order Analytics, 1: Sales & Distribution Breakdown
+  int _activeChartIndex = 0;
 
   @override
   void initState() {
@@ -64,7 +76,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   void _loadInitialStaff() {
-    // In-memory cached staff list from SupabaseService
     _allStaff = SupabaseService.getAllStaff();
   }
 
@@ -77,17 +88,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   void _subscribeRealtime() {
-    // Shared listen cache with limit: 50 ensures no duplicate billed reads
     _salesSub = FirestoreService.watchRecentSales(limit: 50).listen((records) {
-      if (mounted) {
-        setState(() => _salesRecords = records);
-      }
+      if (mounted) setState(() => _salesRecords = records);
     });
 
     _bilaoOrdersSub = FirestoreService.watchAllBilaoOrders().listen((orders) {
-      if (mounted) {
-        setState(() => _bilaoOrders = orders);
-      }
+      if (mounted) setState(() => _bilaoOrders = orders);
     });
   }
 
@@ -133,17 +139,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final yesterdaySales = _salesRecords.where((r) => _isSameDay(r.date, yesterday)).toList();
     final double yesterdayRevenue = yesterdaySales.fold(0.0, (sum, r) => sum + r.totalSalesAmount);
 
-    String revenueSubtitle;
+    String revenueSubtitle = '';
     if (todaySales.isNotEmpty) {
       if (yesterdayRevenue > 0) {
         final diff = ((todayRevenue - yesterdayRevenue) / yesterdayRevenue) * 100;
         final sign = diff >= 0 ? '+' : '';
-        revenueSubtitle = '$sign${diff.toStringAsFixed(0)}% vs yesterday (${todaySales.length}/6 branches)';
+        revenueSubtitle = '$sign${diff.toStringAsFixed(0)}% vs yesterday';
       } else {
         revenueSubtitle = '${todaySales.length} of 6 branches submitted';
       }
-    } else {
-      revenueSubtitle = 'Awaiting branch EOD reports';
     }
 
     // ── 2. Staff Deployment Counts ───────────────────────────────────────────
@@ -191,440 +195,784 @@ class _DashboardScreenState extends State<DashboardScreen> {
       total7dBilao += dayBilaoCount;
     }
 
-    // 100% Real Live Data Metrics (Zero Fake Mock Numbers)
-    final displayedOrderValues = orderSeriesValues;
-    final displayedBilaoValues = bilaoSeriesValues;
-
-    final effective7dOrders = total7dOrders;
-    final effective7dBilao = total7dBilao;
     final effectiveAvgValue = total7dOrders > 0 ? (total7dRevenue / total7dOrders) : 0.0;
-
-    final int combinedTotal = effective7dOrders + effective7dBilao;
+    final int combinedTotal = total7dOrders + total7dBilao;
     final String channelShare = combinedTotal > 0
-        ? '${((effective7dOrders / combinedTotal) * 100).toStringAsFixed(0)}% Store'
+        ? '${((total7dOrders / combinedTotal) * 100).toStringAsFixed(0)}% Store'
         : '100% Store';
 
-    String ordersSubtitle;
+    String ordersSubtitle = '';
     if (todayOrders > 0) {
       ordersSubtitle = '$todayPortions meat portions';
     } else if (yesterdaySales.isNotEmpty) {
       final yOrders = yesterdaySales.fold<int>(0, (s, r) => s + r.displayTotalOrders);
       ordersSubtitle = '$yOrders orders yesterday';
-    } else {
-      ordersSubtitle = 'Awaiting branch EOD reports';
     }
 
     return Container(
       color: AdminWebColors.background,
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final isWide = constraints.maxWidth >= 900;
+          final isDesktop = constraints.maxWidth >= 950;
           final isMedium = constraints.maxWidth >= 600;
 
-          return SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _WelcomeBanner(
-                  today: todayStr,
-                  activeCooks: activeStaffCount,
-                  branchesCount: kSampleBranches.length,
-                ),
-                const SizedBox(height: 24),
-
-                // ── KPI CARDS GRID (4 Balanced Columns) ──
-                _KpiGrid(
-                  crossAxisCount: isWide ? 4 : (isMedium ? 2 : 1),
-                  todayRevenue: '₱${todayRevenue.toStringAsFixed(0)}',
-                  revenueSubtitle: revenueSubtitle,
-                  todayOrders: '$todayOrders',
-                  ordersSubtitle: ordersSubtitle,
-                  activeStaff: '$activeStaffCount',
-                  staffSubtitle: '$restDayCount rest day · 6 branches',
-                  bilaoOrders: '${activeBilaoOrders.length}',
-                  bilaoSubtitle: '$bilaoTodayCount scheduled today',
-                ),
-                const SizedBox(height: 24),
-
-                // ── ANALYTICS CHARTS ROW (Perfect 100% Height & Content Alignment) ──
-                isWide
-                    ? IntrinsicHeight(
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            Expanded(
-                              child: _OrderDetailsCard(
-                                labels: labels,
-                                values: displayedOrderValues,
-                                avgValue: '₱${effectiveAvgValue.toStringAsFixed(0)}',
-                                totalOrders7d: '$effective7dOrders',
-                                activeBranches: '$activeStaffCount/6 Branches',
-                              ),
-                            ),
-                            const SizedBox(width: 20),
-                            Expanded(
-                              child: _SalesReportCard(
-                                labels: labels,
-                                storeSalesValues: displayedOrderValues,
-                                bilaoOrderValues: displayedBilaoValues,
-                                totalStoreOrders7d: '$effective7dOrders',
-                                totalBilaoOrders7d: '$effective7dBilao',
-                                channelRatio: channelShare,
-                              ),
-                            ),
-                          ],
-                        ),
-                      )
-                    : Column(
-                        children: [
-                          _OrderDetailsCard(
-                            labels: labels,
-                            values: displayedOrderValues,
-                            avgValue: '₱${effectiveAvgValue.toStringAsFixed(0)}',
-                            totalOrders7d: '$effective7dOrders',
-                            activeBranches: '$activeStaffCount/6 Branches',
-                          ),
-                          const SizedBox(height: 20),
-                          _SalesReportCard(
-                            labels: labels,
-                            storeSalesValues: displayedOrderValues,
-                            bilaoOrderValues: displayedBilaoValues,
-                            totalStoreOrders7d: '$effective7dOrders',
-                            totalBilaoOrders7d: '$effective7dBilao',
-                            channelRatio: channelShare,
-                          ),
-                        ],
-                      ),
-                const SizedBox(height: 24),
-              ],
-            ),
-          );
+          if (isDesktop) {
+            return _buildDesktopLayout(
+              todayStr: todayStr,
+              todayRevenue: todayRevenue,
+              revenueSubtitle: revenueSubtitle,
+              todayOrders: todayOrders,
+              ordersSubtitle: ordersSubtitle,
+              activeStaffCount: activeStaffCount,
+              restDayCount: restDayCount,
+              activeBilaoOrders: activeBilaoOrders,
+              bilaoTodayCount: bilaoTodayCount,
+              effectiveAvgValue: effectiveAvgValue,
+              total7dOrders: total7dOrders,
+              total7dBilao: total7dBilao,
+              channelShare: channelShare,
+              labels: labels,
+              orderSeriesValues: orderSeriesValues,
+              bilaoSeriesValues: bilaoSeriesValues,
+            );
+          } else {
+            return _buildMobileLayout(
+              isMedium: isMedium,
+              todayStr: todayStr,
+              todayRevenue: todayRevenue,
+              revenueSubtitle: revenueSubtitle,
+              todayOrders: todayOrders,
+              ordersSubtitle: ordersSubtitle,
+              activeStaffCount: activeStaffCount,
+              restDayCount: restDayCount,
+              activeBilaoOrders: activeBilaoOrders,
+              bilaoTodayCount: bilaoTodayCount,
+              effectiveAvgValue: effectiveAvgValue,
+              total7dOrders: total7dOrders,
+              total7dBilao: total7dBilao,
+              channelShare: channelShare,
+              labels: labels,
+              orderSeriesValues: orderSeriesValues,
+              bilaoSeriesValues: bilaoSeriesValues,
+            );
+          }
         },
       ),
     );
   }
-}
 
-// =============================================================================
-// SUB-COMPONENTS
-// =============================================================================
+  // ===========================================================================
+  // DESKTOP LAYOUT (Exact User Specified Arrangement)
+  // ===========================================================================
+  Widget _buildDesktopLayout({
+    required String todayStr,
+    required double todayRevenue,
+    required String revenueSubtitle,
+    required int todayOrders,
+    required String ordersSubtitle,
+    required int activeStaffCount,
+    required int restDayCount,
+    required List<BilaoOrder> activeBilaoOrders,
+    required int bilaoTodayCount,
+    required double effectiveAvgValue,
+    required int total7dOrders,
+    required int total7dBilao,
+    required String channelShare,
+    required List<String> labels,
+    required List<num> orderSeriesValues,
+    required List<num> bilaoSeriesValues,
+  }) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // ── LEFT COLUMN (68% Width) ───────────────────────────────────────
+          Expanded(
+            flex: 68,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // 1. In place of "My Card": Today's Revenue Card (Original Content & Brahms Styling)
+                _buildTodayRevenueHeroCard(
+                  todayStr: todayStr,
+                  todayRevenue: todayRevenue,
+                  revenueSubtitle: revenueSubtitle,
+                  orderSeriesValues: orderSeriesValues,
+                ),
+                const SizedBox(height: 18),
 
-class _WelcomeBanner extends StatelessWidget {
-  const _WelcomeBanner({
-    required this.today,
-    required this.activeCooks,
-    required this.branchesCount,
-  });
+                // 2. Below it: 2 Cards — Today's Orders & Bilao Orders
+                Row(
+                  children: [
+                    Expanded(
+                      child: KpiCard(
+                        icon: Icons.storefront_rounded,
+                        label: "Today's Orders",
+                        value: '$todayOrders',
+                        subtitle: ordersSubtitle,
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: KpiCard(
+                        icon: Icons.shopping_bag_outlined,
+                        label: 'Bilao Orders',
+                        value: '${activeBilaoOrders.length}',
+                        subtitle: '',
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 18),
 
-  final String today;
-  final int activeCooks;
-  final int branchesCount;
+                // 3. In place of "Money Flow": Toggleable Analytics Chart Card
+                // Shows Weekly Order Analytics by default, toggles to Sales & Distribution Breakdown
+                _buildToggleableAnalyticsCard(
+                  labels: labels,
+                  orderSeriesValues: orderSeriesValues,
+                  bilaoSeriesValues: bilaoSeriesValues,
+                  effectiveAvgValue: effectiveAvgValue,
+                  total7dOrders: total7dOrders,
+                  total7dBilao: total7dBilao,
+                  activeStaffCount: activeStaffCount,
+                  channelShare: channelShare,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 20),
 
-  @override
-  Widget build(BuildContext context) {
+          // ── RIGHT COLUMN (32% Width) ──────────────────────────────────────
+          Expanded(
+            flex: 32,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // 1. In place of "Transactions": Active Staff Card (Original Content & Quick View)
+                _buildActiveStaffSideCard(
+                  activeStaffCount: activeStaffCount,
+                  restDayCount: restDayCount,
+                  branchCooks: _allStaff
+                      .where((s) => s.position == 'Branch Cook' || s.position == 'Floating Cook')
+                      .toList(),
+                ),
+                const SizedBox(height: 18),
+
+                // 2. Available Branches Card
+                _buildAvailableBranchesCard(
+                  activeStaffCount: activeStaffCount,
+                  restDayCount: restDayCount,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ===========================================================================
+  // MOBILE / PHONE LAYOUT
+  // ===========================================================================
+  Widget _buildMobileLayout({
+    required bool isMedium,
+    required String todayStr,
+    required double todayRevenue,
+    required String revenueSubtitle,
+    required int todayOrders,
+    required String ordersSubtitle,
+    required int activeStaffCount,
+    required int restDayCount,
+    required List<BilaoOrder> activeBilaoOrders,
+    required int bilaoTodayCount,
+    required double effectiveAvgValue,
+    required int total7dOrders,
+    required int total7dBilao,
+    required String channelShare,
+    required List<String> labels,
+    required List<num> orderSeriesValues,
+    required List<num> bilaoSeriesValues,
+  }) {
+    return SingleChildScrollView(
+      padding: EdgeInsets.all(isMedium ? 20 : 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 1. Today's Revenue Card
+          _buildTodayRevenueHeroCard(
+            todayStr: todayStr,
+            todayRevenue: todayRevenue,
+            revenueSubtitle: revenueSubtitle,
+            orderSeriesValues: orderSeriesValues,
+            isMobile: true,
+          ),
+          const SizedBox(height: 14),
+
+          // 2. 2 Cards Row: Today's Orders & Bilao Orders
+          Row(
+            children: [
+              Expanded(
+                child: KpiCard(
+                  icon: Icons.storefront_rounded,
+                  label: "Today's Orders",
+                  value: '$todayOrders',
+                  subtitle: ordersSubtitle,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: KpiCard(
+                  icon: Icons.shopping_bag_outlined,
+                  label: 'Bilao Orders',
+                  value: '${activeBilaoOrders.length}',
+                  subtitle: '',
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+
+          // 3. Active Staff Card
+          _buildActiveStaffSideCard(
+            activeStaffCount: activeStaffCount,
+            restDayCount: restDayCount,
+            branchCooks: _allStaff
+                .where((s) => s.position == 'Branch Cook' || s.position == 'Floating Cook')
+                .toList(),
+            isMobile: true,
+          ),
+          const SizedBox(height: 14),
+
+          // 4. Toggleable Analytics Chart (Weekly Order Analytics <-> Sales & Distribution Breakdown)
+          _buildToggleableAnalyticsCard(
+            labels: labels,
+            orderSeriesValues: orderSeriesValues,
+            bilaoSeriesValues: bilaoSeriesValues,
+            effectiveAvgValue: effectiveAvgValue,
+            total7dOrders: total7dOrders,
+            total7dBilao: total7dBilao,
+            activeStaffCount: activeStaffCount,
+            channelShare: channelShare,
+            isMobile: true,
+          ),
+          const SizedBox(height: 14),
+
+          // 5. Available Branches Card
+          _buildAvailableBranchesCard(
+            activeStaffCount: activeStaffCount,
+            restDayCount: restDayCount,
+          ),
+          const SizedBox(height: 24),
+        ],
+      ),
+    );
+  }
+
+  // ===========================================================================
+  // SUB-COMPONENTS (100% Original Content & Brahms Styling)
+  // ===========================================================================
+
+  /// 1. Replaces "My Card": Today's Revenue Hero Card
+  Widget _buildTodayRevenueHeroCard({
+    required String todayStr,
+    required double todayRevenue,
+    required String revenueSubtitle,
+    required List<num> orderSeriesValues,
+    bool isMobile = false,
+  }) {
     return GlassCard(
+      padding: EdgeInsets.symmetric(horizontal: isMobile ? 16 : 22, vertical: isMobile ? 16 : 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 44,
+                    height: 44,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: AdminWebColors.accent.withValues(alpha: 0.12),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.payments_outlined, size: 22, color: AdminWebColors.accent),
+                  ),
+                  const SizedBox(width: 14),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        "TODAY'S REVENUE",
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.8,
+                          color: AdminWebColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              SizedBox(
+                width: 60,
+                height: 28,
+                child: CustomPaint(painter: _HeroTrendPainter()),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: [
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  '₱${todayRevenue.toStringAsFixed(0)}',
+                  style: TextStyle(
+                    fontSize: isMobile ? 32 : 38,
+                    fontWeight: FontWeight.w900,
+                    color: AdminWebColors.textPrimary,
+                    letterSpacing: -0.8,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Flexible(
+                child: Text(
+                  revenueSubtitle,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: revenueSubtitle.contains('+')
+                        ? AdminWebColors.success
+                        : AdminWebColors.textSecondary,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 2. In place of "Money Flow": Toggleable Analytics Chart Card
+  Widget _buildToggleableAnalyticsCard({
+    required List<String> labels,
+    required List<num> orderSeriesValues,
+    required List<num> bilaoSeriesValues,
+    required double effectiveAvgValue,
+    required int total7dOrders,
+    required int total7dBilao,
+    required int activeStaffCount,
+    required String channelShare,
+    bool isMobile = false,
+  }) {
+    final isWeeklyView = _activeChartIndex == 0;
+
+    return GlassCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header with Title & Toggle Button
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 36,
+                    height: 36,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: AdminWebColors.accent.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(
+                      isWeeklyView ? Icons.bar_chart_rounded : Icons.show_chart_rounded,
+                      size: 20,
+                      color: AdminWebColors.accent,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    isWeeklyView ? 'Weekly Order Analytics' : 'Sales & Distribution Breakdown',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w900,
+                      fontSize: isMobile ? 14 : 16,
+                      color: AdminWebColors.textPrimary,
+                    ),
+                  ),
+                ],
+              ),
+
+              // Interactive Toggle Button on the Right Side
+              InkWell(
+                onTap: () {
+                  setState(() {
+                    _activeChartIndex = _activeChartIndex == 0 ? 1 : 0;
+                  });
+                },
+                borderRadius: BorderRadius.circular(10),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                  decoration: BoxDecoration(
+                    color: AdminWebColors.accent.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: AdminWebColors.accent.withValues(alpha: 0.3)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.swap_horiz_rounded,
+                        size: 16,
+                        color: AdminWebColors.accent,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        isWeeklyView ? 'View Sales & Distribution' : 'View Weekly Analytics',
+                        style: const TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w800,
+                          color: AdminWebColors.accent,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          // Key Stats Row
+          if (isWeeklyView)
+            Wrap(
+              spacing: 20,
+              runSpacing: 10,
+              children: [
+                _StatBlock(value: '₱${effectiveAvgValue.toStringAsFixed(0)}', label: 'Avg. per order'),
+                _StatBlock(value: '$total7dOrders', label: 'Orders (7d)'),
+                _StatBlock(value: '$activeStaffCount/6 Branches', label: 'Staff Deployed'),
+              ],
+            )
+          else
+            Wrap(
+              spacing: 20,
+              runSpacing: 10,
+              children: [
+                _StatBlock(value: '$total7dOrders', label: 'Store Orders (7d)'),
+                _StatBlock(value: '$total7dBilao', label: 'Bilao Orders (7d)'),
+                _StatBlock(value: channelShare, label: 'Channel Share'),
+              ],
+            ),
+          const SizedBox(height: 14),
+
+          // Legend
+          if (isWeeklyView)
+            const Row(
+              children: [
+                _LegendDot(
+                  color: AdminWebColors.chartBarPrimary,
+                  label: 'Store Sisig Orders',
+                ),
+              ],
+            )
+          else
+            const Wrap(
+              spacing: 16,
+              runSpacing: 8,
+              children: [
+                _LegendDot(
+                  color: AdminWebColors.chartBarPrimary,
+                  label: 'Store Sisig Orders',
+                ),
+                _LegendDot(
+                  color: AdminWebColors.chartBarSecondary,
+                  label: 'Advance Bilao Orders',
+                ),
+              ],
+            ),
+          const SizedBox(height: 14),
+
+          // Dynamic Spline Area Chart
+          SmoothAreaChart(
+            labels: labels,
+            height: isMobile ? 180 : 220,
+            series: isWeeklyView
+                ? [
+                    AreaSeries(
+                      name: 'Store Sisig Orders',
+                      values: orderSeriesValues,
+                      color: AdminWebColors.chartBarPrimary,
+                      unit: 'orders',
+                    ),
+                  ]
+                : [
+                    AreaSeries(
+                      name: 'Store Sisig Orders',
+                      values: orderSeriesValues,
+                      color: AdminWebColors.chartBarPrimary,
+                      unit: 'orders',
+                    ),
+                    AreaSeries(
+                      name: 'Advance Bilao Orders',
+                      values: bilaoSeriesValues,
+                      color: AdminWebColors.chartBarSecondary,
+                      unit: 'packages',
+                    ),
+                  ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 3. In place of "Transactions": Active Staff Card (Original Content + Cook Breakdown)
+  Widget _buildActiveStaffSideCard({
+    required int activeStaffCount,
+    required int restDayCount,
+    required List<StaffMember> branchCooks,
+    bool isMobile = false,
+  }) {
+    return GlassCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 36,
+                    height: 36,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: AdminWebColors.accent.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(Icons.groups_rounded, size: 20, color: AdminWebColors.accent),
+                  ),
+                  const SizedBox(width: 12),
+                  const Text(
+                    'Active Staff',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w900,
+                      color: AdminWebColors.textPrimary,
+                    ),
+                  ),
+                ],
+              ),
+              SizedBox(
+                width: 44,
+                height: 22,
+                child: CustomPaint(painter: _HeroTrendPainter()),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Text(
+            '$activeStaffCount',
+            style: const TextStyle(
+              fontSize: 34,
+              fontWeight: FontWeight.w900,
+              color: AdminWebColors.textPrimary,
+              letterSpacing: -0.5,
+            ),
+          ),
+          const SizedBox(height: 12),
+          const Divider(height: 1),
+          const SizedBox(height: 10),
+
+          // Scrollable Cook Roster (All staff viewable)
+          if (branchCooks.isEmpty)
+            const Text(
+              'No cooks registered.',
+              style: TextStyle(fontSize: 12, color: AdminWebColors.textSecondary),
+            )
+          else
+            SizedBox(
+              height: 180,
+              child: Scrollbar(
+                thumbVisibility: true,
+                child: ListView.builder(
+                  padding: EdgeInsets.zero,
+                  itemCount: branchCooks.length,
+                  itemBuilder: (context, index) {
+                    final cook = branchCooks[index];
+                    final status = _getStaffStatus(cook);
+                    final isOnDuty = status == WorkStatus.onDuty;
+
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4.5, horizontal: 2),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 8,
+                            height: 8,
+                            decoration: BoxDecoration(
+                              color: isOnDuty ? AdminWebColors.success : AdminWebColors.textSecondary,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              cook.fullName,
+                              style: const TextStyle(
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w700,
+                                color: AdminWebColors.textPrimary,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          Text(
+                            isOnDuty ? 'On Duty' : 'Rest Day',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: isOnDuty ? AdminWebColors.success : AdminWebColors.textSecondary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  /// 4. Available Branches Card
+  Widget _buildAvailableBranchesCard({
+    required int activeStaffCount,
+    required int restDayCount,
+  }) {
+    return GlassCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: AdminWebColors.accent.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.storefront_rounded, size: 20, color: AdminWebColors.accent),
+              ),
+              const SizedBox(width: 12),
+              const Text(
+                'Available Branches',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w900,
+                  color: AdminWebColors.textPrimary,
+                  letterSpacing: -0.3,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          _branchTile(
+            title: '6 Branches Active',
+            subtitle: 'Main Commissary Station',
+            tag: 'CENTRAL',
+            icon: Icons.storefront_rounded,
+          ),
+          const SizedBox(height: 10),
+          _branchTile(
+            title: '$activeStaffCount Cooks Deployed',
+            subtitle: '$restDayCount rest day today',
+            tag: 'ACTIVE',
+            icon: Icons.groups_rounded,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _branchTile({
+    required String title,
+    required String subtitle,
+    required String tag,
+    required IconData icon,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AdminWebColors.border),
+      ),
       child: Row(
         children: [
           Container(
-            width: 52,
-            height: 52,
-            alignment: Alignment.center,
+            width: 32,
+            height: 32,
             decoration: BoxDecoration(
-              color: AdminWebColors.accent.withValues(alpha: 0.12),
-              shape: BoxShape.circle,
+              color: AdminWebColors.accent.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(8),
             ),
-            child: const Icon(Icons.wb_sunny_rounded, size: 24, color: AdminWebColors.accent),
+            child: Icon(icon, size: 16, color: AdminWebColors.accent),
           ),
-          const SizedBox(width: 16),
-          Flexible(
+          const SizedBox(width: 12),
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
               children: [
-                const Text(
-                  'Brahms Nexus Dashboard',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w900,
-                    color: AdminWebColors.textPrimary,
-                    letterSpacing: -0.5,
-                  ),
-                ),
-                const SizedBox(height: 2),
                 Text(
-                  "Today is $today. $activeCooks staff deployed across $branchesCount active branches.",
+                  title,
                   style: const TextStyle(
                     fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    color: AdminWebColors.textPrimary,
+                  ),
+                ),
+                Text(
+                  subtitle,
+                  style: const TextStyle(
+                    fontSize: 11,
                     color: AdminWebColors.textSecondary,
                   ),
                 ),
               ],
             ),
           ),
-        ],
-      ),
-    );
-  }
-}
-
-class _KpiGrid extends StatelessWidget {
-  const _KpiGrid({
-    required this.crossAxisCount,
-    required this.todayRevenue,
-    required this.revenueSubtitle,
-    required this.todayOrders,
-    required this.ordersSubtitle,
-    required this.activeStaff,
-    required this.staffSubtitle,
-    required this.bilaoOrders,
-    required this.bilaoSubtitle,
-  });
-
-  final int crossAxisCount;
-  final String todayRevenue;
-  final String revenueSubtitle;
-  final String todayOrders;
-  final String ordersSubtitle;
-  final String activeStaff;
-  final String staffSubtitle;
-  final String bilaoOrders;
-  final String bilaoSubtitle;
-
-  @override
-  Widget build(BuildContext context) {
-    final cards = [
-      KpiCard(
-        icon: Icons.payments_outlined,
-        label: "Today's Revenue",
-        value: todayRevenue,
-        subtitle: revenueSubtitle,
-      ),
-      KpiCard(
-        icon: Icons.storefront_rounded,
-        label: "Today's Orders",
-        value: todayOrders,
-        subtitle: ordersSubtitle,
-      ),
-      KpiCard(
-        icon: Icons.groups_rounded,
-        label: 'Active Staff',
-        value: activeStaff,
-        subtitle: staffSubtitle,
-      ),
-      KpiCard(
-        icon: Icons.shopping_bag_outlined,
-        label: 'Bilao Orders',
-        value: bilaoOrders,
-        subtitle: bilaoSubtitle,
-      ),
-    ];
-
-    return GridView.count(
-      crossAxisCount: crossAxisCount,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      mainAxisSpacing: 16,
-      crossAxisSpacing: 16,
-      childAspectRatio: crossAxisCount == 4
-          ? 1.35
-          : (crossAxisCount == 1 ? 1.75 : 1.45),
-      children: cards,
-    );
-  }
-}
-
-class _OrderDetailsCard extends StatelessWidget {
-  const _OrderDetailsCard({
-    required this.labels,
-    required this.values,
-    required this.avgValue,
-    required this.totalOrders7d,
-    required this.activeBranches,
-  });
-
-  final List<String> labels;
-  final List<num> values;
-  final String avgValue;
-  final String totalOrders7d;
-  final String activeBranches;
-
-  @override
-  Widget build(BuildContext context) {
-    return GlassCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 36,
-                height: 36,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: AdminWebColors.accent.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Icon(Icons.bar_chart_rounded,
-                    size: 20, color: AdminWebColors.accent),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(
+              color: AdminWebColors.background,
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: AdminWebColors.border),
+            ),
+            child: Text(
+              tag,
+              style: const TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+                color: AdminWebColors.textSecondary,
+                letterSpacing: 0.5,
               ),
-              const SizedBox(width: 12),
-              const Expanded(
-                child: Text(
-                  'Weekly Order Analytics',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w900,
-                    fontSize: 16,
-                    color: AdminWebColors.textPrimary,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          const Text(
-            'Daily customer order volume across all branches over the last 7 days.',
-            style: TextStyle(fontSize: 12, color: AdminWebColors.textSecondary),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-          const SizedBox(height: 20),
-          Wrap(
-            spacing: 20,
-            runSpacing: 12,
-            children: [
-              _StatBlock(value: avgValue, label: 'Avg. per order'),
-              _StatBlock(value: totalOrders7d, label: 'Orders (7d)'),
-              _StatBlock(value: activeBranches, label: 'Staff Deployed'),
-            ],
-          ),
-          const SizedBox(height: 16),
-          const Row(
-            children: [
-              _LegendDot(
-                color: AdminWebColors.chartBarPrimary,
-                label: 'Store Sisig Orders',
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          SmoothAreaChart(
-            labels: labels,
-            height: 185,
-            series: [
-              AreaSeries(
-                name: 'Store Sisig Orders',
-                values: values,
-                color: AdminWebColors.chartBarPrimary,
-                unit: 'orders',
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SalesReportCard extends StatelessWidget {
-  const _SalesReportCard({
-    required this.labels,
-    required this.storeSalesValues,
-    required this.bilaoOrderValues,
-    required this.totalStoreOrders7d,
-    required this.totalBilaoOrders7d,
-    required this.channelRatio,
-  });
-
-  final List<String> labels;
-  final List<num> storeSalesValues;
-  final List<num> bilaoOrderValues;
-  final String totalStoreOrders7d;
-  final String totalBilaoOrders7d;
-  final String channelRatio;
-
-  @override
-  Widget build(BuildContext context) {
-    return GlassCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 36,
-                height: 36,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: AdminWebColors.accent.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Icon(Icons.show_chart_rounded,
-                    size: 20, color: AdminWebColors.accent),
-              ),
-              const SizedBox(width: 12),
-              const Expanded(
-                child: Text(
-                  'Sales & Distribution Breakdown',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w900,
-                    fontSize: 16,
-                    color: AdminWebColors.textPrimary,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          const Text(
-            'Comparison of Store Branch Sisig Orders vs Advance Bilao Packages.',
-            style: TextStyle(fontSize: 12, color: AdminWebColors.textSecondary),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-          const SizedBox(height: 20),
-          Wrap(
-            spacing: 20,
-            runSpacing: 12,
-            children: [
-              _StatBlock(value: totalStoreOrders7d, label: 'Store Orders (7d)'),
-              _StatBlock(value: totalBilaoOrders7d, label: 'Bilao Orders (7d)'),
-              _StatBlock(value: channelRatio, label: 'Channel Share'),
-            ],
-          ),
-          const SizedBox(height: 16),
-          const Wrap(
-            spacing: 16,
-            runSpacing: 8,
-            children: [
-              _LegendDot(
-                color: AdminWebColors.chartBarPrimary,
-                label: 'Store Sisig Orders',
-              ),
-              _LegendDot(
-                color: AdminWebColors.chartBarSecondary,
-                label: 'Advance Bilao Orders',
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          SmoothAreaChart(
-            labels: labels,
-            height: 185,
-            series: [
-              AreaSeries(
-                name: 'Store Sisig Orders',
-                values: storeSalesValues,
-                color: AdminWebColors.chartBarPrimary,
-                unit: 'orders',
-              ),
-              AreaSeries(
-                name: 'Advance Bilao Orders',
-                values: bilaoOrderValues,
-                color: AdminWebColors.chartBarSecondary,
-                unit: 'packages',
-              ),
-            ],
+            ),
           ),
         ],
       ),
@@ -645,7 +993,7 @@ class _StatBlock extends StatelessWidget {
         Text(
           value,
           style: const TextStyle(
-            fontSize: 18,
+            fontSize: 17,
             fontWeight: FontWeight.w900,
             color: AdminWebColors.textPrimary,
           ),
@@ -690,4 +1038,34 @@ class _LegendDot extends StatelessWidget {
       ],
     );
   }
+}
+
+class _HeroTrendPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = AdminWebColors.accent.withValues(alpha: 0.8)
+      ..strokeWidth = 2.0
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+
+    final path = Path()
+      ..moveTo(0, size.height * 0.85)
+      ..cubicTo(
+        size.width * 0.25, size.height * 0.9,
+        size.width * 0.35, size.height * 0.35,
+        size.width * 0.55, size.height * 0.5,
+      )
+      ..cubicTo(
+        size.width * 0.7, size.height * 0.6,
+        size.width * 0.8, size.height * 0.05,
+        size.width, 0,
+      );
+
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _HeroTrendPainter oldDelegate) => false;
 }

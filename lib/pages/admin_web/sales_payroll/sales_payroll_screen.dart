@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../../models/inventory_batch.dart';
@@ -6,6 +6,7 @@ import '../../../models/sales_record.dart';
 import '../../../models/branch.dart';
 import '../../../models/financial_period.dart';
 import '../../../services/firestore_service.dart';
+import '../../../services/attendance_service.dart';
 import '../admin_web_colors.dart';
 import '../admin_web_shell.dart';
 import '../admin_web_widgets/glass_card.dart';
@@ -47,6 +48,12 @@ class _SalesPayrollScreenState extends State<SalesPayrollScreen> {
   int _driverDaysWorked = 25;
   final Set<String> _expandedDates = {};
 
+  // RFID-based attendance days worked (loaded from Supabase attendance_logs)
+  int _cookRfidDaysWorked = 0;
+  int _cutterRfidDaysWorked = 0;
+  int _driverRfidDaysWorked = 0;
+  bool _rfidLoading = true;
+
   String get _currentPeriodId =>
       '${DateTime.now().year}_${DateTime.now().month.toString().padLeft(2, '0')}';
 
@@ -73,13 +80,16 @@ class _SalesPayrollScreenState extends State<SalesPayrollScreen> {
     return map;
   }
 
-  // Count total cooking sessions from all batches
+  // Count total cooking sessions for the current month
   int get _totalCookingSessions {
+    final now = DateTime.now();
     int count = 0;
     for (var b in _batches) {
-      count += b.sessions.length;
+      if (b.date.year == now.year && b.date.month == now.month) {
+        count += b.sessions.length;
+      }
     }
-    return count > 0 ? count : 7;
+    return count;
   }
 
   @override
@@ -117,6 +127,40 @@ class _SalesPayrollScreenState extends State<SalesPayrollScreen> {
         });
       }
     });
+
+    // Load RFID-based attendance days worked for production staff & driver
+    _loadRfidAttendance();
+  }
+
+  /// Loads RFID-based completed shift counts from Supabase attendance_logs
+  /// for the current month. A day is counted only when BOTH time_in and time_out exist.
+  Future<void> _loadRfidAttendance() async {
+    if (!mounted) return;
+    setState(() => _rfidLoading = true);
+    try {
+      final results = await Future.wait([
+        AttendanceService.getRfidDaysWorkedForMonth(
+          positionKeywords: ['Production Cook'],
+        ),
+        AttendanceService.getRfidDaysWorkedForMonth(
+          positionKeywords: ['Meat Cutter', 'Production Meat'],
+        ),
+        AttendanceService.getRfidDaysWorkedForMonth(
+          positionKeywords: ['Driver'],
+        ),
+      ]);
+      if (mounted) {
+        setState(() {
+          _cookRfidDaysWorked = results[0];
+          _cutterRfidDaysWorked = results[1];
+          _driverRfidDaysWorked = results[2];
+          _rfidLoading = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('_loadRfidAttendance error: $e');
+      if (mounted) setState(() => _rfidLoading = false);
+    }
   }
 
   @override
@@ -373,54 +417,103 @@ class _SalesPayrollScreenState extends State<SalesPayrollScreen> {
               children: [
                 const SizedBox(height: 24),
 
-                // Top Header with Tab Buttons
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    // Navigation Switcher Tabs
-                    Row(
-                      children: [
-                        _tabButton(
-                          index: 0,
-                          title: 'BRANCH COOKS (6 STORES)',
-                          icon: Icons.storefront_rounded,
-                        ),
-                        const SizedBox(width: 10),
-                        _tabButton(
-                          index: 1,
-                          title: 'PRODUCTION STAFF & DRIVER',
-                          icon: Icons.badge_rounded,
-                        ),
-                      ],
-                    ),
+                // Top Header with Tab Buttons (Responsive Wrap)
+                isWide
+                    ? Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          // Navigation Switcher Tabs
+                          Row(
+                            children: [
+                              _tabButton(
+                                index: 0,
+                                title: 'BRANCH COOKS (6 STORES)',
+                                icon: Icons.storefront_rounded,
+                              ),
+                              const SizedBox(width: 10),
+                              _tabButton(
+                                index: 1,
+                                title: 'PRODUCTION STAFF & DRIVER',
+                                icon: Icons.badge_rounded,
+                              ),
+                            ],
+                          ),
 
-                    // Export Button
-                    ElevatedButton.icon(
-                      onPressed: () {
-                        SalesPayrollExportDialog.show(
-                          context,
-                          records: _records,
-                          cookRate: _productionCookRate,
-                          cutterRate: _productionCutterRate,
-                          driverRate: _driverDailyRate,
-                          driverDays: _driverDaysWorked,
-                          cookingSessions: _totalCookingSessions,
-                        );
-                      },
-                      icon: const Icon(Icons.table_view_rounded, size: 16),
-                      label: const Text('EXPORT SALES & PAYROLL (.XLSX)'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF2E7D32), // Excel Dark Green
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 16),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10)),
-                        elevation: 0,
+                          // Export Button
+                          ElevatedButton.icon(
+                            onPressed: () {
+                              SalesPayrollExportDialog.show(
+                                context,
+                                records: _records,
+                                cookRate: _productionCookRate,
+                                cutterRate: _productionCutterRate,
+                                driverRate: _driverDailyRate,
+                                driverDays: _driverDaysWorked,
+                                cookingSessions: _totalCookingSessions,
+                              );
+                            },
+                            icon: const Icon(Icons.table_view_rounded, size: 16),
+                            label: const Text('EXPORT SALES & PAYROLL (.XLSX)'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF2E7D32), // Excel Dark Green
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 16, vertical: 16),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10)),
+                              elevation: 0,
+                            ),
+                          ),
+                        ],
+                      )
+                    : Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: Row(
+                              children: [
+                                _tabButton(
+                                  index: 0,
+                                  title: 'BRANCH COOKS (6 STORES)',
+                                  icon: Icons.storefront_rounded,
+                                ),
+                                const SizedBox(width: 8),
+                                _tabButton(
+                                  index: 1,
+                                  title: 'PRODUCTION STAFF & DRIVER',
+                                  icon: Icons.badge_rounded,
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          ElevatedButton.icon(
+                            onPressed: () {
+                              SalesPayrollExportDialog.show(
+                                context,
+                                records: _records,
+                                cookRate: _productionCookRate,
+                                cutterRate: _productionCutterRate,
+                                driverRate: _driverDailyRate,
+                                driverDays: _driverDaysWorked,
+                                cookingSessions: _totalCookingSessions,
+                              );
+                            },
+                            icon: const Icon(Icons.table_view_rounded, size: 16),
+                            label: const Text('EXPORT SALES & PAYROLL (.XLSX)'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF2E7D32),
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 16, vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10)),
+                              elevation: 0,
+                            ),
+                          ),
+                        ],
                       ),
-                    ),
-                  ],
-                ),
                 const SizedBox(height: 24),
 
                 // KPI Overview Cards
@@ -866,68 +959,171 @@ class _SalesPayrollScreenState extends State<SalesPayrollScreen> {
 
   // --- TAB 1: PRODUCTION STAFF & DRIVER PAYROLL ---
   Widget _buildProductionAndDriverPayroll(bool isWide) {
-    final cookTotal = _totalCookingSessions * _productionCookRate;
-    final cutterTotal = _totalCookingSessions * _productionCutterRate;
-    final driverTotal = _driverDaysWorked * _driverDailyRate;
+    // RFID-based days worked: counted from attendance_logs where both time_in & time_out exist
+    final cookTotal = _cookRfidDaysWorked * _productionCookRate;
+    final cutterTotal = _cutterRfidDaysWorked * _productionCutterRate;
+    final driverTotal = _driverRfidDaysWorked * _driverDailyRate;
     final overallTotal = cookTotal + cutterTotal + driverTotal;
+
+    final cookCard = _staffPayrollCard(
+      title: 'Production Cook',
+      staffName: 'Menes Bantug',
+      position: '',
+      daysWorked: _cookRfidDaysWorked,
+      dailyRate: _productionCookRate,
+      totalPay: cookTotal,
+      icon: Icons.outdoor_grill_rounded,
+      color: AdminWebColors.accent,
+      isLoading: _rfidLoading,
+    );
+
+    final cutterCard = _staffPayrollCard(
+      title: 'Production Meat Cutter',
+      staffName: 'Abby Torres',
+      position: '',
+      daysWorked: _cutterRfidDaysWorked,
+      dailyRate: _productionCutterRate,
+      totalPay: cutterTotal,
+      icon: Icons.content_cut_rounded,
+      color: AdminWebColors.accentDark,
+      isLoading: _rfidLoading,
+    );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // Top Overview Banner
         GlassCard(
-          padding: const EdgeInsets.all(22),
-          child: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: AdminWebColors.accent.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Icon(Icons.account_balance_wallet_rounded,
-                    size: 28, color: AdminWebColors.accent),
-              ),
-              const SizedBox(width: 18),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+          padding: EdgeInsets.all(isWide ? 22 : 16),
+          child: isWide
+              ? Row(
                   children: [
-                    const Text(
-                      'TOTAL PRODUCTION & DRIVER PAYROLL (CURRENT MONTH)',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w900,
-                        color: AdminWebColors.textSecondary,
-                        letterSpacing: 0.8,
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: AdminWebColors.accent.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(Icons.account_balance_wallet_rounded,
+                          size: 28, color: AdminWebColors.accent),
+                    ),
+                    const SizedBox(width: 18),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'TOTAL PRODUCTION & DRIVER PAYROLL (CURRENT MONTH)',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w900,
+                              color: AdminWebColors.textSecondary,
+                              letterSpacing: 0.8,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '₱${overallTotal.toStringAsFixed(0)}',
+                            style: const TextStyle(
+                              fontSize: 28,
+                              fontWeight: FontWeight.w900,
+                              color: AdminWebColors.accent,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '₱${overallTotal.toStringAsFixed(0)}',
-                      style: const TextStyle(
-                        fontSize: 28,
-                        fontWeight: FontWeight.w900,
-                        color: AdminWebColors.accent,
+                    ElevatedButton.icon(
+                      onPressed: _editProductionRatesDialog,
+                      icon: const Icon(Icons.edit_rounded, size: 16),
+                      label: const Text('EDIT RATES'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AdminWebColors.accent.withValues(alpha: 0.1),
+                        foregroundColor: AdminWebColors.accent,
+                        elevation: 0,
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    ElevatedButton.icon(
+                      onPressed: _rfidLoading ? null : _loadRfidAttendance,
+                      icon: _rfidLoading
+                          ? const SizedBox(
+                              width: 14,
+                              height: 14,
+                              child: CircularProgressIndicator(
+                                  strokeWidth: 2, color: AdminWebColors.success),
+                            )
+                          : const Icon(Icons.refresh_rounded, size: 16),
+                      label: const Text('REFRESH RFID'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AdminWebColors.success.withValues(alpha: 0.1),
+                        foregroundColor: AdminWebColors.success,
+                        elevation: 0,
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      ),
+                    ),
+                  ],
+                )
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: AdminWebColors.accent.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Icon(Icons.account_balance_wallet_rounded,
+                              size: 24, color: AdminWebColors.accent),
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'TOTAL PRODUCTION & DRIVER PAYROLL',
+                                style: TextStyle(
+                                  fontSize: 10.5,
+                                  fontWeight: FontWeight.w900,
+                                  color: AdminWebColors.textSecondary,
+                                  letterSpacing: 0.6,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                '₱${overallTotal.toStringAsFixed(0)}',
+                                style: const TextStyle(
+                                  fontSize: 24,
+                                  fontWeight: FontWeight.w900,
+                                  color: AdminWebColors.accent,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: _editProductionRatesDialog,
+                        icon: const Icon(Icons.edit_rounded, size: 16),
+                        label: const Text('EDIT RATES'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AdminWebColors.accent.withValues(alpha: 0.1),
+                          foregroundColor: AdminWebColors.accent,
+                          elevation: 0,
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                        ),
                       ),
                     ),
                   ],
                 ),
-              ),
-              ElevatedButton.icon(
-                onPressed: _editProductionRatesDialog,
-                icon: const Icon(Icons.edit_rounded, size: 16),
-                label: const Text('EDIT RATES'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AdminWebColors.accent.withValues(alpha: 0.1),
-                  foregroundColor: AdminWebColors.accent,
-                  elevation: 0,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                ),
-              ),
-            ],
-          ),
         ),
         const SizedBox(height: 24),
 
@@ -942,123 +1138,167 @@ class _SalesPayrollScreenState extends State<SalesPayrollScreen> {
           ),
         ),
         const SizedBox(height: 12),
-        Row(
-          children: [
-            // Production Cook
-            Expanded(
-              child: _staffPayrollCard(
-                title: 'Production Cook',
-                staffName: 'Menes Bantug',
-                position: 'Cook (Boiling & Cooking Sessions)',
-                sessionsCount: _totalCookingSessions,
-                dailyRate: _productionCookRate,
-                totalPay: cookTotal,
-                icon: Icons.outdoor_grill_rounded,
-                color: AdminWebColors.accent,
-              ),
-            ),
-            const SizedBox(width: 16),
-            // Production Meat Cutter
-            Expanded(
-              child: _staffPayrollCard(
-                title: 'Production Meat Cutter',
-                staffName: 'Abby Torres',
-                position: 'Cutter (Reseko & Portioning to 250G/300G/400G)',
-                sessionsCount: _totalCookingSessions,
-                dailyRate: _productionCutterRate,
-                totalPay: cutterTotal,
-                icon: Icons.content_cut_rounded,
-                color: AdminWebColors.accentDark,
-              ),
-            ),
-          ],
-        ),
+        if (isWide)
+          Row(
+            children: [
+              Expanded(child: cookCard),
+              const SizedBox(width: 16),
+              Expanded(child: cutterCard),
+            ],
+          )
+        else
+          Column(
+            children: [
+              cookCard,
+              const SizedBox(height: 12),
+              cutterCard,
+            ],
+          ),
         const SizedBox(height: 28),
 
-        // Section 2: Driver Payroll
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            const Text(
-              '2. DRIVER PAYROLL',
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 0.8,
-                color: AdminWebColors.textSecondary,
-              ),
-            ),
-            TextButton.icon(
-              onPressed: _editDriverDaysDialog,
-              icon: const Icon(Icons.edit_calendar_rounded, size: 16),
-              label: const Text('EDIT WORKING DAYS / ABSENCES'),
-            ),
-          ],
+        // Section 2: Driver Payroll (RFID-based)
+        const Text(
+          '2. DRIVER PAYROLL',
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 0.8,
+            color: AdminWebColors.textSecondary,
+          ),
         ),
         const SizedBox(height: 12),
         GlassCard(
-          padding: const EdgeInsets.all(20),
-          child: Row(
-            children: [
-              Container(
-                width: 50,
-                height: 50,
-                decoration: BoxDecoration(
-                  color: AdminWebColors.accent.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Icon(Icons.local_shipping_rounded,
-                    size: 26, color: AdminWebColors.accent),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+          padding: EdgeInsets.all(isWide ? 20 : 16),
+          child: isWide
+              ? Row(
                   children: [
-                    const Text(
-                      'Delivery Driver',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w800,
-                        color: AdminWebColors.textPrimary,
+                    Container(
+                      width: 50,
+                      height: 50,
+                      decoration: BoxDecoration(
+                        color: AdminWebColors.accent.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(Icons.local_shipping_rounded,
+                          size: 26, color: AdminWebColors.accent),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Delivery Driver',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                              color: AdminWebColors.textPrimary,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '$_driverRfidDaysWorked Days Worked (RFID-Verified)  ·  ₱${_driverDailyRate.toStringAsFixed(0)} per day (Every day branch cooks are transported)',
+                            style: const TextStyle(
+                              fontSize: 12.5,
+                              color: AdminWebColors.textSecondary,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '$_driverDaysWorked Days Worked this Month  ·  ₱${_driverDailyRate.toStringAsFixed(0)} per day (Every day branch cooks are transported)',
-                      style: const TextStyle(
-                        fontSize: 12.5,
-                        color: AdminWebColors.textSecondary,
-                      ),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        const Text(
+                          'TOTAL DRIVER WAGES',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w900,
+                            color: AdminWebColors.textSecondary,
+                            letterSpacing: 0.8,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '₱${driverTotal.toStringAsFixed(0)}',
+                          style: const TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w900,
+                            color: AdminWebColors.accent,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                )
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          width: 44,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            color: AdminWebColors.accent.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Icon(Icons.local_shipping_rounded,
+                              size: 22, color: AdminWebColors.accent),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Delivery Driver',
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w800,
+                                  color: AdminWebColors.textPrimary,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                '$_driverRfidDaysWorked Days Worked (RFID)  ·  ₱${_driverDailyRate.toStringAsFixed(0)}/day',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: AdminWebColors.textSecondary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    const Divider(height: 1),
+                    const SizedBox(height: 8),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'TOTAL DRIVER WAGES',
+                          style: TextStyle(
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w900,
+                            color: AdminWebColors.textSecondary,
+                            letterSpacing: 0.8,
+                          ),
+                        ),
+                        Text(
+                          '₱${driverTotal.toStringAsFixed(0)}',
+                          style: const TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w900,
+                            color: AdminWebColors.accent,
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
-              ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  const Text(
-                    'TOTAL DRIVER WAGES',
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w900,
-                      color: AdminWebColors.textSecondary,
-                      letterSpacing: 0.8,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    '₱${driverTotal.toStringAsFixed(0)}',
-                    style: const TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w900,
-                      color: AdminWebColors.accent,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
         ),
       ],
     );
@@ -1068,11 +1308,12 @@ class _SalesPayrollScreenState extends State<SalesPayrollScreen> {
     required String title,
     required String staffName,
     required String position,
-    required int sessionsCount,
+    required int daysWorked,
     required double dailyRate,
     required double totalPay,
     required IconData icon,
     required Color color,
+    bool isLoading = false,
   }) {
     return GlassCard(
       padding: const EdgeInsets.all(20),
@@ -1114,36 +1355,91 @@ class _SalesPayrollScreenState extends State<SalesPayrollScreen> {
                   ],
                 ),
               ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Text(
-            position,
-            style: const TextStyle(fontSize: 11.5, color: AdminWebColors.textSecondary),
-          ),
-          const Divider(height: 24),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                '$sessionsCount Sessions × ₱${dailyRate.toStringAsFixed(0)}',
-                style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600),
-              ),
-              Text(
-                '₱${totalPay.toStringAsFixed(0)}',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w900,
-                  color: color,
+              // RFID badge
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: AdminWebColors.success.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                      color: AdminWebColors.success.withValues(alpha: 0.4)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.nfc_rounded,
+                        size: 12, color: AdminWebColors.success),
+                    const SizedBox(width: 4),
+                    const Text(
+                      'RFID',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w900,
+                        color: AdminWebColors.success,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
           ),
+          if (position.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Text(
+              position,
+              style: const TextStyle(
+                  fontSize: 11.5, color: AdminWebColors.textSecondary),
+            ),
+          ],
+          const Divider(height: 24),
+          if (isLoading)
+            const Center(
+              child: Padding(
+                padding: EdgeInsets.symmetric(vertical: 8),
+                child: SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              ),
+            )
+          else
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '$daysWorked days worked this month',
+                        style: const TextStyle(
+                            fontSize: 12.5, fontWeight: FontWeight.w600),
+                      ),
+                      Text(
+                        '₱${dailyRate.toStringAsFixed(0)}/day (RFID-verified)',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: AdminWebColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Text(
+                  '₱${totalPay.toStringAsFixed(0)}',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w900,
+                    color: color,
+                  ),
+                ),
+              ],
+            ),
         ],
       ),
     );
   }
-
   Widget _summaryCard(String label, String value, IconData icon) {
     return GlassCard(
       padding: const EdgeInsets.all(20),
@@ -1555,8 +1851,8 @@ Widget _buildPortionsHoverCell(BuildContext context, SalesRecord r) {
             ),
           ],
         ),
-        content: SizedBox(
-          width: 420,
+        content: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 420),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,

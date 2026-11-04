@@ -308,7 +308,7 @@ class _StockTransferScreenState extends State<StockTransferScreen> {
                   child: isProcessing
                       ? const CupertinoActivityIndicator(color: CupertinoColors.white)
                       : const Text(
-                          'Mark as Delivered ✓',
+                          'Mark as Delivered ',
                           style: TextStyle(color: CupertinoColors.white, fontWeight: FontWeight.w700, fontSize: 14),
                         ),
                 ),

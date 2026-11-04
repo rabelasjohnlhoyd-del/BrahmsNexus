@@ -23,8 +23,18 @@ class KarneBatchDetailScreen extends StatefulWidget {
   State<KarneBatchDetailScreen> createState() => _KarneBatchDetailScreenState();
 }
 
+class _QuickBrandPreset {
+  final String name;
+  final int minutes;
+  const _QuickBrandPreset(this.name, this.minutes);
+}
+
 class _KarneBatchDetailScreenState extends State<KarneBatchDetailScreen> {
   late KarneBatch _batch;
+  final List<_QuickBrandPreset> _quickPresets = [
+    const _QuickBrandPreset('Danish Crown', 25),
+    const _QuickBrandPreset('Pilgrims', 35),
+  ];
   StreamSubscription<KarneBatch?>? _batchSub;
 
   @override
@@ -73,15 +83,13 @@ class _KarneBatchDetailScreenState extends State<KarneBatchDetailScreen> {
               Text('New Cooking Session', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
             ],
           ),
-          content: SizedBox(
-            width: 440,
-            child: SingleChildScrollView(
+          content: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 440),
+          child: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('Brand ng Karne:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AdminWebColors.textSecondary)),
-                  const SizedBox(height: 6),
                   TextField(
                     controller: brandCtrl,
                     decoration: const InputDecoration(
@@ -93,25 +101,95 @@ class _KarneBatchDetailScreenState extends State<KarneBatchDetailScreen> {
                   const SizedBox(height: 8),
                   Wrap(
                     spacing: 8,
+                    runSpacing: 8,
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
+                      for (int i = 0; i < _quickPresets.length; i++)
+                        InputChip(
+                          avatar: const Icon(Icons.recommend_rounded, size: 16, color: AdminWebColors.accent),
+                          label: Text('${_quickPresets[i].name} (${_quickPresets[i].minutes} mins)', style: const TextStyle(fontSize: 11)),
+                          onPressed: () {
+                            setDlgState(() {
+                              brandCtrl.text = _quickPresets[i].name;
+                              minutesCtrl.text = _quickPresets[i].minutes.toString();
+                            });
+                          },
+                          deleteIcon: const Icon(Icons.close_rounded, size: 14, color: AdminWebColors.error),
+                          onDeleted: () async {
+                            final toDelete = _quickPresets[i];
+                            final confirm = await showDialog<bool>(
+                              context: context,
+                              builder: (c) => AlertDialog(
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                title: const Text('Delete Quick Preset?', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                                content: Text('Are you sure you want to remove "${toDelete.name}" from quick buttons?'),
+                                actions: [
+                                  TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Cancel')),
+                                  ElevatedButton(
+                                    style: ElevatedButton.styleFrom(backgroundColor: AdminWebColors.error, foregroundColor: Colors.white),
+                                    onPressed: () => Navigator.pop(c, true),
+                                    child: const Text('Delete'),
+                                  ),
+                                ],
+                              ),
+                            );
+                            if (confirm == true) {
+                              setDlgState(() {
+                                _quickPresets.removeAt(i);
+                              });
+                              setState(() {});
+                            }
+                          },
+                        ),
                       ActionChip(
-                        avatar: const Icon(Icons.recommend_rounded, size: 16, color: AdminWebColors.accent),
-                        label: const Text('Danish Crown (25 mins)', style: TextStyle(fontSize: 11)),
-                        onPressed: () {
-                          setDlgState(() {
-                            brandCtrl.text = 'Danish Crown';
-                            minutesCtrl.text = '25';
-                          });
-                        },
-                      ),
-                      ActionChip(
-                        avatar: const Icon(Icons.recommend_rounded, size: 16, color: AdminWebColors.accent),
-                        label: const Text('Pilgrims (35 mins)', style: TextStyle(fontSize: 11)),
-                        onPressed: () {
-                          setDlgState(() {
-                            brandCtrl.text = 'Pilgrims';
-                            minutesCtrl.text = '35';
-                          });
+                        avatar: const Icon(Icons.add_rounded, size: 16, color: AdminWebColors.accent),
+                        label: const Text('+ Add Preset', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                        onPressed: () async {
+                          final pNameCtrl = TextEditingController();
+                          final pMinsCtrl = TextEditingController(text: '30');
+                          final added = await showDialog<bool>(
+                            context: context,
+                            builder: (c) => AlertDialog(
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              title: const Text('Add Quick Preset', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                              content: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  TextField(
+                                    controller: pNameCtrl,
+                                    decoration: const InputDecoration(labelText: 'Brand Name', hintText: 'e.g. Swift, JBS'),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  TextField(
+                                    controller: pMinsCtrl,
+                                    decoration: const InputDecoration(labelText: 'Boiling Time (Minutes)', suffixText: 'MINS'),
+                                    keyboardType: TextInputType.number,
+                                  ),
+                                ],
+                              ),
+                              actions: [
+                                TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Cancel')),
+                                ElevatedButton(
+                                  style: ElevatedButton.styleFrom(backgroundColor: AdminWebColors.accent, foregroundColor: Colors.white),
+                                  onPressed: () {
+                                    if (pNameCtrl.text.trim().isNotEmpty && int.tryParse(pMinsCtrl.text.trim()) != null) {
+                                      Navigator.pop(c, true);
+                                    }
+                                  },
+                                  child: const Text('Add'),
+                                ),
+                              ],
+                            ),
+                          );
+                          if (added == true && pNameCtrl.text.trim().isNotEmpty) {
+                            final m = int.tryParse(pMinsCtrl.text.trim()) ?? 30;
+                            setDlgState(() {
+                              _quickPresets.add(_QuickBrandPreset(pNameCtrl.text.trim(), m));
+                              brandCtrl.text = pNameCtrl.text.trim();
+                              minutesCtrl.text = m.toString();
+                            });
+                            setState(() {});
+                          }
                         },
                       ),
                     ],
@@ -227,9 +305,9 @@ class _KarneBatchDetailScreenState extends State<KarneBatchDetailScreen> {
                 Text('Set Targets for Meat Cutter', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
               ],
             ),
-            content: SizedBox(
-              width: 440,
-              child: SingleChildScrollView(
+            content: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 440),
+          child: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -418,13 +496,7 @@ class _KarneBatchDetailScreenState extends State<KarneBatchDetailScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('COOKING HISTORY', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: AdminWebColors.textPrimary, letterSpacing: 0.5)),
-                          Text('Track daily production and efficiency', style: TextStyle(fontSize: 12, color: AdminWebColors.textSecondary)),
-                        ],
-                      ),
+                      const Text('COOKING HISTORY', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: AdminWebColors.textPrimary, letterSpacing: 0.5)),
                       if (_batch.remainingKilos > 0) ...[
                         Builder(builder: (context) {
                           final hasActiveSession = _batch.sessions.any(
@@ -480,7 +552,7 @@ class _KarneBatchDetailScreenState extends State<KarneBatchDetailScreen> {
         const SizedBox(width: 16),
         Expanded(child: _kpiTile('Remaining', _batch.remainingKilos.toStringAsFixed(1), 'KG LEFT', Icons.hourglass_bottom_rounded, highlight: true)),
         const SizedBox(width: 16),
-        Expanded(child: _kpiTile('Sessions', '${_batch.sessions.length}', 'TOTAL SESSIONS', Icons.restaurant_rounded)),
+        Expanded(child: _kpiTile('Sessions', '${_batch.sessions.length}', '', Icons.restaurant_rounded)),
       ],
     );
   }
@@ -500,8 +572,10 @@ class _KarneBatchDetailScreenState extends State<KarneBatchDetailScreen> {
             textBaseline: TextBaseline.alphabetic,
             children: [
               Text(val, style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: highlight ? AdminWebColors.accent : AdminWebColors.textPrimary)),
-              const SizedBox(width: 4),
-              Text(sub, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AdminWebColors.textSecondary)),
+              if (sub.isNotEmpty) ...[
+                const SizedBox(width: 4),
+                Text(sub, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AdminWebColors.textSecondary)),
+              ],
             ],
           ),
         ],

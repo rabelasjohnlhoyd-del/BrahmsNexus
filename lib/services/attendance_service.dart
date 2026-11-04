@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -309,6 +309,129 @@ class AttendanceService {
     }
   }
 
+  // ===========================================================================
+  // RFID-BASED PAYROLL: Monthly Days Worked Query
+  // ===========================================================================
+
+  /// Returns the number of unique days in [year]/[month] where a staff member
+  /// (matched by position keywords) has BOTH a time_in AND a time_out recorded.
+  ///
+  /// A day counts only when the employee tapped in AND tapped out (completed shift).
+  /// No time_out = absent/incomplete = not counted for payroll.
+  ///
+  /// [positionKeywords] - keywords to match against the `position` column.
+  /// [staffName] - optional partial name match for disambiguation.
+  static Future<int> getRfidDaysWorkedForMonth({
+    required List<String> positionKeywords,
+    String? staffName,
+    int? year,
+    int? month,
+  }) async {
+    final client = _client;
+    if (client == null) return 0;
+
+    final now = DateTime.now();
+    final targetYear = year ?? now.year;
+    final targetMonth = month ?? now.month;
+
+    final startDate =
+        '${targetYear.toString()}-${targetMonth.toString().padLeft(2, '0')}-01';
+    final endMonth = targetMonth == 12 ? 1 : targetMonth + 1;
+    final endYear = targetMonth == 12 ? targetYear + 1 : targetYear;
+    final endDate =
+        '${endYear.toString()}-${endMonth.toString().padLeft(2, '0')}-01';
+
+    try {
+      var query = client
+          .from('attendance_logs')
+          .select('date, time_in, time_out, position, staff_name')
+          .gte('date', startDate)
+          .lt('date', endDate);
+
+      if (staffName != null && staffName.trim().isNotEmpty) {
+        query = query.ilike('staff_name', '%${staffName.trim()}%');
+      }
+
+      final res = await query.order('date', ascending: true).limit(200);
+      final rows = (res as List)
+          .map((r) => Map<String, dynamic>.from(r as Map))
+          .toList();
+
+      final posRows = rows.where((r) {
+        final pos = (r['position']?.toString() ?? '').toLowerCase();
+        return positionKeywords.any((kw) => pos.contains(kw.toLowerCase()));
+      }).toList();
+
+      // Count UNIQUE dates where BOTH time_in AND time_out are non-null/non-empty
+      final completedDates = <String>{};
+      for (final row in posRows) {
+        final dateStr = row['date']?.toString() ?? '';
+        final timeIn = row['time_in']?.toString() ?? '';
+        final timeOut = row['time_out']?.toString() ?? '';
+        if (dateStr.isNotEmpty && timeIn.isNotEmpty && timeOut.isNotEmpty) {
+          completedDates.add(dateStr);
+        }
+      }
+
+      debugPrint(
+          '[RFID Payroll] pos=$positionKeywords name=$staffName -> '
+          '${completedDates.length} completed days in $targetYear-$targetMonth');
+      return completedDates.length;
+    } catch (e) {
+      debugPrint('AttendanceService.getRfidDaysWorkedForMonth error: $e');
+      return 0;
+    }
+  }
+
+  /// Returns detailed RFID attendance rows for the month for a given staff/position.
+  /// Used to build the per-day attendance breakdown shown in the payroll card.
+  static Future<List<Map<String, dynamic>>> getRfidMonthlyAttendanceDetail({
+    required List<String> positionKeywords,
+    String? staffName,
+    int? year,
+    int? month,
+  }) async {
+    final client = _client;
+    if (client == null) return [];
+
+    final now = DateTime.now();
+    final targetYear = year ?? now.year;
+    final targetMonth = month ?? now.month;
+
+    final startDate =
+        '${targetYear.toString()}-${targetMonth.toString().padLeft(2, '0')}-01';
+    final endMonth = targetMonth == 12 ? 1 : targetMonth + 1;
+    final endYear = targetMonth == 12 ? targetYear + 1 : targetYear;
+    final endDate =
+        '${endYear.toString()}-${endMonth.toString().padLeft(2, '0')}-01';
+
+    try {
+      var query = client
+          .from('attendance_logs')
+          .select(
+              'date, time_in, time_out, position, staff_name, status, total_hours')
+          .gte('date', startDate)
+          .lt('date', endDate);
+
+      if (staffName != null && staffName.trim().isNotEmpty) {
+        query = query.ilike('staff_name', '%${staffName.trim()}%');
+      }
+
+      final res = await query.order('date', ascending: false).limit(200);
+      final rows = (res as List)
+          .map((r) => Map<String, dynamic>.from(r as Map))
+          .toList();
+
+      return rows.where((r) {
+        final pos = (r['position']?.toString() ?? '').toLowerCase();
+        return positionKeywords.any((kw) => pos.contains(kw.toLowerCase()));
+      }).toList();
+    } catch (e) {
+      debugPrint(
+          'AttendanceService.getRfidMonthlyAttendanceDetail error: $e');
+      return [];
+    }
+  }
   /// Formats an ISO string, Timestamp, or DateTime to "hh:mm AM/PM" (e.g. 06:45 AM)
   /// Always converts to Philippine Time (Asia/Manila, UTC+8).
   static String formatTime(dynamic value) {

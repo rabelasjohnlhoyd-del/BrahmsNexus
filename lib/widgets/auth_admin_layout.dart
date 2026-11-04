@@ -86,31 +86,7 @@ class AuthAdminLayout extends StatelessWidget {
                     ),
                   ),
 
-                  const Spacer(),
 
-                  // System Online Indicator
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        width: 7,
-                        height: 7,
-                        decoration: const BoxDecoration(
-                          color: Color(0xFF2E7D32),
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      const Text(
-                        'System Online',
-                        style: TextStyle(
-                          fontSize: 11.5,
-                          fontWeight: FontWeight.w600,
-                          color: Color(0xFF6B584C),
-                        ),
-                      ),
-                    ],
-                  ),
                 ],
               ),
             ),

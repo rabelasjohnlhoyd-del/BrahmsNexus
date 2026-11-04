@@ -331,9 +331,9 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
               ),
             ],
           ),
-          content: SizedBox(
-            width: 440,
-            child: Column(
+          content: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 440),
+          child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -972,22 +972,6 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
                         fontWeight: FontWeight.w800,
                         letterSpacing: 0.5,
                         color: AdminWebColors.textSecondary,
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: AdminWebColors.accent.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        '${_verifications.length} branches',
-                        style: const TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          color: AdminWebColors.accent,
-                        ),
                       ),
                     ),
                   ],

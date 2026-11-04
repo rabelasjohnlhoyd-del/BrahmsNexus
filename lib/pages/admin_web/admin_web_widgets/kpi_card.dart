@@ -23,63 +23,70 @@ class KpiCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GlassCard(
-      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Container(
-                width: 40,
-                height: 40,
+                width: 36,
+                height: 36,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
                   color: AdminWebColors.accent.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(10),
                 ),
-                child: Icon(icon, size: 20, color: AdminWebColors.accent),
+                child: Icon(icon, size: 18, color: AdminWebColors.accent),
               ),
               SizedBox(
-                width: 48,
-                height: 24,
+                width: 40,
+                height: 20,
                 child: CustomPaint(painter: _TrendPainter()),
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
           Text(
             label.toUpperCase(),
             style: const TextStyle(
-              fontSize: 11,
+              fontSize: 10.5,
               fontWeight: FontWeight.w800,
-              letterSpacing: 0.8,
+              letterSpacing: 0.6,
               color: AdminWebColors.textSecondary,
             ),
             overflow: TextOverflow.ellipsis,
           ),
-          const SizedBox(height: 4),
-          Text(
-            value,
-            style: const TextStyle(
-              fontSize: 28,
-              fontWeight: FontWeight.w900,
-              color: AdminWebColors.textPrimary,
-              letterSpacing: -0.5,
-            ),
-          ),
           const SizedBox(height: 2),
-          Text(
-            subtitle,
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: subtitle.contains('+') || subtitle.contains('Active') 
-                  ? AdminWebColors.success 
-                  : AdminWebColors.textSecondary,
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              value,
+              style: const TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.w900,
+                color: AdminWebColors.textPrimary,
+                letterSpacing: -0.4,
+              ),
             ),
-            overflow: TextOverflow.ellipsis,
           ),
+          if (subtitle.isNotEmpty) ...[
+            const SizedBox(height: 2),
+            Text(
+              subtitle,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: subtitle.contains('+') || subtitle.contains('Active') 
+                    ? AdminWebColors.success 
+                    : AdminWebColors.textSecondary,
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
         ],
       ),
     );

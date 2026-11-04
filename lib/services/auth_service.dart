@@ -455,6 +455,7 @@ class AuthService {
         status: AccountStatus.approved,
       );
       currentAppUser = user;
+      unawaited(saveActiveSession(user));
       return user;
     } catch (e, stack) {
       debugPrint('signInOrSeedOwner fallback exception: $e\n$stack');
@@ -467,6 +468,7 @@ class AuthService {
         status: AccountStatus.approved,
       );
       currentAppUser = user;
+      unawaited(saveActiveSession(user));
       return user;
     }
   }
@@ -538,12 +540,43 @@ class AuthService {
 
       if (resolvedStatus == AccountStatus.approved) {
         currentAppUser = user;
+        unawaited(saveActiveSession(user));
         unawaited(FcmService.syncUserToken(user));
       }
       return user;
     } catch (_) {
       return null;
     }
+  }
+
+  /// Persists active session locally so browser refresh (F5) doesn't log the user out.
+  static Future<void> saveActiveSession(AppUser user) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('active_session_uid', user.uid);
+      await prefs.setString('active_session_username', user.username);
+      await prefs.setString('active_session_fullname', user.fullName);
+      await prefs.setString('active_session_role', user.role.name);
+      await prefs.setString('active_session_status', user.status.name);
+      await prefs.setString('active_session_position', user.position);
+      await prefs.setString('active_session_contact', user.contactNumber);
+      // AppUser does not expose assignedBranch; branch persistence skipped
+    } catch (_) {}
+  }
+
+  /// Clears active session locally on sign out.
+  static Future<void> clearActiveSession() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('active_session_uid');
+      await prefs.remove('active_session_username');
+      await prefs.remove('active_session_fullname');
+      await prefs.remove('active_session_role');
+      await prefs.remove('active_session_status');
+      await prefs.remove('active_session_position');
+      await prefs.remove('active_session_contact');
+      await prefs.remove('active_session_branch');
+    } catch (_) {}
   }
 
   static Future<void> signOut() async {
@@ -556,6 +589,7 @@ class AuthService {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool('remember_me', false);
       await prefs.remove('saved_uid');
+      await clearActiveSession();
     } catch (e) {
       debugPrint('AuthService.signOut prefs error: $e');
     }
@@ -605,12 +639,39 @@ class AuthService {
     }
   }
 
-  /// Attempts fast, zero-delay auto login on app start if Remember Me was selected.
-  /// Costs exactly 0 Firestore reads if remember_me is false or user is not logged in.
-  /// Costs exactly 1 Firestore read when session is active and verified.
+  /// Attempts fast, zero-delay auto login on app start or page refresh.
   static Future<AppUser?> tryAutoLoginWithRememberMe() async {
     try {
       final prefs = await SharedPreferences.getInstance();
+
+      // Check active local session first (ensures seamless web page refresh without logout)
+      final activeUid = prefs.getString('active_session_uid');
+      final activeUsername = prefs.getString('active_session_username');
+      if (activeUid != null && activeUid.isNotEmpty && activeUsername != null && activeUsername.isNotEmpty) {
+        final roleStr = prefs.getString('active_session_role') ?? 'owner';
+        final statusStr = prefs.getString('active_session_status') ?? 'approved';
+        final fullName = prefs.getString('active_session_fullname') ?? (activeUsername == 'admin' ? 'Administrator' : 'Business Owner');
+        final position = prefs.getString('active_session_position') ?? '';
+        final contactNumber = prefs.getString('active_session_contact') ?? '09123456789';
+        final branch = prefs.getString('active_session_branch') ?? '';
+
+        final role = roleStr == 'owner' ? UserRole.owner : UserRole.staff;
+        final status = statusStr == 'approved' ? AccountStatus.approved : AccountStatus.pending;
+
+        final user = AppUser(
+          uid: activeUid,
+          username: activeUsername,
+          fullName: fullName,
+          contactNumber: contactNumber,
+          role: role,
+          status: status,
+          position: position,
+        );
+        currentAppUser = user;
+        unawaited(FcmService.syncUserToken(user));
+        return user;
+      }
+
       final rememberMe = prefs.getBool('remember_me') ?? false;
       if (!rememberMe) return null;
 
@@ -631,6 +692,7 @@ class AuthService {
 
       final user = AppUser.fromMap(firebaseUser.uid, data);
       currentAppUser = user;
+      unawaited(saveActiveSession(user));
       unawaited(FcmService.syncUserToken(user));
       return user;
     } catch (e) {

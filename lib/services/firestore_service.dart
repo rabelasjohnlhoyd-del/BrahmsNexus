@@ -941,7 +941,7 @@ class FirestoreService {
       final isDiscrepancy = record.status == InventoryVerificationStatus.discrepancyReported;
       final isConfirmed   = record.status == InventoryVerificationStatus.confirmed;
       if (isConfirmed || isDiscrepancy) {
-        final emoji = isDiscrepancy ? '⚠️' : '✅';
+        final emoji = isDiscrepancy ? '️' : '';
         final statusLabel = isDiscrepancy ? 'Discrepancy Reported' : 'Confirmed';
         final noteExtra = (isDiscrepancy && (record.discrepancyNote?.isNotEmpty ?? false))
             ? ': "${record.discrepancyNote}"'
@@ -1257,10 +1257,10 @@ class FirestoreService {
           ? ' | Remaining: Reg ${rs.regular}, Med ${rs.medium}, B1T1 ${rs.b1t1}, Mayo ${rs.mayo}, Styro ${rs.styro}, Toyo ${rs.toyo}'
           : '';
       final hasDiscrepancy = sales.discrepancyNote?.isNotEmpty == true;
-      final discrepancyExtra = hasDiscrepancy ? '\n⚠️ Dahilan sa Discrepancy: "${sales.discrepancyNote}"' : '';
+      final discrepancyExtra = hasDiscrepancy ? '\n️ Dahilan sa Discrepancy: "${sales.discrepancyNote}"' : '';
       final notifTitle = hasDiscrepancy
-          ? '⚠️ Sales with Discrepancy — ${sales.branchName}'
-          : '💰 Sales Submitted — ${sales.branchName}';
+          ? '️ Sales with Discrepancy — ${sales.branchName}'
+          : ' Sales Submitted — ${sales.branchName}';
       final notifBody = '${sales.employeeName} submitted ${sales.portionsSold} portions'
           ' (₱${sales.totalSalesAmount.toStringAsFixed(0)})$stockNote$discrepancyExtra';
       
@@ -1602,8 +1602,8 @@ class FirestoreService {
       // Notify owner in real time
       final hasIncident = report.status == ReportSubmissionStatus.incomplete;
       final notifTitle = hasIncident
-          ? '⚠️ Incident Report — ${report.branchName}'
-          : '📋 Daily Report — ${report.branchName}';
+          ? '️ Incident Report — ${report.branchName}'
+          : ' Daily Report — ${report.branchName}';
       final notifMsg = '${report.employeeName}: ${report.content.length > 80 ? '${report.content.substring(0, 80)}...' : report.content}';
 
       // Mayo & additional karne incidents route to dispatch logs; gas & others to employee_reports
@@ -2975,7 +2975,7 @@ class FirestoreService {
       });
 
       // Notify owner in real-time
-      final title = '📦 Supply Request — Central Kitchen';
+      final title = ' Supply Request — Central Kitchen';
       final message = '$requestedBy nag-request ng stock para sa: $itemName.';
 
       await NotificationService.sendNotification(

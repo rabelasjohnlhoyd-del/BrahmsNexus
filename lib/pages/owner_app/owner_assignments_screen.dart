@@ -199,7 +199,7 @@ class _OwnerAssignmentsScreenState extends State<OwnerAssignmentsScreen> {
     );
     final username = staff.username.isNotEmpty ? staff.username : a.employeeId;
 
-    // ⚡ Lock branch cache BEFORE any await so realtime never reverts the branch.
+    //  Lock branch cache BEFORE any await so realtime never reverts the branch.
     AssignmentService.lockBranch(
       username: username,
       employeeId: a.employeeId,
@@ -236,7 +236,7 @@ class _OwnerAssignmentsScreenState extends State<OwnerAssignmentsScreen> {
     );
     final username = staff.username.isNotEmpty ? staff.username : a.employeeId;
 
-    // ⚡ Lock cache IMMEDIATELY (synchronous, no await) — must happen before any async
+    //  Lock cache IMMEDIATELY (synchronous, no await) — must happen before any async
     // cloud call, so the Supabase realtime listener never reads stale status and reverts the UI.
     AssignmentService.lockStatus(
       username: username,

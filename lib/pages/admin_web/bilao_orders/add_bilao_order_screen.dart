@@ -330,6 +330,11 @@ class _AddBilaoOrderScreenState extends State<AddBilaoOrderScreen> {
       return;
     }
 
+    if (_scheduledDateTime.isBefore(DateTime.now().subtract(const Duration(minutes: 10)))) {
+      _showSnack('Pickup date and time cannot be in the past.');
+      return;
+    }
+
     if (_qty <= 0) {
       _showSnack('Quantity must be at least 1.');
       return;
@@ -691,7 +696,7 @@ class _AddBilaoOrderScreenState extends State<AddBilaoOrderScreen> {
   Widget _buildStep2() {
     return _sectionCard(
       children: [
-        _cardHeader('2', 'CUSTOMER & PICKUP OUTLET'),
+        _cardHeader('1', 'CUSTOMER & PICKUP OUTLET'),
         const SizedBox(height: 14),
         LayoutBuilder(
           builder: (ctx, constraints) {
@@ -737,27 +742,6 @@ class _AddBilaoOrderScreenState extends State<AddBilaoOrderScreen> {
           },
         ),
         const SizedBox(height: 14),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          decoration: BoxDecoration(
-            color: AdminWebColors.accent.withValues(alpha: 0.06),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: AdminWebColors.accent.withValues(alpha: 0.2)),
-          ),
-          child: const Row(
-            children: [
-              Icon(Icons.storefront_rounded, size: 16, color: AdminWebColors.accent),
-              SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  '100% Branch Pickup: All orders are picked up by the customer at their designated branch outlet.',
-                  style: TextStyle(fontSize: 11.5, color: AdminWebColors.textSecondary),
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 12),
         DropdownButtonFormField<String>(
           initialValue: _selectedBranchId,
           isExpanded: true,
@@ -873,7 +857,7 @@ class _AddBilaoOrderScreenState extends State<AddBilaoOrderScreen> {
   Widget _buildStep3() {
     return _sectionCard(
       children: [
-        _cardHeader('3', 'BILAO SIZE, QUANTITY & SCHEDULE'),
+        _cardHeader('2', 'BILAO SIZE, QUANTITY & SCHEDULE'),
         const SizedBox(height: 14),
         // Size selector
         Row(
@@ -1103,7 +1087,7 @@ class _AddBilaoOrderScreenState extends State<AddBilaoOrderScreen> {
       children: [
         _sectionCard(
           children: [
-            _cardHeader('4', 'PAYMENT & SETTLEMENT'),
+            _cardHeader('3', 'PAYMENT & SETTLEMENT'),
             const SizedBox(height: 14),
 
             const Text(
@@ -1646,7 +1630,7 @@ class _AddBilaoOrderScreenState extends State<AddBilaoOrderScreen> {
   Widget _buildSubmitCard() {
     return _sectionCard(
       children: [
-        _cardHeader('5', 'ORDER SUMMARY & SUBMISSION'),
+        _cardHeader('4', 'ORDER SUMMARY & SUBMISSION'),
         const SizedBox(height: 14),
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1771,42 +1755,6 @@ class _AddBilaoOrderScreenState extends State<AddBilaoOrderScreen> {
         key: _formKey,
         child: Column(
           children: [
-            // Top Navigation Bar
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                border: Border(bottom: BorderSide(color: AdminWebColors.border)),
-              ),
-              child: Row(
-                children: [
-                  IconButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    icon: const Icon(Icons.arrow_back_rounded, color: AdminWebColors.textPrimary),
-                    tooltip: 'Back to Bilao Orders',
-                  ),
-                  const SizedBox(width: 8),
-                  const Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Record New Bilao Order',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w800,
-                          color: AdminWebColors.textPrimary,
-                        ),
-                      ),
-                      Text(
-                        'Direct to Owner Online Intake & In-Store Order Entry',
-                        style: TextStyle(fontSize: 11, color: AdminWebColors.textSecondary),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-
             // Main Body: 2-Column Responsive Layout
             Expanded(
               child: SingleChildScrollView(
@@ -1827,8 +1775,7 @@ class _AddBilaoOrderScreenState extends State<AddBilaoOrderScreen> {
                                     child: Column(
                                       crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
-                                        _buildStep1(),
-                                        const SizedBox(height: 18),
+                                        
                                         _buildStep2(),
                                         const SizedBox(height: 18),
                                         _buildStep3(),
@@ -1854,8 +1801,7 @@ class _AddBilaoOrderScreenState extends State<AddBilaoOrderScreen> {
                             : Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  _buildStep1(),
-                                  const SizedBox(height: 16),
+                                  
                                   _buildStep2(),
                                   const SizedBox(height: 16),
                                   _buildStep3(),

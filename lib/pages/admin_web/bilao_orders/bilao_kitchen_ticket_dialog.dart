@@ -58,9 +58,9 @@ class BilaoKitchenTicketDialog extends StatelessWidget {
           ),
         ],
       ),
-      content: SizedBox(
-        width: 420,
-        child: SingleChildScrollView(
+      content: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 420),
+          child: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [

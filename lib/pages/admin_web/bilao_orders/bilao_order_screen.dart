@@ -211,9 +211,9 @@ class _BilaoOrderScreenState extends State<BilaoOrderScreen> {
                 ),
               ],
             ),
-            content: SizedBox(
-              width: 520,
-              child: SingleChildScrollView(
+            content: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 520),
+          child: SingleChildScrollView(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
@@ -291,7 +291,6 @@ class _BilaoOrderScreenState extends State<BilaoOrderScreen> {
                           _buildDetailStepItem(
                             stepNumber: 1,
                             title: 'Pending',
-                            subtitle: 'Order queued for cooking',
                             isDone: currentOrder.preparationStatus == PreparationStatus.preparing || currentOrder.preparationStatus == PreparationStatus.ready,
                             isCurrent: currentOrder.preparationStatus == PreparationStatus.pending,
                           ),
@@ -301,7 +300,6 @@ class _BilaoOrderScreenState extends State<BilaoOrderScreen> {
                           _buildDetailStepItem(
                             stepNumber: 2,
                             title: 'Preparing',
-                            subtitle: 'Currently being prepared and cooked',
                             isDone: currentOrder.preparationStatus == PreparationStatus.ready,
                             isCurrent: currentOrder.preparationStatus == PreparationStatus.preparing,
                           ),
@@ -311,7 +309,6 @@ class _BilaoOrderScreenState extends State<BilaoOrderScreen> {
                           _buildDetailStepItem(
                             stepNumber: 3,
                             title: 'Ready',
-                            subtitle: 'Cooked and ready for driver pickup',
                             isDone: currentOrder.preparationStatus == PreparationStatus.ready,
                             isCurrent: currentOrder.preparationStatus == PreparationStatus.ready,
                           ),
@@ -734,7 +731,6 @@ class _BilaoOrderScreenState extends State<BilaoOrderScreen> {
   static Widget _buildDetailStepItem({
     required int stepNumber,
     required String title,
-    required String subtitle,
     required bool isDone,
     required bool isCurrent,
   }) {
@@ -746,7 +742,7 @@ class _BilaoOrderScreenState extends State<BilaoOrderScreen> {
         : (isCurrent ? AdminWebColors.textPrimary : AdminWebColors.textSecondary);
 
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         Container(
           width: 24,
@@ -772,22 +768,13 @@ class _BilaoOrderScreenState extends State<BilaoOrderScreen> {
         ),
         const SizedBox(width: 10),
         Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title.toUpperCase(),
-                style: TextStyle(
-                  fontSize: 11.5,
-                  fontWeight: isCurrent || isDone ? FontWeight.w800 : FontWeight.w600,
-                  color: textColor,
-                ),
-              ),
-              Text(
-                subtitle,
-                style: const TextStyle(fontSize: 10.5, color: AdminWebColors.textSecondary),
-              ),
-            ],
+          child: Text(
+            title.toUpperCase(),
+            style: TextStyle(
+              fontSize: 11.5,
+              fontWeight: isCurrent || isDone ? FontWeight.w800 : FontWeight.w600,
+              color: textColor,
+            ),
           ),
         ),
       ],
@@ -1297,15 +1284,15 @@ class _BilaoOrderScreenState extends State<BilaoOrderScreen> {
                         children: [
                           Expanded(child: _statCard('Total Orders', '$totalOrders', AdminWebColors.textPrimary, Icons.inventory_2_outlined)),
                           const SizedBox(width: 10),
+                          Expanded(child: _statCard('Total Sales', '₱${totalSales.toStringAsFixed(0)}', AdminWebColors.accent, Icons.payments_outlined)),
+                          const SizedBox(width: 10),
                           Expanded(child: _statCard('Pending Prep', '$pendingCount', AdminWebColors.warning, Icons.hourglass_top_rounded)),
                           const SizedBox(width: 10),
                           Expanded(child: _statCard('In Kitchen', '$inPrepCount', AdminWebColors.accent, Icons.restaurant_rounded)),
                           const SizedBox(width: 10),
-                          Expanded(child: _statCard('For Delivery', '$forDeliveryCount', AdminWebColors.warning, Icons.moped_rounded)),
+                          Expanded(child: _statCard('For Delivery', '$forDeliveryCount', AdminWebColors.accent, Icons.moped_rounded)),
                           const SizedBox(width: 10),
                           Expanded(child: _statCard('Completed', '$completedCount', AdminWebColors.success, Icons.check_circle_outline_rounded)),
-                          const SizedBox(width: 10),
-                          Expanded(child: _statCard('Total Sales', '₱${totalSales.toStringAsFixed(0)}', AdminWebColors.accent, Icons.payments_outlined)),
                         ],
                       )
                     : Wrap(
@@ -1313,8 +1300,10 @@ class _BilaoOrderScreenState extends State<BilaoOrderScreen> {
                         runSpacing: 8,
                         children: [
                           SizedBox(width: (constraints.maxWidth - 40) / 2, child: _statCard('Total Orders', '$totalOrders', AdminWebColors.textPrimary, Icons.inventory_2_outlined)),
+                          SizedBox(width: (constraints.maxWidth - 40) / 2, child: _statCard('Total Sales', '₱${totalSales.toStringAsFixed(0)}', AdminWebColors.accent, Icons.payments_outlined)),
                           SizedBox(width: (constraints.maxWidth - 40) / 2, child: _statCard('Pending Prep', '$pendingCount', AdminWebColors.warning, Icons.hourglass_top_rounded)),
-                          SizedBox(width: (constraints.maxWidth - 40) / 2, child: _statCard('For Delivery', '$forDeliveryCount', AdminWebColors.warning, Icons.moped_rounded)),
+                          SizedBox(width: (constraints.maxWidth - 40) / 2, child: _statCard('In Kitchen', '$inPrepCount', AdminWebColors.accent, Icons.restaurant_rounded)),
+                          SizedBox(width: (constraints.maxWidth - 40) / 2, child: _statCard('For Delivery', '$forDeliveryCount', AdminWebColors.accent, Icons.moped_rounded)),
                           SizedBox(width: (constraints.maxWidth - 40) / 2, child: _statCard('Completed', '$completedCount', AdminWebColors.success, Icons.check_circle_outline_rounded)),
                         ],
                       ),

@@ -2,9 +2,14 @@ import 'package:flutter/material.dart';
 import '../pages/admin_web/admin_web_colors.dart';
 
 class AdminSidebarItem {
-  const AdminSidebarItem({required this.icon, required this.label});
+  const AdminSidebarItem({
+    required this.icon,
+    required this.label,
+    this.hasDividerAfter = false,
+  });
   final IconData icon;
   final String label;
+  final bool hasDividerAfter;
 }
 
 /// Refined Side navigation for Admin Web.
@@ -141,7 +146,7 @@ class AdminSidebar extends StatelessWidget {
                 final Key? itemKey = (itemKeys != null && index < itemKeys!.length) ? itemKeys![index] : null;
 
                 if (isCollapsed) {
-                  return Padding(
+                  final collapsedItem = Padding(
                     key: itemKey,
                     padding: const EdgeInsets.only(bottom: 4),
                     child: Tooltip(
@@ -170,9 +175,16 @@ class AdminSidebar extends StatelessWidget {
                       ),
                     ),
                   );
+                  if (item.hasDividerAfter) {
+                    return Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [collapsedItem, const SizedBox(height: 14)],
+                    );
+                  }
+                  return collapsedItem;
                 }
 
-                return Padding(
+                final expandedItem = Padding(
                   key: itemKey,
                   padding: const EdgeInsets.only(bottom: 3),
                   child: Material(
@@ -230,6 +242,13 @@ class AdminSidebar extends StatelessWidget {
                     ),
                   ),
                 );
+                if (item.hasDividerAfter) {
+                  return Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [expandedItem, const SizedBox(height: 14)],
+                  );
+                }
+                return expandedItem;
               },
             ),
           ),

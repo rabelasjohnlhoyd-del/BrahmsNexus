@@ -119,71 +119,12 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Top Header Section
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Decision Support System (DSS)',
-                            style: TextStyle(
-                              fontSize: 22,
-                              fontWeight: FontWeight.w900,
-                              color: AdminWebColors.textPrimary,
-                              letterSpacing: -0.4,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Real-time business intelligence for inventory allocation, sales, and operational planning.',
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: AdminWebColors.textSecondary.withValues(alpha: 0.9),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                      decoration: BoxDecoration(
-                        color: AdminWebColors.success.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: AdminWebColors.success.withValues(alpha: 0.3),
-                        ),
-                      ),
-                      child: const Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.bolt_rounded, size: 14, color: AdminWebColors.success),
-                          SizedBox(width: 4),
-                          Text(
-                            'LIVE DATA',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w800,
-                              color: AdminWebColors.success,
-                              letterSpacing: 0.5,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 14),
-
                 // =============================================================
                 // 1. DESCRIPTIVE ANALYTICS
                 // =============================================================
                 const _SectionHeader(
                   title: '1. Descriptive Analytics',
-                  subtitle: 'Current sales, order volume, and performance by product',
+                  subtitle: '',
                   icon: Icons.analytics_outlined,
                 ),
                 const SizedBox(height: 10),
@@ -214,7 +155,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                 // =============================================================
                 const _SectionHeader(
                   title: '2. Predictive Analytics',
-                  subtitle: 'Statistical Simple Moving Average (SMA) demand forecasting for upcoming operational cycles',
+                  subtitle: '',
                   icon: Icons.trending_up_rounded,
                 ),
                 const SizedBox(height: 10),
@@ -227,7 +168,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                 // =============================================================
                 const _SectionHeader(
                   title: '3. Prescriptive Analytics (Actionable Guidance)',
-                  subtitle: 'Automated system recommendations and action items',
+                  subtitle: '',
                   icon: Icons.lightbulb_rounded,
                 ),
                 const SizedBox(height: 10),
@@ -809,7 +750,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
           priority: 'High',
           icon: Icons.inventory_2_rounded,
           actionLabel: 'Go to Inventory',
-          onAction: () => _navigateShellTab(5),
+          onAction: () => _navigateShellTab(4),
         ),
       );
       recommendations.add(const SizedBox(height: 12));
@@ -834,7 +775,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
           priority: tomorrowBilaoCount >= 3 ? 'High' : 'Medium',
           icon: Icons.shopping_bag_rounded,
           actionLabel: 'View Bilao Orders',
-          onAction: () => _navigateShellTab(7),
+          onAction: () => _navigateShellTab(3),
         ),
       );
       recommendations.add(const SizedBox(height: 12));
@@ -856,7 +797,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
         priority: 'Medium',
         icon: Icons.people_alt_rounded,
         actionLabel: 'Review Assignments',
-        onAction: () => _navigateShellTab(3),
+        onAction: () => _navigateShellTab(7),
       ),
     );
 
@@ -922,13 +863,14 @@ class _SectionHeader extends StatelessWidget {
                   color: AdminWebColors.textPrimary,
                 ),
               ),
-              Text(
-                subtitle,
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: AdminWebColors.textSecondary,
+              if (subtitle.isNotEmpty)
+                Text(
+                  subtitle,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: AdminWebColors.textSecondary,
+                  ),
                 ),
-              ),
             ],
           ),
         ),

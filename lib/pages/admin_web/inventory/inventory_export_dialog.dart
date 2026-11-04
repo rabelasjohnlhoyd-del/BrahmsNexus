@@ -137,9 +137,9 @@ class _InventoryExportDialogState extends State<InventoryExportDialog> {
           ),
         ],
       ),
-      content: SizedBox(
-        width: 520,
-        child: Column(
+      content: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 520),
+          child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

@@ -22,6 +22,8 @@ import 'inventory/inventory_screen.dart';
 import 'sales_payroll/sales_payroll_screen.dart';
 import 'staff_management/staff_management_screen.dart';
 import 'branch_management/branch_management_screen.dart';
+import 'branch_management/branch_allocation_screen.dart';
+import 'inventory/monthly_financials_screen.dart';
 import 'activity_log/activity_log_screen.dart';
 import 'settings/system_settings_screen.dart';
 import 'admin_web_widgets/admin_messenger_dock.dart';
@@ -171,11 +173,11 @@ class AdminWebShellState extends State<AdminWebShell> {
       _customTitle = null;
       if (inventoryTab != null) {
         _inventoryInitialTab = inventoryTab;
-        _pageCache.remove(5);
+        _pageCache.remove(4);
       }
       if (activityLogTab != null) {
         _activityLogInitialTab = activityLogTab;
-        _pageCache.remove(12);
+        _pageCache.remove(14);
       }
     });
 
@@ -198,24 +200,29 @@ class AdminWebShellState extends State<AdminWebShell> {
   static const double _wideBreakpoint = 700;
 
   static const _items = [
+    // ── Group 1: Overview & Analytics
     AdminSidebarItem(icon: Icons.dashboard_rounded, label: 'Dashboard'),
-    AdminSidebarItem(icon: Icons.groups_rounded, label: 'Staff Management'),
-    AdminSidebarItem(
-        icon: Icons.how_to_reg_rounded, label: 'Account Approvals'),
-    AdminSidebarItem(
-        icon: Icons.store_mall_directory_rounded,
-        label: 'Branch Assignments'),
-    AdminSidebarItem(
-        icon: Icons.access_time_filled_rounded,
-        label: 'Attendance & DTR'),
-    AdminSidebarItem(icon: Icons.inventory_2_rounded, label: 'Inventory'),
-    AdminSidebarItem(icon: Icons.payments_rounded, label: 'Sales & Payroll'),
-    AdminSidebarItem(icon: Icons.shopping_bag_rounded, label: 'Bilao Orders'),
-    AdminSidebarItem(
-        icon: Icons.fact_check_rounded, label: 'Employee Reports'),
-    AdminSidebarItem(icon: Icons.campaign_rounded, label: 'Announcements'),
     AdminSidebarItem(icon: Icons.insights_rounded, label: 'DSS Analytics'),
+    AdminSidebarItem(icon: Icons.account_balance_wallet_rounded, label: 'Monthly Financials', hasDividerAfter: true),
+
+    // ── Group 2: Sales & Inventory
+    AdminSidebarItem(icon: Icons.shopping_bag_rounded, label: 'Bilao Orders'),
+    AdminSidebarItem(icon: Icons.inventory_2_rounded, label: 'Inventory'),
+    AdminSidebarItem(icon: Icons.payments_rounded, label: 'Sales & Payroll', hasDividerAfter: true),
+
+    // ── Group 3: Branch Operations
     AdminSidebarItem(icon: Icons.location_on_rounded, label: 'Branch Management'),
+    AdminSidebarItem(icon: Icons.store_mall_directory_rounded, label: 'Branch Assignments'),
+    AdminSidebarItem(icon: Icons.hub_rounded, label: 'Branch Allocation', hasDividerAfter: true),
+
+    // ── Group 4: People & Attendance
+    AdminSidebarItem(icon: Icons.groups_rounded, label: 'Staff Management'),
+    AdminSidebarItem(icon: Icons.how_to_reg_rounded, label: 'Account Approvals'),
+    AdminSidebarItem(icon: Icons.access_time_filled_rounded, label: 'Attendance & DTR'),
+    AdminSidebarItem(icon: Icons.fact_check_rounded, label: 'Employee Reports', hasDividerAfter: true),
+
+    // ── Group 5: Admin & System
+    AdminSidebarItem(icon: Icons.campaign_rounded, label: 'Announcements'),
     AdminSidebarItem(icon: Icons.list_alt_rounded, label: 'Activity Log'),
     AdminSidebarItem(icon: Icons.settings_rounded, label: 'System Settings'),
   ];
@@ -231,30 +238,34 @@ class AdminWebShellState extends State<AdminWebShell> {
         case 0:
           return DashboardScreen(onLogout: _handleLogout);
         case 1:
-          return const StaffManagementScreen();
-        case 2:
-          return const AccountApprovalsScreen();
-        case 3:
-          return const BranchAssignmentsScreen();
-        case 4:
-          return const AttendanceDtrScreen();
-        case 5:
-          return InventoryScreen(initialTab: _inventoryInitialTab);
-        case 6:
-          return const SalesPayrollScreen();
-        case 7:
-          return const BilaoOrderScreen();
-        case 8:
-          return const EmployeeReportsScreen();
-        case 9:
-          return const AnnouncementsScreen();
-        case 10:
           return const AnalyticsScreen();
-        case 11:
+        case 2:
+          return const MonthlyFinancialsScreen();
+        case 3:
+          return const BilaoOrderScreen();
+        case 4:
+          return InventoryScreen(initialTab: _inventoryInitialTab);
+        case 5:
+          return const SalesPayrollScreen();
+        case 6:
           return const BranchManagementScreen();
+        case 7:
+          return const BranchAssignmentsScreen();
+        case 8:
+          return const BranchAllocationScreen();
+        case 9:
+          return const StaffManagementScreen();
+        case 10:
+          return const AccountApprovalsScreen();
+        case 11:
+          return const AttendanceDtrScreen();
         case 12:
-          return ActivityLogScreen(initialTab: _activityLogInitialTab);
+          return const EmployeeReportsScreen();
         case 13:
+          return const AnnouncementsScreen();
+        case 14:
+          return ActivityLogScreen(initialTab: _activityLogInitialTab);
+        case 15:
           return const SystemSettingsScreen();
         default:
           return DashboardScreen(onLogout: _handleLogout);
@@ -386,16 +397,15 @@ class AdminWebShellState extends State<AdminWebShell> {
     int? inventoryTab;
     int? activityLogTab;
     switch (route) {
-      case 'account_approvals':
+      case 'monthly_financials':
         targetIndex = 2;
         break;
-      case 'inventory_dispatch':
-        targetIndex = 11;
-        activityLogTab = 1;
+      case 'bilao_orders':
+        targetIndex = 3;
         break;
       case 'inventory_supply_requests':
         targetIndex = 4;
-        inventoryTab = 2;
+        inventoryTab = 1;
         break;
       case 'inventory':
         targetIndex = 4;
@@ -403,11 +413,27 @@ class AdminWebShellState extends State<AdminWebShell> {
       case 'sales':
         targetIndex = 5;
         break;
-      case 'employee_reports':
+      case 'branch_management':
+        targetIndex = 6;
+        break;
+      case 'branch_assignments':
         targetIndex = 7;
         break;
-      case 'announcements':
+      case 'branch_allocation':
         targetIndex = 8;
+        break;
+      case 'account_approvals':
+        targetIndex = 10;
+        break;
+      case 'employee_reports':
+        targetIndex = 12;
+        break;
+      case 'announcements':
+        targetIndex = 13;
+        break;
+      case 'inventory_dispatch':
+        targetIndex = 14;
+        activityLogTab = 1;
         break;
       default:
         targetIndex = 0;
@@ -417,7 +443,7 @@ class AdminWebShellState extends State<AdminWebShell> {
 
   Future<void> _handleMessengerOrderParsed(dynamic parsedResult) async {
     // 1. Switch to Bilao Orders tab AND update the inner Navigator
-    navigateToTab(6);
+    navigateToTab(3);
 
     // 2. Wait for the nested Navigator to build BilaoOrderScreen
     await Future.delayed(const Duration(milliseconds: 120));
@@ -441,7 +467,7 @@ class AdminWebShellState extends State<AdminWebShell> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('✅ Order para kay ${newOrder.customerName} naitala nang maayos!'),
+            content: Text('Order para kay ${newOrder.customerName} naitala nang maayos.'),
             backgroundColor: AdminWebColors.success,
             behavior: SnackBarBehavior.floating,
             duration: const Duration(seconds: 4),

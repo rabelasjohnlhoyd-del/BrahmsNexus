@@ -35,7 +35,7 @@ class InventoryScreen extends StatefulWidget {
 class _InventoryScreenState extends State<InventoryScreen>
     with SingleTickerProviderStateMixin {
   late final TabController _tabController =
-      TabController(length: 4, vsync: this, initialIndex: widget.initialTab.clamp(0, 3));
+      TabController(length: 2, vsync: this, initialIndex: widget.initialTab.clamp(0, 1));
 
   StreamSubscription<List<KarneBatch>>? _batchesSub;
   StreamSubscription<List<BranchMeatStock>>? _meatStocksSub;
@@ -151,11 +151,7 @@ class _InventoryScreenState extends State<InventoryScreen>
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Assign a monthly meat stock (good for 1 month). Cooking will be divided across sessions throughout the month:',
-                    style: TextStyle(fontSize: 13, color: AdminWebColors.textSecondary),
-                  ),
-                  const SizedBox(height: 16),
+                  
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     decoration: BoxDecoration(
@@ -256,18 +252,17 @@ class _InventoryScreenState extends State<InventoryScreen>
                   const SizedBox(height: 16),
                   TextField(
                     controller: kilosCtrl,
-                    decoration: InputDecoration(
+                    decoration: const InputDecoration(
                       labelText: 'TOTAL RAW MEAT (KILOS) - GOOD FOR 1 MONTH',
-                      hintText: 'e.g. 1000.0',
+                      hintText: 'e.g. 1000',
                       suffixText: 'KG',
-                      border: const OutlineInputBorder(),
-                      prefixIcon: const Icon(Icons.scale_rounded, size: 18),
-                      helperText: 'Total delivered meat kilos for the month of ${DateFormat('MMMM yyyy').format(selectedMonth)}.',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.scale_rounded, size: 18),
                     ),
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    // Allow digits and a single decimal point only
+                    keyboardType: TextInputType.number,
                     inputFormatters: [
-                      FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
+                      FilteringTextInputFormatter.digitsOnly,
+                      LengthLimitingTextInputFormatter(4),
                     ],
                   ),
                 ],
@@ -311,7 +306,14 @@ class _InventoryScreenState extends State<InventoryScreen>
                         final double? kilos = double.tryParse(kilosText);
                         if (kilos == null || kilos <= 0) {
                           messenger.showSnackBar(const SnackBar(
-                            content: Text('Total raw meat must be a valid positive number (e.g. 1000.0).'),
+                            content: Text('Total raw meat must be a valid positive number (e.g. 1000).'),
+                            backgroundColor: AdminWebColors.error,
+                          ));
+                          return;
+                        }
+                        if (kilos > 3000) {
+                          messenger.showSnackBar(const SnackBar(
+                            content: Text('Maximum raw meat kilos is 3,000 KG.'),
                             backgroundColor: AdminWebColors.error,
                           ));
                           return;
@@ -494,8 +496,11 @@ class _InventoryScreenState extends State<InventoryScreen>
             ),
           ],
         ),
-        content: SizedBox(
-          width: 480,
+        content: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: 480,
+            maxHeight: MediaQuery.of(ctx).size.height * 0.75,
+          ),
           child: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -723,8 +728,11 @@ class _InventoryScreenState extends State<InventoryScreen>
             ),
           ],
         ),
-        content: SizedBox(
-          width: 480,
+        content: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: 480,
+            maxHeight: MediaQuery.of(ctx).size.height * 0.75,
+          ),
           child: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -1242,7 +1250,6 @@ class _InventoryScreenState extends State<InventoryScreen>
                   tabAlignment: TabAlignment.start,
                   tabs: [
                     const Tab(text: 'Main Warehouse'),
-                    const Tab(text: 'Branch Allocation'),
                     Tab(
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
@@ -1265,7 +1272,6 @@ class _InventoryScreenState extends State<InventoryScreen>
                         ],
                       ),
                     ),
-                    const Tab(text: 'Monthly Financials'),
                   ],
                 ),
                 const SizedBox(height: 24),
@@ -1274,9 +1280,7 @@ class _InventoryScreenState extends State<InventoryScreen>
                     controller: _tabController,
                     children: [
                       _KeepAliveTab(child: _buildWarehouseTab()),
-                      _KeepAliveTab(child: _buildBranchStockTab()),
                       _KeepAliveTab(child: _buildSupplyRequestsTab()),
-                      _KeepAliveTab(child: MonthlyFinancialsScreen(karneBatches: _karneBatches)),
                     ],
                   ),
                 ),
@@ -1843,11 +1847,6 @@ class _InventoryScreenState extends State<InventoryScreen>
                       'DAILY MEAT CONSUMPTION & RUNNING MONTHLY INVENTORY (${DateFormat('MMMM yyyy').format(now).toUpperCase()})',
                       style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13, color: AdminWebColors.textPrimary, letterSpacing: 0.3),
                     ),
-                    const SizedBox(height: 2),
-                    const Text(
-                      'Itemized inventory tracking para sa 3 standard meat portions: Regular (250g), Medium (300g), at B1T1 (400g). Awtomatikong binabawas ang benta sa branch at bilao orders.',
-                      style: TextStyle(fontSize: 11, color: AdminWebColors.textSecondary),
-                    ),
                   ],
                 ),
               ),
@@ -2191,44 +2190,9 @@ class _InventoryScreenState extends State<InventoryScreen>
     return Column(
       children: [
         // Informational header banner explaining automated allocation + RESTOCK button
-        Row(
-          children: [
-            Expanded(
-              child: GlassCard(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: AdminWebColors.accent.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: const Icon(Icons.autorenew_rounded, color: AdminWebColors.accent, size: 20),
-                    ),
-                    const SizedBox(width: 12),
-                    const Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'BRANCH DAILY ALLOCATION & STOCK MANAGEMENT',
-                            style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12, color: AdminWebColors.textPrimary),
-                          ),
-                          SizedBox(height: 2),
-                          Text(
-                            'I-manage ang daily meat at supply allocations ng bawat branch. Gamitin ang OPEN ALL o CLOSED ALL para sa pangkalahatang operasyon, o i-open/close at i-set ang allocation ng bawat branch.',
-                            style: TextStyle(fontSize: 11, color: AdminWebColors.textSecondary),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Wrap(
+        LayoutBuilder(
+          builder: (context, headerConstraints) {
+            final actionButtons = Wrap(
               spacing: 8,
               runSpacing: 8,
               crossAxisAlignment: WrapCrossAlignment.center,
@@ -2278,8 +2242,13 @@ class _InventoryScreenState extends State<InventoryScreen>
                   ),
                 ),
               ],
-            ),
-          ],
+            );
+
+            return Align(
+              alignment: Alignment.centerRight,
+              child: actionButtons,
+            );
+          },
         ),
         const SizedBox(height: 12),
         Expanded(
@@ -2563,19 +2532,9 @@ class _InventoryScreenState extends State<InventoryScreen>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Packaging & Supply Requests',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AdminWebColors.textPrimary),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              'Supply requests from Meat Cutter / Central Kitchen ($pendingCount pending)',
-              style: const TextStyle(fontSize: 12, color: AdminWebColors.textSecondary),
-            ),
-          ],
+        const Text(
+          'Packaging & Supply Requests',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AdminWebColors.textPrimary),
         ),
         const SizedBox(height: 16),
         Expanded(

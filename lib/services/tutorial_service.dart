@@ -10,7 +10,7 @@ import 'auth_service.dart';
 ///
 /// This means:
 /// - jobelle_fuentes logs in → sees tour → marked seen for her UID only
-/// - leany_malla logs in on the same device → her UID has no flag → sees tour ✅
+/// - leany_malla logs in on the same device → her UID has no flag → sees tour 
 class TutorialService {
   static String _prefKey(String tourKey) {
     final uid = AuthService.currentUserId;

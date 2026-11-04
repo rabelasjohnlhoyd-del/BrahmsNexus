@@ -337,7 +337,7 @@ class _MockCookPosButtonState extends State<_MockCookPosButton> {
             ),
             child: Text(
               _orders > 0
-                  ? '✓ Punched: $_orders order(s) | Karne stock: -$_orders portion(s)'
+                  ? ' Punched: $_orders order(s) | Karne stock: -$_orders portion(s)'
                   : 'I-tap ang button sa itaas para subukan!',
               style: TextStyle(
                 fontSize: 11,
@@ -478,7 +478,7 @@ class _MockSpoilageButtonState extends State<_MockSpoilageButton> {
               borderRadius: BorderRadius.circular(6),
             ),
             child: const Text(
-              '✓ 1x Regular Sisig Naitala: -₱130 wage penalty sa EOD',
+              ' 1x Regular Sisig Naitala: -₱130 wage penalty sa EOD',
               style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: Color(0xFF991B1B)),
             ),
           ),
@@ -505,7 +505,7 @@ class _MockClosingSalesButtonState extends State<_MockClosingSalesButton> {
         ElevatedButton.icon(
           onPressed: () => setState(() => _submitted = !_submitted),
           icon: Icon(_submitted ? Icons.check_circle_rounded : Icons.cloud_upload_rounded, size: 16),
-          label: Text(_submitted ? '✓ Naisumite Na ang Sales' : 'Submit Final Closing Sales'),
+          label: Text(_submitted ? ' Naisumite Na ang Sales' : 'Submit Final Closing Sales'),
           style: ElevatedButton.styleFrom(
             backgroundColor: _submitted ? const Color(0xFF059669) : const Color(0xFF8B4513),
             foregroundColor: Colors.white,
@@ -624,7 +624,7 @@ class _MockBilaoButtonState extends State<_MockBilaoButton> {
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
               ),
               child: Text(
-                _ready ? '✓ Handa Na sa Pickup' : 'Mark as Ready for Pickup',
+                _ready ? ' Handa Na sa Pickup' : 'Mark as Ready for Pickup',
                 style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
               ),
             ),
@@ -670,7 +670,7 @@ class _MockRouteStopCard extends StatelessWidget {
             children: const [
               Icon(Icons.lock_rounded, color: Colors.grey, size: 16),
               SizedBox(width: 6),
-              Expanded(child: Text('Stop 3: Brgy. Sta. Clara (LOCKED 🔒)', style: TextStyle(fontSize: 11.5, color: Colors.grey))),
+              Expanded(child: Text('Stop 3: Brgy. Sta. Clara (LOCKED )', style: TextStyle(fontSize: 11.5, color: Colors.grey))),
             ],
           ),
         ],
@@ -696,7 +696,7 @@ class _MockDriverNotifyButtonState extends State<_MockDriverNotifyButton> {
         ElevatedButton.icon(
           onPressed: () => setState(() => _notified = !_notified),
           icon: Icon(_notified ? Icons.notifications_active_rounded : Icons.notifications_none_rounded, size: 16),
-          label: Text(_notified ? '✓ Na-notify na ang Cook!' : 'NOTIFY: ON THE WAY'),
+          label: Text(_notified ? ' Na-notify na ang Cook!' : 'NOTIFY: ON THE WAY'),
           style: ElevatedButton.styleFrom(
             backgroundColor: _notified ? const Color(0xFF059669) : const Color(0xFFD97706),
             foregroundColor: Colors.white,
@@ -761,7 +761,7 @@ class _MockRfidTapCardState extends State<_MockRfidTapCard> {
             const SizedBox(height: 6),
             Text(
               _tapped
-                  ? '✓ Time-In: 07:45 AM • Route Stop Auto-Completed!'
+                  ? ' Time-In: 07:45 AM • Route Stop Auto-Completed!'
                   : 'UID: 4A 2B 9F 1C • Cook Card',
               style: TextStyle(
                 fontSize: 11,
@@ -801,7 +801,7 @@ class _MockCameraDeliverButtonState extends State<_MockCameraDeliverButton> {
           OutlinedButton.icon(
             onPressed: () => setState(() => _captured = !_captured),
             icon: Icon(_captured ? Icons.check_circle_rounded : Icons.camera_alt_rounded, size: 16),
-            label: Text(_captured ? '✓ Photo Attached' : 'Capture Delivery Photo'),
+            label: Text(_captured ? ' Photo Attached' : 'Capture Delivery Photo'),
             style: OutlinedButton.styleFrom(
               foregroundColor: const Color(0xFF8B4513),
               side: const BorderSide(color: Color(0xFF8B4513)),
@@ -917,7 +917,7 @@ class _MockPortioningInputState extends State<_MockPortioningInput> {
             ],
           ),
           Text(
-            matched ? '✓ TARGET MATCHED: Eksaktong 10 pcs!' : 'Kulang ng ${10 - _b1t1} pcs (Pindutin ang +)',
+            matched ? ' TARGET MATCHED: Eksaktong 10 pcs!' : 'Kulang ng ${10 - _b1t1} pcs (Pindutin ang +)',
             style: TextStyle(
               fontSize: 10.5,
               fontWeight: FontWeight.bold,
@@ -999,7 +999,7 @@ class _MockBranchStatusCard extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: const [
               Text('Brgy. Gatid', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold)),
-              Text('🟢 OPEN (Cook In: 7:42 AM)', style: TextStyle(fontSize: 10.5, color: Color(0xFF059669), fontWeight: FontWeight.bold)),
+              Text(' OPEN (Cook In: 7:42 AM)', style: TextStyle(fontSize: 10.5, color: Color(0xFF059669), fontWeight: FontWeight.bold)),
             ],
           ),
           const Divider(height: 10),
@@ -1007,7 +1007,7 @@ class _MockBranchStatusCard extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: const [
               Text('Brgy. Dayap', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold)),
-              Text('⚪ CLOSED (Waiting for Driver)', style: TextStyle(fontSize: 10.5, color: Colors.grey)),
+              Text(' CLOSED (Waiting for Driver)', style: TextStyle(fontSize: 10.5, color: Colors.grey)),
             ],
           ),
         ],
@@ -1070,7 +1070,7 @@ class _MockApplicantCardState extends State<_MockApplicantCard> {
           const SizedBox(height: 8),
           if (_status != null)
             Text(
-              '✓ Account Status: $_status',
+              ' Account Status: $_status',
               style: TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.bold,

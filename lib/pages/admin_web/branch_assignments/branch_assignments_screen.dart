@@ -306,7 +306,64 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
     });
   }
 
+  Future<void> _saveDraftsToPrefs() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final map = <String, dynamic>{};
+      for (final entry in _draftChanges.entries) {
+        map[entry.key] = {
+          'employeeId': entry.value.employeeId,
+          'employeeName': entry.value.employeeName,
+          'branchId': entry.value.branchId,
+          'branchName': entry.value.branchName,
+          'workStatus': entry.value.workStatus.name,
+        };
+      }
+      await prefs.setString('branch_assignment_drafts', jsonEncode(map));
+    } catch (_) {}
+  }
+
+  Future<void> _loadDraftsFromPrefs() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString('branch_assignment_drafts');
+      if (raw != null && raw.isNotEmpty) {
+        final decoded = jsonDecode(raw) as Map<String, dynamic>;
+        for (final entry in decoded.entries) {
+          final data = entry.value as Map<String, dynamic>;
+          final status = (data['workStatus'] == 'restDay') ? WorkStatus.restDay : WorkStatus.onDuty;
+          final assignment = BranchAssignment(
+            id: 'ba-${entry.key}',
+            employeeId: entry.key,
+            employeeName: data['employeeName'] ?? '',
+            branchId: data['branchId'] ?? '',
+            branchName: data['branchName'] ?? '',
+            date: _today,
+            workStatus: status,
+          );
+          _draftChanges[entry.key] = assignment;
+
+          AssignmentService.lockStatus(
+            username: entry.key,
+            employeeId: entry.key,
+            status: status,
+            branchName: assignment.branchName,
+          );
+          if (assignment.branchName.isNotEmpty) {
+            AssignmentService.lockBranch(
+              username: entry.key,
+              employeeId: entry.key,
+              branchName: assignment.branchName,
+            );
+          }
+        }
+      }
+    } catch (_) {}
+  }
+
   void _initializeAssignments() async {
+    await _loadDraftsFromPrefs();
+
     // Read from live/in-memory staff profiles
     final allStaff = SupabaseService.getAllStaff();
     final branchCooks = allStaff
@@ -320,6 +377,13 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
     
     // 1. Synchronously read from AssignmentService cache first
     final initialList = branchCooks.map((s) {
+      if (_draftChanges.containsKey(s.id)) {
+        return _draftChanges[s.id]!;
+      }
+      if (s.username.isNotEmpty && _draftChanges.containsKey(s.username)) {
+        return _draftChanges[s.username]!;
+      }
+
       final cachedStatus = AssignmentService.getWorkStatus(
         s.username,
         fallback: AssignmentService.getWorkStatus(
@@ -405,6 +469,20 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
       _assignments[originalIndex] = updated;
       _draftChanges[a.employeeId] = updated;
     });
+
+    AssignmentService.lockBranch(
+      username: a.employeeId,
+      employeeId: a.employeeId,
+      branchName: branch.fullName,
+    );
+    if (a.employeeName.isNotEmpty) {
+      AssignmentService.lockBranch(
+        username: a.employeeName,
+        employeeId: a.employeeName,
+        branchName: branch.fullName,
+      );
+    }
+    _saveDraftsToPrefs();
   }
 
   void _updateStatus(BranchAssignment target, WorkStatus status) {
@@ -429,6 +507,22 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
       // NOTE: _currentPage is intentionally NOT reset here so the owner
       // can continue setting multiple cooks across pages without jumping back to page 1.
     });
+
+    AssignmentService.lockStatus(
+      username: a.employeeId,
+      employeeId: a.employeeId,
+      status: status,
+      branchName: updated.branchName,
+    );
+    if (a.employeeName.isNotEmpty) {
+      AssignmentService.lockStatus(
+        username: a.employeeName,
+        employeeId: a.employeeName,
+        status: status,
+        branchName: updated.branchName,
+      );
+    }
+    _saveDraftsToPrefs();
   }
 
   void _setRestDayAll() {
@@ -437,43 +531,54 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
         final updated = _assignments[i].copyWith(workStatus: WorkStatus.restDay);
         _assignments[i] = updated;
         _draftChanges[updated.employeeId] = updated;
+        AssignmentService.lockStatus(
+          username: updated.employeeId,
+          employeeId: updated.employeeId,
+          status: WorkStatus.restDay,
+          branchName: updated.branchName,
+        );
       }
     });
+    _saveDraftsToPrefs();
   }
 
   Future<void> _saveAll() async {
     if (_isSaving) return;
     if (_savedToday) {
-      showDialog(
+      final proceed = await showDialog<bool>(
         context: context,
         builder: (ctx) => AlertDialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
           title: const Row(
             children: [
-              Icon(Icons.lock_clock_rounded, color: Color(0xFFDC2626), size: 24),
+              Icon(Icons.edit_calendar_rounded, color: AdminWebColors.accent, size: 24),
               SizedBox(width: 8),
               Expanded(
-                child: Text('Already Saved Today', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+                child: Text('Update Saved Assignments', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
               ),
             ],
           ),
           content: const Text(
-            'Assignments have already been saved for today. To prevent accidental changes to active sales data, assignments can only be saved once per day.\n\nIf you really need to change something, please contact the system administrator.',
+            'Assignments have already been saved earlier today.\n\nDo you want to update today\'s branch assignments with your new changes?',
             style: TextStyle(fontSize: 13, height: 1.4),
           ),
           actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('CANCEL', style: TextStyle(color: Color(0xFF64748B))),
+            ),
             ElevatedButton(
-              onPressed: () => Navigator.pop(ctx),
+              onPressed: () => Navigator.pop(ctx, true),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AdminWebColors.accent,
                 foregroundColor: Colors.white,
               ),
-              child: const Text('OK'),
+              child: const Text('YES, UPDATE NOW'),
             ),
           ],
         ),
       );
-      return;
+      if (proceed != true) return;
     }
 
     // Rate limit: prevent hammering Supabase with rapid save presses
@@ -660,6 +765,7 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
       final prefs = await SharedPreferences.getInstance();
       final todayStr = '${_today.year}-${_today.month.toString().padLeft(2, '0')}-${_today.day.toString().padLeft(2, '0')}';
       await prefs.setString('assignment_saved_date', todayStr);
+      await prefs.remove('branch_assignment_drafts');
       _draftChanges.clear();
 
       if (!mounted) return;
@@ -901,35 +1007,35 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
                 _buildKpiChip(
                   label: 'ON DUTY (MAY PASOK)',
                   count: list.where((a) => a.workStatus == WorkStatus.onDuty).length,
-                  color: const Color(0xFF059669),
-                  bgColor: const Color(0xFFECFDF5),
-                  borderColor: const Color(0xFFA7F3D0),
+                  color: AdminWebColors.success,
+                  bgColor: AdminWebColors.success.withValues(alpha: 0.1),
+                  borderColor: AdminWebColors.success.withValues(alpha: 0.3),
                   icon: Icons.check_circle_rounded,
                 ),
                 _buildKpiChip(
                   label: 'REST DAY (DAY OFF)',
                   count: list.where((a) => a.workStatus == WorkStatus.restDay).length,
-                  color: const Color(0xFFDC2626),
-                  bgColor: const Color(0xFFFEF2F2),
-                  borderColor: const Color(0xFFFECACA),
+                  color: AdminWebColors.error,
+                  bgColor: AdminWebColors.error.withValues(alpha: 0.1),
+                  borderColor: AdminWebColors.error.withValues(alpha: 0.3),
                   icon: Icons.hotel_rounded,
                 ),
                 if (_branchMeatStocks.isNotEmpty) ...[
                   _buildKpiChip(
                     label: 'OPEN BRANCHES',
                     count: _openBranchesCount,
-                    color: const Color(0xFF059669),
-                    bgColor: const Color(0xFFECFDF5),
-                    borderColor: const Color(0xFFA7F3D0),
+                    color: AdminWebColors.success,
+                    bgColor: AdminWebColors.success.withValues(alpha: 0.1),
+                    borderColor: AdminWebColors.success.withValues(alpha: 0.3),
                     icon: Icons.storefront_rounded,
                   ),
                   if (_closedBranchesCount > 0)
                     _buildKpiChip(
                       label: 'CLOSED BRANCHES',
                       count: _closedBranchesCount,
-                      color: const Color(0xFFDC2626),
-                      bgColor: const Color(0xFFFEF2F2),
-                      borderColor: const Color(0xFFFECACA),
+                      color: AdminWebColors.error,
+                      bgColor: AdminWebColors.error.withValues(alpha: 0.1),
+                      borderColor: AdminWebColors.error.withValues(alpha: 0.3),
                       icon: Icons.lock_rounded,
                     ),
                 ],
@@ -1256,13 +1362,13 @@ class _AssignmentCard extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
                   color: isOnDuty
-                      ? const Color(0xFFECFDF5)
-                      : const Color(0xFFFEF2F2),
+                      ? AdminWebColors.success.withValues(alpha: 0.1)
+                      : AdminWebColors.error.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(6),
                   border: Border.all(
                     color: isOnDuty
-                        ? const Color(0xFFA7F3D0)
-                        : const Color(0xFFFECACA),
+                        ? AdminWebColors.success.withValues(alpha: 0.3)
+                        : AdminWebColors.error.withValues(alpha: 0.3),
                   ),
                 ),
                 child: Row(
@@ -1274,8 +1380,8 @@ class _AssignmentCard extends StatelessWidget {
                           : Icons.hotel_rounded,
                       size: 13,
                       color: isOnDuty
-                          ? const Color(0xFF059669)
-                          : const Color(0xFFDC2626),
+                          ? AdminWebColors.success
+                          : AdminWebColors.error,
                     ),
                     const SizedBox(width: 5),
                     Text(
@@ -1284,10 +1390,10 @@ class _AssignmentCard extends StatelessWidget {
                           : 'On Rest Day (Cannot log in)',
                       style: TextStyle(
                         fontSize: 11,
-                        fontWeight: FontWeight.w600,
+                        fontWeight: FontWeight.w700,
                         color: isOnDuty
-                            ? const Color(0xFF065F46)
-                            : const Color(0xFF991B1B),
+                            ? AdminWebColors.success
+                            : AdminWebColors.error,
                       ),
                     ),
                   ],
@@ -1586,7 +1692,7 @@ class _AssignmentCard extends StatelessWidget {
                 curve: Curves.easeInOut,
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                 decoration: BoxDecoration(
-                  color: isOnDuty ? const Color(0xFF10B981) : Colors.transparent,
+                  color: isOnDuty ? AdminWebColors.success : Colors.transparent,
                   borderRadius: BorderRadius.circular(8),
                   boxShadow: isOnDuty
                       ? [
@@ -1633,7 +1739,7 @@ class _AssignmentCard extends StatelessWidget {
                 curve: Curves.easeInOut,
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                 decoration: BoxDecoration(
-                  color: !isOnDuty ? const Color(0xFFEF4444) : Colors.transparent,
+                  color: !isOnDuty ? AdminWebColors.error : Colors.transparent,
                   borderRadius: BorderRadius.circular(8),
                   boxShadow: !isOnDuty
                       ? [
@@ -1676,7 +1782,7 @@ class _AssignmentCard extends StatelessWidget {
 
     return GlassCard(
       padding: const EdgeInsets.all(16),
-      borderColor: hasErrorBorder ? const Color(0xFFFCA5A5) : null,
+      borderColor: hasErrorBorder ? AdminWebColors.error.withValues(alpha: 0.4) : null,
       child: isWide
           ? Row(
               children: [

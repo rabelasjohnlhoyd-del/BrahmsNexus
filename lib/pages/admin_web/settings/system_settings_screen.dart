@@ -45,48 +45,6 @@ class _SystemSettingsScreenState extends State<SystemSettingsScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Header Title
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: AdminWebColors.accent.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: const Icon(
-                        Icons.tune_rounded,
-                        color: AdminWebColors.accent,
-                        size: 24,
-                      ),
-                    ),
-                    const SizedBox(width: 14),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: const [
-                        Text(
-                          'System Settings & Operations',
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.w800,
-                            color: AdminWebColors.textPrimary,
-                            letterSpacing: -0.3,
-                          ),
-                        ),
-                        SizedBox(height: 2),
-                        Text(
-                          'System tutorials, compliance policies, operational directory, and platform details.',
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: AdminWebColors.textSecondary,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 28),
-
                 // ── 1. SYSTEM HELP & GUIDED TOURS ────────────────────────────
                 _buildSectionHeader('System Help & Guided Tours'),
                 GlassCard(

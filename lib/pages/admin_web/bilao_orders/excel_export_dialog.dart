@@ -234,9 +234,9 @@ class _ExcelExportDialogState extends State<ExcelExportDialog> {
           ),
         ],
       ),
-      content: SizedBox(
-        width: 540,
-        child: SingleChildScrollView(
+      content: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 540),
+          child: SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,

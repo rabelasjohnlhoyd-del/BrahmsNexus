@@ -3,7 +3,7 @@ class GeminiConfig {
   const GeminiConfig._();
 
   // ===========================================================================
-  // 👉 PRIMARY API KEY:
+  //  PRIMARY API KEY:
   //    I-paste dito ang iyong pangunahing API key mula sa Google AI Studio.
   //    (Palitan ang 'PASTE_YOUR_API_KEY_HERE' ng iyong key hal. 'AIzaSy...')
   //    PAALALA: Kung ang key mo ay nagsisimula sa 'AQ.' o 'ya29.', ito ay
@@ -12,7 +12,7 @@ class GeminiConfig {
   static const String key = '';
 
   // ===========================================================================
-  // 👉 MULTIPLE API KEYS SUPPORT (ROTATION & FAILOVER):
+  //  MULTIPLE API KEYS SUPPORT (ROTATION & FAILOVER):
   //    Maaari kang maglagay ng maramihang API keys dito (mula sa magkakaibang Google
   //    accounts o projects). Kapag nag-quota limit (429) o nag-fail ang isang key,
   //    awtomatikong mag-switch ang system sa susunod na key nang walang error!
@@ -24,7 +24,7 @@ class GeminiConfig {
   ];
 
   // ===========================================================================
-  // 👉 MODEL ROLLBACK HIERARCHY (GEMINI 3.x SERIES):
+  //  MODEL ROLLBACK HIERARCHY (GEMINI 3.x SERIES):
   //    Kapag nag-error o busy ang unang model, sunod-sunod na mag-fallback dito.
   //    Ang AQ. Bearer token ay gumagamit ng Gemini 3.x series (hindi 1.5/2.0).
   // ===========================================================================
