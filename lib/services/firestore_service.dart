@@ -3383,6 +3383,17 @@ class FirestoreService {
       return false;
     }
   }
+
+  /// Deletes a monthly financial period from Firestore.
+  static Future<bool> deleteMonthlyFinancialPeriod(String periodId) async {
+    try {
+      await _db.collection('monthly_financials').doc(periodId).delete();
+      return true;
+    } catch (e) {
+      debugPrint('FirestoreService.deleteMonthlyFinancialPeriod error: $e');
+      return false;
+    }
+  }
 }
 
 

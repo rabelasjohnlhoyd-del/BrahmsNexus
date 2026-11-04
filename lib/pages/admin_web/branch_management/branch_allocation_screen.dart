@@ -1022,7 +1022,7 @@ class _BranchAllocationScreenState extends State<BranchAllocationScreen> {
                           Text(
                             s.isClosed
                                 ? '0 / 0 MEAT PCS'
-                                : ' /  MEAT PCS',
+                                : '${s.regular250gRemaining + s.medium300gRemaining + s.b1t1_400gRemaining} / ${s.regular250gTotal + s.medium300gTotal + s.b1t1_400gTotal} MEAT PCS',
                             style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.w800,
@@ -1187,22 +1187,22 @@ class _BranchAllocationScreenState extends State<BranchAllocationScreen> {
                           // Row 1: Meat portions (250g Regular, 300g Medium, 400g B1T1)
                           Row(
                             children: [
-                              Expanded(child: _meatVariantChip('250g Regular', ' /  pcs', isClosed: s.isClosed)),
+                              Expanded(child: _meatVariantChip('250g Regular', '${s.regular250gRemaining} / ${s.regular250gTotal} pcs', isClosed: s.isClosed)),
                               const SizedBox(width: 6),
-                              Expanded(child: _meatVariantChip('300g Medium', ' /  pcs', isClosed: s.isClosed)),
+                              Expanded(child: _meatVariantChip('300g Medium', '${s.medium300gRemaining} / ${s.medium300gTotal} pcs', isClosed: s.isClosed)),
                               const SizedBox(width: 6),
-                              Expanded(child: _meatVariantChip('400g B1T1', ' /  pcs', isClosed: s.isClosed)),
+                              Expanded(child: _meatVariantChip('400g B1T1', '${s.b1t1_400gRemaining} / ${s.b1t1_400gTotal} pcs', isClosed: s.isClosed)),
                             ],
                           ),
                           const SizedBox(height: 6),
                           // Row 2: Supplies (Mayo, Styro, Toyo)
                           Row(
                             children: [
-                              Expanded(child: _meatVariantChip('Mayo', ' /  pcs', isClosed: s.isClosed)),
+                              Expanded(child: _meatVariantChip('Mayo', '${s.mayoRemaining} / ${s.mayoTotal} pcs', isClosed: s.isClosed)),
                               const SizedBox(width: 6),
-                              Expanded(child: _meatVariantChip('Styro Box', ' /  pcs', isClosed: s.isClosed)),
+                              Expanded(child: _meatVariantChip('Styro Box', '${s.styroRemaining} / ${s.styroTotal} pcs', isClosed: s.isClosed)),
                               const SizedBox(width: 6),
-                              Expanded(child: _meatVariantChip('Toyo', ' /  pcs', isClosed: s.isClosed)),
+                              Expanded(child: _meatVariantChip('Toyo', '${s.toyoRemaining} / ${s.toyoTotal} pcs', isClosed: s.isClosed)),
                             ],
                           ),
                         ],

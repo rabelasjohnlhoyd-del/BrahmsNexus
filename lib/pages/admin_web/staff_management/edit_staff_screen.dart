@@ -225,6 +225,45 @@ class _EditStaffScreenState extends State<EditStaffScreen> {
     });
   }
 
+  Future<void> _confirmClearRfid() async {
+    final currentUid = _rfidController.text.trim();
+    if (currentUid.isEmpty) return;
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Remove RFID Card UID?'),
+        content: Text(
+          'Are you sure you want to remove UID "$currentUid"?\n\nThe employee will not be able to time in or out using this card until a new card is assigned.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('CANCEL'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AdminWebColors.error,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('REMOVE'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true && mounted) {
+      setState(() => _rfidController.clear());
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('RFID Card UID removed.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
 Future<void> _handleSave() async {
     FocusScope.of(context).unfocus();
 
@@ -658,7 +697,7 @@ Future<void> _handleSave() async {
                                   suffixIcon: _rfidController.text.isNotEmpty
                                       ? IconButton(
                                           icon: const Icon(Icons.clear, size: 18),
-                                          onPressed: () => setState(() => _rfidController.clear()),
+                                          onPressed: _confirmClearRfid,
                                         )
                                       : null,
                                 ),

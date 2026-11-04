@@ -81,6 +81,20 @@ class _MonthlyFinancialsScreenState extends State<MonthlyFinancialsScreen> {
             b1t1400gCount: counts.count400g,
             productionCookingSessions: counts.sessionsCount,
           );
+
+          // Auto-sync available periods from Main Warehouse karne batches
+          final updatedPeriods = Set<String>.from(_availablePeriodIds);
+          for (final b in batches) {
+            final pid = '${b.date.year}_${b.date.month.toString().padLeft(2, '0')}';
+            updatedPeriods.add(pid);
+          }
+          updatedPeriods.removeWhere((id) =>
+              id.endsWith('_12') ||
+              id.endsWith('_09') ||
+              id == '2026_12' ||
+              id == '2026_09');
+          final sorted = updatedPeriods.toList()..sort((a, b) => b.compareTo(a));
+          _availablePeriodIds = sorted;
         });
       });
     }
@@ -90,6 +104,13 @@ class _MonthlyFinancialsScreenState extends State<MonthlyFinancialsScreen> {
     _allPeriodsSub = FirestoreService.watchAllFinancialPeriods().listen((periods) {
       if (!mounted) return;
       final currentYear = DateTime.now().year;
+
+      // Clean up December 2026 and September 2026 test documents from Firestore if present
+      for (final p in periods) {
+        if (p.id == '2026_12' || p.id == '2026_09' || p.id == 'fp_2026_12' || p.id == 'fp_2026_09') {
+          FirestoreService.deleteMonthlyFinancialPeriod(p.id);
+        }
+      }
 
       // Filter out any periods before current year (bawal ang 2025).
       // Ang pinaka-oldest na pwedeng balikan ay kung ano ang pinaka-unang recorded period sa database para sa taong ito.
@@ -101,9 +122,25 @@ class _MonthlyFinancialsScreenState extends State<MonthlyFinancialsScreen> {
       validPeriods.add(_currentPeriodId);
       validPeriods.add(_activePeriodId);
 
+      // Tanggalin ang December at September ayon sa request
+      validPeriods.removeWhere((id) =>
+          id.endsWith('_12') ||
+          id.endsWith('_09') ||
+          id == '2026_12' ||
+          id == '2026_09' ||
+          id == 'fp_2026_12' ||
+          id == 'fp_2026_09');
+
       final sorted = validPeriods.toList()..sort((a, b) => b.compareTo(a));
       setState(() {
         _availablePeriodIds = sorted;
+        if (!_availablePeriodIds.contains(_activePeriodId)) {
+          _activePeriodId = _currentPeriodId;
+          _initializeDefaultPeriod(_activePeriodId);
+          _subscribeToLivePeriod();
+          _subscribeToLiveSales();
+          _loadRfidAttendance();
+        }
       });
     });
   }
@@ -1303,10 +1340,6 @@ class _MonthlyFinancialsScreenState extends State<MonthlyFinancialsScreen> {
               const SizedBox(width: 12),
               periodSelector,
               const SizedBox(width: 10),
-              resetMonthBtn,
-              const SizedBox(width: 10),
-              newMonthBtn,
-              const SizedBox(width: 10),
               exportBtn,
             ],
           );
@@ -1322,8 +1355,6 @@ class _MonthlyFinancialsScreenState extends State<MonthlyFinancialsScreen> {
                 crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
                   periodSelector,
-                  resetMonthBtn,
-                  newMonthBtn,
                   exportBtn,
                 ],
               ),
