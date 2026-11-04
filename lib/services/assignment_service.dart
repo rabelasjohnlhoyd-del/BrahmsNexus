@@ -21,6 +21,7 @@ class AssignmentService {
   static final Map<String, String> _branchAssignmentCache = {};
   static bool _initialized = false;
   static StreamSubscription? _supabaseSub;
+  static StreamSubscription? _firestoreSub;
 
   // Keys that were manually set by the owner. While a key is "pending",
   // the realtime listener and syncFromSupabase are NOT allowed to overwrite it.
@@ -58,17 +59,15 @@ class AssignmentService {
         debugPrint('AssignmentService local cache load error: $e');
       }
 
-      // Start realtime listening to Supabase updates
+      // Start realtime listening to Supabase & Firestore updates
       _startRealtimeListener();
     }
 
-    // 2. Synchronize from Supabase cloud (cross-device source of truth - 0 reads)
-    await syncFromSupabase();
+    // 1. Sync daily assignments & Rest Day statuses from Firestore cloud first
+    await syncFromCloud();
 
-    // 3. Fallback to Firestore cloud only if local/Supabase cache is empty
-    if (_workStatusCache.isEmpty) {
-      await syncFromCloud();
-    }
+    // 2. Synchronize master branch assignments from Supabase
+    await syncFromSupabase();
   }
 
   static void _startRealtimeListener() {
@@ -79,25 +78,54 @@ class AssignmentService {
         final uKey = s.username.toLowerCase();
         final idKey = s.id.toLowerCase();
 
-        // Skip update for any key that was manually set within the pending timeout.
-        // This is the core fix: prevents the realtime event (triggered by our own
-        // cloud write) from reverting the toggle before Supabase confirms the change.
         final isPendingByUsername = uKey.isNotEmpty && _isPending(uKey);
         final isPendingById = idKey.isNotEmpty && _isPending(idKey);
         if (isPendingByUsername || isPendingById) continue;
 
-        final status = s.isRestDay ? WorkStatus.restDay : WorkStatus.onDuty;
-        if (uKey.isNotEmpty) {
-          _workStatusCache[uKey] = status;
-          changed = true;
-        }
-        if (idKey.isNotEmpty) {
-          _workStatusCache[idKey] = status;
-          changed = true;
-        }
         if (s.branch.isNotEmpty && s.branch != 'N/A') {
-          if (uKey.isNotEmpty) _branchAssignmentCache[uKey] = s.branch;
-          if (idKey.isNotEmpty) _branchAssignmentCache[idKey] = s.branch;
+          if (uKey.isNotEmpty && _branchAssignmentCache[uKey] != s.branch) {
+            _branchAssignmentCache[uKey] = s.branch;
+            changed = true;
+          }
+          if (idKey.isNotEmpty && _branchAssignmentCache[idKey] != s.branch) {
+            _branchAssignmentCache[idKey] = s.branch;
+            changed = true;
+          }
+        }
+      }
+      if (changed) {
+        _saveToLocalFile();
+        changeNotifier.value++;
+      }
+    });
+
+    _firestoreSub?.cancel();
+    _firestoreSub = FirestoreService.watchStaffAssignmentsMap().listen((assignmentsMap) {
+      bool changed = false;
+      for (final entry in assignmentsMap.entries) {
+        final a = entry.value;
+        final key = entry.key.toLowerCase();
+        final idKey = a.employeeId.toLowerCase();
+
+        if (_isPending(key) || (idKey.isNotEmpty && _isPending(idKey))) continue;
+
+        if (_workStatusCache[key] != a.workStatus) {
+          _workStatusCache[key] = a.workStatus;
+          changed = true;
+        }
+        if (idKey.isNotEmpty && _workStatusCache[idKey] != a.workStatus) {
+          _workStatusCache[idKey] = a.workStatus;
+          changed = true;
+        }
+        if (a.branchName.isNotEmpty) {
+          if (_branchAssignmentCache[key] != a.branchName) {
+            _branchAssignmentCache[key] = a.branchName;
+            changed = true;
+          }
+          if (idKey.isNotEmpty && _branchAssignmentCache[idKey] != a.branchName) {
+            _branchAssignmentCache[idKey] = a.branchName;
+            changed = true;
+          }
         }
       }
       if (changed) {
@@ -107,7 +135,7 @@ class AssignmentService {
     });
   }
 
-  /// Syncs latest assignments from Supabase PostgreSQL.
+  /// Syncs latest assignments from Supabase PostgreSQL without overwriting workStatus.
   static Future<void> syncFromSupabase() async {
     try {
       final remoteStaff = await SupabaseService.refreshStaffFromRemote();
@@ -116,23 +144,19 @@ class AssignmentService {
         final uKey = s.username.toLowerCase();
         final idKey = s.id.toLowerCase();
 
-        // Same protection: don't let a full sync overwrite a pending manual write.
         final isPendingByUsername = uKey.isNotEmpty && _isPending(uKey);
         final isPendingById = idKey.isNotEmpty && _isPending(idKey);
         if (isPendingByUsername || isPendingById) continue;
 
-        final status = s.isRestDay ? WorkStatus.restDay : WorkStatus.onDuty;
-        if (uKey.isNotEmpty) {
-          _workStatusCache[uKey] = status;
-          changed = true;
-        }
-        if (idKey.isNotEmpty) {
-          _workStatusCache[idKey] = status;
-          changed = true;
-        }
         if (s.branch.isNotEmpty && s.branch != 'N/A') {
-          if (uKey.isNotEmpty) _branchAssignmentCache[uKey] = s.branch;
-          if (idKey.isNotEmpty) _branchAssignmentCache[idKey] = s.branch;
+          if (uKey.isNotEmpty && _branchAssignmentCache[uKey] != s.branch) {
+            _branchAssignmentCache[uKey] = s.branch;
+            changed = true;
+          }
+          if (idKey.isNotEmpty && _branchAssignmentCache[idKey] != s.branch) {
+            _branchAssignmentCache[idKey] = s.branch;
+            changed = true;
+          }
         }
       }
       if (changed) {

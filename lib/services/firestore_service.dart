@@ -2215,17 +2215,12 @@ class FirestoreService {
 
       // 1. Dual-sync to Supabase staff_profiles in real time (0 Firebase reads)
       try {
-        final staffList = SupabaseService.getAllStaff();
-        final idx = staffList.indexWhere(
-          (s) => (employeeId.isNotEmpty && s.id == employeeId) || s.username.toLowerCase() == usernameKey,
+        final lookupKey = employeeId.isNotEmpty ? employeeId : usernameKey;
+        await SupabaseService.updateStaffAssignment(
+          staffIdOrUsername: lookupKey,
+          branchName: branchName,
+          isRestDay: isRestDay,
         );
-        if (idx >= 0) {
-          final updated = staffList[idx].copyWith(
-            branch: branchName,
-            rfidTag: isRestDay ? 'REST_DAY' : '',
-          );
-          await SupabaseService.updateStaffProfile(updated);
-        }
       } catch (e) {
         debugPrint('setStaffAssignment Supabase sync error: $e');
       }

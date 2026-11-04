@@ -919,10 +919,8 @@ class SupabaseService {
       final s = _inMemoryStaff[i];
       if (s.id.toLowerCase() == key || s.username.toLowerCase() == key) {
         targetId = s.id;
-        final newTag = isRestDay ? 'REST_DAY_${s.id}' : 'DUTY_${s.id}';
         _inMemoryStaff[i] = s.copyWith(
           branch: branchName.isNotEmpty ? branchName : s.branch,
-          rfidTag: newTag,
           isActive: isRestDay ? s.isActive : true,
         );
         break;
@@ -933,23 +931,23 @@ class SupabaseService {
     if (client == null) return true;
 
     try {
-      final resolvedId = targetId.isNotEmpty ? targetId : key;
-      final updateData = <String, dynamic>{
-        'rfid_tag': isRestDay ? 'REST_DAY_$resolvedId' : 'DUTY_$resolvedId',
-      };
+      final updateData = <String, dynamic>{};
       final branchNameClean = branchName.trim().toLowerCase();
       final isRealBranch = branchName.isNotEmpty && branchNameClean != 'n/a' && branchNameClean != 'unassigned';
       if (isRealBranch) {
-        updateData['branch_name'] = branchName;
+        updateData['branch_name'] = branchName.trim();
       }
       if (!isRestDay) {
         updateData['is_active'] = true;
       }
 
-      await client
-          .from('staff_profiles')
-          .update(updateData)
-          .or('id.eq.$key,username.ilike.$key');
+      if (updateData.isNotEmpty) {
+        final queryId = targetId.isNotEmpty ? targetId : key;
+        await client
+            .from('staff_profiles')
+            .update(updateData)
+            .or('id.eq.$queryId,username.ilike.$key');
+      }
       return true;
     } catch (e) {
       debugPrint('SupabaseService.updateStaffAssignment error: $e');

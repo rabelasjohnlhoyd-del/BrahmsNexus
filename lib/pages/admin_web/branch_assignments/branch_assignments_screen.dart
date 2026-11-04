@@ -48,7 +48,10 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
 
   // Whether today's assignments have already been saved once
   bool _savedToday = false;
+  bool _isEditUnlocked = false;
   bool _isSaving = false;
+
+  bool get _isLocked => _savedToday && !_isEditUnlocked;
   Timer? _closeNoticeDebounceTimer;
   final Set<String> _pendingClosedBranches = {};
 
@@ -451,7 +454,10 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
     final savedDate = prefs.getString('assignment_saved_date') ?? '';
     final todayStr = '${_today.year}-${_today.month.toString().padLeft(2, '0')}-${_today.day.toString().padLeft(2, '0')}';
     if (mounted) {
-      setState(() => _savedToday = savedDate == todayStr);
+      setState(() {
+        _savedToday = savedDate == todayStr;
+        _isEditUnlocked = false;
+      });
     }
   }
 
@@ -468,6 +474,7 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
     setState(() {
       _assignments[originalIndex] = updated;
       _draftChanges[a.employeeId] = updated;
+      _savedToday = false;
     });
 
     AssignmentService.lockBranch(
@@ -504,6 +511,7 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
         // Rest Day: Inilalagay sa ilalim / dulo pagkatapos ng mga on-duty cooks
         _assignments.add(updated);
       }
+      _savedToday = false;
       // NOTE: _currentPage is intentionally NOT reset here so the owner
       // can continue setting multiple cooks across pages without jumping back to page 1.
     });
@@ -538,47 +546,66 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
           branchName: updated.branchName,
         );
       }
+      _savedToday = false;
     });
     _saveDraftsToPrefs();
   }
 
-  Future<void> _saveAll() async {
-    if (_isSaving) return;
-    if (_savedToday) {
-      final proceed = await showDialog<bool>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-          title: const Row(
-            children: [
-              Icon(Icons.edit_calendar_rounded, color: AdminWebColors.accent, size: 24),
-              SizedBox(width: 8),
-              Expanded(
-                child: Text('Update Saved Assignments', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
-              ),
-            ],
-          ),
-          content: const Text(
-            'Assignments have already been saved earlier today.\n\nDo you want to update today\'s branch assignments with your new changes?',
-            style: TextStyle(fontSize: 13, height: 1.4),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('CANCEL', style: TextStyle(color: Color(0xFF64748B))),
-            ),
-            ElevatedButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AdminWebColors.accent,
-                foregroundColor: Colors.white,
-              ),
-              child: const Text('YES, UPDATE NOW'),
+  Future<void> _requestUnlock() async {
+    final proceed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        title: const Row(
+          children: [
+            Icon(Icons.lock_open_rounded, color: AdminWebColors.accent, size: 24),
+            SizedBox(width: 8),
+            Expanded(
+              child: Text('Unlock Today\'s Assignments?', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
             ),
           ],
         ),
-      );
-      if (proceed != true) return;
+        content: const Text(
+          'Assignments are currently saved and locked for today to prevent accidental changes.\n\n'
+          'Unlocking will allow you to edit cook branch assignments or adjust Rest Days.\n\n'
+          'Do you want to unlock and edit today\'s assignments?',
+          style: TextStyle(fontSize: 13, height: 1.4),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('CANCEL', style: TextStyle(color: Color(0xFF64748B))),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AdminWebColors.accent,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('YES, UNLOCK TO EDIT'),
+          ),
+        ],
+      ),
+    );
+    if (proceed == true && mounted) {
+      setState(() => _isEditUnlocked = true);
+    }
+  }
+
+  void _cancelEdit() {
+    setState(() {
+      _draftChanges.clear();
+      _isEditUnlocked = false;
+    });
+    _saveDraftsToPrefs();
+    _initializeAssignments();
+  }
+
+  Future<void> _saveAll() async {
+    if (_isSaving) return;
+    if (_isEditUnlocked && _draftChanges.isEmpty) {
+      setState(() => _isEditUnlocked = false);
+      return;
     }
 
     // Rate limit: prevent hammering Supabase with rapid save presses
@@ -769,7 +796,10 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
       _draftChanges.clear();
 
       if (!mounted) return;
-      setState(() => _savedToday = true);
+      setState(() {
+        _savedToday = true;
+        _isEditUnlocked = false;
+      });
 
       ScaffoldMessenger.of(context).clearSnackBars();
       ScaffoldMessenger.of(context).showSnackBar(
@@ -874,8 +904,12 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
                     ),
                   );
 
+                  final isLocked = _isLocked;
+                  final hasDrafts = _draftChanges.isNotEmpty;
+                  final canSave = (hasDrafts || !_savedToday || _isEditUnlocked) && !_isSaving;
+
                   final restDayAllBtn = OutlinedButton.icon(
-                    onPressed: (_savedToday || _isSaving) ? null : _setRestDayAll,
+                    onPressed: (isLocked || _isSaving) ? null : _setRestDayAll,
                     icon: const Icon(Icons.hotel_rounded, size: 16),
                     label: const Text(
                       'REST DAY ALL',
@@ -884,15 +918,72 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
                     style: OutlinedButton.styleFrom(
                       foregroundColor: const Color(0xFFDC2626),
                       side: BorderSide(
-                        color: (_savedToday || _isSaving) ? const Color(0xFFCBD5E1) : const Color(0xFFDC2626),
+                        color: (isLocked || _isSaving)
+                            ? const Color(0xFFCBD5E1)
+                            : const Color(0xFFDC2626),
                       ),
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                     ),
                   );
 
+                  final lockedBadge = Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF1F5F9),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: const Color(0xFFCBD5E1)),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.lock_rounded, size: 16, color: Color(0xFF64748B)),
+                        SizedBox(width: 8),
+                        Text(
+                          'SAVED FOR TODAY (LOCKED)',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF475569),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+
+                  final editBtn = ElevatedButton.icon(
+                    onPressed: _isSaving ? null : _requestUnlock,
+                    icon: const Icon(Icons.lock_open_rounded, size: 16),
+                    label: const Text(
+                      'EDIT ASSIGNMENTS',
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AdminWebColors.accent,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                  );
+
+                  final cancelEditBtn = OutlinedButton.icon(
+                    onPressed: _isSaving ? null : _cancelEdit,
+                    icon: const Icon(Icons.close_rounded, size: 16),
+                    label: const Text(
+                      'CANCEL',
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFF64748B),
+                      side: const BorderSide(color: Color(0xFFCBD5E1)),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                  );
+
                   final saveBtn = ElevatedButton.icon(
-                    onPressed: (_savedToday || _isSaving) ? null : _saveAll,
+                    onPressed: canSave ? _saveAll : null,
                     icon: _isSaving
                         ? const SizedBox(
                             width: 16,
@@ -903,21 +994,25 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
                             ),
                           )
                         : Icon(
-                            _savedToday ? Icons.lock_rounded : Icons.save_rounded,
+                            hasDrafts
+                                ? Icons.save_rounded
+                                : (_savedToday ? Icons.lock_rounded : Icons.save_rounded),
                             size: 16,
                             color: Colors.white,
                           ),
                     label: Text(
                       _isSaving
                           ? 'SAVING...'
-                          : (_savedToday ? 'SAVED FOR TODAY' : 'SAVE ASSIGNMENTS'),
+                          : (hasDrafts
+                              ? 'SAVE CHANGES (${_draftChanges.length})'
+                              : (_isEditUnlocked ? 'LOCK ASSIGNMENTS' : 'SAVE ASSIGNMENTS')),
                       style: const TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 13,
                       ),
                     ),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: (_savedToday || _isSaving) ? const Color(0xFF94A3B8) : AdminWebColors.accent,
+                      backgroundColor: canSave ? AdminWebColors.accent : const Color(0xFF94A3B8),
                       foregroundColor: Colors.white,
                       elevation: 0,
                       padding: const EdgeInsets.symmetric(
@@ -932,9 +1027,21 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
                       children: [
                         dateBadge,
                         const Spacer(),
-                        restDayAllBtn,
-                        const SizedBox(width: 10),
-                        saveBtn,
+                        if (isLocked) ...[
+                          lockedBadge,
+                          const SizedBox(width: 10),
+                          editBtn,
+                        ] else if (_isEditUnlocked) ...[
+                          restDayAllBtn,
+                          const SizedBox(width: 10),
+                          cancelEditBtn,
+                          const SizedBox(width: 10),
+                          saveBtn,
+                        ] else ...[
+                          restDayAllBtn,
+                          const SizedBox(width: 10),
+                          saveBtn,
+                        ],
                       ],
                     );
                   }
@@ -944,14 +1051,58 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
                     children: [
                       dateBadge,
                       const SizedBox(height: 10),
-                      restDayAllBtn,
-                      const SizedBox(height: 8),
-                      saveBtn,
+                      if (isLocked) ...[
+                        lockedBadge,
+                        const SizedBox(height: 8),
+                        editBtn,
+                      ] else if (_isEditUnlocked) ...[
+                        restDayAllBtn,
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Expanded(child: cancelEditBtn),
+                            const SizedBox(width: 8),
+                            Expanded(child: saveBtn),
+                          ],
+                        ),
+                      ] else ...[
+                        restDayAllBtn,
+                        const SizedBox(height: 8),
+                        saveBtn,
+                      ],
                     ],
                   );
                 },
               ),
             ),
+
+            if (_isLocked) ...[
+              Container(
+                margin: const EdgeInsets.only(bottom: 16),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF0FDF4),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFFBBF7D0)),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.check_circle_rounded, color: Color(0xFF16A34A), size: 18),
+                    SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Naka-save at naka-lock na ang branch assignments ngayong araw para iwas aksidenteng pindot. I-click ang "EDIT ASSIGNMENTS" sa itaas kung kailangan mag-adjust.',
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF15803D),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
 
             // Search Bar
             GlassCard(
@@ -1111,6 +1262,7 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
                                       branches: _availableBranches,
                                       isBranchClosed: _isBranchClosed,
                                       isWide: isWide,
+                                      isLocked: _isLocked,
                                       onBranchChanged: (branch) => _updateBranch(a, branch),
                                       onStatusChanged: (status) => _updateStatus(a, status),
                                     );
@@ -1228,6 +1380,7 @@ class _AssignmentCard extends StatelessWidget {
     required this.branches,
     required this.isBranchClosed,
     required this.isWide,
+    this.isLocked = false,
     required this.onBranchChanged,
     required this.onStatusChanged,
   });
@@ -1237,6 +1390,7 @@ class _AssignmentCard extends StatelessWidget {
   final List<Branch> branches;
   final bool Function(String branchId, String branchName) isBranchClosed;
   final bool isWide;
+  final bool isLocked;
   final ValueChanged<Branch> onBranchChanged;
   final ValueChanged<WorkStatus> onStatusChanged;
 
@@ -1504,26 +1658,34 @@ class _AssignmentCard extends StatelessWidget {
               : (branches.isNotEmpty ? branches.first.id : 'unassigned')),
       isExpanded: true,
       decoration: InputDecoration(
-        labelText: isUnassigned
-            ? 'ASSIGNED BRANCH (NOT ASSIGNED YET)'
-            : (isOnDuty ? 'ASSIGNED BRANCH' : 'ASSIGNED BRANCH (OFF TODAY)'),
+        labelText: isLocked
+            ? (isOnDuty ? 'ASSIGNED BRANCH (LOCKED)' : 'ASSIGNED BRANCH (OFF TODAY - LOCKED)')
+            : (isUnassigned
+                ? 'ASSIGNED BRANCH (NOT ASSIGNED YET)'
+                : (isOnDuty ? 'ASSIGNED BRANCH' : 'ASSIGNED BRANCH (OFF TODAY)')),
         isDense: true,
         labelStyle: TextStyle(
           fontWeight: FontWeight.w800,
           fontSize: 11,
           letterSpacing: 1.0,
-          color: isUnassigned
-              ? const Color(0xFFDC2626)
-              : (isOnDuty ? AdminWebColors.textSecondary : const Color(0xFF94A3B8)),
+          color: isLocked
+              ? const Color(0xFF94A3B8)
+              : (isUnassigned
+                  ? const Color(0xFFDC2626)
+                  : (isOnDuty ? AdminWebColors.textSecondary : const Color(0xFF94A3B8))),
         ),
         prefixIcon: Icon(
-          isUnassigned
-              ? Icons.warning_amber_rounded
-              : (isOnDuty ? Icons.storefront_rounded : Icons.pause_circle_outline_rounded),
+          isLocked
+              ? Icons.lock_outline_rounded
+              : (isUnassigned
+                  ? Icons.warning_amber_rounded
+                  : (isOnDuty ? Icons.storefront_rounded : Icons.pause_circle_outline_rounded)),
           size: 20,
-          color: isUnassigned
-              ? const Color(0xFFDC2626)
-              : (isOnDuty ? AdminWebColors.accent : const Color(0xFF94A3B8)),
+          color: isLocked
+              ? const Color(0xFF94A3B8)
+              : (isUnassigned
+                  ? const Color(0xFFDC2626)
+                  : (isOnDuty ? AdminWebColors.accent : const Color(0xFF94A3B8))),
         ),
       ),
       items: [
@@ -1642,12 +1804,14 @@ class _AssignmentCard extends StatelessWidget {
           );
         }),
       ],
-      onChanged: (branchId) {
-        if (branchId != null && branchId != 'unassigned') {
-          final branch = kSampleBranches.firstWhere((b) => b.id == branchId);
-          onBranchChanged(branch);
-        }
-      },
+      onChanged: isLocked
+          ? null
+          : (branchId) {
+              if (branchId != null && branchId != 'unassigned') {
+                final branch = kSampleBranches.firstWhere((b) => b.id == branchId);
+                onBranchChanged(branch);
+              }
+            },
     );
 
     final statusToggle = Container(
@@ -1664,7 +1828,9 @@ class _AssignmentCard extends StatelessWidget {
           Material(
             color: Colors.transparent,
             child: InkWell(
-              onTap: () {
+              onTap: isLocked
+                  ? null
+                  : () {
                 if (isCurrentBranchClosed && !isUnassigned) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
@@ -1732,7 +1898,7 @@ class _AssignmentCard extends StatelessWidget {
           Material(
             color: Colors.transparent,
             child: InkWell(
-              onTap: () => onStatusChanged(WorkStatus.restDay),
+              onTap: isLocked ? null : () => onStatusChanged(WorkStatus.restDay),
               borderRadius: BorderRadius.circular(8),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 180),
