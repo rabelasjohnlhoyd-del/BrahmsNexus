@@ -34,6 +34,7 @@ class _SalesPayrollScreenState extends State<SalesPayrollScreen> {
   StreamSubscription<List<SalesRecord>>? _salesSub;
   StreamSubscription<List<KarneBatch>>? _batchesSub;
   StreamSubscription<FinancialPeriod?>? _periodSub;
+  StreamSubscription<List<Map<String, dynamic>>>? _attendanceSub;
 
   final List<SalesRecord> _records = [];
   final List<KarneBatch> _batches = [];
@@ -130,6 +131,12 @@ class _SalesPayrollScreenState extends State<SalesPayrollScreen> {
 
     // Load RFID-based attendance days worked for production staff & driver
     _loadRfidAttendance();
+
+    // Listen to real-time RFID attendance updates so timeouts record automatically without manual refresh
+    _attendanceSub = AttendanceService.watchTodayAttendance().listen((_) {
+      if (!mounted) return;
+      _loadRfidAttendance();
+    });
   }
 
   /// Loads RFID-based completed shift counts from Supabase attendance_logs
@@ -168,6 +175,7 @@ class _SalesPayrollScreenState extends State<SalesPayrollScreen> {
     _salesSub?.cancel();
     _batchesSub?.cancel();
     _periodSub?.cancel();
+    _attendanceSub?.cancel();
     super.dispose();
   }
 
@@ -1045,22 +1053,35 @@ class _SalesPayrollScreenState extends State<SalesPayrollScreen> {
                       ),
                     ),
                     const SizedBox(width: 10),
-                    ElevatedButton.icon(
-                      onPressed: _rfidLoading ? null : _loadRfidAttendance,
-                      icon: _rfidLoading
-                          ? const SizedBox(
-                              width: 14,
-                              height: 14,
-                              child: CircularProgressIndicator(
-                                  strokeWidth: 2, color: AdminWebColors.success),
-                            )
-                          : const Icon(Icons.refresh_rounded, size: 16),
-                      label: const Text('REFRESH RFID'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AdminWebColors.success.withValues(alpha: 0.1),
-                        foregroundColor: AdminWebColors.success,
-                        elevation: 0,
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: AdminWebColors.success.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: AdminWebColors.success.withValues(alpha: 0.3)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: 7,
+                            height: 7,
+                            decoration: const BoxDecoration(
+                              color: AdminWebColors.success,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          const Text(
+                            'LIVE RFID SYNCED',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              color: AdminWebColors.success,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],

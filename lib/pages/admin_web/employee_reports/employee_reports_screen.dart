@@ -613,26 +613,29 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
 
         return Container(
           color: AdminWebColors.background,
-          padding: const EdgeInsets.all(24),
+          padding: EdgeInsets.symmetric(horizontal: isWide ? 24 : 12, vertical: 16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const SizedBox(height: 8),
               // Top Sub-Tab Switcher
-              Row(
-                children: [
-                  _buildTabButton(
-                    index: 0,
-                    label: 'STAFF DAILY REPORTS',
-                    icon: Icons.fact_check_rounded,
-                  ),
-                  const SizedBox(width: 10),
-                  _buildTabButton(
-                    index: 1,
-                    label: 'INVENTORY VERIFICATION',
-                    icon: Icons.verified_rounded,
-                  ),
-                ],
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    _buildTabButton(
+                      index: 0,
+                      label: 'STAFF DAILY REPORTS',
+                      icon: Icons.fact_check_rounded,
+                    ),
+                    const SizedBox(width: 10),
+                    _buildTabButton(
+                      index: 1,
+                      label: 'INVENTORY VERIFICATION',
+                      icon: Icons.verified_rounded,
+                    ),
+                  ],
+                ),
               ),
               const SizedBox(height: 20),
 

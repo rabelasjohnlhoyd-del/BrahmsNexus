@@ -23,19 +23,43 @@ class _MonthlyFinancialsScreenState extends State<MonthlyFinancialsScreen> {
   StreamSubscription<FinancialPeriod?>? _periodSub;
   StreamSubscription<List<SalesRecord>>? _salesSub;
   StreamSubscription<List<KarneBatch>>? _internalBatchesSub;
+  StreamSubscription<List<FinancialPeriod>>? _allPeriodsSub;
   List<KarneBatch> _internalBatches = [];
+  List<String> _availablePeriodIds = [];
 
   final String _currentPeriodId =
       '${DateTime.now().year}_${DateTime.now().month.toString().padLeft(2, '0')}';
+  late String _activePeriodId;
 
   double _actualBranchCookWages = 0.0;
   String? _selectedBatchId;
   bool _isSaving = false;
 
+  int _getMonthNumber(String periodId) {
+    try {
+      final parts = periodId.split('_');
+      return int.parse(parts[1]);
+    } catch (_) {
+      return DateTime.now().month;
+    }
+  }
+
+  int _getYearNumber(String periodId) {
+    try {
+      final parts = periodId.split('_');
+      return int.parse(parts[0]);
+    } catch (_) {
+      return DateTime.now().year;
+    }
+  }
+
   @override
   void initState() {
     super.initState();
-    _initializeDefaultPeriod();
+    _activePeriodId = _currentPeriodId;
+    _availablePeriodIds = [_currentPeriodId];
+    _initializeDefaultPeriod(_activePeriodId);
+    _subscribeToAllPeriods();
     _subscribeToLivePeriod();
     _subscribeToLiveSales();
     if (widget.karneBatches.isEmpty) {
@@ -45,62 +69,88 @@ class _MonthlyFinancialsScreenState extends State<MonthlyFinancialsScreen> {
           _internalBatches = batches;
           final counts = _extractMeatCounts();
           _period = _period.copyWith(
-            regular250gCount: counts.count250g > 0 ? counts.count250g : _period.regular250gCount,
-            medium300gCount: counts.count300g > 0 ? counts.count300g : _period.medium300gCount,
-            b1t1400gCount: counts.count400g > 0 ? counts.count400g : _period.b1t1400gCount,
-            productionCookingSessions: counts.sessionsCount > 0
-                ? counts.sessionsCount
-                : _period.productionCookingSessions,
+            regular250gCount: counts.count250g,
+            medium300gCount: counts.count300g,
+            b1t1400gCount: counts.count400g,
+            productionCookingSessions: counts.sessionsCount,
           );
         });
       });
     }
   }
 
-  void _initializeDefaultPeriod() {
-    final now = DateTime.now();
-    final counts = _extractMeatCounts();
+  void _subscribeToAllPeriods() {
+    _allPeriodsSub = FirestoreService.watchAllFinancialPeriods().listen((periods) {
+      if (!mounted) return;
+      final currentYear = DateTime.now().year;
+
+      // Filter out any periods before current year (bawal ang 2025).
+      // Ang pinaka-oldest na pwedeng balikan ay kung ano ang pinaka-unang recorded period sa database para sa taong ito.
+      final validPeriods = periods
+          .where((p) => _getYearNumber(p.id) >= currentYear)
+          .map((p) => p.id)
+          .toSet();
+
+      validPeriods.add(_currentPeriodId);
+      validPeriods.add(_activePeriodId);
+
+      final sorted = validPeriods.toList()..sort((a, b) => b.compareTo(a));
+      setState(() {
+        _availablePeriodIds = sorted;
+      });
+    });
+  }
+
+  void _initializeDefaultPeriod([String? periodId]) {
+    final pid = periodId ?? _activePeriodId;
+    final targetMonth = _getMonthNumber(pid);
+    final targetYear = _getYearNumber(pid);
+    final counts = _extractMeatCounts(targetYear, targetMonth);
+
+    // Uncheck all procurement items by default for a fresh period
+    final cleanGroups = FirestoreService.defaultProcurementGroups.map((group) {
+      return group.copyWith(
+        items: group.items.map((item) => item.copyWith(isPaid: false)).toList(),
+      );
+    }).toList();
 
     _period = FinancialPeriod(
-      id: _currentPeriodId,
-      monthName: _getMonthName(now.month),
-      year: now.year,
-      notes:
-          'IF 150 SALES PER DAY CAN BE ACHIEVED FOR 20 DAYS, LABOR COSTS WILL BE REDUCED.',
-      roiInvestment: 165000.0,
+      id: pid,
+      monthName: _getMonthName(targetMonth),
+      year: targetYear,
+      notes: '',
+      roiInvestment: 0.0,
       regular250gCount: counts.count250g,
       medium300gCount: counts.count300g,
       b1t1400gCount: counts.count400g,
-      productionCookingSessions: counts.sessionsCount > 0 ? counts.sessionsCount : 7,
+      productionCookingSessions: counts.sessionsCount,
       productionCookDailyRate: 1000.0,
       productionCutterDailyRate: 1100.0,
-      driverWorkingDays: 25,
+      driverWorkingDays: 0,
       driverDailyWage: 650.0,
       branchCookLaborTotal: 0.0,
-      procurementGroups: FirestoreService.defaultProcurementGroups,
+      daddyNetDays: 0,
+      trikeGasDays: 0,
+      procurementGroups: cleanGroups,
     );
   }
 
   void _subscribeToLivePeriod() {
-    _periodSub = FirestoreService.watchMonthlyFinancialPeriod(_currentPeriodId)
+    _periodSub?.cancel();
+    final targetMonth = _getMonthNumber(_activePeriodId);
+    final targetYear = _getYearNumber(_activePeriodId);
+
+    _periodSub = FirestoreService.watchMonthlyFinancialPeriod(_activePeriodId)
         .listen((remotePeriod) {
       if (!mounted) return;
       if (remotePeriod != null) {
-        final counts = _extractMeatCounts();
+        final counts = _extractMeatCounts(targetYear, targetMonth);
         setState(() {
           _period = remotePeriod.copyWith(
-            regular250gCount: counts.count250g > 0
-                ? counts.count250g
-                : remotePeriod.regular250gCount,
-            medium300gCount: counts.count300g > 0
-                ? counts.count300g
-                : remotePeriod.medium300gCount,
-            b1t1400gCount: counts.count400g > 0
-                ? counts.count400g
-                : remotePeriod.b1t1400gCount,
-            productionCookingSessions: counts.sessionsCount > 0
-                ? counts.sessionsCount
-                : remotePeriod.productionCookingSessions,
+            regular250gCount: counts.count250g,
+            medium300gCount: counts.count300g,
+            b1t1400gCount: counts.count400g,
+            productionCookingSessions: counts.sessionsCount,
             branchCookLaborTotal: _actualBranchCookWages > 0
                 ? _actualBranchCookWages
                 : remotePeriod.branchCookLaborTotal,
@@ -114,22 +164,37 @@ class _MonthlyFinancialsScreenState extends State<MonthlyFinancialsScreen> {
   }
 
   void _subscribeToLiveSales() {
-    _salesSub = FirestoreService.watchRecentSales(limit: 200).listen((records) {
+    _salesSub?.cancel();
+    final targetMonth = _getMonthNumber(_activePeriodId);
+    final targetYear = _getYearNumber(_activePeriodId);
+
+    _salesSub = FirestoreService.watchRecentSales(limit: 300).listen((records) {
       if (!mounted) return;
-      // Sum wages for the current month
-      final now = DateTime.now();
+      // Sum wages strictly for the active month and year
       final monthRecords = records.where((r) =>
-          r.date.year == now.year && r.date.month == now.month);
+          r.date.year == targetYear && r.date.month == targetMonth);
       final totalWages =
           monthRecords.fold(0.0, (sum, r) => sum + r.computedWage);
 
-      if (totalWages > 0) {
+      if (totalWages > 0 || _actualBranchCookWages > 0) {
         setState(() {
           _actualBranchCookWages = totalWages;
           _period = _period.copyWith(branchCookLaborTotal: totalWages);
         });
       }
     });
+  }
+
+  void _selectPeriod(String newPeriodId) {
+    if (newPeriodId == _activePeriodId) return;
+    setState(() {
+      _activePeriodId = newPeriodId;
+      _selectedBatchId = null;
+      _actualBranchCookWages = 0.0;
+      _initializeDefaultPeriod(newPeriodId);
+    });
+    _subscribeToLivePeriod();
+    _subscribeToLiveSales();
   }
 
   @override
@@ -154,21 +219,31 @@ class _MonthlyFinancialsScreenState extends State<MonthlyFinancialsScreen> {
     _periodSub?.cancel();
     _salesSub?.cancel();
     _internalBatchesSub?.cancel();
+    _allPeriodsSub?.cancel();
     super.dispose();
   }
 
-  _MeatCountResult _extractMeatCounts() {
+  _MeatCountResult _extractMeatCounts([int? year, int? month]) {
     int c250 = 0;
     int c300 = 0;
     int c400 = 0;
     int sessions = 0;
 
+    final targetMonth = month ?? _getMonthNumber(_activePeriodId);
+    final targetYear = year ?? _getYearNumber(_activePeriodId);
+
     final availableBatches = widget.karneBatches.isNotEmpty
         ? widget.karneBatches
         : _internalBatches;
+
+    // Filter strictly by the active month and year to avoid cross-month bleeding
+    final monthBatches = availableBatches.where((b) {
+      return b.date.year == targetYear && b.date.month == targetMonth;
+    }).toList();
+
     final batchesToUse = _selectedBatchId == null
-        ? availableBatches
-        : availableBatches.where((b) => b.id == _selectedBatchId).toList();
+        ? monthBatches
+        : monthBatches.where((b) => b.id == _selectedBatchId).toList();
 
     for (var b in batchesToUse) {
       if (b.sessions.isNotEmpty) {
@@ -424,6 +499,41 @@ class _MonthlyFinancialsScreenState extends State<MonthlyFinancialsScreen> {
     );
   }
 
+  void _uncheckAllProcurementDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Reset All Checkboxes?'),
+        content: const Text(
+          'This will uncheck all procurement ingredients for the current month so you can track this month\'s purchases fresh.',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('CANCEL')),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              setState(() {
+                for (var group in _period.procurementGroups) {
+                  for (var item in group.items) {
+                    item.isPaid = false;
+                  }
+                }
+              });
+              _persistPeriod();
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  backgroundColor: Color(0xFF2E7D32),
+                  content: Text('All ingredient checkboxes have been reset to unpaid.'),
+                ),
+              );
+            },
+            child: const Text('RESET ALL'),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _addNewCategoryDialog() {
     final titleCtrl = TextEditingController();
 
@@ -668,10 +778,281 @@ class _MonthlyFinancialsScreenState extends State<MonthlyFinancialsScreen> {
     }
   }
 
+  void _showStartNewMonthDialog() {
+    final now = DateTime.now();
+    final currentMonthDate = DateTime(now.year, now.month, 1);
+    final nextMonthDate = now.month == 12
+        ? DateTime(now.year + 1, 1, 1)
+        : DateTime(now.year, now.month + 1, 1);
+
+    // Default to next month if current month period already exists, else current month
+    final currentPid = 'fp_${currentMonthDate.year}_${currentMonthDate.month.toString().padLeft(2, '0')}';
+    DateTime selectedMonthDate = _availablePeriodIds.contains(currentPid)
+        ? nextMonthDate
+        : currentMonthDate;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          final bool isCurrentMonth = selectedMonthDate.year == currentMonthDate.year &&
+              selectedMonthDate.month == currentMonthDate.month;
+          final bool canGoBack = !isCurrentMonth;
+          final bool canGoForward = isCurrentMonth;
+
+          final periodId = 'fp_${selectedMonthDate.year}_${selectedMonthDate.month.toString().padLeft(2, '0')}';
+          final bool alreadyExists = _availablePeriodIds.contains(periodId);
+
+          return AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: const Row(
+              children: [
+                Icon(Icons.calendar_month_rounded, color: AdminWebColors.accent),
+                SizedBox(width: 10),
+                Text('Start New Monthly Period', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+              ],
+            ),
+            content: SizedBox(
+              width: 440,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Pumili ng buwan gamit ang arrow. Ang pinaka-pwede lang simulan ay ang kasalukuyang buwan at ang kasunod na buwan. Bawal nang balikan ang mga nakaraang buwan.',
+                    style: TextStyle(fontSize: 13, color: AdminWebColors.textSecondary, height: 1.4),
+                  ),
+                  const SizedBox(height: 18),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: AdminWebColors.background,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: AdminWebColors.border),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.date_range_rounded, size: 18, color: AdminWebColors.accent),
+                        const SizedBox(width: 8),
+                        const Text('BUWAN:', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
+                        const Spacer(),
+                        IconButton(
+                          icon: const Icon(Icons.chevron_left_rounded, size: 20),
+                          tooltip: canGoBack ? 'Kasalukuyang Buwan' : 'Bawal nang pumili ng nakaraang buwan',
+                          onPressed: canGoBack
+                              ? () {
+                                  setDialogState(() {
+                                    selectedMonthDate = currentMonthDate;
+                                  });
+                                }
+                              : null,
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: AdminWebColors.accent.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            '${_getMonthName(selectedMonthDate.month).toUpperCase()} ${selectedMonthDate.year}',
+                            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: AdminWebColors.accent),
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.chevron_right_rounded, size: 20),
+                          tooltip: canGoForward ? 'Kasunod na Buwan' : 'Lalabas lang ang susunod kapag tapos na ang kasalukuyang buwan',
+                          onPressed: canGoForward
+                              ? () {
+                                  setDialogState(() {
+                                    selectedMonthDate = nextMonthDate;
+                                  });
+                                }
+                              : null,
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (alreadyExists) ...[
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: AdminWebColors.accent.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: AdminWebColors.accent.withValues(alpha: 0.3)),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.info_outline_rounded, size: 18, color: AdminWebColors.accent),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'May record na para sa ${_getMonthName(selectedMonthDate.month)} ${selectedMonthDate.year}. Pindutin ang Switch para lumipat dito.',
+                              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AdminWebColors.textPrimary),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('CANCEL'),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AdminWebColors.accent,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  _startNewMonthPeriod(selectedMonthDate.year, selectedMonthDate.month);
+                },
+                child: Text(alreadyExists ? 'SWITCH TO MONTH' : 'CREATE MONTH'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _showResetCurrentMonthDialog() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Row(
+          children: [
+            const Icon(Icons.restart_alt_rounded, color: AdminWebColors.error),
+            const SizedBox(width: 8),
+            Text('Reset ${_period.monthName} ${_period.year}?'),
+          ],
+        ),
+        content: Text(
+          'Gusto mo bang i-reset ang data para sa ${_period.monthName} ${_period.year}?\n\n'
+          '• Magiging 0 pcs ang karne (Regular, Medium, B1T1) dahil wala pang naluluto para sa buwang ito.\n'
+          '• Magiging UNCHECKED ang lahat ng ingredients sa checklist para masimulan ang pag-track ng gastusin ngayong buwan.\n'
+          '• Magiging ₱0 ang puhunan / ROI at mawawala ang lumang notes mula sa nakaraang buwan.',
+          style: const TextStyle(fontSize: 13, height: 1.4),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('CANCEL')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: AdminWebColors.error, foregroundColor: Colors.white),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('YES, RESET MONTH'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    final targetMonth = _getMonthNumber(_activePeriodId);
+    final targetYear = _getYearNumber(_activePeriodId);
+    final counts = _extractMeatCounts(targetYear, targetMonth);
+
+    final cleanGroups = FirestoreService.defaultProcurementGroups.map((g) {
+      return g.copyWith(items: g.items.map((i) => i.copyWith(isPaid: false)).toList());
+    }).toList();
+
+    final resetPeriod = FinancialPeriod(
+      id: _activePeriodId,
+      monthName: _getMonthName(targetMonth),
+      year: targetYear,
+      notes: '',
+      roiInvestment: 0.0,
+      regular250gCount: counts.count250g,
+      medium300gCount: counts.count300g,
+      b1t1400gCount: counts.count400g,
+      productionCookingSessions: counts.sessionsCount,
+      productionCookDailyRate: 1000.0,
+      productionCutterDailyRate: 1100.0,
+      driverWorkingDays: 0,
+      driverDailyWage: 650.0,
+      branchCookLaborTotal: 0.0,
+      daddyNetDays: 0,
+      trikeGasDays: 0,
+      procurementGroups: cleanGroups,
+    );
+
+    await FirestoreService.saveMonthlyFinancialPeriod(resetPeriod);
+    setState(() {
+      _period = resetPeriod;
+      _actualBranchCookWages = 0.0;
+    });
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: const Color(0xFF2E7D32),
+          content: Text('${_period.monthName} ${_period.year} data successfully reset to fresh start!'),
+        ),
+      );
+    }
+  }
+
+  Future<void> _startNewMonthPeriod(int year, int month) async {
+    final newPid = '${year}_${month.toString().padLeft(2, '0')}';
+
+    if (_availablePeriodIds.contains(newPid)) {
+      _selectPeriod(newPid);
+      return;
+    }
+
+    // Carry over current procurement ingredients with all checkboxes UNCHECKED (isPaid = false)
+    final resetProcurement = _period.procurementGroups.map((g) {
+      return g.copyWith(
+        items: g.items.map((i) => i.copyWith(isPaid: false)).toList(),
+      );
+    }).toList();
+
+    final counts = _extractMeatCounts(year, month);
+
+    final newPeriod = FinancialPeriod(
+      id: newPid,
+      monthName: _getMonthName(month),
+      year: year,
+      notes: 'FINANCIAL TARGETS AND EXPENSES FOR ${_getMonthName(month).toUpperCase()} $year.',
+      roiInvestment: 0.0,
+      regular250gCount: counts.count250g,
+      medium300gCount: counts.count300g,
+      b1t1400gCount: counts.count400g,
+      productionCookingSessions: counts.sessionsCount,
+      productionCookDailyRate: 1000.0,
+      productionCutterDailyRate: 1100.0,
+      driverWorkingDays: 0,
+      driverDailyWage: 650.0,
+      branchCookLaborTotal: 0.0,
+      procurementGroups: resetProcurement.isNotEmpty
+          ? resetProcurement
+          : FirestoreService.defaultProcurementGroups.map((g) {
+              return g.copyWith(items: g.items.map((i) => i.copyWith(isPaid: false)).toList());
+            }).toList(),
+    );
+
+    await FirestoreService.saveMonthlyFinancialPeriod(newPeriod);
+    _selectPeriod(newPid);
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: const Color(0xFF2E7D32),
+          content: Text('Started new financial period for ${_getMonthName(month)} $year! Checklists unchecked and reset.'),
+        ),
+      );
+    }
+  }
+
   Widget _buildTopActionBar() {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final isWide = constraints.maxWidth >= 650;
+        final isWide = constraints.maxWidth >= 900;
         final titleContent = Text(
           '${_period.monthName.toUpperCase()} ${_period.year} FINANCIAL STATEMENT',
           style: const TextStyle(
@@ -679,6 +1060,82 @@ class _MonthlyFinancialsScreenState extends State<MonthlyFinancialsScreen> {
             fontWeight: FontWeight.w900,
             color: AdminWebColors.textPrimary,
             letterSpacing: 0.5,
+          ),
+        );
+
+        final periodSelector = Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: AdminWebColors.border),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.04),
+                blurRadius: 4,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.calendar_month_rounded, size: 16, color: AdminWebColors.accent),
+              const SizedBox(width: 8),
+              DropdownButtonHideUnderline(
+                child: DropdownButton<String>(
+                  value: _availablePeriodIds.contains(_activePeriodId)
+                      ? _activePeriodId
+                      : null,
+                  hint: Text(
+                    '${_period.monthName} ${_period.year}',
+                    style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: AdminWebColors.textPrimary),
+                  ),
+                  icon: const Icon(Icons.keyboard_arrow_down_rounded, color: AdminWebColors.accent),
+                  style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: AdminWebColors.textPrimary),
+                  items: _availablePeriodIds.map((pid) {
+                    final m = _getMonthNumber(pid);
+                    final y = _getYearNumber(pid);
+                    final isCurrent = pid == _currentPeriodId;
+                    return DropdownMenuItem<String>(
+                      value: pid,
+                      child: Text(
+                        '${_getMonthName(m)} $y ${isCurrent ? "(Current)" : ""}',
+                        style: TextStyle(
+                          fontWeight: pid == _activePeriodId ? FontWeight.w900 : FontWeight.w600,
+                          color: pid == _activePeriodId ? AdminWebColors.accent : AdminWebColors.textPrimary,
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                  onChanged: (newId) {
+                    if (newId != null) {
+                      _selectPeriod(newId);
+                    }
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+
+        final newMonthBtn = ElevatedButton.icon(
+          onPressed: _showStartNewMonthDialog,
+          icon: const Icon(Icons.add_circle_outline_rounded, size: 16, color: Colors.white),
+          label: const Text(
+            'START NEW MONTH',
+            style: TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w800,
+              fontSize: 12,
+            ),
+          ),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AdminWebColors.accent,
+            foregroundColor: Colors.white,
+            elevation: 0,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
           ),
         );
 
@@ -690,14 +1147,32 @@ class _MonthlyFinancialsScreenState extends State<MonthlyFinancialsScreen> {
             style: TextStyle(
               color: Colors.white,
               fontWeight: FontWeight.w800,
-              fontSize: 13,
+              fontSize: 12,
             ),
           ),
           style: ElevatedButton.styleFrom(
             backgroundColor: const Color(0xFF2E7D32),
             foregroundColor: Colors.white,
             elevation: 0,
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+        );
+
+        final resetMonthBtn = OutlinedButton.icon(
+          onPressed: _showResetCurrentMonthDialog,
+          icon: const Icon(Icons.restart_alt_rounded, size: 16, color: AdminWebColors.error),
+          label: const Text(
+            'RESET MONTH DATA',
+            style: TextStyle(
+              color: AdminWebColors.error,
+              fontWeight: FontWeight.w800,
+              fontSize: 12,
+            ),
+          ),
+          style: OutlinedButton.styleFrom(
+            side: const BorderSide(color: AdminWebColors.error),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
           ),
         );
@@ -707,7 +1182,13 @@ class _MonthlyFinancialsScreenState extends State<MonthlyFinancialsScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Expanded(child: titleContent),
-              const SizedBox(width: 16),
+              const SizedBox(width: 12),
+              periodSelector,
+              const SizedBox(width: 10),
+              resetMonthBtn,
+              const SizedBox(width: 10),
+              newMonthBtn,
+              const SizedBox(width: 10),
               exportBtn,
             ],
           );
@@ -717,7 +1198,17 @@ class _MonthlyFinancialsScreenState extends State<MonthlyFinancialsScreen> {
             children: [
               titleContent,
               const SizedBox(height: 12),
-              Align(alignment: Alignment.centerLeft, child: exportBtn),
+              Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  periodSelector,
+                  resetMonthBtn,
+                  newMonthBtn,
+                  exportBtn,
+                ],
+              ),
             ],
           );
         }
@@ -729,10 +1220,11 @@ class _MonthlyFinancialsScreenState extends State<MonthlyFinancialsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isMobile = MediaQuery.of(context).size.width < 600;
     return Container(
       color: AdminWebColors.background,
       child: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
+        padding: EdgeInsets.symmetric(horizontal: isMobile ? 12 : 24, vertical: 16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -1061,15 +1553,20 @@ class _MonthlyFinancialsScreenState extends State<MonthlyFinancialsScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
-                'TOTAL KARNE PRODUCTION (MAIN WAREHOUSE)',
-                style: TextStyle(
-                  fontWeight: FontWeight.w900,
-                  color: AdminWebColors.accent,
-                  letterSpacing: 0.5,
-                  fontSize: 14,
+              const Expanded(
+                child: Text(
+                  'TOTAL KARNE PRODUCTION (MAIN WAREHOUSE)',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w900,
+                    color: AdminWebColors.accent,
+                    letterSpacing: 0.5,
+                    fontSize: 14,
+                  ),
                 ),
               ),
+              const SizedBox(width: 8),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
@@ -1157,38 +1654,54 @@ class _MonthlyFinancialsScreenState extends State<MonthlyFinancialsScreen> {
             ),
           ],
           const Divider(height: 28),
-          Row(
-            children: [
-              Expanded(
-                child: _meatPortionBox(
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final isWide = constraints.maxWidth >= 600;
+              final boxes = [
+                _meatPortionBox(
                   sizeLabel: 'Regular (250G)',
                   pcs: _period.regular250gCount,
                   rate: 130.0,
                   totalAmount: _period.regular250gRevenue,
                   color: AdminWebColors.accent,
                 ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _meatPortionBox(
+                _meatPortionBox(
                   sizeLabel: 'Medium (300G)',
                   pcs: _period.medium300gCount,
                   rate: 160.0,
                   totalAmount: _period.medium300gRevenue,
                   color: AdminWebColors.accentDark,
                 ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _meatPortionBox(
+                _meatPortionBox(
                   sizeLabel: 'B1T1 (400G)',
                   pcs: _period.b1t1400gCount,
                   rate: 210.0,
                   totalAmount: _period.b1t1400gRevenue,
                   color: AdminWebColors.accent,
                 ),
-              ),
-            ],
+              ];
+
+              if (isWide) {
+                return Row(
+                  children: [
+                    Expanded(child: boxes[0]),
+                    const SizedBox(width: 12),
+                    Expanded(child: boxes[1]),
+                    const SizedBox(width: 12),
+                    Expanded(child: boxes[2]),
+                  ],
+                );
+              }
+              return Column(
+                children: [
+                  boxes[0],
+                  const SizedBox(height: 10),
+                  boxes[1],
+                  const SizedBox(height: 10),
+                  boxes[2],
+                ],
+              );
+            },
           ),
         ],
       ),
@@ -1274,6 +1787,17 @@ class _MonthlyFinancialsScreenState extends State<MonthlyFinancialsScreen> {
                         AdminWebColors.accent.withValues(alpha: 0.12),
                     foregroundColor: AdminWebColors.accent,
                     elevation: 0,
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                OutlinedButton.icon(
+                  onPressed: _uncheckAllProcurementDialog,
+                  icon: const Icon(Icons.restart_alt_rounded, size: 16),
+                  label: const Text('RESET CHECKBOXES'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AdminWebColors.textSecondary,
                     padding:
                         const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   ),

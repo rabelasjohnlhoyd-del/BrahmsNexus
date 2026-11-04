@@ -463,7 +463,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             activeStaffCount: activeStaffCount,
             restDayCount: restDayCount,
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 76),
         ],
       ),
     );
@@ -481,8 +481,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
     required List<num> orderSeriesValues,
     bool isMobile = false,
   }) {
-    return GlassCard(
+    return Container(
       padding: EdgeInsets.symmetric(horizontal: isMobile ? 16 : 22, vertical: isMobile ? 16 : 20),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF8B4513), Color(0xFFA0522D)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF8B4513).withValues(alpha: 0.28),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -496,32 +511,32 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     height: 44,
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
-                      color: AdminWebColors.accent.withValues(alpha: 0.12),
+                      color: Colors.white.withValues(alpha: 0.18),
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(Icons.payments_outlined, size: 22, color: AdminWebColors.accent),
+                    child: const Icon(Icons.payments_outlined, size: 22, color: Colors.white),
                   ),
                   const SizedBox(width: 14),
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
+                      Text(
                         "TODAY'S REVENUE",
                         style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w800,
                           letterSpacing: 0.8,
-                          color: AdminWebColors.textSecondary,
+                          color: Colors.white.withValues(alpha: 0.88),
                         ),
                       ),
                     ],
                   ),
                 ],
               ),
-              SizedBox(
+              const SizedBox(
                 width: 60,
                 height: 28,
-                child: CustomPaint(painter: _HeroTrendPainter()),
+                child: CustomPaint(painter: _HeroTrendPainter(color: Colors.white70)),
               ),
             ],
           ),
@@ -538,7 +553,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   style: TextStyle(
                     fontSize: isMobile ? 32 : 38,
                     fontWeight: FontWeight.w900,
-                    color: AdminWebColors.textPrimary,
+                    color: Colors.white,
                     letterSpacing: -0.8,
                   ),
                 ),
@@ -550,9 +565,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
-                    color: revenueSubtitle.contains('+')
-                        ? AdminWebColors.success
-                        : AdminWebColors.textSecondary,
+                    color: Colors.white.withValues(alpha: 0.85),
                   ),
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -583,75 +596,141 @@ class _DashboardScreenState extends State<DashboardScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Header with Title & Toggle Button
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    width: 36,
-                    height: 36,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: AdminWebColors.accent.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Icon(
-                      isWeeklyView ? Icons.bar_chart_rounded : Icons.show_chart_rounded,
-                      size: 20,
-                      color: AdminWebColors.accent,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Text(
-                    isWeeklyView ? 'Weekly Order Analytics' : 'Sales & Distribution Breakdown',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w900,
-                      fontSize: isMobile ? 14 : 16,
-                      color: AdminWebColors.textPrimary,
-                    ),
-                  ),
-                ],
-              ),
-
-              // Interactive Toggle Button on the Right Side
-              InkWell(
-                onTap: () {
-                  setState(() {
-                    _activeChartIndex = _activeChartIndex == 0 ? 1 : 0;
-                  });
-                },
-                borderRadius: BorderRadius.circular(10),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+          if (isMobile)
+            Row(
+              children: [
+                Container(
+                  width: 32,
+                  height: 32,
+                  alignment: Alignment.center,
                   decoration: BoxDecoration(
-                    color: AdminWebColors.accent.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: AdminWebColors.accent.withValues(alpha: 0.3)),
+                    color: AdminWebColors.accent.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(8),
                   ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.swap_horiz_rounded,
-                        size: 16,
-                        color: AdminWebColors.accent,
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        isWeeklyView ? 'View Sales & Distribution' : 'View Weekly Analytics',
-                        style: const TextStyle(
-                          fontSize: 11.5,
-                          fontWeight: FontWeight.w800,
-                          color: AdminWebColors.accent,
-                        ),
-                      ),
-                    ],
+                  child: Icon(
+                    isWeeklyView ? Icons.bar_chart_rounded : Icons.show_chart_rounded,
+                    size: 17,
+                    color: AdminWebColors.accent,
                   ),
                 ),
-              ),
-            ],
-          ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    isWeeklyView ? 'Weekly Order Analytics' : 'Sales & Distribution',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w900,
+                      fontSize: 13.5,
+                      color: AdminWebColors.textPrimary,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                InkWell(
+                  onTap: () {
+                    setState(() {
+                      _activeChartIndex = _activeChartIndex == 0 ? 1 : 0;
+                    });
+                  },
+                  borderRadius: BorderRadius.circular(8),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: AdminWebColors.accent.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: AdminWebColors.accent.withValues(alpha: 0.3)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.swap_horiz_rounded,
+                          size: 14,
+                          color: AdminWebColors.accent,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          isWeeklyView ? 'Sales' : 'Weekly',
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            color: AdminWebColors.accent,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            )
+          else
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 36,
+                      height: 36,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: AdminWebColors.accent.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Icon(
+                        isWeeklyView ? Icons.bar_chart_rounded : Icons.show_chart_rounded,
+                        size: 20,
+                        color: AdminWebColors.accent,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Text(
+                      isWeeklyView ? 'Weekly Order Analytics' : 'Sales & Distribution Breakdown',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w900,
+                        fontSize: 16,
+                        color: AdminWebColors.textPrimary,
+                      ),
+                    ),
+                  ],
+                ),
+                InkWell(
+                  onTap: () {
+                    setState(() {
+                      _activeChartIndex = _activeChartIndex == 0 ? 1 : 0;
+                    });
+                  },
+                  borderRadius: BorderRadius.circular(10),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                    decoration: BoxDecoration(
+                      color: AdminWebColors.accent.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: AdminWebColors.accent.withValues(alpha: 0.3)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.swap_horiz_rounded,
+                          size: 16,
+                          color: AdminWebColors.accent,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          isWeeklyView ? 'View Sales & Distribution' : 'View Weekly Analytics',
+                          style: const TextStyle(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w800,
+                            color: AdminWebColors.accent,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
           const SizedBox(height: 16),
 
           // Key Stats Row
@@ -941,14 +1020,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
               children: [
                 Text(
                   title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                    fontSize: 13,
+                    fontSize: 12.5,
                     fontWeight: FontWeight.w800,
                     color: AdminWebColors.textPrimary,
                   ),
                 ),
                 Text(
                   subtitle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     fontSize: 11,
                     color: AdminWebColors.textSecondary,
@@ -957,6 +1040,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ],
             ),
           ),
+          const SizedBox(width: 8),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
             decoration: BoxDecoration(
@@ -1041,10 +1125,13 @@ class _LegendDot extends StatelessWidget {
 }
 
 class _HeroTrendPainter extends CustomPainter {
+  final Color? color;
+  const _HeroTrendPainter({this.color});
+
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = AdminWebColors.accent.withValues(alpha: 0.8)
+      ..color = color ?? AdminWebColors.accent.withValues(alpha: 0.8)
       ..strokeWidth = 2.0
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round

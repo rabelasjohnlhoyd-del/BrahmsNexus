@@ -324,42 +324,52 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Web: enterprise card layout (unchanged)
+    // Web: enterprise card layout (responsive for mobile and desktop)
     if (kIsWeb) {
-      return AbsorbPointer(
-        absorbing: _isLoading,
-        child: AuthAdminLayout(
-          maxWidth: 460,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(32, 28, 32, 28),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const Center(child: AuthBrandMark(size: 72)),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'Administrator Portal',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.w900,
-                      color: Color(0xFF24140B),
-                      letterSpacing: -0.3,
-                    ),
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          final isMobileWeb = constraints.maxWidth < 600;
+          return AbsorbPointer(
+            absorbing: _isLoading,
+            child: AuthAdminLayout(
+              maxWidth: 460,
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(
+                  isMobileWeb ? 20 : 32,
+                  isMobileWeb ? 22 : 28,
+                  isMobileWeb ? 20 : 32,
+                  isMobileWeb ? 22 : 28,
+                ),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Center(child: AuthBrandMark(size: isMobileWeb ? 58 : 72)),
+                      SizedBox(height: isMobileWeb ? 12 : 16),
+                      Text(
+                        'Administrator Portal',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: isMobileWeb ? 20 : 24,
+                          fontWeight: FontWeight.w900,
+                          color: const Color(0xFF24140B),
+                          letterSpacing: -0.3,
+                        ),
+                      ),
+                      SizedBox(height: isMobileWeb ? 18 : 24),
+                      ..._buildFormFields(),
+                      const SizedBox(height: 12),
+                      _buildOptionsRow(),
+                      const SizedBox(height: 20),
+                      _buildSignInButton(),
+                    ],
                   ),
-                  const SizedBox(height: 24),
-                  ..._buildFormFields(),
-                  const SizedBox(height: 12),
-                  _buildOptionsRow(),
-                  const SizedBox(height: 20),
-                  _buildSignInButton(),
-                ],
+                ),
               ),
             ),
-          ),
-        ),
+          );
+        },
       );
     }
 
@@ -576,10 +586,10 @@ class _LoginScreenState extends State<LoginScreen> {
       ];
 
   /// Remember-me checkbox + forgot-password link row.
-  Widget _buildOptionsRow() => Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          InkWell(
+  Widget _buildOptionsRow() => LayoutBuilder(
+        builder: (context, constraints) {
+          final isNarrow = constraints.maxWidth < 280;
+          final rememberMeWidget = InkWell(
             onTap: _isLoading ? null : () => setState(() => _rememberMe = !_rememberMe),
             borderRadius: BorderRadius.circular(6),
             child: Padding(
@@ -613,8 +623,9 @@ class _LoginScreenState extends State<LoginScreen> {
                 ],
               ),
             ),
-          ),
-          TextButton(
+          );
+
+          final forgotPasswordWidget = TextButton(
             onPressed: _isLoading
                 ? null
                 : () => Navigator.of(context).push(
@@ -635,8 +646,31 @@ class _LoginScreenState extends State<LoginScreen> {
                 fontSize: 12,
               ),
             ),
-          ),
-        ],
+          );
+
+          if (isNarrow) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                rememberMeWidget,
+                const SizedBox(height: 6),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: forgotPasswordWidget,
+                ),
+              ],
+            );
+          }
+
+          return Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Flexible(child: rememberMeWidget),
+              const SizedBox(width: 8),
+              forgotPasswordWidget,
+            ],
+          );
+        },
       );
 
   /// Primary sign-in button with loading spinner.

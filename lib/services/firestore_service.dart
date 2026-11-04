@@ -3344,6 +3344,17 @@ class FirestoreService {
         ]),
       ];
 
+  /// Streams all recorded monthly financial periods.
+  static Stream<List<FinancialPeriod>> watchAllFinancialPeriods() {
+    return _db.collection('monthly_financials').snapshots().map((snap) {
+      final list = snap.docs
+          .map((d) => FinancialPeriod.fromMap(d.data(), d.id))
+          .toList();
+      list.sort((a, b) => b.id.compareTo(a.id));
+      return list;
+    });
+  }
+
   /// Streams real-time monthly financial period by periodId (e.g. '2026_09').
   static Stream<FinancialPeriod?> watchMonthlyFinancialPeriod(String periodId) {
     return FirestoreListenCache.doc(

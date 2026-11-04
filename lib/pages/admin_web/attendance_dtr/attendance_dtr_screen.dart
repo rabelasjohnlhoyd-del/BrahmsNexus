@@ -1023,9 +1023,7 @@ class _AttendanceDtrScreenState extends State<AttendanceDtrScreen> {
                                                     Expanded(flex: 3, child: Text('DATE', style: _colHeaderStyle)),
                                                     Expanded(flex: 3, child: Text('TIME IN', style: _colHeaderStyle)),
                                                     Expanded(flex: 3, child: Text('TIME OUT', style: _colHeaderStyle)),
-                                                    Expanded(flex: 2, child: Text('HOURS', style: _colHeaderStyle)),
                                                     Expanded(flex: 4, child: Text('STATUS', style: _colHeaderStyle)),
-                                                    Expanded(flex: 5, child: Text('RFID VERIFICATION', style: _colHeaderStyle)),
                                                   ],
                                                 ),
                                               ),
@@ -1086,15 +1084,11 @@ class _AttendanceDtrScreenState extends State<AttendanceDtrScreen> {
 
   Widget _buildTableRow(Map<String, dynamic> log) {
     final staffName = log['staff_name']?.toString() ?? 'Staff';
-    final staffId = log['staff_id']?.toString() ?? '--';
     final position = log['position']?.toString() ?? 'Staff';
     final branchName = log['branch_name']?.toString() ?? 'Central Commissary';
     final dateStr = _formatDateString(log['date']?.toString());
     final timeInStr = AttendanceService.formatTime(log['time_in']);
     final timeOutStr = AttendanceService.formatTime(log['time_out']);
-    final hours = log['total_hours']?.toString() ?? '--';
-    final rfidUid = log['rfid_uid']?.toString() ?? '';
-    final deviceId = log['device_id']?.toString() ?? 'esp32_commissary_base';
     final hasTimeOut = log['time_out'] != null && log['time_out'].toString().isNotEmpty;
     final todayStr = DateTime.now().toIso8601String().substring(0, 10);
     final logDate = log['date']?.toString() ?? '';
@@ -1103,350 +1097,228 @@ class _AttendanceDtrScreenState extends State<AttendanceDtrScreen> {
     final isIncomplete = logStatus == 'INCOMPLETE' || (!isToday && !hasTimeOut);
     final posLower = position.toLowerCase();
     final isProductionStaff = posLower.contains('cutter') || posLower.contains('production');
+    final isBranchRole = !(posLower.contains('driver') ||
+        posLower.contains('cutter') ||
+        posLower.contains('production') ||
+        posLower.contains('meat') ||
+        branchName == 'N/A' ||
+        branchName == 'Central Commissary');
     final isTimeoutAllowed = log['timeout_allowed'] == true;
 
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: () => _showEmployeeDetailDialog(log),
-        hoverColor: AdminWebColors.accent.withValues(alpha: 0.04),
-        child: Container(
-          height: 72,
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: Row(
-            children: [
-              // 1. Staff Member (flex: 5)
-              Expanded(
-                flex: 5,
-                child: Row(
-                  children: [
-                    CircleAvatar(
-                      radius: 20,
-                      backgroundColor: AdminWebColors.accent.withValues(alpha: 0.12),
-                      child: Text(
-                        staffName.isNotEmpty ? staffName[0].toUpperCase() : 'S',
-                        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: AdminWebColors.accent),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            staffName,
-                            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14, color: AdminWebColors.textPrimary),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(height: 2),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFF1F5F9),
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Text(
-                              staffId.toUpperCase(),
-                              style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, color: Color(0xFF64748B)),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
+    return Container(
+      height: 64,
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Row(
+        children: [
+          // 1. Staff Member (flex: 5)
+          Expanded(
+            flex: 5,
+            child: Row(
+              children: [
+                CircleAvatar(
+                  radius: 18,
+                  backgroundColor: AdminWebColors.accent.withValues(alpha: 0.12),
+                  child: Text(
+                    staffName.isNotEmpty ? staffName[0].toUpperCase() : 'S',
+                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: AdminWebColors.accent),
+                  ),
                 ),
-              ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    staffName,
+                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5, color: AdminWebColors.textPrimary),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ),
 
-              // 2. Role & Branch (flex: 4)
-              Expanded(
-                flex: 4,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      position,
-                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: Color(0xFF1E293B)),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 2),
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.location_on_rounded, size: 12, color: AdminWebColors.accent),
-                        const SizedBox(width: 3),
-                        Flexible(
-                          child: Text(
-                            branchName,
-                            style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w500, color: Color(0xFF64748B)),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
+          // 2. Role & Branch (flex: 4)
+          Expanded(
+            flex: 4,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  position,
+                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: Color(0xFF1E293B)),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                if (isBranchRole) ...[
+                  const SizedBox(height: 2),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.location_on_rounded, size: 12, color: AdminWebColors.accent),
+                      const SizedBox(width: 3),
+                      Flexible(
+                        child: Text(
+                          branchName,
+                          style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w500, color: Color(0xFF64748B)),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
+                      ),
+                    ],
+                  ),
+                ],
+              ],
+            ),
+          ),
 
-              // 3. Date (flex: 3)
-              Expanded(
-                flex: 3,
-                child: Text(
-                  dateStr,
-                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: AdminWebColors.textPrimary),
-                ),
-              ),
+          // 3. Date (flex: 3)
+          Expanded(
+            flex: 3,
+            child: Text(
+              dateStr,
+              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: AdminWebColors.textPrimary),
+            ),
+          ),
 
-              // 4. Time In (flex: 3)
-              Expanded(
-                flex: 3,
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          // 4. Time In (flex: 3)
+          Expanded(
+            flex: 3,
+            child: Text(
+              timeInStr,
+              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: AdminWebColors.textPrimary),
+            ),
+          ),
+
+          // 5. Time Out (flex: 3)
+          Expanded(
+            flex: 3,
+            child: Text(
+              hasTimeOut ? timeOutStr : '--',
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
+                color: hasTimeOut ? AdminWebColors.textPrimary : const Color(0xFF94A3B8),
+              ),
+            ),
+          ),
+
+          // 6. Status (flex: 4)
+          Expanded(
+            flex: 4,
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFECFDF5),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: const Color(0xFFA7F3D0)),
+                      color: isIncomplete
+                          ? const Color(0xFFFEF2F2)
+                          : hasTimeOut
+                              ? const Color(0xFFF1F5F9)
+                              : const Color(0xFFECFDF5),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: isIncomplete
+                            ? const Color(0xFFFECACA)
+                            : hasTimeOut
+                                ? const Color(0xFFCBD5E1)
+                                : const Color(0xFFA7F3D0),
+                      ),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.arrow_downward_rounded, size: 14, color: Color(0xFF059669)),
+                        Container(
+                          width: 6,
+                          height: 6,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: isIncomplete
+                                ? const Color(0xFFDC2626)
+                                : hasTimeOut
+                                    ? const Color(0xFF64748B)
+                                    : const Color(0xFF059669),
+                          ),
+                        ),
                         const SizedBox(width: 5),
                         Text(
-                          timeInStr,
-                          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: Color(0xFF065F46)),
+                          isIncomplete
+                              ? 'INCOMPLETE (NO TIMEOUT)'
+                              : hasTimeOut
+                                  ? 'SHIFT COMPLETED'
+                                  : 'ON ACTIVE SHIFT',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w800,
+                            color: isIncomplete
+                                ? const Color(0xFF991B1B)
+                                : hasTimeOut
+                                    ? const Color(0xFF334155)
+                                    : const Color(0xFF065F46),
+                            letterSpacing: 0.3,
+                          ),
                         ),
                       ],
                     ),
                   ),
-                ),
-              ),
-
-              // 5. Time Out (flex: 3)
-              Expanded(
-                flex: 3,
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: hasTimeOut
-                      ? Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  if (!hasTimeOut && isProductionStaff) ...[
+                    const SizedBox(height: 4),
+                    Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: () => _toggleTimeoutAllowed(log),
+                        borderRadius: BorderRadius.circular(6),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFF0F9FF),
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: const Color(0xFFBAE6FD)),
+                            color: isTimeoutAllowed
+                                ? const Color(0xFFECFDF5)
+                                : const Color(0xFFFFFBEB),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(
+                              color: isTimeoutAllowed
+                                  ? const Color(0xFF10B981)
+                                  : const Color(0xFFF59E0B),
+                              width: 1,
+                            ),
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              const Icon(Icons.arrow_upward_rounded, size: 14, color: Color(0xFF0284C7)),
-                              const SizedBox(width: 5),
-                              Text(
-                                timeOutStr,
-                                style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: Color(0xFF0369A1)),
-                              ),
-                            ],
-                          ),
-                        )
-                      : Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFECFDF5),
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: const Color(0xFFA7F3D0)),
-                          ),
-                          child: const Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.sync_rounded, size: 13, color: Color(0xFF059669)),
-                              SizedBox(width: 5),
-                              Text(
-                                'ON SHIFT',
-                                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Color(0xFF059669), letterSpacing: 0.3),
-                              ),
-                            ],
-                          ),
-                        ),
-                ),
-              ),
-
-              // 6. Hours (flex: 2)
-              Expanded(
-                flex: 2,
-                child: Text(
-                  hasTimeOut ? AttendanceService.formatHoursDisplay(hours, log['time_in'], log['time_out']) : '--',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w800,
-                    fontSize: 13.5,
-                    color: hasTimeOut ? AdminWebColors.accent : const Color(0xFF94A3B8),
-                  ),
-                ),
-              ),
-
-              // 7. Status (flex: 4)
-              Expanded(
-                flex: 4,
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: isIncomplete
-                              ? const Color(0xFFFEF2F2)
-                              : hasTimeOut
-                                  ? const Color(0xFFF1F5F9)
-                                  : const Color(0xFFECFDF5),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: isIncomplete
-                                ? const Color(0xFFFECACA)
-                                : hasTimeOut
-                                    ? const Color(0xFFCBD5E1)
-                                    : const Color(0xFFA7F3D0),
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Container(
-                              width: 6,
-                              height: 6,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: isIncomplete
-                                    ? const Color(0xFFDC2626)
-                                    : hasTimeOut
-                                        ? const Color(0xFF64748B)
-                                        : const Color(0xFF059669),
-                              ),
-                            ),
-                            const SizedBox(width: 5),
-                            Text(
-                              isIncomplete
-                                  ? 'INCOMPLETE (NO TIMEOUT)'
-                                  : hasTimeOut
-                                      ? 'SHIFT COMPLETED'
-                                      : 'ON ACTIVE SHIFT',
-                              style: TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w800,
-                                color: isIncomplete
-                                    ? const Color(0xFF991B1B)
-                                    : hasTimeOut
-                                        ? const Color(0xFF334155)
-                                        : const Color(0xFF065F46),
-                                letterSpacing: 0.3,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      if (!hasTimeOut && isProductionStaff) ...[
-                        const SizedBox(height: 4),
-                        Material(
-                          color: Colors.transparent,
-                          child: InkWell(
-                            onTap: () => _toggleTimeoutAllowed(log),
-                            borderRadius: BorderRadius.circular(6),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                              decoration: BoxDecoration(
+                              Icon(
+                                isTimeoutAllowed
+                                    ? Icons.check_circle_rounded
+                                    : Icons.lock_clock_rounded,
+                                size: 11,
                                 color: isTimeoutAllowed
-                                    ? const Color(0xFFECFDF5)
-                                    : const Color(0xFFFFFBEB),
-                                borderRadius: BorderRadius.circular(6),
-                                border: Border.all(
+                                    ? const Color(0xFF059669)
+                                    : const Color(0xFFD97706),
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                isTimeoutAllowed ? 'Out Authorized' : 'Authorize Out',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
                                   color: isTimeoutAllowed
-                                      ? const Color(0xFF10B981)
-                                      : const Color(0xFFF59E0B),
-                                  width: 1,
+                                      ? const Color(0xFF047857)
+                                      : const Color(0xFFB45309),
                                 ),
                               ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
-                                    isTimeoutAllowed
-                                        ? Icons.check_circle_rounded
-                                        : Icons.lock_clock_rounded,
-                                    size: 11,
-                                    color: isTimeoutAllowed
-                                        ? const Color(0xFF059669)
-                                        : const Color(0xFFD97706),
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    isTimeoutAllowed ? 'Out Authorized' : 'Authorize Out',
-                                    style: TextStyle(
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.w700,
-                                      color: isTimeoutAllowed
-                                          ? const Color(0xFF047857)
-                                          : const Color(0xFFB45309),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
+                            ],
                           ),
                         ),
-                      ],
-                    ],
-                  ),
-                ),
-              ),
-
-              // 8. RFID Verification (flex: 5)
-              Expanded(
-                flex: 5,
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(4),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFECFDF5),
-                        shape: BoxShape.circle,
-                        border: Border.all(color: const Color(0xFFA7F3D0)),
-                      ),
-                      child: const Icon(Icons.check_rounded, size: 13, color: Color(0xFF059669)),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Text(
-                            'Verified RFID Scan',
-                            style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12, color: Color(0xFF1E293B)),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(height: 1),
-                          Text(
-                            '$deviceId${rfidUid.isNotEmpty ? ' • $rfidUid' : ''}',
-                            style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w500, color: Color(0xFF64748B)),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
                       ),
                     ),
                   ],
-                ),
+                ],
               ),
-            ],
+            ),
           ),
-        ),
+        ],
       ),
     );
   }

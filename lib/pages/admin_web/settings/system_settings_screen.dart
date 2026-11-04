@@ -38,7 +38,7 @@ class _SystemSettingsScreenState extends State<SystemSettingsScreen> {
     return Container(
       color: AdminWebColors.background,
       child: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
+        padding: EdgeInsets.symmetric(horizontal: MediaQuery.of(context).size.width < 600 ? 12 : 24, vertical: 20),
         child: Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 820),

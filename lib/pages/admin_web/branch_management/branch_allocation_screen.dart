@@ -7,6 +7,7 @@ import '../../../models/meat_dispatch.dart';
 import '../../../models/branch_assignment.dart';
 import '../../../services/assignment_service.dart';
 import '../../../services/firestore_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../../services/supabase_service.dart';
 import '../../../services/system_busy_coordinator.dart';
 import '../admin_web_colors.dart';
@@ -463,6 +464,44 @@ class _BranchAllocationScreenState extends State<BranchAllocationScreen> {
   Future<void> _openAllBranches() async {
     if (_isProcessing) return;
 
+    // Check if assignments have been saved today
+    final prefs = await SharedPreferences.getInstance();
+    final savedDate = prefs.getString('assignment_saved_date') ?? '';
+    final todayStr = '${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}';
+    final bool assignmentsSavedToday = savedDate == todayStr;
+
+    if (assignmentsSavedToday) {
+      if (!mounted) return;
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          title: const Row(
+            children: [
+              Icon(Icons.block_rounded, color: Color(0xFFDC2626), size: 24),
+              SizedBox(width: 10),
+              Text('Bawal I-open ang Lahat', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            ],
+          ),
+          content: const Text(
+            'Hindi maaaring i-open ang lahat ng branch dahil nai-save na ang deployment assignments ngayong araw. Bawal baguhin ang estado ng mga branch upang maiwasan ang pagkagulo ng inventory at deployment data.',
+            style: TextStyle(fontSize: 13, height: 1.4),
+          ),
+          actions: [
+            ElevatedButton(
+              onPressed: () => Navigator.pop(ctx),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AdminWebColors.accent,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('NAINTINDIHAN'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -536,6 +575,44 @@ class _BranchAllocationScreenState extends State<BranchAllocationScreen> {
 
   Future<void> _closeAllBranches() async {
     if (_isProcessing) return;
+
+    // Check if assignments have been saved today
+    final prefs = await SharedPreferences.getInstance();
+    final savedDate = prefs.getString('assignment_saved_date') ?? '';
+    final todayStr = '${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}';
+    final bool assignmentsSavedToday = savedDate == todayStr;
+
+    if (assignmentsSavedToday) {
+      if (!mounted) return;
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          title: const Row(
+            children: [
+              Icon(Icons.block_rounded, color: Color(0xFFDC2626), size: 24),
+              SizedBox(width: 10),
+              Text('Bawal I-close ang Lahat', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            ],
+          ),
+          content: const Text(
+            'Hindi maaaring i-close ang lahat ng branch dahil nai-save na ang deployment assignments para sa mga cook ngayong araw. Bawal isara ang mga branch na may nakatalagang cook.',
+            style: TextStyle(fontSize: 13, height: 1.4),
+          ),
+          actions: [
+            ElevatedButton(
+              onPressed: () => Navigator.pop(ctx),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AdminWebColors.accent,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('NAINTINDIHAN'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
 
     final confirmed = await showDialog<bool>(
       context: context,
@@ -638,6 +715,96 @@ class _BranchAllocationScreenState extends State<BranchAllocationScreen> {
   Future<void> _toggleBranchOpenStatus(BranchMeatStock stock, {required bool shouldOpen}) async {
     if (_isProcessing) return;
 
+    // Check if assignments have been saved today
+    final prefs = await SharedPreferences.getInstance();
+    final savedDate = prefs.getString('assignment_saved_date') ?? '';
+    final todayStr = '${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}';
+    final bool assignmentsSavedToday = savedDate == todayStr;
+
+    if (assignmentsSavedToday) {
+      if (!shouldOpen) {
+        final assignedCooks = SupabaseService.getAllStaff().where((s) {
+          if (s.isArchived) return false;
+          final status = AssignmentService.getWorkStatus(
+            s.username,
+            fallback: AssignmentService.getWorkStatus(s.id, fallback: WorkStatus.onDuty),
+          );
+          final branch = AssignmentService.getAssignedBranch(
+            s.username,
+            fallback: AssignmentService.getAssignedBranch(s.id, fallback: s.branch),
+          );
+          final sBranchLower = branch.toLowerCase().trim();
+          final stockBranchLower = stock.branchName.toLowerCase().trim();
+          return status == WorkStatus.onDuty &&
+              (sBranchLower == stockBranchLower ||
+               sBranchLower.contains(stockBranchLower) ||
+               stockBranchLower.contains(sBranchLower));
+        }).toList();
+
+        if (assignedCooks.isNotEmpty) {
+          if (!mounted) return;
+          showDialog(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              title: const Row(
+                children: [
+                  Icon(Icons.block_rounded, color: Color(0xFFDC2626), size: 24),
+                  SizedBox(width: 10),
+                  Text('Bawal I-close ang Branch', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                ],
+              ),
+              content: Text(
+                'Hindi maaaring i-close ang ${stock.branchName} dahil nai-save na ang deployment assignments ngayong araw para kay/kina:\n\n• ${assignedCooks.map((c) => c.fullName).join("\n• ")}\n\nBawal i-close ang branch upang maiwasan ang pagkasira o pagkagulo ng inventory at deployment data.',
+                style: const TextStyle(fontSize: 13, height: 1.4),
+              ),
+              actions: [
+                ElevatedButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AdminWebColors.accent,
+                    foregroundColor: Colors.white,
+                  ),
+                  child: const Text('NAINTINDIHAN'),
+                ),
+              ],
+            ),
+          );
+          return;
+        }
+      } else {
+        if (!mounted) return;
+        showDialog(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            title: const Row(
+              children: [
+                Icon(Icons.block_rounded, color: Color(0xFFDC2626), size: 24),
+                SizedBox(width: 10),
+                Text('Bawal I-open ang Branch', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+              ],
+            ),
+            content: Text(
+              'Hindi maaaring i-open ang ${stock.branchName} dahil nai-save na ang deployment assignments ngayong araw. Bawal baguhin ang estado ng branch upang maiwasan ang pagkagulo ng inventory at deployment data.',
+              style: const TextStyle(fontSize: 13, height: 1.4),
+            ),
+            actions: [
+              ElevatedButton(
+                onPressed: () => Navigator.pop(ctx),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AdminWebColors.accent,
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text('NAINTINDIHAN'),
+              ),
+            ],
+          ),
+        );
+        return;
+      }
+    }
+
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -712,7 +879,7 @@ class _BranchAllocationScreenState extends State<BranchAllocationScreen> {
   Widget build(BuildContext context) {
     return Container(
       color: AdminWebColors.background,
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+      padding: EdgeInsets.symmetric(horizontal: MediaQuery.of(context).size.width < 600 ? 12 : 24, vertical: 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -773,220 +940,274 @@ class _BranchAllocationScreenState extends State<BranchAllocationScreen> {
           // Branches List
           Expanded(
             child: ListView.separated(
+              padding: const EdgeInsets.only(bottom: 76),
               itemCount: (_branchMeatStocks.length - (_stocksPage * _pageSize)).clamp(0, _pageSize),
               separatorBuilder: (_, _) => const SizedBox(height: 12),
               itemBuilder: (context, index) {
                 final s = _branchMeatStocks[(_stocksPage * _pageSize) + index];
                 return GlassCard(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                  child: LayoutBuilder(
+                    builder: (context, cardConstraints) {
+                      final isWideCard = cardConstraints.maxWidth >= 720;
+
+                      final avatarWidget = CircleAvatar(
+                        backgroundColor: s.isClosed
+                            ? const Color(0xFFE2E8F0)
+                            : (s.isRunningLow
+                                    ? AdminWebColors.error
+                                    : AdminWebColors.accent)
+                                .withValues(alpha: 0.1),
+                        child: Icon(
+                          Icons.store_rounded,
+                          color: s.isClosed
+                              ? const Color(0xFF94A3B8)
+                              : (s.isRunningLow
+                                  ? AdminWebColors.error
+                                  : AdminWebColors.accent),
+                        ),
+                      );
+
+                      final nameAndStatusRow = Row(
                         children: [
-                          CircleAvatar(
-                            backgroundColor: s.isClosed
-                                ? const Color(0xFFE2E8F0)
-                                : (s.isRunningLow
-                                        ? AdminWebColors.error
-                                        : AdminWebColors.accent)
-                                    .withValues(alpha: 0.1),
-                            child: Icon(
-                              Icons.store_rounded,
-                              color: s.isClosed
-                                  ? const Color(0xFF94A3B8)
-                                  : (s.isRunningLow
-                                      ? AdminWebColors.error
-                                      : AdminWebColors.accent),
+                          Expanded(
+                            child: Text(
+                              s.branchName,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                                color: s.isClosed ? const Color(0xFF64748B) : AdminWebColors.textPrimary,
+                              ),
                             ),
                           ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: (s.isClosed ? const Color(0xFFDC2626) : const Color(0xFF059669)).withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(4),
+                              border: Border.all(color: (s.isClosed ? const Color(0xFFDC2626) : const Color(0xFF059669)).withValues(alpha: 0.25)),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  s.isClosed ? Icons.lock_rounded : Icons.storefront_rounded,
+                                  size: 10,
+                                  color: s.isClosed ? const Color(0xFFDC2626) : const Color(0xFF059669),
+                                ),
+                                const SizedBox(width: 3),
+                                Text(
+                                  s.isClosed ? 'CLOSED (0 STOCK)' : 'OPEN',
+                                  style: TextStyle(
+                                    fontSize: 9.5,
+                                    fontWeight: FontWeight.w900,
+                                    color: s.isClosed ? const Color(0xFFDC2626) : const Color(0xFF059669),
+                                    letterSpacing: 0.4,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      );
+
+                      final metricsWrap = Wrap(
+                        spacing: 6,
+                        runSpacing: 2,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          Text(
+                            s.isClosed
+                                ? '0 / 0 MEAT PCS'
+                                : ' /  MEAT PCS',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w800,
+                              color: s.isClosed ? const Color(0xFF94A3B8) : AdminWebColors.accent,
+                            ),
+                          ),
+                          Text(
+                            s.isClosed ? '(Closed / 0 Allocation)' : '(Natitira / Total)',
+                            style: const TextStyle(fontSize: 11, color: AdminWebColors.textSecondary),
+                          ),
+                          if (s.isRunningLow)
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                              decoration: BoxDecoration(
+                                color: AdminWebColors.error.withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: const Text(
+                                'LOW STOCK',
+                                style: TextStyle(
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w900,
+                                  color: AdminWebColors.error,
+                                ),
+                              ),
+                            ),
+                        ],
+                      );
+
+                      final actionButtons = [
+                        if (s.isClosed)
+                          ElevatedButton.icon(
+                            onPressed: () => _toggleBranchOpenStatus(s, shouldOpen: true),
+                            icon: const Icon(Icons.lock_open_rounded, size: 14),
+                            label: const Text('OPEN', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF059669),
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                              elevation: 0,
+                            ),
+                          )
+                        else
+                          OutlinedButton.icon(
+                            onPressed: () => _toggleBranchOpenStatus(s, shouldOpen: false),
+                            icon: const Icon(Icons.lock_rounded, size: 14),
+                            label: const Text('CLOSE', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: const Color(0xFFDC2626),
+                              side: const BorderSide(color: Color(0xFFDC2626)),
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                            ),
+                          ),
+                        Tooltip(
+                          message: s.isClosed ? 'Hindi pwedeng baguhin ang allocation habang CLOSED ang branch. I-open muna ito.' : 'I-set ang allocation ng branch na ito',
+                          child: OutlinedButton.icon(
+                            onPressed: s.isClosed ? null : () => _showSetAllocationDialog(s),
+                            icon: const Icon(Icons.tune_rounded, size: 14),
+                            label: const Text('SET ALLOCATION', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: AdminWebColors.accent,
+                              disabledForegroundColor: const Color(0xFF94A3B8),
+                              side: BorderSide(color: s.isClosed ? const Color(0xFFCBD5E1) : AdminWebColors.accent),
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                            ),
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: AdminWebColors.accent.withValues(alpha: 0.08),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: AdminWebColors.accent.withValues(alpha: 0.2)),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.bolt_rounded, size: 12, color: AdminWebColors.accent),
+                              SizedBox(width: 4),
+                              Text(
+                                'AUTO-SYNC',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w800,
+                                  color: AdminWebColors.accent,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ];
+
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (isWideCard)
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                avatarWidget,
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      nameAndStatusRow,
+                                      const SizedBox(height: 4),
+                                      metricsWrap,
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    actionButtons[0],
+                                    const SizedBox(width: 8),
+                                    actionButtons[1],
+                                    const SizedBox(width: 8),
+                                    actionButtons[2],
+                                  ],
+                                ),
+                              ],
+                            )
+                          else
+                            Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Row(
+                                  crossAxisAlignment: CrossAxisAlignment.center,
                                   children: [
-                                    Text(
-                                      s.branchName,
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 14,
-                                        color: s.isClosed ? const Color(0xFF64748B) : AdminWebColors.textPrimary,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                      decoration: BoxDecoration(
-                                        color: (s.isClosed ? const Color(0xFFDC2626) : const Color(0xFF059669)).withValues(alpha: 0.12),
-                                        borderRadius: BorderRadius.circular(4),
-                                        border: Border.all(color: (s.isClosed ? const Color(0xFFDC2626) : const Color(0xFF059669)).withValues(alpha: 0.25)),
-                                      ),
-                                      child: Row(
-                                        mainAxisSize: MainAxisSize.min,
+                                    avatarWidget,
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
                                         children: [
-                                          Icon(
-                                            s.isClosed ? Icons.lock_rounded : Icons.storefront_rounded,
-                                            size: 10,
-                                            color: s.isClosed ? const Color(0xFFDC2626) : const Color(0xFF059669),
-                                          ),
-                                          const SizedBox(width: 3),
-                                          Text(
-                                            s.isClosed ? 'CLOSED (0 STOCK)' : 'OPEN',
-                                            style: TextStyle(
-                                              fontSize: 9.5,
-                                              fontWeight: FontWeight.w900,
-                                              color: s.isClosed ? const Color(0xFFDC2626) : const Color(0xFF059669),
-                                              letterSpacing: 0.4,
-                                            ),
-                                          ),
+                                          nameAndStatusRow,
+                                          const SizedBox(height: 4),
+                                          metricsWrap,
                                         ],
                                       ),
                                     ),
                                   ],
                                 ),
-                                const SizedBox(height: 4),
+                                const SizedBox(height: 10),
                                 Wrap(
-                                  spacing: 6,
-                                  runSpacing: 2,
+                                  spacing: 8,
+                                  runSpacing: 8,
                                   crossAxisAlignment: WrapCrossAlignment.center,
-                                  children: [
-                                    Text(
-                                      s.isClosed
-                                          ? '0 / 0 MEAT PCS'
-                                          : '${s.totalRemainingPcs} / ${s.totalAllocatedPcs} MEAT PCS',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w800,
-                                        color: s.isClosed ? const Color(0xFF94A3B8) : AdminWebColors.accent,
-                                      ),
-                                    ),
-                                    Text(
-                                      s.isClosed ? '(Closed / 0 Allocation)' : '(Natitira / Total)',
-                                      style: const TextStyle(fontSize: 11, color: AdminWebColors.textSecondary),
-                                    ),
-                                    if (s.isRunningLow)
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                                        decoration: BoxDecoration(
-                                          color: AdminWebColors.error.withValues(alpha: 0.1),
-                                          borderRadius: BorderRadius.circular(4),
-                                        ),
-                                        child: const Text(
-                                          'LOW STOCK',
-                                          style: TextStyle(
-                                            fontSize: 9,
-                                            fontWeight: FontWeight.w900,
-                                            color: AdminWebColors.error,
-                                          ),
-                                        ),
-                                      ),
-                                  ],
+                                  children: actionButtons,
                                 ),
                               ],
                             ),
-                          ),
+                          const SizedBox(height: 12),
+                          const Divider(height: 1),
+                          const SizedBox(height: 10),
+                          // Row 1: Meat portions (250g Regular, 300g Medium, 400g B1T1)
                           Row(
-                            mainAxisSize: MainAxisSize.min,
                             children: [
-                              // Open / Closed button per branch
-                              if (s.isClosed)
-                                ElevatedButton.icon(
-                                  onPressed: () => _toggleBranchOpenStatus(s, shouldOpen: true),
-                                  icon: const Icon(Icons.lock_open_rounded, size: 14),
-                                  label: const Text('OPEN', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color(0xFF059669),
-                                    foregroundColor: Colors.white,
-                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-                                    elevation: 0,
-                                  ),
-                                )
-                              else
-                                OutlinedButton.icon(
-                                  onPressed: () => _toggleBranchOpenStatus(s, shouldOpen: false),
-                                  icon: const Icon(Icons.lock_rounded, size: 14),
-                                  label: const Text('CLOSE', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
-                                  style: OutlinedButton.styleFrom(
-                                    foregroundColor: const Color(0xFFDC2626),
-                                    side: const BorderSide(color: Color(0xFFDC2626)),
-                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-                                  ),
-                                ),
-                              const SizedBox(width: 8),
-                              Tooltip(
-                                message: s.isClosed ? 'Hindi pwedeng baguhin ang allocation habang CLOSED ang branch. I-open muna ito.' : 'I-set ang allocation ng branch na ito',
-                                child: OutlinedButton.icon(
-                                  onPressed: s.isClosed ? null : () => _showSetAllocationDialog(s),
-                                  icon: const Icon(Icons.tune_rounded, size: 14),
-                                  label: const Text('SET ALLOCATION', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
-                                  style: OutlinedButton.styleFrom(
-                                    foregroundColor: AdminWebColors.accent,
-                                    disabledForegroundColor: const Color(0xFF94A3B8),
-                                    side: BorderSide(color: s.isClosed ? const Color(0xFFCBD5E1) : AdminWebColors.accent),
-                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                                decoration: BoxDecoration(
-                                  color: AdminWebColors.accent.withValues(alpha: 0.08),
-                                  borderRadius: BorderRadius.circular(6),
-                                  border: Border.all(color: AdminWebColors.accent.withValues(alpha: 0.2)),
-                                ),
-                                child: const Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(Icons.bolt_rounded, size: 12, color: AdminWebColors.accent),
-                                    SizedBox(width: 4),
-                                    Text(
-                                      'AUTO-SYNC',
-                                      style: TextStyle(
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.w800,
-                                        color: AdminWebColors.accent,
-                                        letterSpacing: 0.5,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
+                              Expanded(child: _meatVariantChip('250g Regular', ' /  pcs', isClosed: s.isClosed)),
+                              const SizedBox(width: 6),
+                              Expanded(child: _meatVariantChip('300g Medium', ' /  pcs', isClosed: s.isClosed)),
+                              const SizedBox(width: 6),
+                              Expanded(child: _meatVariantChip('400g B1T1', ' /  pcs', isClosed: s.isClosed)),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          // Row 2: Supplies (Mayo, Styro, Toyo)
+                          Row(
+                            children: [
+                              Expanded(child: _meatVariantChip('Mayo', ' /  pcs', isClosed: s.isClosed)),
+                              const SizedBox(width: 6),
+                              Expanded(child: _meatVariantChip('Styro Box', ' /  pcs', isClosed: s.isClosed)),
+                              const SizedBox(width: 6),
+                              Expanded(child: _meatVariantChip('Toyo', ' /  pcs', isClosed: s.isClosed)),
                             ],
                           ),
                         ],
-                      ),
-                      const SizedBox(height: 12),
-                      const Divider(height: 1),
-                      const SizedBox(height: 10),
-                      // Row 1: Meat portions (250g Regular, 300g Medium, 400g B1T1)
-                      Row(
-                        children: [
-                          Expanded(child: _meatVariantChip('250g Regular', '${s.regular250gRemaining} / ${s.regular250gTotal} pcs', isClosed: s.isClosed)),
-                          const SizedBox(width: 6),
-                          Expanded(child: _meatVariantChip('300g Medium', '${s.medium300gRemaining} / ${s.medium300gTotal} pcs', isClosed: s.isClosed)),
-                          const SizedBox(width: 6),
-                          Expanded(child: _meatVariantChip('400g B1T1', '${s.b1t1_400gRemaining} / ${s.b1t1_400gTotal} pcs', isClosed: s.isClosed)),
-                        ],
-                      ),
-                      const SizedBox(height: 6),
-                      // Row 2: Supplies (Mayo, Styro, Toyo)
-                      Row(
-                        children: [
-                          Expanded(child: _meatVariantChip('Mayo', '${s.mayoRemaining} / ${s.mayoTotal} pcs', isClosed: s.isClosed)),
-                          const SizedBox(width: 6),
-                          Expanded(child: _meatVariantChip('Styro Box', '${s.styroRemaining} / ${s.styroTotal} pcs', isClosed: s.isClosed)),
-                          const SizedBox(width: 6),
-                          Expanded(child: _meatVariantChip('Toyo', '${s.toyoRemaining} / ${s.toyoTotal} pcs', isClosed: s.isClosed)),
-                        ],
-                      ),
-                    ],
+                      );
+                    },
                   ),
                 );
               },

@@ -1,5 +1,6 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart' show ScaffoldMessenger, SnackBar, SnackBarAction, Icons;
 import '../../services/driver_ble_service.dart';
 import '../../models/branch.dart';
 import '../../models/branch_assignment.dart';
@@ -251,14 +252,92 @@ class _DriverHomepageScreenState extends State<DriverHomepageScreen> {
         return ValueListenableBuilder<String>(
           valueListenable: DriverBleService().statusNotifier,
           builder: (context, status, _) {
-            final bgColor = isConnected ? const Color(0xFFE8F5E9) : const Color(0xFFFFF3E0);
-            final borderColor = isConnected ? const Color(0xFF81C784) : const Color(0xFFFFB74D);
-            final textColor = isConnected ? const Color(0xFF2E7D32) : const Color(0xFFE65100);
+            final isConnecting = status.contains('Connecting');
+            final bgColor = isConnected
+                ? const Color(0xFFE8F5E9)
+                : (isConnecting ? const Color(0xFFE3F2FD) : const Color(0xFFFFF3E0));
+            final borderColor = isConnected
+                ? const Color(0xFF81C784)
+                : (isConnecting ? const Color(0xFF90CAF9) : const Color(0xFFFFB74D));
+            final textColor = isConnected
+                ? const Color(0xFF2E7D32)
+                : (isConnecting ? const Color(0xFF1565C0) : const Color(0xFFE65100));
 
             return GestureDetector(
-              onTap: () {
+              onTap: () async {
                 if (!isConnected) {
-                  DriverBleService().manualReconnect();
+                  ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Row(
+                        children: [
+                          const CupertinoActivityIndicator(radius: 8),
+                          const SizedBox(width: 12),
+                          const Text('Kumokonekta sa Brahms_Driver_Reader...'),
+                        ],
+                      ),
+                      duration: const Duration(seconds: 3),
+                    ),
+                  );
+                  final res = await DriverBleService().manualReconnect();
+                  if (!context.mounted) return;
+                  ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                  if (res == 'Connected') {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Row(
+                          children: [
+                            const Icon(Icons.check_circle_rounded, color: CupertinoColors.white, size: 20),
+                            const SizedBox(width: 10),
+                            const Text('Connected sa RFID Reader!'),
+                          ],
+                        ),
+                        backgroundColor: const Color(0xFF2E7D32),
+                        duration: const Duration(seconds: 3),
+                      ),
+                    );
+                  } else if (res.contains('Permission')) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: const Text(
+                          'Kailangan ang Nearby Devices permission! I-allow sa Settings.',
+                        ),
+                        backgroundColor: const Color(0xFFC62828),
+                        duration: const Duration(seconds: 6),
+                        action: SnackBarAction(
+                          label: 'SETTINGS',
+                          textColor: CupertinoColors.white,
+                          onPressed: () => DriverBleService().openSettings(),
+                        ),
+                      ),
+                    );
+                  } else if (res.contains('Pair')) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          'Reader not paired! Pumunta sa Phone Settings > Bluetooth at i-pair ang "Brahms_Driver_Reader".',
+                        ),
+                        backgroundColor: Color(0xFFE65100),
+                        duration: Duration(seconds: 5),
+                      ),
+                    );
+                  } else if (res.contains('Bluetooth Disabled')) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Naka-off ang Bluetooth ng cellphone. Pakibukas ito.'),
+                        backgroundColor: Color(0xFFC62828),
+                        duration: Duration(seconds: 4),
+                      ),
+                    );
+                  } else {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Status: $res (I-check kung bukas ang ESP32 reader)'),
+                        backgroundColor: const Color(0xFFC62828),
+                        duration: const Duration(seconds: 4),
+                      ),
+                    );
+                  }
                 }
               },
               child: Container(
@@ -277,23 +356,34 @@ class _DriverHomepageScreenState extends State<DriverHomepageScreen> {
                       color: textColor,
                     ),
                     const SizedBox(width: 8),
-                    Text(
-                      isConnected ? 'RFID Reader: Connected' : 'RFID Reader: ',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: textColor,
+                    Expanded(
+                      child: Text(
+                        isConnected
+                            ? 'RFID Reader: Connected'
+                            : (status.isNotEmpty && status != 'Disconnected'
+                                ? 'RFID: $status'
+                                : 'RFID Reader: Disconnected'),
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: textColor,
+                        ),
                       ),
                     ),
-                    const Spacer(),
-                    Text(
-                      isConnected ? 'Ready for Taps' : 'Tap to Reconnect',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: textColor,
-                        decoration: isConnected ? TextDecoration.none : TextDecoration.underline,
+                    const SizedBox(width: 8),
+                    if (isConnecting)
+                      const CupertinoActivityIndicator(radius: 7)
+                    else
+                      Text(
+                        isConnected ? 'Ready for Taps' : 'Tap to Reconnect',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: textColor,
+                          fontWeight: isConnected ? FontWeight.normal : FontWeight.w600,
+                          decoration: isConnected ? TextDecoration.none : TextDecoration.underline,
+                        ),
                       ),
-                    ),
                   ],
                 ),
               ),
@@ -303,7 +393,6 @@ class _DriverHomepageScreenState extends State<DriverHomepageScreen> {
       },
     );
   }
-
   Widget _weatherWidget() {
     final displayTemp = _convertTemp(_tempC);
     final feelsLike = _convertTemp(_feelsLikeC);

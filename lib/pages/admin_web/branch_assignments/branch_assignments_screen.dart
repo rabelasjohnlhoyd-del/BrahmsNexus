@@ -13,6 +13,7 @@ import '../../../services/firestore_service.dart';
 import '../../../services/rate_limiter.dart';
 import '../../../services/supabase_service.dart';
 import '../../../services/system_busy_coordinator.dart';
+import '../../../services/attendance_service.dart';
 import '../admin_web_colors.dart';
 import '../admin_web_shell.dart';
 import '../admin_web_widgets/glass_card.dart';
@@ -50,8 +51,11 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
   bool _savedToday = false;
   bool _isEditUnlocked = false;
   bool _isSaving = false;
+  bool _hasBranchTappedToday = false;
+  String _firstTappedBranchInfo = '';
+  StreamSubscription<List<Map<String, dynamic>>>? _attendanceSub;
 
-  bool get _isLocked => _savedToday && !_isEditUnlocked;
+  bool get _isLocked => (_savedToday && !_isEditUnlocked) || _hasBranchTappedToday;
   Timer? _closeNoticeDebounceTimer;
   final Set<String> _pendingClosedBranches = {};
 
@@ -186,12 +190,35 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
         _onAssignmentsChanged();
       }
     });
+
+    // Real-time listener: lock assignments permanently once first branch taps in for the day
+    _attendanceSub = AttendanceService.watchTodayAttendance().listen((logs) {
+      if (!mounted) return;
+      final branchTaps = logs.where((l) {
+        final timeIn = l['time_in']?.toString() ?? '';
+        final branch = l['branch_name']?.toString() ?? '';
+        final isBranch = branch != 'Central Commissary' && branch != 'N/A' && branch.isNotEmpty;
+        return timeIn.isNotEmpty && isBranch;
+      }).toList();
+
+      setState(() {
+        _hasBranchTappedToday = branchTaps.isNotEmpty;
+        if (branchTaps.isNotEmpty) {
+          final first = branchTaps.first;
+          _firstTappedBranchInfo = '${first['branch_name']} (${first['staff_name'] ?? 'Staff'})';
+          if (_isEditUnlocked) {
+            _isEditUnlocked = false;
+          }
+        }
+      });
+    });
   }
 
   @override
   void dispose() {
     _closeNoticeDebounceTimer?.cancel();
     _meatStocksSub?.cancel();
+    _attendanceSub?.cancel();
     AssignmentService.changeNotifier.removeListener(_onAssignmentsChanged);
     _searchController.dispose();
     super.dispose();
@@ -552,6 +579,37 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
   }
 
   Future<void> _requestUnlock() async {
+    if (_hasBranchTappedToday) {
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          title: const Row(
+            children: [
+              Icon(Icons.lock_rounded, color: Color(0xFFDC2626), size: 24),
+              SizedBox(width: 10),
+              Text('Locked for the Day', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            ],
+          ),
+          content: Text(
+            'Bawal nang i-edit ang branch assignments ngayong araw dahil nag-time in / nagbukas na ang branch: $_firstTappedBranchInfo.\n\nPermanente nang naka-lock ang deployment assignments for the day upang protektahan ang attendance at dispatch records.',
+            style: const TextStyle(fontSize: 13, height: 1.4),
+          ),
+          actions: [
+            ElevatedButton(
+              onPressed: () => Navigator.pop(ctx),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AdminWebColors.accent,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('NAINTINDIHAN'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
     final proceed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -566,9 +624,8 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
           ],
         ),
         content: const Text(
-          'Assignments are currently saved and locked for today to prevent accidental changes.\n\n'
-          'Unlocking will allow you to edit cook branch assignments or adjust Rest Days.\n\n'
-          'Do you want to unlock and edit today\'s assignments?',
+          'Wala pang nagta-tap in na branch cook ngayong araw kaya maaari mo pang baguhin ang assignments.\n\n'
+          'Sigurado ka bang nais mong buksan para i-edit ang assignments?',
           style: TextStyle(fontSize: 13, height: 1.4),
         ),
         actions: [
@@ -953,13 +1010,13 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
 
                   final editBtn = ElevatedButton.icon(
                     onPressed: _isSaving ? null : _requestUnlock,
-                    icon: const Icon(Icons.lock_open_rounded, size: 16),
-                    label: const Text(
-                      'EDIT ASSIGNMENTS',
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                    icon: Icon(_hasBranchTappedToday ? Icons.lock_rounded : Icons.lock_open_rounded, size: 16),
+                    label: Text(
+                      _hasBranchTappedToday ? 'LOCKED FOR TODAY' : 'EDIT ASSIGNMENTS',
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
                     ),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: AdminWebColors.accent,
+                      backgroundColor: _hasBranchTappedToday ? const Color(0xFF94A3B8) : AdminWebColors.accent,
                       foregroundColor: Colors.white,
                       elevation: 0,
                       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
@@ -1081,21 +1138,29 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
                 margin: const EdgeInsets.only(bottom: 16),
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF0FDF4),
+                  color: _hasBranchTappedToday ? const Color(0xFFFEF2F2) : const Color(0xFFF0FDF4),
                   borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: const Color(0xFFBBF7D0)),
+                  border: Border.all(
+                    color: _hasBranchTappedToday ? const Color(0xFFFECACA) : const Color(0xFFBBF7D0),
+                  ),
                 ),
-                child: const Row(
+                child: Row(
                   children: [
-                    Icon(Icons.check_circle_rounded, color: Color(0xFF16A34A), size: 18),
-                    SizedBox(width: 10),
+                    Icon(
+                      _hasBranchTappedToday ? Icons.lock_rounded : Icons.check_circle_rounded,
+                      color: _hasBranchTappedToday ? const Color(0xFFDC2626) : const Color(0xFF16A34A),
+                      size: 18,
+                    ),
+                    const SizedBox(width: 10),
                     Expanded(
                       child: Text(
-                        'Naka-save at naka-lock na ang branch assignments ngayong araw para iwas aksidenteng pindot. I-click ang "EDIT ASSIGNMENTS" sa itaas kung kailangan mag-adjust.',
+                        _hasBranchTappedToday
+                            ? 'LOCKED FOR THE DAY: Nag-time in na ang branch ($_firstTappedBranchInfo). Permanenteng naka-lock na ang branch assignments para sa araw na ito upang protektahan ang dispatch records.'
+                            : 'Naka-save at naka-lock na ang branch assignments ngayong araw. Maaari pang i-click ang "EDIT ASSIGNMENTS" sa itaas habang wala pang nagta-tap in na branch cook.',
                         style: TextStyle(
                           fontSize: 12.5,
                           fontWeight: FontWeight.w600,
-                          color: Color(0xFF15803D),
+                          color: _hasBranchTappedToday ? const Color(0xFF991B1B) : const Color(0xFF15803D),
                         ),
                       ),
                     ),

@@ -1755,10 +1755,32 @@ class _AddBilaoOrderScreenState extends State<AddBilaoOrderScreen> {
         key: _formKey,
         child: Column(
           children: [
+            // Back button row
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  onPressed: () => Navigator.of(context).pop(),
+                  icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 14),
+                  label: const Text(
+                    'BACK TO BILAO ORDERS',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 12,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                  style: TextButton.styleFrom(
+                    foregroundColor: AdminWebColors.accent,
+                  ),
+                ),
+              ),
+            ),
             // Main Body: 2-Column Responsive Layout
             Expanded(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.all(24),
+                padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
                 child: Center(
                   child: ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 1200),

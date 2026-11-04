@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_classic_bluetooth/flutter_classic_bluetooth.dart';
@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/staff_member.dart';
 import 'attendance_service.dart';
 import 'auth_service.dart';
+import 'supabase_service.dart';
 
 /// Bluetooth Classic (SPP/RFCOMM) service for the Brahms Driver App.
 /// Connects to the paired Driver Portable RFID Reader ("Brahms_Driver_Reader"),
@@ -89,6 +90,26 @@ class DriverBleService {
     statusNotifier.value = 'Connecting to Reader...';
 
     try {
+      final isEnabled = await _bluetooth.isEnabled();
+      if (!isEnabled) {
+        statusNotifier.value = 'Bluetooth Disabled';
+        _isConnecting = false;
+        return;
+      }
+
+      // Automatically request Bluetooth permissions (BLUETOOTH_SCAN & BLUETOOTH_CONNECT) on Android 12+
+      final permStatus = await _bluetooth.checkPermissions();
+      if (permStatus != BtcPermissionStatus.granted && permStatus != BtcPermissionStatus.notRequired) {
+        debugPrint('[BT] Requesting Bluetooth permissions (current: $permStatus)...');
+        final newStatus = await _bluetooth.requestPermissions();
+        if (newStatus != BtcPermissionStatus.granted && newStatus != BtcPermissionStatus.notRequired) {
+          debugPrint('[BT] Bluetooth permission denied: $newStatus');
+          statusNotifier.value = 'Permission Denied: Allow Nearby Devices';
+          _isConnecting = false;
+          return;
+        }
+      }
+
       final pairedDevices = await _bluetooth.getPairedDevices();
       debugPrint('[BT] Paired devices found: ${pairedDevices.map((d) => d.name).toList()}');
 
@@ -269,6 +290,19 @@ class DriverBleService {
       } else {
         // 2. Rejection o Notice mula sa Supabase:
         // DRIVER_NOT_ON_THE_WAY, UNREGISTERED, WRONG_LOCATION, ALREADY_COMPLETED, etc.
+        if (code == 'UNREGISTERED' || code == 'UNKNOWN_CARD') {
+          // Push to rfid_scan_queue so Admin Web "Scan on Base Reader" immediately catches it!
+          try {
+            await SupabaseService.client?.from('rfid_scan_queue').insert({
+              'rfid_uid': uid.toUpperCase(),
+              'device_id': deviceId,
+            });
+            debugPrint('[BT] Pushed unregistered card $uid to rfid_scan_queue for Admin Web enrollment!');
+          } catch (e) {
+            debugPrint('[BT] Failed to push to rfid_scan_queue: $e');
+          }
+        }
+
         if (result['details'] != null) {
           debugPrint('[BT] Supabase error details: ${result['details']}');
         }
@@ -441,10 +475,20 @@ class DriverBleService {
     }
   }
 
+  /// Opens Android app settings so user can grant Nearby Devices permission
+  Future<bool> openSettings() async {
+    try {
+      return await _bluetooth.openAppSettings();
+    } catch (_) {
+      return false;
+    }
+  }
+
   /// Manual reconnect trigger for the UI button
-  Future<void> manualReconnect() async {
+  Future<String> manualReconnect() async {
     _handleDisconnection();
     await startScanAndConnect();
+    return statusNotifier.value;
   }
 
   void dispose() {

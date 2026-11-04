@@ -49,15 +49,19 @@ class KpiCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 8),
-          Text(
-            label.toUpperCase(),
-            style: const TextStyle(
-              fontSize: 10.5,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 0.6,
-              color: AdminWebColors.textSecondary,
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              label.toUpperCase(),
+              style: const TextStyle(
+                fontSize: 10.5,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0.3,
+                color: AdminWebColors.textSecondary,
+              ),
+              maxLines: 1,
             ),
-            overflow: TextOverflow.ellipsis,
           ),
           const SizedBox(height: 2),
           FittedBox(

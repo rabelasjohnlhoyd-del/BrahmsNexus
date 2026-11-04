@@ -274,6 +274,7 @@ class AdminWebShellState extends State<AdminWebShell> {
   }
 
   Widget _buildBodyIndexedStack() {
+    _activatedIndices.add(_selectedIndex);
     return IndexedStack(
       index: _selectedIndex,
       children: List.generate(
@@ -560,14 +561,17 @@ class AdminWebShellState extends State<AdminWebShell> {
             appBar: AppBar(
               backgroundColor: AdminWebColors.background,
               elevation: 0,
+              titleSpacing: 0,
               iconTheme: const IconThemeData(color: AdminWebColors.textPrimary),
               title: Text(
                 pageTitle,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
-                  fontSize: 16,
+                  fontSize: 15,
                   fontWeight: FontWeight.w800,
                   color: AdminWebColors.textPrimary,
-                  letterSpacing: -0.3,
+                  letterSpacing: -0.2,
                 ),
               ),
               bottom: PreferredSize(
@@ -650,11 +654,7 @@ class AdminWebShellState extends State<AdminWebShell> {
                 itemKeys: _sidebarItemKeys,
                 onToggleCollapse: () => Navigator.of(context).pop(),
                 onSelect: (index) {
-                  setState(() {
-                    _selectedIndex = index;
-                    _currentActions = [];
-                    _customTitle = null;
-                  });
+                  navigateToTab(index);
                   Navigator.of(context).pop(); // close the drawer
                 },
                 onLogout: () {
