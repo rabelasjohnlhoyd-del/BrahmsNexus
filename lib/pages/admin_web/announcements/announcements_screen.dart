@@ -9,7 +9,7 @@ import '../admin_web_shell.dart';
 import '../admin_web_widgets/glass_card.dart';
 import '../admin_web_widgets/admin_pagination_bar.dart';
 
-/// Owner composes and posts announcements here — visible to Staff and
+/// Owner composes and posts announcements here â€” visible to Staff and
 /// Driver on their respective apps (see staff_app/announcements_screen
 /// and driver_app home).
 ///
@@ -137,7 +137,7 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
         actor: 'Admin',
         role: 'Admin',
         action: 'Published new branch announcement',
-        detail: 'Target: $_selectedTargetPosition · "$preview"',
+        detail: 'Target: $_selectedTargetPosition Â· "$preview"',
         type: 'System',
       ).catchError((_) {});
 
@@ -197,7 +197,7 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
   }
 
   String _formatDate(DateTime date) {
-    return '${date.month}/${date.day}/${date.year} · '
+    return '${date.month}/${date.day}/${date.year} Â· '
         '${date.hour.toString().padLeft(2, '0')}:'
         '${date.minute.toString().padLeft(2, '0')}';
   }
@@ -270,8 +270,9 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AdminWebColors.accent,
                           foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 24, vertical: 18),
+                          padding: EdgeInsets.symmetric(
+                              horizontal: isWide ? 24 : 14,
+                              vertical: isWide ? 18 : 11),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(8),
                           ),

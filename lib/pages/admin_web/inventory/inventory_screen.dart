@@ -260,7 +260,7 @@ class _InventoryScreenState extends State<InventoryScreen>
                       FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z0-9\s\-\.]')),
                     ],
                     decoration: const InputDecoration(
-                      labelText: 'BATCH NAME (MONTHLY BATCH)',
+                      labelText: 'BATCH NAME',
                       hintText: 'e.g. KARNE BATCH - OCTOBER 2026',
                       helperText: 'Max 50 characters.',
                       border: OutlineInputBorder(),
@@ -2113,42 +2113,106 @@ class _InventoryScreenState extends State<InventoryScreen>
           const SizedBox(height: 14),
 
           // CONSOLIDATED GRAND TOTAL BAR
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            decoration: BoxDecoration(
-              color: AdminWebColors.background,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: AdminWebColors.border),
-            ),
-            child: Wrap(
-              alignment: WrapAlignment.spaceBetween,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              spacing: 12,
-              runSpacing: 8,
-              children: [
-                const Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.summarize_rounded, size: 16, color: AdminWebColors.accent),
-                    SizedBox(width: 6),
-                    Text(
-                      'CONSOLIDATED TOTAL (LAHAT NG SUKAT):',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w900,
-                        color: AdminWebColors.textPrimary,
-                        letterSpacing: 0.3,
+          LayoutBuilder(
+            builder: (context, c) {
+              final isMobile = c.maxWidth < 650;
+              if (isMobile) {
+                // Mobile: 2x2 grid + total remaining below
+                return Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: AdminWebColors.background,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: AdminWebColors.border),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.summarize_rounded, size: 16, color: AdminWebColors.accent),
+                          SizedBox(width: 6),
+                          Text(
+                            'CONSOLIDATED TOTAL (LAHAT NG SUKAT):',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w900,
+                              color: AdminWebColors.textPrimary,
+                              letterSpacing: 0.3,
+                            ),
+                          ),
+                        ],
                       ),
+                      const SizedBox(height: 10),
+                      Column(
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(child: _grandStatPill('Cut: $grandProduced PCS', AdminWebColors.accent, center: true)),
+                              const SizedBox(width: 8),
+                              Expanded(child: _grandStatPill('Today: $grandConsumedToday PCS', AdminWebColors.accent, center: true)),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              Expanded(child: _grandStatPill('Batch Consumed: $grandConsumedBatch PCS', AdminWebColors.accentDark, center: true)),
+                              const SizedBox(width: 8),
+                              Expanded(child: _grandStatPill('Month-to-Date: $grandConsumedMonth PCS', AdminWebColors.textSecondary, center: true)),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          SizedBox(
+                            width: double.infinity,
+                            child: _grandStatPill('Total Remaining: $grandRemaining PCS', AdminWebColors.accent, isHighlight: true, center: true),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                );
+              }
+
+              // Laptop: exact original full-width bar
+              return Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                decoration: BoxDecoration(
+                  color: AdminWebColors.background,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: AdminWebColors.border),
+                ),
+                child: Wrap(
+                  alignment: WrapAlignment.spaceBetween,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  spacing: 12,
+                  runSpacing: 8,
+                  children: [
+                    const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.summarize_rounded, size: 16, color: AdminWebColors.accent),
+                        SizedBox(width: 6),
+                        Text(
+                          'CONSOLIDATED TOTAL (LAHAT NG SUKAT):',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w900,
+                            color: AdminWebColors.textPrimary,
+                            letterSpacing: 0.3,
+                          ),
+                        ),
+                      ],
                     ),
+                    _grandStatPill('Cut: $grandProduced PCS', AdminWebColors.accent),
+                    _grandStatPill('Today: $grandConsumedToday PCS', AdminWebColors.accent),
+                    _grandStatPill('Batch Consumed: $grandConsumedBatch PCS', AdminWebColors.accentDark),
+                    _grandStatPill('Month-to-Date: $grandConsumedMonth PCS', AdminWebColors.textSecondary),
+                    _grandStatPill('Total Remaining: $grandRemaining PCS', AdminWebColors.accent, isHighlight: true),
                   ],
                 ),
-                _grandStatPill('Cut: $grandProduced PCS', AdminWebColors.accent),
-                _grandStatPill('Today: $grandConsumedToday PCS', AdminWebColors.accent),
-                _grandStatPill('Batch Consumed: $grandConsumedBatch PCS', AdminWebColors.accentDark),
-                _grandStatPill('Month-to-Date: $grandConsumedMonth PCS', AdminWebColors.textSecondary),
-                _grandStatPill('Total Remaining: $grandRemaining PCS', AdminWebColors.accent, isHighlight: true),
-              ],
-            ),
+              );
+            },
           ),
         ],
       ),
@@ -2197,41 +2261,48 @@ class _InventoryScreenState extends State<InventoryScreen>
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(6),
-                    decoration: BoxDecoration(
-                      color: accentColor.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(8),
+              Expanded(
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: accentColor.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Icon(Icons.kebab_dining_rounded, color: accentColor, size: 16),
                     ),
-                    child: Icon(Icons.kebab_dining_rounded, color: accentColor, size: 16),
-                  ),
-                  const SizedBox(width: 8),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        portionLabel.toUpperCase(),
-                        style: const TextStyle(
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w900,
-                          color: AdminWebColors.textPrimary,
-                          letterSpacing: 0.3,
-                        ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            portionLabel.toUpperCase(),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w900,
+                              color: AdminWebColors.textPrimary,
+                              letterSpacing: 0.3,
+                            ),
+                          ),
+                          Text(
+                            gramLabel,
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: accentColor,
+                            ),
+                          ),
+                        ],
                       ),
-                      Text(
-                        gramLabel,
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          color: accentColor,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
+                    ),
+                  ],
+                ),
               ),
+              const SizedBox(width: 6),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
@@ -2355,9 +2426,10 @@ class _InventoryScreenState extends State<InventoryScreen>
     );
   }
 
-  Widget _grandStatPill(String text, Color color, {bool isHighlight = false}) {
+  Widget _grandStatPill(String text, Color color, {bool isHighlight = false, bool center = false}) {
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: isHighlight ? 10 : 8, vertical: 4),
+      alignment: center ? Alignment.center : null,
+      padding: EdgeInsets.symmetric(horizontal: isHighlight ? 10 : 8, vertical: 6),
       decoration: BoxDecoration(
         color: isHighlight ? color : color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(6),
@@ -2365,6 +2437,7 @@ class _InventoryScreenState extends State<InventoryScreen>
       ),
       child: Text(
         text,
+        textAlign: center ? TextAlign.center : null,
         style: TextStyle(
           fontSize: 10.5,
           fontWeight: FontWeight.w800,

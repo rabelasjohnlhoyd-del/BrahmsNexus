@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../../models/inventory_batch.dart';
@@ -477,25 +477,28 @@ class _SalesPayrollScreenState extends State<SalesPayrollScreen> {
                     : Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          SingleChildScrollView(
-                            scrollDirection: Axis.horizontal,
-                            child: Row(
-                              children: [
-                                _tabButton(
+                          Row(
+                            children: [
+                              Expanded(
+                                child: _tabButton(
                                   index: 0,
-                                  title: 'BRANCH COOKS (6 STORES)',
+                                  title: 'BRANCH COOKS',
                                   icon: Icons.storefront_rounded,
+                                  isCompact: true,
                                 ),
-                                const SizedBox(width: 8),
-                                _tabButton(
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: _tabButton(
                                   index: 1,
-                                  title: 'PRODUCTION STAFF & DRIVER',
+                                  title: 'PRODUCTION & DRIVER',
                                   icon: Icons.badge_rounded,
+                                  isCompact: true,
                                 ),
-                              ],
-                            ),
+                              ),
+                            ],
                           ),
-                          const SizedBox(height: 12),
+                          const SizedBox(height: 10),
                           ElevatedButton.icon(
                             onPressed: () {
                               SalesPayrollExportDialog.show(
@@ -509,12 +512,13 @@ class _SalesPayrollScreenState extends State<SalesPayrollScreen> {
                               );
                             },
                             icon: const Icon(Icons.table_view_rounded, size: 16),
-                            label: const Text('EXPORT SALES & PAYROLL (.XLSX)'),
+                            label: const Text('EXPORT SALES & PAYROLL (.XLSX)',
+                                style: TextStyle(fontSize: 11)),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: const Color(0xFF2E7D32),
                               foregroundColor: Colors.white,
                               padding: const EdgeInsets.symmetric(
-                                  horizontal: 16, vertical: 14),
+                                  horizontal: 12, vertical: 10),
                               shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(10)),
                               elevation: 0,
@@ -578,83 +582,165 @@ class _SalesPayrollScreenState extends State<SalesPayrollScreen> {
                   const SizedBox(height: 28),
 
                   // View Toggle & Filter
-                  Row(
-                    children: [
-                      Expanded(
-                        flex: 2,
-                        child: DropdownButtonFormField<String>(
-                          initialValue: _branchFilter ?? 'All',
-                          decoration: const InputDecoration(
-                            labelText: 'FILTER BY BRANCH',
-                            isDense: true,
-                            prefixIcon: Icon(Icons.storefront_rounded, size: 18),
-                          ),
-                          items: [
-                            const DropdownMenuItem(
-                                value: 'All', child: Text('ALL 6 BRANCHES')),
-                            ...kSampleBranches.map((b) => DropdownMenuItem(
-                                  value: b.fullName,
-                                  child: Text(b.fullName.toUpperCase()),
-                                )),
-                          ],
-                          onChanged: (v) {
-                            setState(() {
-                              _branchFilter = (v == 'All' ? null : v);
-                              _currentPage = 0;
-                            });
-                          },
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      // Group by Date Toggle
-                      InkWell(
-                        onTap: () => setState(() => _groupByDate = !_groupByDate),
-                        borderRadius: BorderRadius.circular(10),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 14, vertical: 12),
-                          decoration: BoxDecoration(
-                            color: _groupByDate
-                                ? AdminWebColors.accent.withValues(alpha: 0.1)
-                                : Colors.white,
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(
-                              color: _groupByDate
-                                  ? AdminWebColors.accent
-                                  : AdminWebColors.border,
+                  if (isWide) ...[
+                    // Desktop: side-by-side Row
+                    Row(
+                      children: [
+                        Expanded(
+                          flex: 2,
+                          child: DropdownButtonFormField<String>(
+                            isExpanded: true,
+                            initialValue: _branchFilter ?? 'All',
+                            decoration: const InputDecoration(
+                              labelText: 'FILTER BY BRANCH',
+                              isDense: true,
+                              prefixIcon: Icon(Icons.storefront_rounded, size: 18),
                             ),
+                            items: [
+                              const DropdownMenuItem(
+                                  value: 'All', child: Text('ALL 6 BRANCHES')),
+                              ...kSampleBranches.map((b) => DropdownMenuItem(
+                                    value: b.fullName,
+                                    child: Text(b.fullName.toUpperCase()),
+                                  )),
+                            ],
+                            onChanged: (v) {
+                              setState(() {
+                                _branchFilter = (v == 'All' ? null : v);
+                                _currentPage = 0;
+                              });
+                            },
                           ),
-                          child: Row(
-                            children: [
-                              Icon(
-                                _groupByDate
-                                    ? Icons.calendar_today_rounded
-                                    : Icons.list_alt_rounded,
-                                size: 18,
+                        ),
+                        const SizedBox(width: 16),
+                        // Group by Date Toggle
+                        InkWell(
+                          onTap: () => setState(() => _groupByDate = !_groupByDate),
+                          borderRadius: BorderRadius.circular(10),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 14, vertical: 12),
+                            decoration: BoxDecoration(
+                              color: _groupByDate
+                                  ? AdminWebColors.accent.withValues(alpha: 0.1)
+                                  : Colors.white,
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(
                                 color: _groupByDate
                                     ? AdminWebColors.accent
-                                    : AdminWebColors.textSecondary,
+                                    : AdminWebColors.border,
                               ),
-                              const SizedBox(width: 8),
-                              Text(
-                                _groupByDate
-                                    ? 'GROUPED BY DATE (BOXED)'
-                                    : 'INDIVIDUAL CARDS',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w800,
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  _groupByDate
+                                      ? Icons.calendar_today_rounded
+                                      : Icons.list_alt_rounded,
+                                  size: 18,
                                   color: _groupByDate
                                       ? AdminWebColors.accent
                                       : AdminWebColors.textSecondary,
                                 ),
-                              ),
-                            ],
+                                const SizedBox(width: 8),
+                                Text(
+                                  _groupByDate
+                                      ? 'GROUPED BY DATE (BOXED)'
+                                      : 'INDIVIDUAL CARDS',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w800,
+                                    color: _groupByDate
+                                        ? AdminWebColors.accent
+                                        : AdminWebColors.textSecondary,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
+                        const Spacer(),
+                      ],
+                    ),
+                  ] else ...[
+                    // Mobile: stacked Column
+                    DropdownButtonFormField<String>(
+                      isExpanded: true,
+                      initialValue: _branchFilter ?? 'All',
+                      decoration: const InputDecoration(
+                        labelText: 'FILTER BY BRANCH',
+                        isDense: true,
+                        prefixIcon: Icon(Icons.storefront_rounded, size: 18),
                       ),
-                      if (isWide) const Spacer(),
-                    ],
-                  ),
+                      items: [
+                        const DropdownMenuItem(
+                            value: 'All', child: Text('ALL 6 BRANCHES')),
+                        ...kSampleBranches.map((b) => DropdownMenuItem(
+                              value: b.fullName,
+                              child: Text(
+                                b.fullName.toUpperCase(),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            )),
+                      ],
+                      onChanged: (v) {
+                        setState(() {
+                          _branchFilter = (v == 'All' ? null : v);
+                          _currentPage = 0;
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 10),
+                    // Group by Date Toggle — full width on mobile
+                    InkWell(
+                      onTap: () => setState(() => _groupByDate = !_groupByDate),
+                      borderRadius: BorderRadius.circular(10),
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 12),
+                        decoration: BoxDecoration(
+                          color: _groupByDate
+                              ? AdminWebColors.accent.withValues(alpha: 0.1)
+                              : Colors.white,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: _groupByDate
+                                ? AdminWebColors.accent
+                                : AdminWebColors.border,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              _groupByDate
+                                  ? Icons.calendar_today_rounded
+                                  : Icons.list_alt_rounded,
+                              size: 18,
+                              color: _groupByDate
+                                  ? AdminWebColors.accent
+                                  : AdminWebColors.textSecondary,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              _groupByDate
+                                  ? 'VIEW: GROUPED BY DATE'
+                                  : 'VIEW: INDIVIDUAL CARDS',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w800,
+                                color: _groupByDate
+                                    ? AdminWebColors.accent
+                                    : AdminWebColors.textSecondary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
 
                   const SizedBox(height: 24),
 
@@ -714,6 +800,7 @@ class _SalesPayrollScreenState extends State<SalesPayrollScreen> {
     required int index,
     required String title,
     required IconData icon,
+    bool isCompact = false,
   }) {
     final isSelected = _selectedTab == index;
     return Material(
@@ -722,7 +809,10 @@ class _SalesPayrollScreenState extends State<SalesPayrollScreen> {
         onTap: () => setState(() => _selectedTab = index),
         borderRadius: BorderRadius.circular(10),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+          padding: EdgeInsets.symmetric(
+            horizontal: isCompact ? 6 : 18,
+            vertical: isCompact ? 8 : 10,
+          ),
           decoration: BoxDecoration(
             color: isSelected ? AdminWebColors.accent : Colors.white,
             borderRadius: BorderRadius.circular(10),
@@ -731,20 +821,25 @@ class _SalesPayrollScreenState extends State<SalesPayrollScreen> {
             ),
           ),
           child: Row(
-            mainAxisSize: MainAxisSize.min,
+            mainAxisSize: isCompact ? MainAxisSize.max : MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(
                 icon,
-                size: 16,
+                size: isCompact ? 15 : 16,
                 color: isSelected ? Colors.white : AdminWebColors.textSecondary,
               ),
-              const SizedBox(width: 8),
-              Text(
-                title,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w800,
-                  color: isSelected ? Colors.white : AdminWebColors.textPrimary,
+              SizedBox(width: isCompact ? 5 : 8),
+              Flexible(
+                child: Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: isCompact ? 10.5 : 12,
+                    fontWeight: FontWeight.w800,
+                    color: isSelected ? Colors.white : AdminWebColors.textPrimary,
+                  ),
                 ),
               ),
             ],
@@ -800,81 +895,156 @@ class _SalesPayrollScreenState extends State<SalesPayrollScreen> {
                           ? const BorderRadius.vertical(top: Radius.circular(16))
                           : BorderRadius.circular(16),
                     ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.calendar_month_rounded,
-                              size: 22,
-                              color: isExpanded
-                                  ? AdminWebColors.accent
-                                  : AdminWebColors.textSecondary,
-                            ),
-                            const SizedBox(width: 12),
-                            Text(
-                              dateKey,
-                              style: TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w900,
-                                color: isExpanded
-                                    ? AdminWebColors.accent
-                                    : AdminWebColors.textPrimary,
+                    child: isWide
+                        ? Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Row(
+                                children: [
+                                  Icon(
+                                    Icons.calendar_month_rounded,
+                                    size: 22,
+                                    color: isExpanded
+                                        ? AdminWebColors.accent
+                                        : AdminWebColors.textSecondary,
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Text(
+                                    dateKey,
+                                    style: TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w900,
+                                      color: isExpanded
+                                          ? AdminWebColors.accent
+                                          : AdminWebColors.textPrimary,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 8, vertical: 3),
+                                    decoration: BoxDecoration(
+                                      color: AdminWebColors.accent
+                                          .withValues(alpha: 0.12),
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: Text(
+                                      '${recordsForDate.length} STORES',
+                                      style: const TextStyle(
+                                        fontSize: 10.5,
+                                        fontWeight: FontWeight.w800,
+                                        color: AdminWebColors.accent,
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
-                            ),
-                            const SizedBox(width: 12),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 8, vertical: 3),
-                              decoration: BoxDecoration(
-                                color: AdminWebColors.accent
-                                    .withValues(alpha: 0.12),
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: Text(
-                                '${recordsForDate.length} STORES',
-                                style: const TextStyle(
-                                  fontSize: 10.5,
-                                  fontWeight: FontWeight.w800,
-                                  color: AdminWebColors.accent,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        Row(
-                          children: [
-                            if (isWide) ...[
-                              Text(
-                                'Portions: $dateTotalPortions  |  Sales: ₱${dateTotalSales.toStringAsFixed(0)}  |  ',
-                                style: const TextStyle(
-                                  fontSize: 12.5,
-                                  fontWeight: FontWeight.w600,
-                                  color: AdminWebColors.textSecondary,
-                                ),
+                              Row(
+                                children: [
+                                  Text(
+                                    'Portions: $dateTotalPortions  |  Sales: ₱${dateTotalSales.toStringAsFixed(0)}  |  ',
+                                    style: const TextStyle(
+                                      fontSize: 12.5,
+                                      fontWeight: FontWeight.w600,
+                                      color: AdminWebColors.textSecondary,
+                                    ),
+                                  ),
+                                  Text(
+                                    '6 Cooks Total Wages: ₱${dateTotalWage.toStringAsFixed(0)}',
+                                    style: const TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w900,
+                                      color: AdminWebColors.accent,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Icon(
+                                    isExpanded
+                                        ? Icons.keyboard_arrow_up_rounded
+                                        : Icons.keyboard_arrow_down_rounded,
+                                    color: AdminWebColors.accent,
+                                    size: 22,
+                                  ),
+                                ],
                               ),
                             ],
-                            Text(
-                              '6 Cooks Total Wages: ₱${dateTotalWage.toStringAsFixed(0)}',
-                              style: const TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w900,
-                                color: AdminWebColors.accent,
+                          )
+                        : Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Icon(
+                                    Icons.calendar_month_rounded,
+                                    size: 18,
+                                    color: isExpanded
+                                        ? AdminWebColors.accent
+                                        : AdminWebColors.textSecondary,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    dateKey,
+                                    style: TextStyle(
+                                      fontSize: 13.5,
+                                      fontWeight: FontWeight.w900,
+                                      color: isExpanded
+                                          ? AdminWebColors.accent
+                                          : AdminWebColors.textPrimary,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 6, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: AdminWebColors.accent
+                                          .withValues(alpha: 0.12),
+                                      borderRadius: BorderRadius.circular(5),
+                                    ),
+                                    child: Text(
+                                      '${recordsForDate.length} STORES',
+                                      style: const TextStyle(
+                                        fontSize: 9.5,
+                                        fontWeight: FontWeight.w800,
+                                        color: AdminWebColors.accent,
+                                      ),
+                                    ),
+                                  ),
+                                  const Spacer(),
+                                  Icon(
+                                    isExpanded
+                                        ? Icons.keyboard_arrow_up_rounded
+                                        : Icons.keyboard_arrow_down_rounded,
+                                    color: AdminWebColors.accent,
+                                    size: 20,
+                                  ),
+                                ],
                               ),
-                            ),
-                            const SizedBox(width: 12),
-                            Icon(
-                              isExpanded
-                                  ? Icons.keyboard_arrow_up_rounded
-                                  : Icons.keyboard_arrow_down_rounded,
-                              color: AdminWebColors.accent,
-                              size: 22,
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
+                              const SizedBox(height: 6),
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    'Portions: $dateTotalPortions',
+                                    style: const TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                      color: AdminWebColors.textSecondary,
+                                    ),
+                                  ),
+                                  Text(
+                                    'Total Wages: ₱${dateTotalWage.toStringAsFixed(0)}',
+                                    style: const TextStyle(
+                                      fontSize: 12.5,
+                                      fontWeight: FontWeight.w900,
+                                      color: AdminWebColors.accent,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
                   ),
                 ),
 
@@ -890,6 +1060,86 @@ class _SalesPayrollScreenState extends State<SalesPayrollScreen> {
                         const Divider(height: 1),
                     itemBuilder: (context, idx) {
                       final r = recordsForDate[idx];
+                      if (!isWide) {
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 6, vertical: 8),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          r.branchName,
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.w800,
+                                            fontSize: 13,
+                                            color: AdminWebColors.textPrimary,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          'Cook: ${r.employeeName}',
+                                          style: const TextStyle(
+                                            fontSize: 11,
+                                            color: AdminWebColors.textSecondary,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: AdminWebColors.success.withValues(alpha: 0.12),
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: Text(
+                                      'Remittance: ₱${r.expectedCashRemittance.toStringAsFixed(0)}',
+                                      style: const TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.bold,
+                                        color: AdminWebColors.success,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              Wrap(
+                                spacing: 14,
+                                runSpacing: 4,
+                                crossAxisAlignment: WrapCrossAlignment.center,
+                                children: [
+                                  _buildPortionsHoverCell(context, r),
+                                  Text(
+                                    '₱${r.totalSalesAmount.toStringAsFixed(0)} sales',
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                      color: AdminWebColors.textPrimary,
+                                    ),
+                                  ),
+                                  Text(
+                                    '₱${r.computedWage.toStringAsFixed(0)} wage',
+                                    style: const TextStyle(
+                                      fontSize: 12.5,
+                                      fontWeight: FontWeight.w800,
+                                      color: AdminWebColors.accent,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        );
+                      }
                       return Padding(
                         padding: const EdgeInsets.symmetric(
                             horizontal: 8, vertical: 10),
@@ -1621,6 +1871,7 @@ class _SalesRecordCard extends StatelessWidget {
                       children: [
                         Expanded(child: stats[3]),
                         Expanded(child: stats[4]),
+                        const Expanded(child: SizedBox()),
                       ],
                     ),
                   ],
@@ -1628,37 +1879,77 @@ class _SalesRecordCard extends StatelessWidget {
           if (r.remainingStock != null) ...[
             const SizedBox(height: 14),
             Container(
-              padding: const EdgeInsets.all(10),
+              padding: EdgeInsets.all(isWide ? 10 : 12),
               decoration: BoxDecoration(
                 color: AdminWebColors.accent.withValues(alpha: 0.06),
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(
                     color: AdminWebColors.accent.withValues(alpha: 0.15)),
               ),
-              child: Row(
-                children: [
-                  const Icon(Icons.inventory_2_outlined,
-                      size: 16, color: AdminWebColors.accent),
-                  const SizedBox(width: 8),
-                  const Text(
-                    'REMAINING STOCK: ',
-                    style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w800,
-                        color: AdminWebColors.textSecondary),
-                  ),
-                  Expanded(
-                    child: Text(
-                      'Regular: ${r.remainingStock!.regular}  |  Medium: ${r.remainingStock!.medium}  |  B1T1: ${r.remainingStock!.b1t1}  |  '
-                      'Mayo: ${r.remainingStock!.mayo}  |  Styro: ${r.remainingStock!.styro}  |  Toyo: ${r.remainingStock!.toyo}',
-                      style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          color: AdminWebColors.textPrimary),
+              child: isWide
+                  ? Row(
+                      children: [
+                        const Icon(Icons.inventory_2_outlined,
+                            size: 16, color: AdminWebColors.accent),
+                        const SizedBox(width: 8),
+                        const Text(
+                          'REMAINING STOCK: ',
+                          style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              color: AdminWebColors.textSecondary),
+                        ),
+                        Expanded(
+                          child: Text(
+                            'Regular: ${r.remainingStock!.regular}  |  Medium: ${r.remainingStock!.medium}  |  B1T1: ${r.remainingStock!.b1t1}  |  '
+                            'Mayo: ${r.remainingStock!.mayo}  |  Styro: ${r.remainingStock!.styro}  |  Toyo: ${r.remainingStock!.toyo}',
+                            style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: AdminWebColors.textPrimary),
+                          ),
+                        ),
+                      ],
+                    )
+                  : Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Row(
+                          children: [
+                            Icon(Icons.inventory_2_outlined,
+                                size: 15, color: AdminWebColors.accent),
+                            SizedBox(width: 6),
+                            Text(
+                              'REMAINING STOCK',
+                              style: TextStyle(
+                                  fontSize: 10.5,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 0.5,
+                                  color: AdminWebColors.textSecondary),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 12,
+                          runSpacing: 4,
+                          children: [
+                            Text('Regular: ${r.remainingStock!.regular}',
+                                style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: AdminWebColors.textPrimary)),
+                            Text('Medium: ${r.remainingStock!.medium}',
+                                style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: AdminWebColors.textPrimary)),
+                            Text('B1T1: ${r.remainingStock!.b1t1}',
+                                style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: AdminWebColors.textPrimary)),
+                            Text('Mayo: ${r.remainingStock!.mayo}',
+                                style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: AdminWebColors.textPrimary)),
+                            Text('Styro: ${r.remainingStock!.styro}',
+                                style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: AdminWebColors.textPrimary)),
+                            Text('Toyo: ${r.remainingStock!.toyo}',
+                                style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: AdminWebColors.textPrimary)),
+                          ],
+                        ),
+                      ],
                     ),
-                  ),
-                ],
-              ),
             ),
           ],
         ],
@@ -1670,22 +1961,30 @@ class _SalesRecordCard extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: 10,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 0.8,
-            color: AdminWebColors.textSecondary,
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: Text(
+            label,
+            style: const TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.5,
+              color: AdminWebColors.textSecondary,
+            ),
           ),
         ),
         const SizedBox(height: 2),
-        Text(
-          value,
-          style: TextStyle(
-            fontWeight: FontWeight.w800,
-            fontSize: 15,
-            color: highlight ? AdminWebColors.accent : AdminWebColors.textPrimary,
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: Text(
+            value,
+            style: TextStyle(
+              fontWeight: FontWeight.w800,
+              fontSize: 15,
+              color: highlight ? AdminWebColors.accent : AdminWebColors.textPrimary,
+            ),
           ),
         ),
       ],

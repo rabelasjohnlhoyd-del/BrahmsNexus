@@ -1208,18 +1208,33 @@ class _MonthlyFinancialsScreenState extends State<MonthlyFinancialsScreen> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final isWide = constraints.maxWidth >= 900;
-        final titleContent = Text(
-          '${_period.monthName.toUpperCase()} ${_period.year} FINANCIAL STATEMENT',
-          style: const TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.w900,
-            color: AdminWebColors.textPrimary,
-            letterSpacing: 0.5,
-          ),
-        );
+        final titleContent = isWide
+            ? Text(
+                '${_period.monthName.toUpperCase()} ${_period.year} FINANCIAL STATEMENT',
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w900,
+                  color: AdminWebColors.textPrimary,
+                  letterSpacing: 0.5,
+                ),
+              )
+            : FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  '${_period.monthName.toUpperCase()} ${_period.year} FINANCIAL STATEMENT',
+                  maxLines: 1,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w900,
+                    color: AdminWebColors.textPrimary,
+                    letterSpacing: 0.3,
+                  ),
+                ),
+              );
 
         final periodSelector = Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(10),
@@ -1233,101 +1248,73 @@ class _MonthlyFinancialsScreenState extends State<MonthlyFinancialsScreen> {
             ],
           ),
           child: Row(
-            mainAxisSize: MainAxisSize.min,
+            mainAxisSize: isWide ? MainAxisSize.min : MainAxisSize.max,
             children: [
-              const Icon(Icons.calendar_month_rounded, size: 16, color: AdminWebColors.accent),
-              const SizedBox(width: 8),
-              DropdownButtonHideUnderline(
-                child: DropdownButton<String>(
-                  value: _availablePeriodIds.contains(_activePeriodId)
-                      ? _activePeriodId
-                      : null,
-                  hint: Text(
-                    '${_period.monthName} ${_period.year}',
-                    style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: AdminWebColors.textPrimary),
-                  ),
-                  icon: const Icon(Icons.keyboard_arrow_down_rounded, color: AdminWebColors.accent),
-                  style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: AdminWebColors.textPrimary),
-                  items: _availablePeriodIds.map((pid) {
-                    final m = _getMonthNumber(pid);
-                    final y = _getYearNumber(pid);
-                    final isCurrent = pid == _currentPeriodId;
-                    return DropdownMenuItem<String>(
-                      value: pid,
-                      child: Text(
-                        '${_getMonthName(m)} $y ${isCurrent ? "(Current)" : ""}',
-                        style: TextStyle(
-                          fontWeight: pid == _activePeriodId ? FontWeight.w900 : FontWeight.w600,
-                          color: pid == _activePeriodId ? AdminWebColors.accent : AdminWebColors.textPrimary,
+              const Icon(Icons.calendar_month_rounded, size: 15, color: AdminWebColors.accent),
+              const SizedBox(width: 6),
+              Expanded(
+                flex: isWide ? 0 : 1,
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<String>(
+                    isExpanded: !isWide,
+                    value: _availablePeriodIds.contains(_activePeriodId)
+                        ? _activePeriodId
+                        : null,
+                    hint: Text(
+                      '${_period.monthName} ${_period.year}',
+                      style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12, color: AdminWebColors.textPrimary),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    icon: const Icon(Icons.keyboard_arrow_down_rounded, color: AdminWebColors.accent),
+                    style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12, color: AdminWebColors.textPrimary),
+                    items: _availablePeriodIds.map((pid) {
+                      final m = _getMonthNumber(pid);
+                      final y = _getYearNumber(pid);
+                      final isCurrent = pid == _currentPeriodId;
+                      return DropdownMenuItem<String>(
+                        value: pid,
+                        child: Text(
+                          isWide
+                              ? '${_getMonthName(m)} $y ${isCurrent ? "(Current)" : ""}'
+                              : '${_getMonthName(m)} $y ${isCurrent ? "★" : ""}',
+                          style: TextStyle(
+                            fontWeight: pid == _activePeriodId ? FontWeight.w900 : FontWeight.w600,
+                            color: pid == _activePeriodId ? AdminWebColors.accent : AdminWebColors.textPrimary,
+                            fontSize: 11.5,
+                          ),
+                          overflow: TextOverflow.ellipsis,
                         ),
-                      ),
-                    );
-                  }).toList(),
-                  onChanged: (newId) {
-                    if (newId != null) {
-                      _selectPeriod(newId);
-                    }
-                  },
+                      );
+                    }).toList(),
+                    onChanged: (newId) {
+                      if (newId != null) {
+                        _selectPeriod(newId);
+                      }
+                    },
+                  ),
                 ),
               ),
             ],
           ),
         );
 
-        final newMonthBtn = ElevatedButton.icon(
-          onPressed: _showStartNewMonthDialog,
-          icon: const Icon(Icons.add_circle_outline_rounded, size: 16, color: Colors.white),
-          label: const Text(
-            'START NEW MONTH',
-            style: TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.w800,
-              fontSize: 12,
-            ),
-          ),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: AdminWebColors.accent,
-            foregroundColor: Colors.white,
-            elevation: 0,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-          ),
-        );
-
         final exportBtn = ElevatedButton.icon(
           onPressed: _exportFinancialsExcel,
-          icon: const Icon(Icons.table_view_rounded, size: 16, color: Colors.white),
-          label: const Text(
-            'EXPORT P&L (.XLSX)',
-            style: TextStyle(
+          icon: const Icon(Icons.table_view_rounded, size: 15, color: Colors.white),
+          label: Text(
+            isWide ? 'EXPORT P&L (.XLSX)' : 'EXPORT (.XLSX)',
+            style: const TextStyle(
               color: Colors.white,
               fontWeight: FontWeight.w800,
-              fontSize: 12,
+              fontSize: 11,
             ),
+            overflow: TextOverflow.ellipsis,
           ),
           style: ElevatedButton.styleFrom(
             backgroundColor: const Color(0xFF2E7D32),
             foregroundColor: Colors.white,
             elevation: 0,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-          ),
-        );
-
-        final resetMonthBtn = OutlinedButton.icon(
-          onPressed: _showResetCurrentMonthDialog,
-          icon: const Icon(Icons.restart_alt_rounded, size: 16, color: AdminWebColors.error),
-          label: const Text(
-            'RESET MONTH DATA',
-            style: TextStyle(
-              color: AdminWebColors.error,
-              fontWeight: FontWeight.w800,
-              fontSize: 12,
-            ),
-          ),
-          style: OutlinedButton.styleFrom(
-            side: const BorderSide(color: AdminWebColors.error),
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+            padding: EdgeInsets.symmetric(horizontal: isWide ? 16 : 8, vertical: isWide ? 14 : 10),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
           ),
         );
@@ -1348,14 +1335,12 @@ class _MonthlyFinancialsScreenState extends State<MonthlyFinancialsScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               titleContent,
-              const SizedBox(height: 12),
-              Wrap(
-                spacing: 10,
-                runSpacing: 10,
-                crossAxisAlignment: WrapCrossAlignment.center,
+              const SizedBox(height: 10),
+              Row(
                 children: [
-                  periodSelector,
-                  exportBtn,
+                  Expanded(flex: 3, child: periodSelector),
+                  const SizedBox(width: 8),
+                  Expanded(flex: 2, child: exportBtn),
                 ],
               ),
             ],
@@ -1472,106 +1457,193 @@ class _MonthlyFinancialsScreenState extends State<MonthlyFinancialsScreen> {
     final roiDiff = _period.roiDifference;
     final isAchieved = _period.isRoiAchieved;
 
-    return GlassCard(
-      padding: const EdgeInsets.all(20),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: (isAchieved ? AdminWebColors.success : AdminWebColors.warning)
-                  .withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(
-              isAchieved
-                  ? Icons.check_circle_rounded
-                  : Icons.hourglass_top_rounded,
-              size: 26,
-              color: isAchieved ? AdminWebColors.success : AdminWebColors.warning,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isWide = constraints.maxWidth >= 700;
+
+        final setRoiButton = ElevatedButton.icon(
+          onPressed: _editRoiInvestment,
+          icon: const Icon(Icons.edit_rounded, size: 16),
+          label: const Text('SET R.O.I'),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AdminWebColors.accent.withValues(alpha: 0.1),
+            foregroundColor: AdminWebColors.accent,
+            elevation: 0,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          ),
+        );
+
+        final badge = Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+          decoration: BoxDecoration(
+            color: isAchieved
+                ? AdminWebColors.success.withValues(alpha: 0.15)
+                : AdminWebColors.warning.withValues(alpha: 0.15),
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: Text(
+            isAchieved ? 'ROI ACHIEVED' : 'IN PROGRESS',
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w900,
+              color: isAchieved
+                  ? AdminWebColors.success
+                  : AdminWebColors.warning,
             ),
           ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+        );
+
+        final iconBox = Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: (isAchieved ? AdminWebColors.success : AdminWebColors.warning)
+                .withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Icon(
+            isAchieved
+                ? Icons.check_circle_rounded
+                : Icons.hourglass_top_rounded,
+            size: 26,
+            color: isAchieved ? AdminWebColors.success : AdminWebColors.warning,
+          ),
+        );
+
+        if (isWide) {
+          return GlassCard(
+            padding: const EdgeInsets.all(20),
+            child: Row(
               children: [
-                Row(
-                  children: [
-                    const Text(
-                      'CAPITAL / R.O.I (RETURN ON INVESTMENT)',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w900,
-                        color: AdminWebColors.textSecondary,
-                        letterSpacing: 0.8,
+                iconBox,
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Text(
+                            'CAPITAL / R.O.I (RETURN ON INVESTMENT)',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w900,
+                              color: AdminWebColors.textSecondary,
+                              letterSpacing: 0.8,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          badge,
+                        ],
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    Container(
-                      padding:
-                          const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: isAchieved
-                            ? AdminWebColors.success.withValues(alpha: 0.15)
-                            : AdminWebColors.warning.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(6),
+                      const SizedBox(height: 6),
+                      Wrap(
+                        spacing: 16,
+                        runSpacing: 4,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          Text(
+                            'Invested: ₱${_period.roiInvestment.toStringAsFixed(0)}',
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w800,
+                              color: AdminWebColors.textPrimary,
+                            ),
+                          ),
+                          Text(
+                            isAchieved
+                                ? 'Net Return above Investment: +₱${roiDiff.toStringAsFixed(0)}'
+                                : 'Remaining to Break Even: ₱${(-roiDiff).toStringAsFixed(0)}',
+                            style: TextStyle(
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.w700,
+                              color: isAchieved
+                                  ? AdminWebColors.success
+                                  : AdminWebColors.error,
+                            ),
+                          ),
+                        ],
                       ),
-                      child: Text(
-                        isAchieved ? 'ROI ACHIEVED' : 'IN PROGRESS',
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w900,
-                          color: isAchieved
-                              ? AdminWebColors.success
-                              : AdminWebColors.warning,
-                        ),
-                      ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-                const SizedBox(height: 6),
-                Row(
-                  children: [
-                    Text(
-                      'Invested: ₱${_period.roiInvestment.toStringAsFixed(0)}',
-                      style: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w800,
-                        color: AdminWebColors.textPrimary,
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Text(
-                      isAchieved
-                          ? 'Net Return above Investment: +₱${roiDiff.toStringAsFixed(0)}'
-                          : 'Remaining to Break Even: ₱${(-roiDiff).toStringAsFixed(0)}',
-                      style: TextStyle(
-                        fontSize: 13.5,
-                        fontWeight: FontWeight.w700,
-                        color: isAchieved
-                            ? AdminWebColors.success
-                            : AdminWebColors.error,
-                      ),
-                    ),
-                  ],
-                ),
+                setRoiButton,
               ],
             ),
+          );
+        }
+
+        // Mobile Layout (adaptive stacking)
+        return GlassCard(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  iconBox,
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'CAPITAL / R.O.I',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w900,
+                            color: AdminWebColors.textSecondary,
+                            letterSpacing: 0.8,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 4),
+                        badge,
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Invested: ₱${_period.roiInvestment.toStringAsFixed(0)}',
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w800,
+                            color: AdminWebColors.textPrimary,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          isAchieved
+                              ? 'Net Return: +₱${roiDiff.toStringAsFixed(0)}'
+                              : 'To Break Even: ₱${(-roiDiff).toStringAsFixed(0)}',
+                          style: TextStyle(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w700,
+                            color: isAchieved ? AdminWebColors.success : AdminWebColors.error,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  setRoiButton,
+                ],
+              ),
+            ],
           ),
-          ElevatedButton.icon(
-            onPressed: _editRoiInvestment,
-            icon: const Icon(Icons.edit_rounded, size: 16),
-            label: const Text('SET R.O.I'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AdminWebColors.accent.withValues(alpha: 0.1),
-              foregroundColor: AdminWebColors.accent,
-              elevation: 0,
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            ),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -1813,6 +1885,7 @@ class _MonthlyFinancialsScreenState extends State<MonthlyFinancialsScreen> {
                   rate: 130.0,
                   totalAmount: _period.regular250gRevenue,
                   color: AdminWebColors.accent,
+                  isCompact: !isWide,
                 ),
                 _meatPortionBox(
                   sizeLabel: 'Medium (300G)',
@@ -1820,6 +1893,7 @@ class _MonthlyFinancialsScreenState extends State<MonthlyFinancialsScreen> {
                   rate: 160.0,
                   totalAmount: _period.medium300gRevenue,
                   color: AdminWebColors.accentDark,
+                  isCompact: !isWide,
                 ),
                 _meatPortionBox(
                   sizeLabel: 'B1T1 (400G)',
@@ -1827,27 +1901,17 @@ class _MonthlyFinancialsScreenState extends State<MonthlyFinancialsScreen> {
                   rate: 210.0,
                   totalAmount: _period.b1t1400gRevenue,
                   color: AdminWebColors.accent,
+                  isCompact: !isWide,
                 ),
               ];
 
-              if (isWide) {
-                return Row(
-                  children: [
-                    Expanded(child: boxes[0]),
-                    const SizedBox(width: 12),
-                    Expanded(child: boxes[1]),
-                    const SizedBox(width: 12),
-                    Expanded(child: boxes[2]),
-                  ],
-                );
-              }
-              return Column(
+              return Row(
                 children: [
-                  boxes[0],
-                  const SizedBox(height: 10),
-                  boxes[1],
-                  const SizedBox(height: 10),
-                  boxes[2],
+                  Expanded(child: boxes[0]),
+                  SizedBox(width: isWide ? 12 : 6),
+                  Expanded(child: boxes[1]),
+                  SizedBox(width: isWide ? 12 : 6),
+                  Expanded(child: boxes[2]),
                 ],
               );
             },
@@ -1863,9 +1927,10 @@ class _MonthlyFinancialsScreenState extends State<MonthlyFinancialsScreen> {
     required double rate,
     required double totalAmount,
     required Color color,
+    bool isCompact = false,
   }) {
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: EdgeInsets.all(isCompact ? 8 : 14),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.06),
         borderRadius: BorderRadius.circular(10),
@@ -1876,32 +1941,47 @@ class _MonthlyFinancialsScreenState extends State<MonthlyFinancialsScreen> {
         children: [
           Text(
             sizeLabel,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              fontSize: 12,
+              fontSize: isCompact ? 10.5 : 12,
               fontWeight: FontWeight.w800,
               color: color,
             ),
           ),
-          const SizedBox(height: 6),
-          Text(
-            '$pcs pcs',
-            style: const TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.w900,
-              color: AdminWebColors.textPrimary,
+          SizedBox(height: isCompact ? 3 : 6),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              '$pcs pcs',
+              style: TextStyle(
+                fontSize: isCompact ? 15 : 20,
+                fontWeight: FontWeight.w900,
+                color: AdminWebColors.textPrimary,
+              ),
             ),
           ),
           Text(
             '× ₱${rate.toStringAsFixed(0)} bawat isa',
-            style: const TextStyle(fontSize: 11, color: AdminWebColors.textSecondary),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            '₱${totalAmount.toStringAsFixed(0)}',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w900,
-              color: color,
+              fontSize: isCompact ? 9 : 11,
+              color: AdminWebColors.textSecondary,
+            ),
+          ),
+          SizedBox(height: isCompact ? 3 : 6),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              '₱${totalAmount.toStringAsFixed(0)}',
+              style: TextStyle(
+                fontSize: isCompact ? 13 : 16,
+                fontWeight: FontWeight.w900,
+                color: color,
+              ),
             ),
           ),
         ],
@@ -1913,55 +1993,94 @@ class _MonthlyFinancialsScreenState extends State<MonthlyFinancialsScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Row(
-              children: [
-                const Text(
-                  'PROCUREMENT & INGREDIENTS',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 1,
-                    color: AdminWebColors.textSecondary,
-                  ),
-                ),
-                const SizedBox(width: 14),
-                ElevatedButton.icon(
-                  onPressed: _addNewCategoryDialog,
-                  icon: const Icon(Icons.add_rounded, size: 16),
-                  label: const Text('ADD CATEGORY'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor:
-                        AdminWebColors.accent.withValues(alpha: 0.12),
-                    foregroundColor: AdminWebColors.accent,
-                    elevation: 0,
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                OutlinedButton.icon(
-                  onPressed: _uncheckAllProcurementDialog,
-                  icon: const Icon(Icons.restart_alt_rounded, size: 16),
-                  label: const Text('RESET CHECKBOXES'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AdminWebColors.textSecondary,
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  ),
-                ),
-              ],
-            ),
-            Text(
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final isWide = constraints.maxWidth >= 750;
+
+            final addCatBtn = ElevatedButton.icon(
+              onPressed: _addNewCategoryDialog,
+              icon: const Icon(Icons.add_rounded, size: 16),
+              label: const Text('ADD CATEGORY'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor:
+                    AdminWebColors.accent.withValues(alpha: 0.12),
+                foregroundColor: AdminWebColors.accent,
+                elevation: 0,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              ),
+            );
+
+            final resetBoxesBtn = OutlinedButton.icon(
+              onPressed: _uncheckAllProcurementDialog,
+              icon: const Icon(Icons.restart_alt_rounded, size: 16),
+              label: const Text('RESET CHECKBOXES'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AdminWebColors.textSecondary,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              ),
+            );
+
+            final totalText = Text(
               'TOTAL INGREDIENTS: ₱${_period.totalProcurementCost.toStringAsFixed(1)}',
               style: const TextStyle(
                 fontWeight: FontWeight.w900,
                 fontSize: 13,
                 color: AdminWebColors.textPrimary,
               ),
-            ),
-          ],
+            );
+
+            if (isWide) {
+              return Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      const Text(
+                        'PROCUREMENT & INGREDIENTS',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 1,
+                          color: AdminWebColors.textSecondary,
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      addCatBtn,
+                      const SizedBox(width: 8),
+                      resetBoxesBtn,
+                    ],
+                  ),
+                  totalText,
+                ],
+              );
+            }
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'PROCUREMENT & INGREDIENTS',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 0.6,
+                    fontSize: 12,
+                    color: AdminWebColors.textSecondary,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                totalText,
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(child: addCatBtn),
+                    const SizedBox(width: 8),
+                    Expanded(child: resetBoxesBtn),
+                  ],
+                ),
+              ],
+            );
+          },
         ),
         const SizedBox(height: 14),
         for (var group in _period.procurementGroups) ...[
@@ -1982,27 +2101,18 @@ class _MonthlyFinancialsScreenState extends State<MonthlyFinancialsScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             decoration: BoxDecoration(
               color: AdminWebColors.accent.withValues(alpha: 0.05),
               borderRadius:
                   const BorderRadius.vertical(top: Radius.circular(16)),
             ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
-                  children: [
-                    Text(
-                      group.title,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w900,
-                        color: AdminWebColors.accent,
-                      ),
-                    ),
-                    if (group.items.isNotEmpty) ...[
-                      const SizedBox(width: 12),
-                      InkWell(
+            child: LayoutBuilder(
+              builder: (context, headerConstraints) {
+                final isWide = headerConstraints.maxWidth >= 520;
+
+                final checkAllBtn = group.items.isNotEmpty
+                    ? InkWell(
                         onTap: () {
                           setState(() {
                             final target = !allPaid;
@@ -2015,7 +2125,7 @@ class _MonthlyFinancialsScreenState extends State<MonthlyFinancialsScreen> {
                         borderRadius: BorderRadius.circular(6),
                         child: Container(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 3),
+                              horizontal: 7, vertical: 3),
                           decoration: BoxDecoration(
                             color: (allPaid
                                     ? AdminWebColors.success
@@ -2036,7 +2146,7 @@ class _MonthlyFinancialsScreenState extends State<MonthlyFinancialsScreen> {
                                 allPaid
                                     ? Icons.check_box_rounded
                                     : Icons.check_box_outline_blank_rounded,
-                                size: 14,
+                                size: 13,
                                 color: allPaid
                                     ? AdminWebColors.success
                                     : AdminWebColors.accent,
@@ -2045,7 +2155,7 @@ class _MonthlyFinancialsScreenState extends State<MonthlyFinancialsScreen> {
                               Text(
                                 allPaid ? 'UNCHECK ALL' : 'CHECK ALL',
                                 style: TextStyle(
-                                  fontSize: 10,
+                                  fontSize: 9.5,
                                   fontWeight: FontWeight.w800,
                                   color: allPaid
                                       ? AdminWebColors.success
@@ -2055,35 +2165,100 @@ class _MonthlyFinancialsScreenState extends State<MonthlyFinancialsScreen> {
                             ],
                           ),
                         ),
-                      ),
-                    ],
-                  ],
-                ),
-                Row(
+                      )
+                    : const SizedBox.shrink();
+
+                final actionIcons = Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(
-                      'TOTAL: ₱${group.total.toStringAsFixed(1)}',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 13,
-                      ),
-                    ),
-                    const SizedBox(width: 14),
                     IconButton(
+                      padding: const EdgeInsets.all(4),
+                      constraints: const BoxConstraints(),
                       onPressed: () => _addNewProcurementItem(group),
                       icon: const Icon(Icons.add_circle_outline_rounded,
-                          size: 20, color: AdminWebColors.accent),
+                          size: 19, color: AdminWebColors.accent),
                       tooltip: 'Add item to ${group.title}',
                     ),
+                    const SizedBox(width: 6),
                     IconButton(
+                      padding: const EdgeInsets.all(4),
+                      constraints: const BoxConstraints(),
                       onPressed: () => _deleteCategory(group),
                       icon: const Icon(Icons.delete_outline_rounded,
-                          size: 19, color: AdminWebColors.error),
+                          size: 18, color: AdminWebColors.error),
                       tooltip: 'Delete ${group.title}',
                     ),
                   ],
-                ),
-              ],
+                );
+
+                final totalText = Text(
+                  'TOTAL: ₱${group.total.toStringAsFixed(1)}',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12.5,
+                  ),
+                );
+
+                if (isWide) {
+                  return Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          Text(
+                            group.title,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w900,
+                              color: AdminWebColors.accent,
+                            ),
+                          ),
+                          if (group.items.isNotEmpty) ...[
+                            const SizedBox(width: 12),
+                            checkAllBtn,
+                          ],
+                        ],
+                      ),
+                      Row(
+                        children: [
+                          totalText,
+                          const SizedBox(width: 14),
+                          actionIcons,
+                        ],
+                      ),
+                    ],
+                  );
+                }
+
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            group.title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w900,
+                              color: AdminWebColors.accent,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ),
+                        if (group.items.isNotEmpty) ...[
+                          const SizedBox(width: 6),
+                          checkAllBtn,
+                        ],
+                        const SizedBox(width: 6),
+                        actionIcons,
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    totalText,
+                  ],
+                );
+              },
             ),
           ),
           ...group.items.map((item) => _buildItemRow(group, item)),
@@ -2096,7 +2271,7 @@ class _MonthlyFinancialsScreenState extends State<MonthlyFinancialsScreen> {
     return InkWell(
       onTap: () => _editItem(group, item),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
         child: Row(
           children: [
             Checkbox(
@@ -2106,55 +2281,68 @@ class _MonthlyFinancialsScreenState extends State<MonthlyFinancialsScreen> {
                 _persistPeriod();
               },
               activeColor: AdminWebColors.success,
+              visualDensity: VisualDensity.compact,
+              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: 6),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     item.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                       fontWeight: FontWeight.w700,
-                      fontSize: 13.5,
+                      fontSize: 13,
                     ),
                   ),
                   const Text(
                     'Tap to edit name or price',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      fontSize: 10,
+                      fontSize: 9.5,
                       color: AdminWebColors.textSecondary,
                     ),
                   ),
                 ],
               ),
             ),
-            Text(
-              '₱${item.price.toStringAsFixed(1)}',
-              style: const TextStyle(
-                fontWeight: FontWeight.w900,
-                fontSize: 14.5,
-              ),
-            ),
-            const SizedBox(width: 16),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-              decoration: BoxDecoration(
-                color: item.isPaid
-                    ? AdminWebColors.success.withValues(alpha: 0.1)
-                    : AdminWebColors.error.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Text(
-                item.isPaid ? 'PAID' : 'NOT PAID',
-                style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w900,
-                  color: item.isPaid
-                      ? AdminWebColors.success
-                      : AdminWebColors.error,
+            const SizedBox(width: 6),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  '₱${item.price.toStringAsFixed(1)}',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w900,
+                    fontSize: 12,
+                  ),
                 ),
-              ),
+                const SizedBox(height: 2),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: item.isPaid
+                        ? AdminWebColors.success.withValues(alpha: 0.1)
+                        : AdminWebColors.error.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(5),
+                  ),
+                  child: Text(
+                    item.isPaid ? 'PAID' : 'NOT PAID',
+                    style: TextStyle(
+                      fontSize: 8.5,
+                      fontWeight: FontWeight.w900,
+                      color: item.isPaid
+                          ? AdminWebColors.success
+                          : AdminWebColors.error,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
@@ -2163,31 +2351,65 @@ class _MonthlyFinancialsScreenState extends State<MonthlyFinancialsScreen> {
   }
 
   Widget _buildLaborAndOverheadSection() {
+    final isMobile = MediaQuery.of(context).size.width < 600;
     return GlassCard(
-      padding: const EdgeInsets.all(22),
+      padding: EdgeInsets.all(isMobile ? 14 : 22),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                'LABOR & STORE OVERHEADS',
-                style: TextStyle(
-                  fontWeight: FontWeight.w900,
-                  color: AdminWebColors.accent,
-                  letterSpacing: 0.5,
-                ),
-              ),
-              Text(
-                'TOTAL LABOR: ₱${(_period.totalProductionLaborCost + _period.totalDriverLaborCost + _period.effectiveBranchCookLabor + _period.totalDailyFixedOverheads).toStringAsFixed(0)}',
-                style: const TextStyle(
-                  fontWeight: FontWeight.w900,
-                  fontSize: 13,
-                  color: AdminWebColors.textPrimary,
-                ),
-              ),
-            ],
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final isNarrow = constraints.maxWidth < 500;
+              final totalVal = (_period.totalProductionLaborCost + _period.totalDriverLaborCost + _period.effectiveBranchCookLabor + _period.totalDailyFixedOverheads).toStringAsFixed(0);
+
+              if (isNarrow) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'LABOR & STORE OVERHEADS',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w900,
+                        color: AdminWebColors.accent,
+                        letterSpacing: 0.5,
+                        fontSize: 12.5,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'TOTAL LABOR: ₱$totalVal',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w900,
+                        fontSize: 13,
+                        color: AdminWebColors.textPrimary,
+                      ),
+                    ),
+                  ],
+                );
+              }
+
+              return Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'LABOR & STORE OVERHEADS',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w900,
+                      color: AdminWebColors.accent,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                  Text(
+                    'TOTAL LABOR: ₱$totalVal',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w900,
+                      fontSize: 13,
+                      color: AdminWebColors.textPrimary,
+                    ),
+                  ),
+                ],
+              );
+            },
           ),
           const SizedBox(height: 18),
 
@@ -2263,29 +2485,32 @@ class _MonthlyFinancialsScreenState extends State<MonthlyFinancialsScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                label,
-                style: TextStyle(
-                  fontWeight: isTotal ? FontWeight.w900 : FontWeight.w600,
-                  fontSize: isTotal ? 15 : 13,
-                  color: isTotal
-                      ? AdminWebColors.textPrimary
-                      : AdminWebColors.textSecondary,
-                ),
-              ),
-              if (sub != null)
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
                 Text(
-                  sub,
-                  style: const TextStyle(
-                    fontSize: 11,
-                    color: AdminWebColors.textSecondary,
+                  label,
+                  style: TextStyle(
+                    fontWeight: isTotal ? FontWeight.w900 : FontWeight.w600,
+                    fontSize: isTotal ? 15 : 13,
+                    color: isTotal
+                        ? AdminWebColors.textPrimary
+                        : AdminWebColors.textSecondary,
                   ),
                 ),
-            ],
+                if (sub != null)
+                  Text(
+                    sub,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: AdminWebColors.textSecondary,
+                    ),
+                  ),
+              ],
+            ),
           ),
+          const SizedBox(width: 8),
           Text(
             val,
             style: TextStyle(
@@ -2363,7 +2588,7 @@ class _MonthlyFinancialsScreenState extends State<MonthlyFinancialsScreen> {
             children: [
               Text(
                 label,
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5),
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
               ),
               Text(
                 sub,
@@ -2375,6 +2600,7 @@ class _MonthlyFinancialsScreenState extends State<MonthlyFinancialsScreen> {
             ],
           ),
         ),
+        const SizedBox(width: 8),
         Text(
           val,
           style: const TextStyle(

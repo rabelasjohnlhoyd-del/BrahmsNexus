@@ -43,14 +43,20 @@ class _AdminNotificationsDialogState extends State<AdminNotificationsDialog> {
     final userId = AuthService.currentUserId;
     final username = AuthService.currentUsername;
 
+    final isMobile = MediaQuery.of(context).size.width < 600;
+
     return Dialog(
       backgroundColor: Colors.transparent,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+      insetPadding: EdgeInsets.symmetric(
+        horizontal: isMobile ? 12 : 16,
+        vertical: isMobile ? 16 : 24,
+      ),
       child: Center(
         child: Container(
-          width: 540,
+          width: isMobile ? double.infinity : 540,
           constraints: BoxConstraints(
-            maxHeight: MediaQuery.of(context).size.height * 0.85,
+            maxWidth: 540,
+            maxHeight: MediaQuery.of(context).size.height * (isMobile ? 0.88 : 0.85),
           ),
           decoration: BoxDecoration(
             color: AdminWebColors.surfaceTint,
@@ -86,38 +92,43 @@ class _AdminNotificationsDialogState extends State<AdminNotificationsDialog> {
                 children: [
                   // Header
                   Container(
-                    padding: const EdgeInsets.fromLTRB(20, 16, 16, 16),
+                    padding: EdgeInsets.fromLTRB(
+                      isMobile ? 14 : 20,
+                      isMobile ? 12 : 16,
+                      isMobile ? 8 : 16,
+                      isMobile ? 12 : 16,
+                    ),
                     decoration: const BoxDecoration(
                       border: Border(bottom: BorderSide(color: AdminWebColors.border)),
                     ),
                     child: Row(
                       children: [
-                        const Icon(
+                        Icon(
                           Icons.notifications_rounded,
                           color: AdminWebColors.accent,
-                          size: 22,
+                          size: isMobile ? 20 : 22,
                         ),
-                        const SizedBox(width: 10),
-                        const Text(
+                        SizedBox(width: isMobile ? 8 : 10),
+                        Text(
                           'Notifications',
                           style: TextStyle(
-                            fontSize: 17,
+                            fontSize: isMobile ? 15 : 17,
                             fontWeight: FontWeight.w800,
                             color: AdminWebColors.textPrimary,
                           ),
                         ),
                         if (unreadCount > 0) ...[
-                          const SizedBox(width: 8),
+                          SizedBox(width: isMobile ? 6 : 8),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                             decoration: BoxDecoration(
                               color: AdminWebColors.warning.withValues(alpha: 0.15),
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: Text(
                               '$unreadCount new',
-                              style: const TextStyle(
-                                fontSize: 11,
+                              style: TextStyle(
+                                fontSize: isMobile ? 10.5 : 11,
                                 fontWeight: FontWeight.w800,
                                 color: AdminWebColors.warning,
                               ),
@@ -127,19 +138,32 @@ class _AdminNotificationsDialogState extends State<AdminNotificationsDialog> {
                         const Spacer(),
                         if (unreadCount > 0)
                           TextButton(
+                            style: TextButton.styleFrom(
+                              padding: EdgeInsets.symmetric(horizontal: isMobile ? 6 : 8, vertical: 4),
+                              minimumSize: Size.zero,
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
                             onPressed: () => NotificationService.markAllAsRead(
                               notifications: notifications,
                               userId: userId,
                               username: username,
                             ),
-                            child: const Text(
-                              'Mark all as read',
-                              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                            child: Text(
+                              isMobile ? 'Mark read' : 'Mark all as read',
+                              style: TextStyle(
+                                fontSize: isMobile ? 11.5 : 12,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                           ),
+                        SizedBox(width: isMobile ? 4 : 8),
                         IconButton(
-                          icon: const Icon(Icons.close_rounded, size: 20),
+                          icon: const Icon(Icons.close_rounded),
+                          iconSize: isMobile ? 20 : 22,
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
                           color: AdminWebColors.textSecondary,
+                          tooltip: 'Close',
                           onPressed: () => Navigator.of(context).pop(),
                         ),
                       ],

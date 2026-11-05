@@ -499,116 +499,243 @@ class _KarneBatchDetailScreenState extends State<KarneBatchDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      color: AdminWebColors.background,
-      child: Column(
-        children: [
-          // Sub-navigation bar
-          Container(
-            padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
-            child: Row(
-              children: [
-                TextButton.icon(
-                  onPressed: () => Navigator.pop(context),
-                  icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 14),
-                  label: const Text('BACK TO INVENTORY', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12, letterSpacing: 0.5)),
-                  style: TextButton.styleFrom(foregroundColor: AdminWebColors.accent),
-                ),
-              ],
-            ),
-          ),
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildBatchDashboard(),
-                  const SizedBox(height: 32),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text('COOKING HISTORY', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: AdminWebColors.textPrimary, letterSpacing: 0.5)),
-                      if (_batch.remainingKilos > 0) ...[
-                        Builder(builder: (context) {
-                          final hasActiveSession = _batch.sessions.any(
-                            (s) => s.status != 'completed',
-                          );
-                          return Tooltip(
-                            message: hasActiveSession
-                                ? 'Cannot add a new session while an active session is still in progress.'
-                                : '',
-                            child: ElevatedButton.icon(
-                              onPressed: hasActiveSession ? null : _addSession,
-                              icon: const Icon(Icons.add_rounded, size: 18),
-                              label: const Text('NEW COOKING SESSION'),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: AdminWebColors.accent,
-                                foregroundColor: Colors.white,
-                                disabledBackgroundColor: AdminWebColors.border,
-                                disabledForegroundColor: AdminWebColors.textSecondary,
-                                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                elevation: 0,
+    return Theme(
+      data: AdminWebTheme.themeData,
+      child: Scaffold(
+        backgroundColor: AdminWebColors.background,
+        body: Material(
+          color: Colors.transparent,
+          child: SafeArea(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final isWide = constraints.maxWidth >= 700;
+
+                return Column(
+                  children: [
+                    // Sub-navigation bar
+                    Container(
+                      padding: EdgeInsets.fromLTRB(
+                          isWide ? 24 : 16, isWide ? 16 : 12, isWide ? 24 : 16, 0),
+                      child: Row(
+                        children: [
+                          TextButton.icon(
+                            onPressed: () => Navigator.pop(context),
+                            icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 14),
+                            label: const Text('BACK TO INVENTORY',
+                                style: TextStyle(
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 12,
+                                    letterSpacing: 0.5)),
+                            style: TextButton.styleFrom(
+                                foregroundColor: AdminWebColors.accent),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Expanded(
+                      child: SingleChildScrollView(
+                        padding: EdgeInsets.all(isWide ? 24 : 16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _buildBatchDashboard(isWide),
+                            const SizedBox(height: 32),
+                            if (!isWide) ...[
+                              // Mobile Cooking History Header
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text('COOKING HISTORY',
+                                      style: TextStyle(
+                                          fontWeight: FontWeight.w900,
+                                          fontSize: 16,
+                                          color: AdminWebColors.textPrimary,
+                                          letterSpacing: 0.5)),
+                                  if (_batch.remainingKilos > 0) ...[
+                                    const SizedBox(height: 12),
+                                    _buildNewSessionButton(isMobile: true),
+                                  ],
+                                ],
                               ),
-                            ),
-                          );
-                        }),
-                      ],
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-                  if (_batch.sessions.isEmpty)
-                    _buildEmptySessions()
-                  else
-                    ...List.generate(_batch.sessions.length, (index) {
-                      final s = _batch.sessions.reversed.toList()[index];
-                      final originalIndex = _batch.sessions.length - 1 - index;
-                      return _buildSessionCard(s, originalIndex);
-                    }),
-                  if (_batch.remainingKilos <= 0 && _batch.sessions.isNotEmpty) _buildGrandTotal(),
-                  const SizedBox(height: 40),
-                ],
-              ),
+                            ] else ...[
+                              // Laptop Cooking History Header (Original Row)
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  const Text('COOKING HISTORY',
+                                      style: TextStyle(
+                                          fontWeight: FontWeight.w900,
+                                          fontSize: 16,
+                                          color: AdminWebColors.textPrimary,
+                                          letterSpacing: 0.5)),
+                                  if (_batch.remainingKilos > 0)
+                                    _buildNewSessionButton(isMobile: false),
+                                ],
+                              ),
+                            ],
+                            const SizedBox(height: 20),
+                            if (_batch.sessions.isEmpty)
+                              _buildEmptySessions()
+                            else
+                              ...List.generate(_batch.sessions.length, (index) {
+                                final s = _batch.sessions.reversed.toList()[index];
+                                final originalIndex =
+                                    _batch.sessions.length - 1 - index;
+                                return _buildSessionCard(s, originalIndex, isWide: isWide);
+                              }),
+                            if (_batch.remainingKilos <= 0 &&
+                                _batch.sessions.isNotEmpty)
+                              _buildGrandTotal(),
+                            const SizedBox(height: 40),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                );
+              },
             ),
           ),
-        ],
+        ),
       ),
     );
   }
 
-  Widget _buildBatchDashboard() {
+  Widget _buildNewSessionButton({required bool isMobile}) {
+    final hasActiveSession = _batch.sessions.any(
+      (s) => s.status != 'completed',
+    );
+    return Tooltip(
+      message: hasActiveSession
+          ? 'Cannot add a new session while an active session is still in progress.'
+          : '',
+      child: SizedBox(
+        width: isMobile ? double.infinity : null,
+        child: ElevatedButton.icon(
+          onPressed: hasActiveSession ? null : _addSession,
+          icon: const Icon(Icons.add_rounded, size: 18),
+          label: const Text('NEW COOKING SESSION',
+              style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AdminWebColors.accent,
+            foregroundColor: Colors.white,
+            disabledBackgroundColor: AdminWebColors.border,
+            disabledForegroundColor: AdminWebColors.textSecondary,
+            padding: EdgeInsets.symmetric(
+                horizontal: isMobile ? 14 : 20, vertical: isMobile ? 14 : 18),
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12)),
+            elevation: 0,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBatchDashboard(bool isWide) {
+    if (isWide) {
+      // Laptop: exact original layout
+      return Row(
+        children: [
+          Expanded(child: _kpiTile('Total Stock', '${_batch.totalKilos}', 'KILOGRAMS', Icons.inventory_2_rounded, isWide: true)),
+          const SizedBox(width: 16),
+          Expanded(child: _kpiTile('Remaining', _batch.remainingKilos.toStringAsFixed(1), 'KG LEFT', Icons.hourglass_bottom_rounded, highlight: true, isWide: true)),
+          const SizedBox(width: 16),
+          Expanded(child: _kpiTile('Sessions', '${_batch.sessions.length}', '', Icons.restaurant_rounded, isWide: true)),
+        ],
+      );
+    }
+    // Mobile: compact layout
     return Row(
       children: [
-        Expanded(child: _kpiTile('Total Stock', '${_batch.totalKilos}', 'KILOGRAMS', Icons.inventory_2_rounded)),
-        const SizedBox(width: 16),
-        Expanded(child: _kpiTile('Remaining', _batch.remainingKilos.toStringAsFixed(1), 'KG LEFT', Icons.hourglass_bottom_rounded, highlight: true)),
-        const SizedBox(width: 16),
-        Expanded(child: _kpiTile('Sessions', '${_batch.sessions.length}', '', Icons.restaurant_rounded)),
+        Expanded(child: _kpiTile('Total Stock', '${_batch.totalKilos}', 'KG', Icons.inventory_2_rounded, isWide: false)),
+        const SizedBox(width: 8),
+        Expanded(child: _kpiTile('Remaining', _batch.remainingKilos.toStringAsFixed(1), 'KG', Icons.hourglass_bottom_rounded, highlight: true, isWide: false)),
+        const SizedBox(width: 8),
+        Expanded(child: _kpiTile('Sessions', '${_batch.sessions.length}', '', Icons.restaurant_rounded, isWide: false)),
       ],
     );
   }
 
-  Widget _kpiTile(String label, String val, String sub, IconData icon, {bool highlight = false}) {
+  Widget _kpiTile(String label, String val, String sub, IconData icon, {bool highlight = false, bool isWide = true}) {
+    if (isWide) {
+      // Laptop: exact original GlassCard
+      return GlassCard(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, size: 20, color: highlight ? AdminWebColors.accent : AdminWebColors.textSecondary),
+            const SizedBox(height: 12),
+            Text(label.toUpperCase(), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: AdminWebColors.textSecondary, letterSpacing: 0.5)),
+            const SizedBox(height: 4),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.baseline,
+              textBaseline: TextBaseline.alphabetic,
+              children: [
+                Text(val, style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: highlight ? AdminWebColors.accent : AdminWebColors.textPrimary)),
+                if (sub.isNotEmpty) ...[
+                  const SizedBox(width: 4),
+                  Text(sub, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AdminWebColors.textSecondary)),
+                ],
+              ],
+            ),
+          ],
+        ),
+      );
+    }
+
+    // Mobile: compact GlassCard
     return GlassCard(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 20, color: highlight ? AdminWebColors.accent : AdminWebColors.textSecondary),
-          const SizedBox(height: 12),
-          Text(label.toUpperCase(), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: AdminWebColors.textSecondary, letterSpacing: 0.5)),
+          Icon(icon, size: 18, color: highlight ? AdminWebColors.accent : AdminWebColors.textSecondary),
+          const SizedBox(height: 6),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              label.toUpperCase(),
+              style: const TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w800,
+                color: AdminWebColors.textSecondary,
+                letterSpacing: 0.3,
+              ),
+            ),
+          ),
           const SizedBox(height: 4),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.baseline,
-            textBaseline: TextBaseline.alphabetic,
-            children: [
-              Text(val, style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: highlight ? AdminWebColors.accent : AdminWebColors.textPrimary)),
-              if (sub.isNotEmpty) ...[
-                const SizedBox(width: 4),
-                Text(sub, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AdminWebColors.textSecondary)),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.baseline,
+              textBaseline: TextBaseline.alphabetic,
+              children: [
+                Text(
+                  val,
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w900,
+                    color: highlight ? AdminWebColors.accent : AdminWebColors.textPrimary,
+                  ),
+                ),
+                if (sub.isNotEmpty) ...[
+                  const SizedBox(width: 4),
+                  Text(
+                    sub,
+                    style: const TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: AdminWebColors.textSecondary,
+                    ),
+                  ),
+                ],
               ],
-            ],
+            ),
           ),
         ],
       ),
@@ -631,7 +758,7 @@ class _KarneBatchDetailScreenState extends State<KarneBatchDetailScreen> {
     );
   }
 
-  Widget _buildSessionCard(KarneSession s, int index) {
+  Widget _buildSessionCard(KarneSession s, int index, {bool isWide = true}) {
     final bool hasActual = s.hasActualOutput;
     final bool hasBreakdown = (s.actual400g != null && s.actual400g! > 0) ||
         (s.actual300g != null && s.actual300g! > 0) ||
@@ -662,48 +789,81 @@ class _KarneBatchDetailScreenState extends State<KarneBatchDetailScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Wrap(
-                  spacing: 8,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    const Icon(Icons.event_available_rounded, size: 16, color: AdminWebColors.accent),
-                    Text(DateFormat('MMM dd, yyyy').format(s.date), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
-                    _badge('RESEKO ${s.resekoApplied.toStringAsFixed(0)}%', AdminWebColors.accent),
-                    _badge(statusLabel, statusColor, icon: statusIcon),
-                  ],
-                ),
-                 Row(
-                  children: [
-                    if (s.status == 'cooked' || (s.cookedKilos != null && s.status != 'completed'))
-                      Padding(
-                        padding: const EdgeInsets.only(right: 8),
-                        child: OutlinedButton.icon(
-                          onPressed: () => _setTargetsForSession(s, index),
-                          icon: const Icon(Icons.content_cut_rounded, size: 14),
-                          label: const Text('SET TARGETS', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 11)),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: Colors.purple,
-                            side: const BorderSide(color: Colors.purple),
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            if (isWide)
+              // Laptop: exact original Row(spaceBetween)
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Wrap(
+                    spacing: 8,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      const Icon(Icons.event_available_rounded, size: 16, color: AdminWebColors.accent),
+                      Text(DateFormat('MMM dd, yyyy').format(s.date), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+                      _badge('RESEKO ${s.resekoApplied.toStringAsFixed(0)}%', AdminWebColors.accent),
+                      _badge(statusLabel, statusColor, icon: statusIcon),
+                    ],
+                  ),
+                  Row(
+                    children: [
+                      if (s.status == 'cooked' || (s.cookedKilos != null && s.status != 'completed'))
+                        Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: OutlinedButton.icon(
+                            onPressed: () => _setTargetsForSession(s, index),
+                            icon: const Icon(Icons.content_cut_rounded, size: 14),
+                            label: const Text('SET TARGETS', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 11)),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: Colors.purple,
+                              side: const BorderSide(color: Colors.purple),
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            ),
                           ),
                         ),
+                      if (s.status == 'pending')
+                        IconButton(
+                          onPressed: () => _deleteSession(index),
+                          icon: const Icon(Icons.delete_outline_rounded, size: 18, color: AdminWebColors.error),
+                          tooltip: 'Delete Session',
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                        ),
+                    ],
+                  ),
+                ],
+              )
+            else
+              // Mobile: Wrap
+              Wrap(
+                spacing: 8,
+                runSpacing: 6,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  const Icon(Icons.event_available_rounded, size: 16, color: AdminWebColors.accent),
+                  Text(DateFormat('MMM dd, yyyy').format(s.date), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+                  _badge('RESEKO ${s.resekoApplied.toStringAsFixed(0)}%', AdminWebColors.accent),
+                  _badge(statusLabel, statusColor, icon: statusIcon),
+                  if (s.status == 'cooked' || (s.cookedKilos != null && s.status != 'completed'))
+                    OutlinedButton.icon(
+                      onPressed: () => _setTargetsForSession(s, index),
+                      icon: const Icon(Icons.content_cut_rounded, size: 14),
+                      label: const Text('SET TARGETS', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 11)),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.purple,
+                        side: const BorderSide(color: Colors.purple),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                       ),
-                    // Delete only allowed when session hasn't been cooked yet
-                    if (s.status == 'pending')
-                      IconButton(
-                        onPressed: () => _deleteSession(index),
-                        icon: const Icon(Icons.delete_outline_rounded, size: 18, color: AdminWebColors.error),
-                        tooltip: 'Delete Session',
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
-                      ),
-                  ],
-                ),
-              ],
-            ),
+                    ),
+                  if (s.status == 'pending')
+                    IconButton(
+                      onPressed: () => _deleteSession(index),
+                      icon: const Icon(Icons.delete_outline_rounded, size: 18, color: AdminWebColors.error),
+                      tooltip: 'Delete Session',
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                    ),
+                ],
+              ),
             const SizedBox(height: 6),
             Wrap(
               spacing: 12,
@@ -750,7 +910,8 @@ class _KarneBatchDetailScreenState extends State<KarneBatchDetailScreen> {
             if (hasBreakdown) ...[
               const SizedBox(height: 14),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                width: isWide ? null : double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                 decoration: BoxDecoration(
                   color: AdminWebColors.accent.withValues(alpha: 0.05),
                   borderRadius: BorderRadius.circular(8),
@@ -773,50 +934,104 @@ class _KarneBatchDetailScreenState extends State<KarneBatchDetailScreen> {
               ),
             ],
             const SizedBox(height: 18),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                _sessionDetail('RAW (KG)', s.kilosCooked.toStringAsFixed(1), isMain: true),
-                _sessionDetail(
-                  'COOKED (KG)',
-                  s.nalutoKg != null
-                      ? s.nalutoKg!.toStringAsFixed(2)
-                      : (s.status == 'cooked' || s.status == 'cutting' ? 'Awaiting Cutter' : '--'),
-                  isMain: true,
-                ),
-                _sessionDetail('IDEAL YIELD', '${s.idealYield.toInt()}', isMain: true),
-                _sessionDetail('QUOTA (${s.resekoApplied.toStringAsFixed(0)}%)', '${s.kota}', color: AdminWebColors.accent, isMain: true),
-                _sessionDetail(
-                  'PRODUCED',
-                  hasActual ? '${s.nagawa} pcs' : '--',
-                  subtext: hasBreakdown
-                      ? '400G = ${s.actual400g ?? 0} pcs\n300G = ${s.actual300g ?? 0} pcs\n250G = ${s.actual250g ?? 0} pcs'
-                      : null,
-                  color: hasActual ? AdminWebColors.accent : null,
-                  isMain: true,
-                ),
-                _sessionDetail(
-                  'RESULT',
-                  hasActual
-                      ? (s.resultDifference > 0
-                          ? '+${s.resultDifference} (SURPLUS)'
-                          : (s.resultDifference < 0
-                              ? '${s.resultDifference} (SHORT)'
-                              : '0 (EXACT)'))
-                      : '--',
-                  color: hasActual
-                      ? (s.resultDifference >= 0 ? AdminWebColors.accent : AdminWebColors.error)
-                      : null,
-                ),
-                _sessionDetail(
-                  'ACTUAL RESEKO',
-                  hasActual && s.actualReseko != null ? '${s.actualReseko!.toStringAsFixed(1)}%' : '--',
-                  color: hasActual && s.actualReseko != null
-                      ? (s.actualReseko! <= s.resekoApplied ? AdminWebColors.accentDark : AdminWebColors.error)
-                      : null,
-                ),
-              ],
-            ),
+            if (isWide)
+              // Laptop: exact original Row(spaceBetween) stretching across full card width
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  _sessionDetail('RAW (KG)', s.kilosCooked.toStringAsFixed(1), isMain: true, isWide: true),
+                  _sessionDetail(
+                    'COOKED (KG)',
+                    s.nalutoKg != null
+                        ? s.nalutoKg!.toStringAsFixed(2)
+                        : (s.status == 'cooked' || s.status == 'cutting' ? 'Awaiting Cutter' : '--'),
+                    isMain: true,
+                    isWide: true,
+                  ),
+                  _sessionDetail('IDEAL YIELD', '${s.idealYield.toInt()}', isMain: true, isWide: true),
+                  _sessionDetail('QUOTA (${s.resekoApplied.toStringAsFixed(0)}%)', '${s.kota}', color: AdminWebColors.accent, isMain: true, isWide: true),
+                  _sessionDetail(
+                    'PRODUCED',
+                    hasActual ? '${s.nagawa} pcs' : '--',
+                    subtext: hasBreakdown
+                        ? '400G = ${s.actual400g ?? 0} pcs\n300G = ${s.actual300g ?? 0} pcs\n250G = ${s.actual250g ?? 0} pcs'
+                        : null,
+                    color: hasActual ? AdminWebColors.accent : null,
+                    isMain: true,
+                    isWide: true,
+                  ),
+                  _sessionDetail(
+                    'RESULT',
+                    hasActual
+                        ? (s.resultDifference > 0
+                            ? '+${s.resultDifference} (SURPLUS)'
+                            : (s.resultDifference < 0
+                                ? '${s.resultDifference} (SHORT)'
+                                : '0 (EXACT)'))
+                        : '--',
+                    color: hasActual
+                        ? (s.resultDifference >= 0 ? AdminWebColors.accent : AdminWebColors.error)
+                        : null,
+                    isWide: true,
+                  ),
+                  _sessionDetail(
+                    'ACTUAL RESEKO',
+                    hasActual && s.actualReseko != null ? '${s.actualReseko!.toStringAsFixed(1)}%' : '--',
+                    color: hasActual && s.actualReseko != null
+                        ? (s.actualReseko! <= s.resekoApplied ? AdminWebColors.accentDark : AdminWebColors.error)
+                        : null,
+                    isWide: true,
+                  ),
+                ],
+              )
+            else
+              // Mobile: Wrap layout
+              Wrap(
+                spacing: 16,
+                runSpacing: 10,
+                children: [
+                  _sessionDetail('RAW (KG)', s.kilosCooked.toStringAsFixed(1), isMain: true, isWide: false),
+                  _sessionDetail(
+                    'COOKED (KG)',
+                    s.nalutoKg != null
+                        ? s.nalutoKg!.toStringAsFixed(2)
+                        : (s.status == 'cooked' || s.status == 'cutting' ? 'Awaiting Cutter' : '--'),
+                    isMain: true,
+                    isWide: false,
+                  ),
+                  _sessionDetail('IDEAL YIELD', '${s.idealYield.toInt()}', isMain: true, isWide: false),
+                  _sessionDetail('QUOTA (${s.resekoApplied.toStringAsFixed(0)}%)', '${s.kota}', color: AdminWebColors.accent, isMain: true, isWide: false),
+                  _sessionDetail(
+                    'PRODUCED',
+                    hasActual ? '${s.nagawa} pcs' : '--',
+                    color: hasActual ? AdminWebColors.accent : null,
+                    isMain: true,
+                    isWide: false,
+                  ),
+                  _sessionDetail(
+                    'RESULT',
+                    hasActual
+                        ? (s.resultDifference > 0
+                            ? '+${s.resultDifference} (SURPLUS)'
+                            : (s.resultDifference < 0
+                                ? '${s.resultDifference} (SHORT)'
+                                : '0 (EXACT)'))
+                        : '--',
+                    color: hasActual
+                        ? (s.resultDifference >= 0 ? AdminWebColors.accent : AdminWebColors.error)
+                        : null,
+                    isWide: false,
+                  ),
+                  _sessionDetail(
+                    'ACTUAL RESEKO',
+                    hasActual && s.actualReseko != null ? '${s.actualReseko!.toStringAsFixed(1)}%' : '--',
+                    color: hasActual && s.actualReseko != null
+                        ? (s.actualReseko! <= s.resekoApplied ? AdminWebColors.accentDark : AdminWebColors.error)
+                        : null,
+                    isWide: false,
+                  ),
+                ],
+              ),
           ],
         ),
       ),
@@ -840,19 +1055,26 @@ class _KarneBatchDetailScreenState extends State<KarneBatchDetailScreen> {
     );
   }
 
-  Widget _sessionDetail(String label, String val, {Color? color, bool isMain = false, String? subtext}) {
-    return Column(
+  Widget _sessionDetail(String label, String val, {Color? color, bool isMain = false, String? subtext, bool isWide = true}) {
+    final col = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(label, style: const TextStyle(fontSize: 10, color: AdminWebColors.textSecondary, fontWeight: FontWeight.w800, letterSpacing: 0.5)),
         const SizedBox(height: 2),
-        Text(val, style: TextStyle(fontWeight: FontWeight.w900, fontSize: isMain ? 18 : 15, color: color ?? AdminWebColors.textPrimary)),
+        Text(val, style: TextStyle(fontWeight: FontWeight.w900, fontSize: isMain ? (isWide ? 18 : 16) : (isWide ? 15 : 14), color: color ?? AdminWebColors.textPrimary)),
         if (subtext != null && subtext.isNotEmpty) ...[
           const SizedBox(height: 2),
           Text(subtext, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: AdminWebColors.textSecondary)),
         ],
       ],
     );
+    if (!isWide) {
+      return ConstrainedBox(
+        constraints: const BoxConstraints(minWidth: 70),
+        child: col,
+      );
+    }
+    return col;
   }
 
   Widget _buildGrandTotal() {

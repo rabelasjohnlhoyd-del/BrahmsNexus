@@ -197,8 +197,8 @@ class _AccountApprovalsScreenState extends State<AccountApprovalsScreen> {
                           fontSize: 14,
                           fontWeight: FontWeight.w700,
                           color: AdminWebColors.textPrimary,
-                        ),
-                      ),
+                    ),
+                  ),
                       const SizedBox(height: 12),
                       ...pending
                           .skip(_pendingPage * _pageSize)
@@ -310,12 +310,16 @@ class _RequestCard extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  Text(
-                    request.fullName,
+                  Flexible(
+                    child: Text(
+                      request.fullName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                       fontWeight: FontWeight.w700,
                       fontSize: 15,
                       color: AdminWebColors.textPrimary,
+                      ),
                     ),
                   ),
                   if (request.age.isNotEmpty) ...[

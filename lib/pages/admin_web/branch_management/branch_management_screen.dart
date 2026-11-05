@@ -124,6 +124,7 @@ class _BranchManagementScreenState extends State<BranchManagementScreen> {
     required int index,
     required String label,
     required IconData icon,
+    bool isCompact = false,
   }) {
     final isSelected = _selectedTab == index;
     return Material(
@@ -135,7 +136,10 @@ class _BranchManagementScreenState extends State<BranchManagementScreen> {
         },
         borderRadius: BorderRadius.circular(10),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+          padding: EdgeInsets.symmetric(
+            horizontal: isCompact ? 6 : 18,
+            vertical: isCompact ? 8 : 10,
+          ),
           decoration: BoxDecoration(
             color: isSelected
                 ? AdminWebColors.accent
@@ -148,20 +152,25 @@ class _BranchManagementScreenState extends State<BranchManagementScreen> {
             ),
           ),
           child: Row(
-            mainAxisSize: MainAxisSize.min,
+            mainAxisSize: isCompact ? MainAxisSize.max : MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(
                 icon,
-                size: 16,
+                size: isCompact ? 15 : 16,
                 color: isSelected ? Colors.white : AdminWebColors.textSecondary,
               ),
-              const SizedBox(width: 8),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w800,
-                  color: isSelected ? Colors.white : AdminWebColors.textPrimary,
+              SizedBox(width: isCompact ? 5 : 8),
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: isCompact ? 11 : 12,
+                    fontWeight: FontWeight.w800,
+                    color: isSelected ? Colors.white : AdminWebColors.textPrimary,
+                  ),
                 ),
               ),
             ],
@@ -174,28 +183,60 @@ class _BranchManagementScreenState extends State<BranchManagementScreen> {
   @override
   Widget build(BuildContext context) {
     final branches = _filteredBranches;
+    final isNarrowScreen = MediaQuery.of(context).size.width < 600;
     return Container(
       color: AdminWebColors.background,
-      padding: const EdgeInsets.all(24),
+      padding: EdgeInsets.symmetric(
+        horizontal: isNarrowScreen ? 12 : 24,
+        vertical: 16,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const SizedBox(height: 12),
           // Top Tab Bar
-          Row(
-            children: [
-              _buildTabButton(
-                index: 0,
-                label: 'LIVE STORE STATUS',
-                icon: Icons.store_rounded,
-              ),
-              const SizedBox(width: 10),
-              _buildTabButton(
-                index: 1,
-                label: 'BRANCH DIRECTORY',
-                icon: Icons.format_list_bulleted_rounded,
-              ),
-            ],
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final isWide = constraints.maxWidth >= 520;
+              if (isWide) {
+                return Row(
+                  children: [
+                    _buildTabButton(
+                      index: 0,
+                      label: 'LIVE STORE STATUS',
+                      icon: Icons.store_rounded,
+                    ),
+                    const SizedBox(width: 10),
+                    _buildTabButton(
+                      index: 1,
+                      label: 'BRANCH DIRECTORY',
+                      icon: Icons.format_list_bulleted_rounded,
+                    ),
+                  ],
+                );
+              }
+              return Row(
+                children: [
+                  Expanded(
+                    child: _buildTabButton(
+                      index: 0,
+                      label: 'LIVE STATUS',
+                      icon: Icons.store_rounded,
+                      isCompact: true,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _buildTabButton(
+                      index: 1,
+                      label: 'DIRECTORY',
+                      icon: Icons.format_list_bulleted_rounded,
+                      isCompact: true,
+                    ),
+                  ),
+                ],
+              );
+            },
           ),
           const SizedBox(height: 20),
           if (_selectedTab == 0)
@@ -276,103 +317,123 @@ class _BranchManagementScreenState extends State<BranchManagementScreen> {
                               separatorBuilder: (context, index) => const SizedBox(height: 12),
                               itemBuilder: (context, index) {
                                 final b = branches[(_currentPage * _pageSize) + index];
+                                final isOpen = (_branchOpenMap[b.id.toLowerCase()] == true && _branchClosedMap[b.id.toLowerCase()] != true);
                                 return GlassCard(
                                   padding: EdgeInsets.zero,
                                   child: Material(
                                     color: Colors.transparent,
                                     borderRadius: BorderRadius.circular(16),
                                     clipBehavior: Clip.antiAlias,
-                                    child: ListTile(
-                                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                                      leading: Container(
-                                        width: 44,
-                                        height: 44,
-                                        decoration: BoxDecoration(
-                                          color: AdminWebColors.accent.withValues(alpha: 0.1),
-                                          borderRadius: BorderRadius.circular(10),
-                                        ),
-                                        alignment: Alignment.center,
-                                        child: const Icon(Icons.storefront_rounded,
-                                            color: AdminWebColors.accent),
-                                      ),
-                                      title: Row(
-                                        children: [
-                                          Expanded(
-                                            child: Text(
-                                              b.fullName,
-                                              style: const TextStyle(
-                                                fontWeight: FontWeight.w700,
-                                                color: AdminWebColors.textPrimary,
-                                                fontSize: 15,
+                                    child: InkWell(
+                                      onTap: () => _navigateToForm(b),
+                                      child: Padding(
+                                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                        child: Row(
+                                          crossAxisAlignment: CrossAxisAlignment.center,
+                                          children: [
+                                            Container(
+                                              width: 38,
+                                              height: 38,
+                                              decoration: BoxDecoration(
+                                                color: AdminWebColors.accent.withValues(alpha: 0.1),
+                                                borderRadius: BorderRadius.circular(10),
                                               ),
+                                              alignment: Alignment.center,
+                                              child: const Icon(Icons.storefront_rounded,
+                                                  color: AdminWebColors.accent, size: 20),
                                             ),
-                                          ),
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                            decoration: BoxDecoration(
-                                              color: (_branchOpenMap[b.id.toLowerCase()] == true && _branchClosedMap[b.id.toLowerCase()] != true)
-                                                  ? AdminWebColors.success.withValues(alpha: 0.12)
-                                                  : AdminWebColors.textSecondary.withValues(alpha: 0.12),
-                                              borderRadius: BorderRadius.circular(6),
-                                              border: Border.all(
-                                                color: (_branchOpenMap[b.id.toLowerCase()] == true && _branchClosedMap[b.id.toLowerCase()] != true)
-                                                    ? AdminWebColors.success.withValues(alpha: 0.3)
-                                                    : AdminWebColors.textSecondary.withValues(alpha: 0.3),
-                                              ),
-                                            ),
-                                            child: Row(
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
-                                                Icon(
-                                                  (_branchOpenMap[b.id.toLowerCase()] == true && _branchClosedMap[b.id.toLowerCase()] != true)
-                                                      ? Icons.lock_open_rounded
-                                                      : Icons.lock_rounded,
-                                                  size: 11,
-                                                  color: (_branchOpenMap[b.id.toLowerCase()] == true && _branchClosedMap[b.id.toLowerCase()] != true)
-                                                      ? AdminWebColors.success
-                                                      : AdminWebColors.textSecondary,
-                                                ),
-                                                const SizedBox(width: 4),
-                                                Text(
-                                                  (_branchOpenMap[b.id.toLowerCase()] == true && _branchClosedMap[b.id.toLowerCase()] != true)
-                                                      ? 'OPEN'
-                                                      : 'CLOSED',
-                                                  style: TextStyle(
-                                                    fontSize: 10,
-                                                    fontWeight: FontWeight.w800,
-                                                    color: (_branchOpenMap[b.id.toLowerCase()] == true && _branchClosedMap[b.id.toLowerCase()] != true)
-                                                        ? AdminWebColors.success
-                                                        : AdminWebColors.textSecondary,
+                                            const SizedBox(width: 10),
+                                            Expanded(
+                                              child: Column(
+                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                children: [
+                                                  Row(
+                                                    children: [
+                                                      Expanded(
+                                                        child: Text(
+                                                          b.fullName,
+                                                          maxLines: 1,
+                                                          overflow: TextOverflow.ellipsis,
+                                                          style: const TextStyle(
+                                                            fontWeight: FontWeight.w700,
+                                                            color: AdminWebColors.textPrimary,
+                                                            fontSize: 14,
+                                                          ),
+                                                        ),
+                                                      ),
+                                                      const SizedBox(width: 6),
+                                                      Container(
+                                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                                        decoration: BoxDecoration(
+                                                          color: isOpen
+                                                              ? AdminWebColors.success.withValues(alpha: 0.12)
+                                                              : AdminWebColors.textSecondary.withValues(alpha: 0.12),
+                                                          borderRadius: BorderRadius.circular(5),
+                                                          border: Border.all(
+                                                            color: isOpen
+                                                                ? AdminWebColors.success.withValues(alpha: 0.3)
+                                                                : AdminWebColors.textSecondary.withValues(alpha: 0.3),
+                                                          ),
+                                                        ),
+                                                        child: Row(
+                                                          mainAxisSize: MainAxisSize.min,
+                                                          children: [
+                                                            Icon(
+                                                              isOpen
+                                                                  ? Icons.lock_open_rounded
+                                                                  : Icons.lock_rounded,
+                                                              size: 10,
+                                                              color: isOpen
+                                                                  ? AdminWebColors.success
+                                                                  : AdminWebColors.textSecondary,
+                                                            ),
+                                                            const SizedBox(width: 3),
+                                                            Text(
+                                                              isOpen ? 'OPEN' : 'CLOSED',
+                                                              style: TextStyle(
+                                                                fontSize: 9.5,
+                                                                fontWeight: FontWeight.w800,
+                                                                color: isOpen
+                                                                    ? AdminWebColors.success
+                                                                    : AdminWebColors.textSecondary,
+                                                              ),
+                                                            ),
+                                                          ],
+                                                        ),
+                                                      ),
+                                                    ],
                                                   ),
-                                                ),
-                                              ],
+                                                  const SizedBox(height: 3),
+                                                  Text(
+                                                    'Daily Route Priority: ${b.dailyRouteSequence}',
+                                                    style: const TextStyle(
+                                                      fontSize: 11.5,
+                                                      color: AdminWebColors.textSecondary,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
                                             ),
-                                          ),
-                                        ],
-                                      ),
-                                      subtitle: Text(
-                                        'Daily Route Priority: ${b.dailyRouteSequence}',
-                                        style: const TextStyle(
-                                          fontSize: 12.5,
-                                          color: AdminWebColors.textSecondary,
+                                            const SizedBox(width: 6),
+                                            IconButton(
+                                              padding: const EdgeInsets.all(4),
+                                              constraints: const BoxConstraints(),
+                                              icon: const Icon(Icons.edit_note_rounded,
+                                                  color: AdminWebColors.accent, size: 21),
+                                              onPressed: () => _navigateToForm(b),
+                                              tooltip: 'Edit Branch',
+                                            ),
+                                            const SizedBox(width: 4),
+                                            IconButton(
+                                              padding: const EdgeInsets.all(4),
+                                              constraints: const BoxConstraints(),
+                                              icon: const Icon(Icons.delete_outline_rounded,
+                                                  color: AdminWebColors.error, size: 19),
+                                              onPressed: () => _confirmDelete(b),
+                                              tooltip: 'Delete Branch',
+                                            ),
+                                          ],
                                         ),
-                                      ),
-                                      trailing: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          IconButton(
-                                            icon: const Icon(Icons.edit_note_rounded,
-                                                color: AdminWebColors.accent),
-                                            onPressed: () => _navigateToForm(b),
-                                            tooltip: 'Edit Branch',
-                                          ),
-                                          IconButton(
-                                            icon: const Icon(Icons.delete_outline_rounded,
-                                                color: AdminWebColors.error),
-                                            onPressed: () => _confirmDelete(b),
-                                            tooltip: 'Delete Branch',
-                                          ),
-                                        ],
                                       ),
                                     ),
                                   ),

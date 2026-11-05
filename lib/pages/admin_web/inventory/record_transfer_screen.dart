@@ -452,113 +452,68 @@ class _RecordTransferDialogState extends State<RecordTransferDialog> {
                         const SizedBox(height: 20),
 
                         const Text(
-                          'ILAGAY ANG MGA IDADAGDAG NA PCS (RESTOCK):',
+                          'DAGDAGAN NG PCS (RESTOCK):',
                           style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, color: AdminWebColors.accent),
                         ),
                         const SizedBox(height: 10),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: TextFormField(
-                                controller: _regController,
-                                keyboardType: TextInputType.number,
-                                enabled: !_hasSubmittedSales && !_isSelectedBranchClosed,
-                                maxLength: 3,
-                                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                                decoration: const InputDecoration(
-                                  labelText: 'Regular (250g)',
-                                  hintText: '0',
-                                  isDense: true,
-                                  counterText: '',
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: TextFormField(
-                                controller: _medController,
-                                keyboardType: TextInputType.number,
-                                enabled: !_hasSubmittedSales && !_isSelectedBranchClosed,
-                                maxLength: 3,
-                                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                                decoration: const InputDecoration(
-                                  labelText: 'Medium (300g)',
-                                  hintText: '0',
-                                  isDense: true,
-                                  counterText: '',
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: TextFormField(
-                                controller: _b1t1Controller,
-                                keyboardType: TextInputType.number,
-                                enabled: !_hasSubmittedSales && !_isSelectedBranchClosed,
-                                maxLength: 3,
-                                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                                decoration: const InputDecoration(
-                                  labelText: 'B1T1 (400g)',
-                                  hintText: '0',
-                                  isDense: true,
-                                  counterText: '',
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: TextFormField(
-                                controller: _mayoController,
-                                keyboardType: TextInputType.number,
-                                enabled: !_hasSubmittedSales && !_isSelectedBranchClosed,
-                                maxLength: 3,
-                                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                                decoration: const InputDecoration(
-                                  labelText: 'Mayo Packs',
-                                  hintText: '0',
-                                  isDense: true,
-                                  counterText: '',
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: TextFormField(
-                                controller: _styroController,
-                                keyboardType: TextInputType.number,
-                                enabled: !_hasSubmittedSales && !_isSelectedBranchClosed,
-                                maxLength: 3,
-                                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                                decoration: const InputDecoration(
-                                  labelText: 'Styro Boxes',
-                                  hintText: '0',
-                                  isDense: true,
-                                  counterText: '',
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: TextFormField(
-                                controller: _toyoController,
-                                keyboardType: TextInputType.number,
-                                enabled: !_hasSubmittedSales && !_isSelectedBranchClosed,
-                                maxLength: 3,
-                                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                                decoration: const InputDecoration(
-                                  labelText: 'Toyo Packs',
-                                  hintText: '0',
-                                  isDense: true,
-                                  counterText: '',
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
+                        // Karne items — 2 columns on mobile, 3 on wide
+                        Row(children: [
+                          Expanded(child: TextFormField(
+                            controller: _regController,
+                            keyboardType: TextInputType.number,
+                            enabled: !_hasSubmittedSales && !_isSelectedBranchClosed,
+                            maxLength: 3,
+                            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                            decoration: const InputDecoration(labelText: 'Reg 250g', hintText: '0', isDense: true, counterText: ''),
+                          )),
+                          const SizedBox(width: 8),
+                          Expanded(child: TextFormField(
+                            controller: _medController,
+                            keyboardType: TextInputType.number,
+                            enabled: !_hasSubmittedSales && !_isSelectedBranchClosed,
+                            maxLength: 3,
+                            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                            decoration: const InputDecoration(labelText: 'Med 300g', hintText: '0', isDense: true, counterText: ''),
+                          )),
+                          const SizedBox(width: 8),
+                          Expanded(child: TextFormField(
+                            controller: _b1t1Controller,
+                            keyboardType: TextInputType.number,
+                            enabled: !_hasSubmittedSales && !_isSelectedBranchClosed,
+                            maxLength: 3,
+                            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                            decoration: const InputDecoration(labelText: 'B1T1 400g', hintText: '0', isDense: true, counterText: ''),
+                          )),
+                        ]),
+                        const SizedBox(height: 10),
+                        Row(children: [
+                          Expanded(child: TextFormField(
+                            controller: _mayoController,
+                            keyboardType: TextInputType.number,
+                            enabled: !_hasSubmittedSales && !_isSelectedBranchClosed,
+                            maxLength: 3,
+                            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                            decoration: const InputDecoration(labelText: 'Mayo', hintText: '0', isDense: true, counterText: ''),
+                          )),
+                          const SizedBox(width: 8),
+                          Expanded(child: TextFormField(
+                            controller: _styroController,
+                            keyboardType: TextInputType.number,
+                            enabled: !_hasSubmittedSales && !_isSelectedBranchClosed,
+                            maxLength: 3,
+                            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                            decoration: const InputDecoration(labelText: 'Styro Box', hintText: '0', isDense: true, counterText: ''),
+                          )),
+                          const SizedBox(width: 8),
+                          Expanded(child: TextFormField(
+                            controller: _toyoController,
+                            keyboardType: TextInputType.number,
+                            enabled: !_hasSubmittedSales && !_isSelectedBranchClosed,
+                            maxLength: 3,
+                            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                            decoration: const InputDecoration(labelText: 'Toyo', hintText: '0', isDense: true, counterText: ''),
+                          )),
+                        ]),
                       ],
                     ),
                   ),
@@ -572,20 +527,10 @@ class _RecordTransferDialogState extends State<RecordTransferDialog> {
                   color: Colors.white,
                   border: Border(top: BorderSide(color: AdminWebColors.border)),
                 ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    TextButton(
-                      onPressed: _isSaving ? null : () => Navigator.of(context).pop(),
-                      child: const Text(
-                        'CANCEL',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: AdminWebColors.textSecondary,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 14),
                     ElevatedButton.icon(
                       onPressed: (_isSaving || _hasSubmittedSales || _isSelectedBranchClosed) ? null : _handleSave,
                       icon: _isSaving
@@ -602,8 +547,19 @@ class _RecordTransferDialogState extends State<RecordTransferDialog> {
                       style: ElevatedButton.styleFrom(
                         backgroundColor: (_hasSubmittedSales || _isSelectedBranchClosed) ? Colors.grey : AdminWebColors.accent,
                         foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    TextButton(
+                      onPressed: _isSaving ? null : () => Navigator.of(context).pop(),
+                      child: const Text(
+                        'CANCEL',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: AdminWebColors.textSecondary,
+                        ),
                       ),
                     ),
                   ],

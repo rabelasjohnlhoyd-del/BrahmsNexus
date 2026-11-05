@@ -447,21 +447,31 @@ class AdminWebShellState extends State<AdminWebShell> {
     navigateToTab(3);
 
     // 2. Wait for the nested Navigator to build BilaoOrderScreen
-    await Future.delayed(const Duration(milliseconds: 120));
+    await Future.delayed(const Duration(milliseconds: 180));
     if (!mounted) return;
 
     final innerNav = _pageNavigatorKey.currentState;
-    if (innerNav == null) return;
 
-    // 3. Push AddBilaoOrderScreen INSIDE the nested page Navigator
-    //    so that pop() returns cleanly to BilaoOrderScreen (no white screen).
-    final newOrder = await innerNav.push<BilaoOrder>(
-      MaterialPageRoute(
-        builder: (ctx) => AddBilaoOrderScreen(
-          initialParsedResult: parsedResult,
+    BilaoOrder? newOrder;
+    if (innerNav != null) {
+      // Desktop: push inside nested navigator so pop() returns to BilaoOrderScreen cleanly
+      newOrder = await innerNav.push<BilaoOrder>(
+        MaterialPageRoute(
+          builder: (ctx) => AddBilaoOrderScreen(
+            initialParsedResult: parsedResult,
+          ),
         ),
-      ),
-    );
+      );
+    } else {
+      // Mobile: nested Navigator not rendered; push on the root navigator instead
+      newOrder = await Navigator.of(context).push<BilaoOrder>(
+        MaterialPageRoute(
+          builder: (ctx) => AddBilaoOrderScreen(
+            initialParsedResult: parsedResult,
+          ),
+        ),
+      );
+    }
 
     if (newOrder != null) {
       BilaoOrderScreen.onOrderAddedGlobally?.call(newOrder);

@@ -62,7 +62,7 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
   // Real-time branch inventory stocks (track open vs closed branch status)
   StreamSubscription<List<BranchMeatStock>>? _meatStocksSub;
   List<BranchMeatStock> _branchMeatStocks = [];
-  // Previous snapshot — used to detect branches that just became closed
+  // Previous snapshot ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â used to detect branches that just became closed
   List<BranchMeatStock> _prevStocks = [];
 
   bool _isBranchClosed(String branchId, String branchName) {
@@ -110,7 +110,7 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
         if (!newStock.isClosed) continue;
         final prev = _prevStocks.firstWhere(
           (p) => p.branchId == newStock.branchId,
-          orElse: () => newStock, // not found → treat as unchanged
+          orElse: () => newStock, // not found ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ treat as unchanged
         );
         if (!prev.isClosed) {
           newlyClosedNames.add(newStock.branchName.trim().toLowerCase());
@@ -265,7 +265,7 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
                 fallback: AssignmentService.getWorkStatus(a.employeeId, fallback: a.workStatus))
             : AssignmentService.getWorkStatus(a.employeeId, fallback: a.workStatus);
 
-        // Same for branch — keep current a.branchName as fallback to avoid branch resetting.
+        // Same for branch ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â keep current a.branchName as fallback to avoid branch resetting.
         final branchName = staff.username.isNotEmpty
             ? AssignmentService.getAssignedBranch(staff.username,
                 fallback: AssignmentService.getAssignedBranch(a.employeeId, fallback: a.branchName))
@@ -687,7 +687,7 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
     }
     final conflicts = branchOccupants.entries.where((e) => e.value.length > 1).toList();
     if (conflicts.isNotEmpty) {
-      final conflictDetails = conflicts.map((c) => '• ${c.key}:\n  - ${c.value.join("\n  - ")}').join('\n\n');
+      final conflictDetails = conflicts.map((c) => 'ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢ ${c.key}:\n  - ${c.value.join("\n  - ")}').join('\n\n');
       if (!mounted) return;
       showDialog(
         context: context,
@@ -726,7 +726,7 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
         .toList();
     if (closedAssignments.isNotEmpty) {
       final closedDetails = closedAssignments
-          .map((a) => '• ${a.employeeName} → ${a.branchName} (SARADO / CLOSED)')
+          .map((a) => 'ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢ ${a.employeeName} ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ ${a.branchName} (SARADO / CLOSED)')
           .join('\n');
       if (!mounted) return;
       showDialog(
@@ -783,8 +783,8 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
         ),
         content: Text(
           'Are you sure you want to save today\'s assignments?\n\n'
-          '• $onDutyCount staff ON DUTY\n'
-          '• $restDayCount staff on REST DAY\n\n'
+          'ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢ $onDutyCount staff ON DUTY\n'
+          'ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢ $restDayCount staff on REST DAY\n\n'
           'This action can only be done once today. Once saved, assignments cannot be changed until tomorrow.',
           style: const TextStyle(fontSize: 13, height: 1.5),
         ),
@@ -979,7 +979,7 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
                             ? const Color(0xFFCBD5E1)
                             : const Color(0xFFDC2626),
                       ),
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                      padding: EdgeInsets.symmetric(horizontal: isWide ? 16 : 12, vertical: isWide ? 14 : 10),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                     ),
                   );
@@ -1019,7 +1019,7 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
                       backgroundColor: _hasBranchTappedToday ? const Color(0xFF94A3B8) : AdminWebColors.accent,
                       foregroundColor: Colors.white,
                       elevation: 0,
-                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                      padding: EdgeInsets.symmetric(horizontal: isWide ? 18 : 12, vertical: isWide ? 14 : 10),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                     ),
                   );
@@ -1034,7 +1034,7 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
                     style: OutlinedButton.styleFrom(
                       foregroundColor: const Color(0xFF64748B),
                       side: const BorderSide(color: Color(0xFFCBD5E1)),
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                      padding: EdgeInsets.symmetric(horizontal: isWide ? 14 : 10, vertical: isWide ? 14 : 10),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                     ),
                   );
@@ -1072,8 +1072,8 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
                       backgroundColor: canSave ? AdminWebColors.accent : const Color(0xFF94A3B8),
                       foregroundColor: Colors.white,
                       elevation: 0,
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 20, vertical: 14),
+                      padding: EdgeInsets.symmetric(
+                          horizontal: isWide ? 20 : 12, vertical: isWide ? 14 : 10),
                       shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(10)),
                     ),
@@ -1208,54 +1208,102 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
             
             const SizedBox(height: 16),
 
-            // Summary KPI Chips
-            Wrap(
-              spacing: 12,
-              runSpacing: 10,
-              children: [
-                _buildKpiChip(
+            // Summary KPI Chips (2x2 on Mobile, Wrap on Desktop)
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final isWide = constraints.maxWidth >= 700;
+                final chipTotalCooks = _buildKpiChip(
                   label: 'TOTAL COOKS',
                   count: list.length,
                   color: AdminWebColors.textPrimary,
                   bgColor: Colors.white,
                   borderColor: AdminWebColors.border,
-                ),
-                _buildKpiChip(
+                  isExpanded: !isWide,
+                );
+                final chipOnDuty = _buildKpiChip(
                   label: 'ON DUTY (MAY PASOK)',
                   count: list.where((a) => a.workStatus == WorkStatus.onDuty).length,
                   color: AdminWebColors.success,
                   bgColor: AdminWebColors.success.withValues(alpha: 0.1),
                   borderColor: AdminWebColors.success.withValues(alpha: 0.3),
                   icon: Icons.check_circle_rounded,
-                ),
-                _buildKpiChip(
+                  isExpanded: !isWide,
+                );
+                final chipRestDay = _buildKpiChip(
                   label: 'REST DAY (DAY OFF)',
                   count: list.where((a) => a.workStatus == WorkStatus.restDay).length,
                   color: AdminWebColors.error,
                   bgColor: AdminWebColors.error.withValues(alpha: 0.1),
                   borderColor: AdminWebColors.error.withValues(alpha: 0.3),
                   icon: Icons.hotel_rounded,
-                ),
-                if (_branchMeatStocks.isNotEmpty) ...[
-                  _buildKpiChip(
-                    label: 'OPEN BRANCHES',
-                    count: _openBranchesCount,
-                    color: AdminWebColors.success,
-                    bgColor: AdminWebColors.success.withValues(alpha: 0.1),
-                    borderColor: AdminWebColors.success.withValues(alpha: 0.3),
-                    icon: Icons.storefront_rounded,
-                  ),
-                  if (_closedBranchesCount > 0)
-                    _buildKpiChip(
-                      label: 'CLOSED BRANCHES',
-                      count: _closedBranchesCount,
-                      color: AdminWebColors.error,
-                      bgColor: AdminWebColors.error.withValues(alpha: 0.1),
-                      borderColor: AdminWebColors.error.withValues(alpha: 0.3),
-                      icon: Icons.lock_rounded,
+                  isExpanded: !isWide,
+                );
+                final chipOpenBranches = _buildKpiChip(
+                  label: 'OPEN BRANCHES',
+                  count: _openBranchesCount,
+                  color: AdminWebColors.success,
+                  bgColor: AdminWebColors.success.withValues(alpha: 0.1),
+                  borderColor: AdminWebColors.success.withValues(alpha: 0.3),
+                  icon: Icons.storefront_rounded,
+                  isExpanded: !isWide,
+                );
+
+                if (isWide) {
+                  return Wrap(
+                    spacing: 12,
+                    runSpacing: 10,
+                    children: [
+                      chipTotalCooks,
+                      chipOnDuty,
+                      chipRestDay,
+                      if (_branchMeatStocks.isNotEmpty) ...[
+                        chipOpenBranches,
+                        if (_closedBranchesCount > 0)
+                          _buildKpiChip(
+                            label: 'CLOSED BRANCHES',
+                            count: _closedBranchesCount,
+                            color: AdminWebColors.error,
+                            bgColor: AdminWebColors.error.withValues(alpha: 0.1),
+                            borderColor: AdminWebColors.error.withValues(alpha: 0.3),
+                            icon: Icons.lock_rounded,
+                          ),
+                      ],
+                    ],
+                  );
+                }
+
+                return Column(
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(child: chipTotalCooks),
+                        const SizedBox(width: 8),
+                        Expanded(child: chipOnDuty),
+                      ],
                     ),
-                ],
-              ],
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(child: chipRestDay),
+                        const SizedBox(width: 8),
+                        Expanded(child: chipOpenBranches),
+                      ],
+                    ),
+                    if (_branchMeatStocks.isNotEmpty && _closedBranchesCount > 0) ...[
+                      const SizedBox(height: 8),
+                      _buildKpiChip(
+                        label: 'CLOSED BRANCHES',
+                        count: _closedBranchesCount,
+                        color: AdminWebColors.error,
+                        bgColor: AdminWebColors.error.withValues(alpha: 0.1),
+                        borderColor: AdminWebColors.error.withValues(alpha: 0.3),
+                        icon: Icons.lock_rounded,
+                        isExpanded: true,
+                      ),
+                    ],
+                  ],
+                );
+              },
             ),
 
             if (_areAllBranchesClosed) ...[
@@ -1398,37 +1446,43 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
     required Color bgColor,
     required Color borderColor,
     IconData? icon,
+    bool isExpanded = false,
   }) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
       decoration: BoxDecoration(
         color: bgColor,
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: borderColor),
       ),
       child: Row(
-        mainAxisSize: MainAxisSize.min,
+        mainAxisSize: isExpanded ? MainAxisSize.max : MainAxisSize.min,
+        mainAxisAlignment: isExpanded ? MainAxisAlignment.center : MainAxisAlignment.start,
         children: [
           if (icon != null) ...[
-            Icon(icon, size: 15, color: color),
-            const SizedBox(width: 6),
+            Icon(icon, size: 13, color: color),
+            const SizedBox(width: 4),
           ],
           Text(
             '$count',
             style: TextStyle(
-              fontSize: 14,
+              fontSize: 13,
               fontWeight: FontWeight.w900,
               color: color,
             ),
           ),
-          const SizedBox(width: 6),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              color: color.withValues(alpha: 0.9),
-              letterSpacing: 0.4,
+          const SizedBox(width: 5),
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w800,
+                color: color,
+                letterSpacing: 0.2,
+              ),
             ),
           ),
         ],
@@ -1497,7 +1551,7 @@ class _AssignmentCard extends StatelessWidget {
     final bool isOnDuty = assignment.workStatus == WorkStatus.onDuty;
 
     // Check if another cook is currently ON DUTY at this same branch (conflict).
-    // Skip N/A / Unassigned branches — they are not real branches and would cause false conflicts.
+    // Skip N/A / Unassigned branches ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â they are not real branches and would cause false conflicts.
     BranchAssignment? conflictingOnDutyCook;
     final conflictBranchClean = assignment.branchId.trim().toLowerCase();
     final isNoConflictBranch = conflictBranchClean.isEmpty || conflictBranchClean == 'n/a' || conflictBranchClean == 'unassigned';
@@ -1758,7 +1812,7 @@ class _AssignmentCard extends StatelessWidget {
           const DropdownMenuItem<String>(
             value: 'unassigned',
             child: Text(
-              'N/A — SELECT A BRANCH TO ASSIGN',
+              'N/A ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â SELECT A BRANCH TO ASSIGN',
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 fontSize: 12,
@@ -1793,7 +1847,7 @@ class _AssignmentCard extends StatelessWidget {
               children: [
                 Expanded(
                   child: Text(
-                    '${b.fullName.toUpperCase()} — (CLOSED / SARADO)',
+                    '${b.fullName.toUpperCase()} ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â (CLOSED / SARADO)',
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       fontSize: 12,
@@ -1830,7 +1884,7 @@ class _AssignmentCard extends StatelessWidget {
             );
           } else if (isOnDuty && isOccupied && !isCurrent) {
             itemChild = Text(
-              '${b.fullName.toUpperCase()} — (Occupied: ${occupiedCook.employeeName.split(" ").first})',
+              '${b.fullName.toUpperCase()} ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â (Occupied: ${occupiedCook.employeeName.split(" ").first})',
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(
                 fontSize: 12,

@@ -883,57 +883,85 @@ class _BranchAllocationScreenState extends State<BranchAllocationScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Action Buttons Bar
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              OutlinedButton.icon(
+          // Action Buttons Bar — 2×2 grid on mobile, single row on desktop
+          LayoutBuilder(
+            builder: (context, btnConstraints) {
+              final isNarrowBtn = btnConstraints.maxWidth < 600;
+              final setAllBtn = OutlinedButton.icon(
                 onPressed: _isProcessing ? null : _showSetAllocationForAllDialog,
-                icon: const Icon(Icons.auto_fix_high_rounded, size: 16),
-                label: const Text('SET ALLOCATION FOR ALL', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11.5)),
+                icon: const Icon(Icons.auto_fix_high_rounded, size: 15),
+                label: Text(isNarrowBtn ? 'SET ALLOC.' : 'SET ALLOCATION FOR ALL',
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: AdminWebColors.accent,
                   side: const BorderSide(color: AdminWebColors.accent),
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                 ),
-              ),
-              ElevatedButton.icon(
+              );
+              final openAllBtn = ElevatedButton.icon(
                 onPressed: _isProcessing ? null : _openAllBranches,
-                icon: const Icon(Icons.storefront_rounded, size: 16),
-                label: const Text('OPEN ALL', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11.5)),
+                icon: const Icon(Icons.storefront_rounded, size: 15),
+                label: const Text('OPEN ALL', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF059669),
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                 ),
-              ),
-              ElevatedButton.icon(
+              );
+              final closedAllBtn = ElevatedButton.icon(
                 onPressed: _isProcessing ? null : _closeAllBranches,
-                icon: const Icon(Icons.do_not_disturb_on_rounded, size: 16),
-                label: const Text('CLOSED ALL', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11.5)),
+                icon: const Icon(Icons.do_not_disturb_on_rounded, size: 15),
+                label: const Text('CLOSED ALL', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFFDC2626),
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                 ),
-              ),
-              ElevatedButton.icon(
+              );
+              final restockBtn = ElevatedButton.icon(
                 onPressed: _isProcessing ? null : _navigateToRecordTransfer,
-                icon: const Icon(Icons.add_shopping_cart_rounded, size: 16),
-                label: const Text('RESTOCK', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11.5)),
+                icon: const Icon(Icons.add_shopping_cart_rounded, size: 15),
+                label: const Text('RESTOCK', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AdminWebColors.accent,
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                 ),
-              ),
-            ],
+              );
+              if (isNarrowBtn) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(children: [
+                      Expanded(child: setAllBtn),
+                      const SizedBox(width: 8),
+                      Expanded(child: openAllBtn),
+                    ]),
+                    const SizedBox(height: 8),
+                    Row(children: [
+                      Expanded(child: closedAllBtn),
+                      const SizedBox(width: 8),
+                      Expanded(child: restockBtn),
+                    ]),
+                  ],
+                );
+              }
+              return Row(
+                children: [
+                  setAllBtn,
+                  const SizedBox(width: 8),
+                  openAllBtn,
+                  const SizedBox(width: 8),
+                  closedAllBtn,
+                  const SizedBox(width: 8),
+                  restockBtn,
+                ],
+              );
+            },
           ),
           const SizedBox(height: 16),
 
@@ -1070,11 +1098,11 @@ class _BranchAllocationScreenState extends State<BranchAllocationScreen> {
                           OutlinedButton.icon(
                             onPressed: () => _toggleBranchOpenStatus(s, shouldOpen: false),
                             icon: const Icon(Icons.lock_rounded, size: 14),
-                            label: const Text('CLOSE', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                            label: const Text('CLOSE', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
                             style: OutlinedButton.styleFrom(
                               foregroundColor: const Color(0xFFDC2626),
                               side: const BorderSide(color: Color(0xFFDC2626)),
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
                             ),
                           ),
@@ -1083,7 +1111,7 @@ class _BranchAllocationScreenState extends State<BranchAllocationScreen> {
                           child: OutlinedButton.icon(
                             onPressed: s.isClosed ? null : () => _showSetAllocationDialog(s),
                             icon: const Icon(Icons.tune_rounded, size: 14),
-                            label: const Text('SET ALLOCATION', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                            label: const Text('SET ALLOC.', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
                             style: OutlinedButton.styleFrom(
                               foregroundColor: AdminWebColors.accent,
                               disabledForegroundColor: const Color(0xFF94A3B8),
@@ -1173,38 +1201,66 @@ class _BranchAllocationScreenState extends State<BranchAllocationScreen> {
                                   ],
                                 ),
                                 const SizedBox(height: 10),
-                                Wrap(
-                                  spacing: 8,
-                                  runSpacing: 8,
-                                  crossAxisAlignment: WrapCrossAlignment.center,
-                                  children: actionButtons,
+                                Row(
+                                  children: [
+                                    Expanded(child: actionButtons[0]),
+                                    const SizedBox(width: 6),
+                                    Expanded(child: actionButtons[1]),
+                                    const SizedBox(width: 6),
+                                    actionButtons[2],
+                                  ],
                                 ),
                               ],
                             ),
                           const SizedBox(height: 12),
                           const Divider(height: 1),
                           const SizedBox(height: 10),
-                          // Row 1: Meat portions (250g Regular, 300g Medium, 400g B1T1)
-                          Row(
-                            children: [
-                              Expanded(child: _meatVariantChip('250g Regular', '${s.regular250gRemaining} / ${s.regular250gTotal} pcs', isClosed: s.isClosed)),
-                              const SizedBox(width: 6),
-                              Expanded(child: _meatVariantChip('300g Medium', '${s.medium300gRemaining} / ${s.medium300gTotal} pcs', isClosed: s.isClosed)),
-                              const SizedBox(width: 6),
-                              Expanded(child: _meatVariantChip('400g B1T1', '${s.b1t1_400gRemaining} / ${s.b1t1_400gTotal} pcs', isClosed: s.isClosed)),
-                            ],
-                          ),
-                          const SizedBox(height: 6),
-                          // Row 2: Supplies (Mayo, Styro, Toyo)
-                          Row(
-                            children: [
-                              Expanded(child: _meatVariantChip('Mayo', '${s.mayoRemaining} / ${s.mayoTotal} pcs', isClosed: s.isClosed)),
-                              const SizedBox(width: 6),
-                              Expanded(child: _meatVariantChip('Styro Box', '${s.styroRemaining} / ${s.styroTotal} pcs', isClosed: s.isClosed)),
-                              const SizedBox(width: 6),
-                              Expanded(child: _meatVariantChip('Toyo', '${s.toyoRemaining} / ${s.toyoTotal} pcs', isClosed: s.isClosed)),
-                            ],
-                          ),
+                          // Meat & Supplies Portions (Adaptive: 3-col on desktop, 2-col on mobile)
+                          if (isWideCard) ...[
+                            Row(
+                              children: [
+                                Expanded(child: _meatVariantChip('250g Regular', '${s.regular250gRemaining} / ${s.regular250gTotal} pcs', isClosed: s.isClosed)),
+                                const SizedBox(width: 6),
+                                Expanded(child: _meatVariantChip('300g Medium', '${s.medium300gRemaining} / ${s.medium300gTotal} pcs', isClosed: s.isClosed)),
+                                const SizedBox(width: 6),
+                                Expanded(child: _meatVariantChip('400g B1T1', '${s.b1t1_400gRemaining} / ${s.b1t1_400gTotal} pcs', isClosed: s.isClosed)),
+                              ],
+                            ),
+                            const SizedBox(height: 6),
+                            Row(
+                              children: [
+                                Expanded(child: _meatVariantChip('Mayo', '${s.mayoRemaining} / ${s.mayoTotal} pcs', isClosed: s.isClosed)),
+                                const SizedBox(width: 6),
+                                Expanded(child: _meatVariantChip('Styro Box', '${s.styroRemaining} / ${s.styroTotal} pcs', isClosed: s.isClosed)),
+                                const SizedBox(width: 6),
+                                Expanded(child: _meatVariantChip('Toyo', '${s.toyoRemaining} / ${s.toyoTotal} pcs', isClosed: s.isClosed)),
+                              ],
+                            ),
+                          ] else ...[
+                            Row(
+                              children: [
+                                Expanded(child: _meatVariantChip('250g Regular', '${s.regular250gRemaining} / ${s.regular250gTotal} pcs', isClosed: s.isClosed)),
+                                const SizedBox(width: 6),
+                                Expanded(child: _meatVariantChip('300g Medium', '${s.medium300gRemaining} / ${s.medium300gTotal} pcs', isClosed: s.isClosed)),
+                              ],
+                            ),
+                            const SizedBox(height: 6),
+                            Row(
+                              children: [
+                                Expanded(child: _meatVariantChip('400g B1T1', '${s.b1t1_400gRemaining} / ${s.b1t1_400gTotal} pcs', isClosed: s.isClosed)),
+                                const SizedBox(width: 6),
+                                Expanded(child: _meatVariantChip('Mayo', '${s.mayoRemaining} / ${s.mayoTotal} pcs', isClosed: s.isClosed)),
+                              ],
+                            ),
+                            const SizedBox(height: 6),
+                            Row(
+                              children: [
+                                Expanded(child: _meatVariantChip('Styro Box', '${s.styroRemaining} / ${s.styroTotal} pcs', isClosed: s.isClosed)),
+                                const SizedBox(width: 6),
+                                Expanded(child: _meatVariantChip('Toyo', '${s.toyoRemaining} / ${s.toyoTotal} pcs', isClosed: s.isClosed)),
+                              ],
+                            ),
+                          ],
                         ],
                       );
                     },

@@ -142,7 +142,7 @@ class _ActivityLogScreenState extends State<ActivityLogScreen>
     final hour = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
     final minute = dt.minute.toString().padLeft(2, '0');
     final ampm = dt.hour < 12 ? 'AM' : 'PM';
-    return '${months[dt.month - 1]} ${dt.day}, ${dt.year} · $hour:$minute $ampm';
+    return '${months[dt.month - 1]} ${dt.day}, ${dt.year} Â· $hour:$minute $ampm';
   }
 
   Future<void> _confirmDeleteDispatch(MeatDispatch dispatch) async {
@@ -203,7 +203,7 @@ class _ActivityLogScreenState extends State<ActivityLogScreen>
 
     return Container(
       color: AdminWebColors.background,
-      padding: const EdgeInsets.symmetric(horizontal: 24),
+      padding: EdgeInsets.symmetric(horizontal: MediaQuery.of(context).size.width < 600 ? 12 : 24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -632,7 +632,7 @@ class _ActivityLogScreenState extends State<ActivityLogScreen>
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  'Warehouse → ${dispatch.destinationBranchName}',
+                                  'Warehouse â†’ ${dispatch.destinationBranchName}',
                                   style: const TextStyle(
                                     fontWeight: FontWeight.bold,
                                     color: AdminWebColors.textPrimary,
@@ -648,7 +648,7 @@ class _ActivityLogScreenState extends State<ActivityLogScreen>
                                   ),
                                 ),
                                 Text(
-                                  '${dispatch.createdAt.month}/${dispatch.createdAt.day} · ${dispatch.createdAt.hour.toString().padLeft(2, '0')}:${dispatch.createdAt.minute.toString().padLeft(2, '0')}',
+                                  '${dispatch.createdAt.month}/${dispatch.createdAt.day} Â· ${dispatch.createdAt.hour.toString().padLeft(2, '0')}:${dispatch.createdAt.minute.toString().padLeft(2, '0')}',
                                   style: const TextStyle(
                                     fontSize: 11,
                                     color: AdminWebColors.textSecondary,

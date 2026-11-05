@@ -654,6 +654,7 @@ class _AddBilaoOrderScreenState extends State<AddBilaoOrderScreen> {
   }
 
   Widget _sectionCard({required List<Widget> children}) {
+    final isMobile = MediaQuery.of(context).size.width < 600;
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -667,7 +668,7 @@ class _AddBilaoOrderScreenState extends State<AddBilaoOrderScreen> {
           ),
         ],
       ),
-      padding: const EdgeInsets.all(18),
+      padding: EdgeInsets.all(isMobile ? 12 : 18),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: children,
@@ -919,140 +920,158 @@ class _AddBilaoOrderScreenState extends State<AddBilaoOrderScreen> {
         const SizedBox(height: 14),
 
         // Quantity counter & total
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-          decoration: BoxDecoration(
-            color: AdminWebColors.background,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: AdminWebColors.border),
-          ),
-          child: Row(
-            children: [
-              const Text(
-                'Quantity to Prepare',
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: AdminWebColors.textPrimary,
-                ),
+        LayoutBuilder(
+          builder: (ctx, qtyConstraints) {
+            final isNarrow = qtyConstraints.maxWidth < 420;
+            return Container(
+              padding: EdgeInsets.symmetric(horizontal: isNarrow ? 10 : 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: AdminWebColors.background,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: AdminWebColors.border),
               ),
-              const Spacer(),
-              _webQtyBtn(Icons.remove_rounded, _qty > 1, () {
-                setState(() {
-                  _quantityController.text = '${_qty - 1}';
-                  _refreshDeposit();
-                });
-              }),
-              Container(
-                width: 44,
-                alignment: Alignment.center,
-                child: Text(
-                  '$_qty',
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w800,
-                    color: AdminWebColors.textPrimary,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Quantity to Prepare',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: isNarrow ? 12 : 13,
+                        fontWeight: FontWeight.w600,
+                        color: AdminWebColors.textPrimary,
+                      ),
+                    ),
                   ),
-                ),
-              ),
-              _webQtyBtn(Icons.add_rounded, true, () {
-                setState(() {
-                  _quantityController.text = '${_qty + 1}';
-                  _refreshDeposit();
-                });
-              }),
-              const SizedBox(width: 14),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: AdminWebColors.accent.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Text(
-                  _peso(_totalPrice),
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w800,
-                    color: AdminWebColors.accent,
+                  const SizedBox(width: 6),
+                  _webQtyBtn(Icons.remove_rounded, _qty > 1, () {
+                    setState(() {
+                      _quantityController.text = '${_qty - 1}';
+                      _refreshDeposit();
+                    });
+                  }),
+                  Container(
+                    width: isNarrow ? 32 : 44,
+                    alignment: Alignment.center,
+                    child: Text(
+                      '$_qty',
+                      style: TextStyle(
+                        fontSize: isNarrow ? 14 : 16,
+                        fontWeight: FontWeight.w800,
+                        color: AdminWebColors.textPrimary,
+                      ),
+                    ),
                   ),
-                ),
+                  _webQtyBtn(Icons.add_rounded, true, () {
+                    setState(() {
+                      _quantityController.text = '${_qty + 1}';
+                      _refreshDeposit();
+                    });
+                  }),
+                  SizedBox(width: isNarrow ? 8 : 14),
+                  Container(
+                    padding: EdgeInsets.symmetric(horizontal: isNarrow ? 8 : 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: AdminWebColors.accent.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      _peso(_totalPrice),
+                      style: TextStyle(
+                        fontSize: isNarrow ? 13 : 14,
+                        fontWeight: FontWeight.w800,
+                        color: AdminWebColors.accent,
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ),
+            );
+          },
         ),
         const SizedBox(height: 14),
 
         // Scheduled Date & Time
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-          decoration: BoxDecoration(
-            color: AdminWebColors.background,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: AdminWebColors.border),
-          ),
-          child: Row(
-            children: [
-              const Icon(Icons.event_available_rounded,
-                  color: AdminWebColors.accent, size: 20),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Target Pickup Schedule',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w500,
-                        color: AdminWebColors.textSecondary,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      '${_scheduledDateTime.month}/${_scheduledDateTime.day}/${_scheduledDateTime.year}  at  '
-                      '${_scheduledDateTime.hour.toString().padLeft(2, '0')}:${_scheduledDateTime.minute.toString().padLeft(2, '0')}',
-                      style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: AdminWebColors.textPrimary,
-                      ),
-                    ),
-                  ],
-                ),
+        LayoutBuilder(
+          builder: (ctx, schedConstraints) {
+            final isNarrow = schedConstraints.maxWidth < 420;
+            return Container(
+              padding: EdgeInsets.symmetric(horizontal: isNarrow ? 10 : 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: AdminWebColors.background,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: AdminWebColors.border),
               ),
-              OutlinedButton.icon(
-                onPressed: () async {
-                  final date = await showDatePicker(
-                    context: context,
-                    initialDate: _scheduledDateTime,
-                    firstDate:
-                        DateTime.now().subtract(const Duration(days: 1)),
-                    lastDate: DateTime.now().add(const Duration(days: 60)),
-                  );
-                  if (date == null || !mounted || !context.mounted) return;
-                  final time = await showTimePicker(
-                    context: context,
-                    initialTime:
-                        TimeOfDay.fromDateTime(_scheduledDateTime),
-                  );
-                  if (time == null) return;
-                  setState(() {
-                    _scheduledDateTime = DateTime(
-                      date.year, date.month, date.day,
-                      time.hour, time.minute,
-                    );
-                  });
-                },
-                icon: const Icon(Icons.edit_calendar_rounded, size: 15),
-                label: const Text('Change Schedule', style: TextStyle(fontSize: 12)),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: AdminWebColors.accent,
-                  side: BorderSide(color: AdminWebColors.accent.withValues(alpha: 0.3)),
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                ),
+              child: Row(
+                children: [
+                  Icon(Icons.event_available_rounded,
+                      color: AdminWebColors.accent, size: isNarrow ? 18 : 20),
+                  SizedBox(width: isNarrow ? 8 : 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Target Pickup Schedule',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w500,
+                            color: AdminWebColors.textSecondary,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '${_scheduledDateTime.month}/${_scheduledDateTime.day}/${_scheduledDateTime.year}  at  '
+                          '${_scheduledDateTime.hour.toString().padLeft(2, '0')}:${_scheduledDateTime.minute.toString().padLeft(2, '0')}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: isNarrow ? 11.5 : 13,
+                            fontWeight: FontWeight.w700,
+                            color: AdminWebColors.textPrimary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  OutlinedButton.icon(
+                    onPressed: () async {
+                      final date = await showDatePicker(
+                        context: context,
+                        initialDate: _scheduledDateTime,
+                        firstDate:
+                            DateTime.now().subtract(const Duration(days: 1)),
+                        lastDate: DateTime.now().add(const Duration(days: 60)),
+                      );
+                      if (date == null || !mounted || !context.mounted) return;
+                      final time = await showTimePicker(
+                        context: context,
+                        initialTime:
+                            TimeOfDay.fromDateTime(_scheduledDateTime),
+                      );
+                      if (time == null) return;
+                      setState(() {
+                        _scheduledDateTime = DateTime(
+                          date.year, date.month, date.day,
+                          time.hour, time.minute,
+                        );
+                      });
+                    },
+                    icon: Icon(Icons.edit_calendar_rounded, size: isNarrow ? 13 : 15),
+                    label: Text(isNarrow ? 'Change' : 'Change Schedule',
+                        style: TextStyle(fontSize: isNarrow ? 11 : 12)),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AdminWebColors.accent,
+                      side: BorderSide(color: AdminWebColors.accent.withValues(alpha: 0.3)),
+                      padding: EdgeInsets.symmetric(horizontal: isNarrow ? 8 : 12, vertical: 8),
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ),
+            );
+          },
         ),
       ],
     );
@@ -1757,7 +1776,12 @@ class _AddBilaoOrderScreenState extends State<AddBilaoOrderScreen> {
           children: [
             // Back button row
             Padding(
-              padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
+              padding: EdgeInsets.fromLTRB(
+                MediaQuery.of(context).size.width < 600 ? 12 : 24,
+                16,
+                MediaQuery.of(context).size.width < 600 ? 12 : 24,
+                0,
+              ),
               child: Align(
                 alignment: Alignment.centerLeft,
                 child: TextButton.icon(
@@ -1780,7 +1804,12 @@ class _AddBilaoOrderScreenState extends State<AddBilaoOrderScreen> {
             // Main Body: 2-Column Responsive Layout
             Expanded(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
+                padding: EdgeInsets.fromLTRB(
+                  MediaQuery.of(context).size.width < 600 ? 12 : 24,
+                  12,
+                  MediaQuery.of(context).size.width < 600 ? 12 : 24,
+                  24,
+                ),
                 child: Center(
                   child: ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 1200),

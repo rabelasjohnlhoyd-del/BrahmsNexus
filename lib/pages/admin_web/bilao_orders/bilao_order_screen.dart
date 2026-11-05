@@ -1295,17 +1295,23 @@ class _BilaoOrderScreenState extends State<BilaoOrderScreen> {
                           Expanded(child: _statCard('Completed', '$completedCount', AdminWebColors.success, Icons.check_circle_outline_rounded)),
                         ],
                       )
-                    : Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: [
-                          SizedBox(width: (constraints.maxWidth - 40) / 2, child: _statCard('Total Orders', '$totalOrders', AdminWebColors.textPrimary, Icons.inventory_2_outlined)),
-                          SizedBox(width: (constraints.maxWidth - 40) / 2, child: _statCard('Total Sales', '₱${totalSales.toStringAsFixed(0)}', AdminWebColors.accent, Icons.payments_outlined)),
-                          SizedBox(width: (constraints.maxWidth - 40) / 2, child: _statCard('Pending Prep', '$pendingCount', AdminWebColors.warning, Icons.hourglass_top_rounded)),
-                          SizedBox(width: (constraints.maxWidth - 40) / 2, child: _statCard('In Kitchen', '$inPrepCount', AdminWebColors.accent, Icons.restaurant_rounded)),
-                          SizedBox(width: (constraints.maxWidth - 40) / 2, child: _statCard('For Delivery', '$forDeliveryCount', AdminWebColors.accent, Icons.moped_rounded)),
-                          SizedBox(width: (constraints.maxWidth - 40) / 2, child: _statCard('Completed', '$completedCount', AdminWebColors.success, Icons.check_circle_outline_rounded)),
-                        ],
+                    : SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          children: [
+                            SizedBox(width: 140, child: _statCard('Total Orders', '$totalOrders', AdminWebColors.textPrimary, Icons.inventory_2_outlined)),
+                            const SizedBox(width: 8),
+                            SizedBox(width: 140, child: _statCard('Total Sales', '₱${totalSales.toStringAsFixed(0)}', AdminWebColors.accent, Icons.payments_outlined)),
+                            const SizedBox(width: 8),
+                            SizedBox(width: 140, child: _statCard('Pending Prep', '$pendingCount', AdminWebColors.warning, Icons.hourglass_top_rounded)),
+                            const SizedBox(width: 8),
+                            SizedBox(width: 140, child: _statCard('In Kitchen', '$inPrepCount', AdminWebColors.accent, Icons.restaurant_rounded)),
+                            const SizedBox(width: 8),
+                            SizedBox(width: 140, child: _statCard('For Delivery', '$forDeliveryCount', AdminWebColors.accent, Icons.moped_rounded)),
+                            const SizedBox(width: 8),
+                            SizedBox(width: 140, child: _statCard('Completed', '$completedCount', AdminWebColors.success, Icons.check_circle_outline_rounded)),
+                          ],
+                        ),
                       ),
               ),
               const SizedBox(height: 16),
@@ -1316,71 +1322,154 @@ class _BilaoOrderScreenState extends State<BilaoOrderScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Wrap(
-                      alignment: WrapAlignment.end,
-                      spacing: 10,
-                      runSpacing: 8,
-                      children: [
-                        ElevatedButton.icon(
-                          onPressed: () => ExcelExportDialog.show(context, orders: _orders),
-                          icon: const Icon(Icons.table_view_rounded,
-                              size: 16, color: Colors.white),
-                          label: const Text(
-                            'EXPORT EXCEL (.XLSX)',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w800,
-                              fontSize: 12,
-                            ),
+                    isWide
+                        ? Wrap(
+                            alignment: WrapAlignment.end,
+                            spacing: 10,
+                            runSpacing: 8,
+                            children: [
+                              ElevatedButton.icon(
+                                onPressed: () => ExcelExportDialog.show(context, orders: _orders),
+                                icon: const Icon(Icons.table_view_rounded,
+                                    size: 16, color: Colors.white),
+                                label: const Text(
+                                  'EXPORT EXCEL (.XLSX)',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFF2E7D32),
+                                  foregroundColor: Colors.white,
+                                  elevation: 0,
+                                  padding: const EdgeInsets.symmetric(
+                                      vertical: 12, horizontal: 16),
+                                  shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(10)),
+                                ),
+                              ),
+                              OutlinedButton.icon(
+                                onPressed: _showPricingDialog,
+                                icon: const Icon(Icons.sell_outlined,
+                                    size: 16, color: AdminWebColors.accent),
+                                label: const Text(
+                                  'PRICING',
+                                  style: TextStyle(
+                                    color: AdminWebColors.textPrimary,
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                                style: OutlinedButton.styleFrom(
+                                  backgroundColor: Colors.white,
+                                  side: const BorderSide(color: AdminWebColors.border),
+                                  padding: const EdgeInsets.symmetric(
+                                      vertical: 12, horizontal: 16),
+                                  shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(10)),
+                                ),
+                              ),
+                              ElevatedButton.icon(
+                                onPressed: _openAddOrder,
+                                icon: const Icon(Icons.add_rounded,
+                                    size: 18, color: Colors.white),
+                                label: const Text('NEW ORDER'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AdminWebColors.accent,
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(
+                                      vertical: 12, horizontal: 16),
+                                  shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(10)),
+                                  elevation: 0,
+                                ),
+                              ),
+                            ],
+                          )
+                        : Row(
+                            children: [
+                              Expanded(
+                                child: ElevatedButton.icon(
+                                  onPressed: () => ExcelExportDialog.show(context, orders: _orders),
+                                  icon: const Icon(Icons.table_view_rounded,
+                                      size: 14, color: Colors.white),
+                                  label: const Text(
+                                    'EXPORT',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 10.5,
+                                    ),
+                                  ),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(0xFF2E7D32),
+                                    foregroundColor: Colors.white,
+                                    elevation: 0,
+                                    padding: const EdgeInsets.symmetric(
+                                        vertical: 10, horizontal: 4),
+                                    shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(8)),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: OutlinedButton.icon(
+                                  onPressed: _showPricingDialog,
+                                  icon: const Icon(Icons.sell_outlined,
+                                      size: 14, color: AdminWebColors.accent),
+                                  label: const Text(
+                                    'PRICING',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: AdminWebColors.textPrimary,
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 10.5,
+                                    ),
+                                  ),
+                                  style: OutlinedButton.styleFrom(
+                                    backgroundColor: Colors.white,
+                                    side: const BorderSide(color: AdminWebColors.border),
+                                    padding: const EdgeInsets.symmetric(
+                                        vertical: 10, horizontal: 4),
+                                    shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(8)),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: ElevatedButton.icon(
+                                  onPressed: _openAddOrder,
+                                  icon: const Icon(Icons.add_rounded,
+                                      size: 15, color: Colors.white),
+                                  label: const Text(
+                                    'NEW ORDER',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: 10.5,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: AdminWebColors.accent,
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(
+                                        vertical: 10, horizontal: 4),
+                                    shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(8)),
+                                    elevation: 0,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF2E7D32),
-                            foregroundColor: Colors.white,
-                            elevation: 0,
-                            padding: const EdgeInsets.symmetric(
-                                vertical: 12, horizontal: 16),
-                            shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(10)),
-                          ),
-                        ),
-                        OutlinedButton.icon(
-                          onPressed: _showPricingDialog,
-                          icon: const Icon(Icons.sell_outlined,
-                              size: 16, color: AdminWebColors.accent),
-                          label: const Text(
-                            'PRICING',
-                            style: TextStyle(
-                              color: AdminWebColors.textPrimary,
-                              fontWeight: FontWeight.w700,
-                              fontSize: 12,
-                            ),
-                          ),
-                          style: OutlinedButton.styleFrom(
-                            backgroundColor: Colors.white,
-                            side: const BorderSide(color: AdminWebColors.border),
-                            padding: const EdgeInsets.symmetric(
-                                vertical: 12, horizontal: 16),
-                            shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(10)),
-                          ),
-                        ),
-                        ElevatedButton.icon(
-                          onPressed: _openAddOrder,
-                          icon: const Icon(Icons.add_rounded,
-                              size: 18, color: Colors.white),
-                          label: const Text('NEW ORDER'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AdminWebColors.accent,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(
-                                vertical: 12, horizontal: 16),
-                            shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(10)),
-                            elevation: 0,
-                          ),
-                        ),
-                      ],
-                    ),
                     const SizedBox(height: 14),
                     isWide
                         ? Row(
@@ -1612,274 +1701,483 @@ class _OrderCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         child: GlassCard(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              // ── LEFT: Plain Customer Information ─────────────────
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        // Name + ID chip
-                        Wrap(
-                          spacing: 6,
-                          runSpacing: 4,
-                          crossAxisAlignment: WrapCrossAlignment.center,
-                          children: [
-                            Text(
-                              order.customerName,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w700,
-                                fontSize: 15.5,
-                                color: AdminWebColors.textPrimary,
-                              ),
-                            ),
-                            Container(
-                              constraints: const BoxConstraints(maxWidth: 130),
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 6, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: AdminWebColors.accent
-                                    .withValues(alpha: 0.1),
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              child: Text(
-                                '#${order.id.toUpperCase()}',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
+          child: isWide
+              ? Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    // ── LEFT: Plain Customer Information ─────────────────
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Wrap(
+                            spacing: 6,
+                            runSpacing: 4,
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            children: [
+                              Text(
+                                order.customerName,
                                 style: const TextStyle(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.bold,
-                                  color: AdminWebColors.accent,
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 15.5,
+                                  color: AdminWebColors.textPrimary,
                                 ),
                               ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 3),
-                        // Contact
-                        Row(
-                          children: [
-                            const Icon(Icons.phone_outlined, size: 13, color: AdminWebColors.textSecondary),
-                            const SizedBox(width: 5),
-                            Text(
-                              order.contactNumber,
-                              style: const TextStyle(
-                                fontSize: 12.5,
-                                fontWeight: FontWeight.w500,
-                                color: AdminWebColors.textSecondary,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 6),
-                        // Location / fulfillment badge
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: order.isBranchPickup
-                                ? AdminWebColors.accent.withValues(alpha: 0.08)
-                                : const Color(0xFF0F9D58).withValues(alpha: 0.08),
-                            borderRadius: BorderRadius.circular(6),
-                            border: Border.all(
-                              color: order.isBranchPickup
-                                  ? AdminWebColors.accent.withValues(alpha: 0.3)
-                                  : const Color(0xFF0F9D58).withValues(alpha: 0.3),
-                            ),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                order.isBranchPickup ? Icons.storefront_rounded : Icons.local_shipping_outlined,
-                                size: 13,
-                                color: order.isBranchPickup ? AdminWebColors.accent : const Color(0xFF0F9D58),
-                              ),
-                              const SizedBox(width: 5),
-                              Flexible(
+                              Container(
+                                constraints: const BoxConstraints(maxWidth: 130),
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: AdminWebColors.accent.withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
                                 child: Text(
-                                  order.isBranchPickup
-                                      ? 'BRANCH: ${order.pickupBranchName ?? order.deliveryAddress}'
-                                      : 'DELIVERY: ${order.deliveryAddress}',
+                                  '#${order.id.toUpperCase()}',
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w700,
-                                    color: order.isBranchPickup ? AdminWebColors.accent : const Color(0xFF0F9D58),
+                                  style: const TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                    color: AdminWebColors.accent,
                                   ),
                                 ),
                               ),
                             ],
                           ),
-                        ),
-                        const SizedBox(height: 5),
-                        // Commission badge
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
-                          decoration: BoxDecoration(
-                            color: order.hasCookCommission
-                                ? AdminWebColors.success.withValues(alpha: 0.1)
-                                : AdminWebColors.textSecondary.withValues(alpha: 0.08),
-                            borderRadius: BorderRadius.circular(4),
-                            border: Border.all(
-                              color: order.hasCookCommission
-                                  ? AdminWebColors.success.withValues(alpha: 0.35)
-                                  : AdminWebColors.textSecondary.withValues(alpha: 0.2),
+                          const SizedBox(height: 3),
+                          Row(
+                            children: [
+                              const Icon(Icons.phone_outlined, size: 13, color: AdminWebColors.textSecondary),
+                              const SizedBox(width: 5),
+                              Text(
+                                order.contactNumber,
+                                style: const TextStyle(
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w500,
+                                  color: AdminWebColors.textSecondary,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: order.isBranchPickup
+                                  ? AdminWebColors.accent.withValues(alpha: 0.08)
+                                  : const Color(0xFF0F9D58).withValues(alpha: 0.08),
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(
+                                color: order.isBranchPickup
+                                    ? AdminWebColors.accent.withValues(alpha: 0.3)
+                                    : const Color(0xFF0F9D58).withValues(alpha: 0.3),
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  order.isBranchPickup ? Icons.storefront_rounded : Icons.local_shipping_outlined,
+                                  size: 13,
+                                  color: order.isBranchPickup ? AdminWebColors.accent : const Color(0xFF0F9D58),
+                                ),
+                                const SizedBox(width: 5),
+                                Flexible(
+                                  child: Text(
+                                    order.isBranchPickup
+                                        ? 'BRANCH: ${order.pickupBranchName ?? order.deliveryAddress}'
+                                        : 'DELIVERY: ${order.deliveryAddress}',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w700,
+                                      color: order.isBranchPickup ? AdminWebColors.accent : const Color(0xFF0F9D58),
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                order.hasCookCommission
-                                    ? Icons.check_circle_outline_rounded
-                                    : Icons.info_outline_rounded,
-                                size: 11,
+                          const SizedBox(height: 5),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+                            decoration: BoxDecoration(
+                              color: order.hasCookCommission
+                                  ? AdminWebColors.success.withValues(alpha: 0.1)
+                                  : AdminWebColors.textSecondary.withValues(alpha: 0.08),
+                              borderRadius: BorderRadius.circular(4),
+                              border: Border.all(
                                 color: order.hasCookCommission
-                                    ? AdminWebColors.success
-                                    : AdminWebColors.textSecondary,
+                                    ? AdminWebColors.success.withValues(alpha: 0.35)
+                                    : AdminWebColors.textSecondary.withValues(alpha: 0.2),
                               ),
-                              const SizedBox(width: 4),
-                              Text(
-                                order.hasCookCommission
-                                    ? 'BRANCH ORDER (+₱${order.commissionAmount.toStringAsFixed(0)} COOK COMM.)'
-                                    : 'DIRECT TO OWNER (NO COMMISSION)',
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w700,
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  order.hasCookCommission
+                                      ? Icons.check_circle_outline_rounded
+                                      : Icons.info_outline_rounded,
+                                  size: 11,
                                   color: order.hasCookCommission
                                       ? AdminWebColors.success
                                       : AdminWebColors.textSecondary,
                                 ),
+                                const SizedBox(width: 4),
+                                Flexible(
+                                  child: Text(
+                                    order.hasCookCommission
+                                        ? 'BRANCH ORDER (+₱${order.commissionAmount.toStringAsFixed(0)} COOK COMM.)'
+                                        : 'DIRECT TO OWNER (NO COMMISSION)',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w700,
+                                      color: order.hasCookCommission
+                                          ? AdminWebColors.success
+                                          : AdminWebColors.textSecondary,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 5),
+                          Wrap(
+                            spacing: 4,
+                            runSpacing: 2,
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            children: [
+                              const Icon(Icons.shopping_basket_outlined, size: 12, color: AdminWebColors.textSecondary),
+                              Text(
+                                '${order.size.label} (${order.size.pax}pax) x${order.quantity}  ·  ₱${order.totalAmount.toStringAsFixed(0)}',
+                                style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: AdminWebColors.textPrimary),
+                              ),
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.event_available_rounded, size: 12, color: AdminWebColors.textSecondary.withValues(alpha: 0.7)),
+                                  const SizedBox(width: 3),
+                                  Text(
+                                    '${order.scheduledDateTime.month}/${order.scheduledDateTime.day} '
+                                    '${order.scheduledDateTime.hour.toString().padLeft(2, '0')}:${order.scheduledDateTime.minute.toString().padLeft(2, '0')}',
+                                    style: const TextStyle(fontSize: 11, color: AdminWebColors.textSecondary),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+
+                    // ── Status Badges ─────────────────────────────────────
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (order.isPendingGcashVerification) ...[
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                            margin: const EdgeInsets.only(bottom: 4),
+                            decoration: BoxDecoration(
+                              color: AdminWebColors.warning.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(color: AdminWebColors.warning.withValues(alpha: 0.45)),
+                            ),
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.lock_clock_rounded, size: 10, color: AdminWebColors.warning),
+                                SizedBox(width: 4),
+                                Text(
+                                  'KITCHEN LOCKED',
+                                  style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w800, color: AdminWebColors.warning),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: prepColor.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: prepColor.withValues(alpha: 0.35)),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.restaurant_rounded, size: 11, color: prepColor),
+                              const SizedBox(width: 4),
+                              Text(
+                                order.preparationStatus.label.toUpperCase(),
+                                style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: prepColor),
                               ),
                             ],
                           ),
                         ),
                         const SizedBox(height: 5),
-                        // Package + amount + scheduled time
-                        Wrap(
-                          spacing: 4,
-                          runSpacing: 2,
-                          crossAxisAlignment: WrapCrossAlignment.center,
-                          children: [
-                            const Icon(Icons.shopping_basket_outlined, size: 12, color: AdminWebColors.textSecondary),
-                            Text(
-                              '${order.size.label} (${order.size.pax}pax) x${order.quantity}  ·  \u20b1${order.totalAmount.toStringAsFixed(0)}',
-                              style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: AdminWebColors.textPrimary),
-                            ),
-                            Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(Icons.event_available_rounded, size: 12, color: AdminWebColors.textSecondary.withValues(alpha: 0.7)),
-                                const SizedBox(width: 3),
-                                Text(
-                                  '${order.scheduledDateTime.month}/${order.scheduledDateTime.day} '
-                                  '${order.scheduledDateTime.hour.toString().padLeft(2, '0')}:${order.scheduledDateTime.minute.toString().padLeft(2, '0')}',
-                                  style: const TextStyle(fontSize: 11, color: AdminWebColors.textSecondary),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: delivColor.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: delivColor.withValues(alpha: 0.35)),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.moped_rounded, size: 11, color: delivColor),
+                              const SizedBox(width: 4),
+                              Text(
+                                order.deliveryStatus.label.toUpperCase(),
+                                style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: delivColor),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(width: 6),
+
+                    // ── Delete Button ───────────────────────────────────
+                    IconButton(
+                      icon: const Icon(Icons.delete_outline_rounded, size: 20, color: AdminWebColors.error),
+                      tooltip: 'Delete Order',
+                      onPressed: onDelete,
+                    ),
+                  ],
+                )
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Header: Customer Name + ID + Delete
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Wrap(
+                            spacing: 6,
+                            runSpacing: 4,
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            children: [
+                              Text(
+                                order.customerName,
+                                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15.5, color: AdminWebColors.textPrimary),
+                              ),
+                              Container(
+                                constraints: const BoxConstraints(maxWidth: 130),
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: AdminWebColors.accent.withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(4),
                                 ),
-                              ],
+                                child: Text(
+                                  '#${order.id.toUpperCase()}',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AdminWebColors.accent),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.delete_outline_rounded, size: 20, color: AdminWebColors.error),
+                          tooltip: 'Delete Order',
+                          onPressed: onDelete,
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        const Icon(Icons.phone_outlined, size: 13, color: AdminWebColors.textSecondary),
+                        const SizedBox(width: 5),
+                        Text(
+                          order.contactNumber,
+                          style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w500, color: AdminWebColors.textSecondary),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: order.isBranchPickup
+                            ? AdminWebColors.accent.withValues(alpha: 0.08)
+                            : const Color(0xFF0F9D58).withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(
+                          color: order.isBranchPickup
+                              ? AdminWebColors.accent.withValues(alpha: 0.3)
+                              : const Color(0xFF0F9D58).withValues(alpha: 0.3),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            order.isBranchPickup ? Icons.storefront_rounded : Icons.local_shipping_outlined,
+                            size: 13,
+                            color: order.isBranchPickup ? AdminWebColors.accent : const Color(0xFF0F9D58),
+                          ),
+                          const SizedBox(width: 5),
+                          Flexible(
+                            child: Text(
+                              order.isBranchPickup
+                                  ? 'BRANCH: ${order.pickupBranchName ?? order.deliveryAddress}'
+                                  : 'DELIVERY: ${order.deliveryAddress}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                color: order.isBranchPickup ? AdminWebColors.accent : const Color(0xFF0F9D58),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 5),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+                      decoration: BoxDecoration(
+                        color: order.hasCookCommission
+                            ? AdminWebColors.success.withValues(alpha: 0.1)
+                            : AdminWebColors.textSecondary.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(
+                          color: order.hasCookCommission
+                              ? AdminWebColors.success.withValues(alpha: 0.35)
+                              : AdminWebColors.textSecondary.withValues(alpha: 0.2),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            order.hasCookCommission ? Icons.check_circle_outline_rounded : Icons.info_outline_rounded,
+                            size: 11,
+                            color: order.hasCookCommission ? AdminWebColors.success : AdminWebColors.textSecondary,
+                          ),
+                          const SizedBox(width: 4),
+                          Flexible(
+                            child: Text(
+                              order.hasCookCommission
+                                  ? 'BRANCH ORDER (+₱${order.commissionAmount.toStringAsFixed(0)} COOK COMM.)'
+                                  : 'DIRECT TO OWNER (NO COMMISSION)',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
+                                color: order.hasCookCommission ? AdminWebColors.success : AdminWebColors.textSecondary,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Wrap(
+                      spacing: 4,
+                      runSpacing: 2,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        const Icon(Icons.shopping_basket_outlined, size: 12, color: AdminWebColors.textSecondary),
+                        Text(
+                          '${order.size.label} (${order.size.pax}pax) x${order.quantity}  ·  ₱${order.totalAmount.toStringAsFixed(0)}',
+                          style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: AdminWebColors.textPrimary),
+                        ),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.event_available_rounded, size: 12, color: AdminWebColors.textSecondary.withValues(alpha: 0.7)),
+                            const SizedBox(width: 3),
+                            Text(
+                              '${order.scheduledDateTime.month}/${order.scheduledDateTime.day} ${order.scheduledDateTime.hour.toString().padLeft(2, '0')}:${order.scheduledDateTime.minute.toString().padLeft(2, '0')}',
+                              style: const TextStyle(fontSize: 11, color: AdminWebColors.textSecondary),
                             ),
                           ],
                         ),
                       ],
                     ),
-                  ),
-              const SizedBox(width: 10),
-
-              // ── Status Badges ─────────────────────────────────────
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (order.isPendingGcashVerification) ...[
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                      margin: const EdgeInsets.only(bottom: 4),
-                      decoration: BoxDecoration(
-                        color: AdminWebColors.warning.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: AdminWebColors.warning.withValues(alpha: 0.45)),
-                      ),
-                      child: const Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.lock_clock_rounded, size: 10, color: AdminWebColors.warning),
-                          SizedBox(width: 4),
-                          Text(
-                            'KITCHEN LOCKED',
-                            style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w800, color: AdminWebColors.warning),
+                    const SizedBox(height: 10),
+                    const Divider(height: 1),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        if (order.isPendingGcashVerification)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: AdminWebColors.warning.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(color: AdminWebColors.warning.withValues(alpha: 0.45)),
+                            ),
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.lock_clock_rounded, size: 10, color: AdminWebColors.warning),
+                                SizedBox(width: 4),
+                                Text('KITCHEN LOCKED', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w800, color: AdminWebColors.warning)),
+                              ],
+                            ),
                           ),
-                        ],
-                      ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: prepColor.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: prepColor.withValues(alpha: 0.35)),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.restaurant_rounded, size: 11, color: prepColor),
+                              const SizedBox(width: 4),
+                              Text(order.preparationStatus.label.toUpperCase(), style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: prepColor)),
+                            ],
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: delivColor.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: delivColor.withValues(alpha: 0.35)),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.moped_rounded, size: 11, color: delivColor),
+                              const SizedBox(width: 4),
+                              Text(order.deliveryStatus.label.toUpperCase(), style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: delivColor)),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
                   ],
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: prepColor.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: prepColor.withValues(alpha: 0.35)),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.restaurant_rounded, size: 11, color: prepColor),
-                        const SizedBox(width: 4),
-                        Text(
-                          order.preparationStatus.label.toUpperCase(),
-                          style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: prepColor),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 5),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: delivColor.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: delivColor.withValues(alpha: 0.35)),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.moped_rounded, size: 11, color: delivColor),
-                        const SizedBox(width: 4),
-                        Text(
-                          order.deliveryStatus.label.toUpperCase(),
-                          style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: delivColor),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(width: 6),
-
-              // ── Delete Button sa gilid ───────────────────────────
-              IconButton(
-                icon: const Icon(Icons.delete_outline_rounded, size: 20, color: AdminWebColors.error),
-                tooltip: 'Delete Order',
-                onPressed: onDelete,
-              ),
-            ],
-          ),
+                ),
         ),
       ),
     );
   }
-
 }
 
-// ── Proof Photo Tile ────────────────────────────────────────────────────────
-/// Displays a proof photo (GCash receipt or delivery proof) as a compact tile
-/// with an inline thumbnail. Supports:
-///   • Public HTTPS URLs from Supabase Storage
-///   • base64 data URIs (fallback when Supabase upload fails)
-/// Tapping opens a full-screen dialog for base64, or launches the URL in the
-/// browser for network images.
 class _ProofPhotoTile extends StatelessWidget {
   const _ProofPhotoTile({
     required this.label,

@@ -224,22 +224,19 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          Wrap(
+            spacing: 8,
+            runSpacing: 4,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              const Expanded(
-                child: Text(
-                  'Weekly Demand Volume (Portions)',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontWeight: FontWeight.w800,
-                    fontSize: 15,
-                    color: AdminWebColors.textPrimary,
-                  ),
+              const Text(
+                'Weekly Demand Volume (Portions)',
+                style: TextStyle(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 14,
+                  color: AdminWebColors.textPrimary,
                 ),
               ),
-              const SizedBox(width: 8),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
                 decoration: BoxDecoration(
@@ -482,24 +479,10 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Row(
-                children: [
-                  Icon(Icons.timeline_rounded, color: AdminWebColors.accent, size: 22),
-                  SizedBox(width: 8),
-                  Text(
-                    '7-Day Demand Forecast (SMA)',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w800,
-                      fontSize: 16,
-                      color: AdminWebColors.textPrimary,
-                    ),
-                  ),
-                ],
-              ),
-              Container(
+          LayoutBuilder(
+            builder: (context, boxConstraints) {
+              final isNarrow = boxConstraints.maxWidth < 460;
+              final badgeWidget = Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
                   color: isWeekendApproaching
@@ -524,18 +507,38 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                     Text(
                       isWeekendApproaching ? 'WEEKEND SURGE' : 'STEADY DEMAND',
                       style: TextStyle(
-                        fontSize: 10.5,
+                        fontSize: 10,
                         fontWeight: FontWeight.w800,
                         color: isWeekendApproaching
                             ? const Color(0xFFE65100)
                             : const Color(0xFF2E7D32),
-                        letterSpacing: 0.4,
+                        letterSpacing: 0.3,
                       ),
                     ),
                   ],
                 ),
-              ),
-            ],
+              );
+
+              return Row(
+                children: [
+                  const Icon(Icons.timeline_rounded, color: AdminWebColors.accent, size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      '7-Day Demand Forecast (SMA)',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: isNarrow ? 14 : 16,
+                        color: AdminWebColors.textPrimary,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  badgeWidget,
+                ],
+              );
+            },
           ),
           const SizedBox(height: 6),
           Text(
@@ -551,7 +554,10 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
           const SizedBox(height: 12),
 
           // Chart Legends
-          Row(
+          Wrap(
+            spacing: 14,
+            runSpacing: 6,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               Row(
                 mainAxisSize: MainAxisSize.min,
@@ -568,14 +574,13 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                   const Text(
                     'Actual Demand (Recorded)',
                     style: TextStyle(
-                      fontSize: 11.5,
+                      fontSize: 11,
                       fontWeight: FontWeight.w700,
                       color: AdminWebColors.textSecondary,
                     ),
                   ),
                 ],
               ),
-              const SizedBox(width: 20),
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -591,7 +596,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                   const Text(
                     'SMA Forecast Projection',
                     style: TextStyle(
-                      fontSize: 11.5,
+                      fontSize: 11,
                       fontWeight: FontWeight.w700,
                       color: Color(0xFFE65100),
                     ),

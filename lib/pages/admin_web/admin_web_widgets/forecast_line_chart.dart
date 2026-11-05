@@ -207,7 +207,7 @@ class _ForecastLineChartState extends State<ForecastLineChart> {
                           allLabels[i],
                           textAlign: TextAlign.center,
                           style: TextStyle(
-                            fontSize: 10.5,
+                            fontSize: 9.5,
                             fontWeight: isHovered
                                 ? FontWeight.w800
                                 : (isForecast ? FontWeight.w700 : FontWeight.w600),

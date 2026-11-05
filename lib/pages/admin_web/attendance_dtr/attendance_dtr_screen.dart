@@ -643,37 +643,36 @@ class _AttendanceDtrScreenState extends State<AttendanceDtrScreen> {
 
     return Container(
       color: AdminWebColors.background,
-      child: Column(
-        children: [
-          // 1. TOP KPI CARDS ROW (Staff Present, On Shift Now, Completed Shifts)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final isWide = constraints.maxWidth > 800;
-                final kpis = [
-                  KpiCard(
-                    icon: Icons.groups_rounded,
-                    label: 'STAFF PRESENT',
-                    value: '${uniqueStaff.length}',
-                    subtitle: '',
-                  ),
-                  KpiCard(
-                    icon: Icons.schedule_rounded,
-                    label: 'ON SHIFT NOW',
-                    value: '$onShiftNow',
-                    subtitle: '',
-                  ),
-                  KpiCard(
-                    icon: Icons.check_circle_outline_rounded,
-                    label: 'COMPLETED SHIFTS',
-                    value: '$completedShifts',
-                    subtitle: '',
-                  ),
-                ];
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isDesktop = constraints.maxWidth >= 800;
+          final hPadding = isDesktop ? 20.0 : 12.0;
 
-                if (isWide) {
-                  return Row(
+          final kpis = [
+            KpiCard(
+              icon: Icons.groups_rounded,
+              label: 'STAFF PRESENT',
+              value: '${uniqueStaff.length}',
+              subtitle: '',
+            ),
+            KpiCard(
+              icon: Icons.schedule_rounded,
+              label: 'ON SHIFT NOW',
+              value: '$onShiftNow',
+              subtitle: '',
+            ),
+            KpiCard(
+              icon: Icons.check_circle_outline_rounded,
+              label: 'COMPLETED SHIFTS',
+              value: '$completedShifts',
+              subtitle: '',
+            ),
+          ];
+
+          final kpiSection = Padding(
+            padding: EdgeInsets.fromLTRB(hPadding, 16, hPadding, 12),
+            child: isDesktop
+                ? Row(
                     children: kpis
                         .map((k) => Expanded(
                               child: Padding(
@@ -682,9 +681,8 @@ class _AttendanceDtrScreenState extends State<AttendanceDtrScreen> {
                               ),
                             ))
                         .toList(),
-                  );
-                } else {
-                  return Column(
+                  )
+                : Column(
                     children: [
                       Row(
                         children: [
@@ -696,270 +694,316 @@ class _AttendanceDtrScreenState extends State<AttendanceDtrScreen> {
                       const SizedBox(height: 10),
                       kpis[2],
                     ],
-                  );
-                }
+                  ),
+          );
+
+          // Search Box widget
+          final searchBoxWidget = SizedBox(
+            width: isDesktop ? 280 : double.infinity,
+            height: 42,
+            child: TextField(
+              controller: _searchController,
+              style: const TextStyle(fontSize: 13, color: AdminWebColors.textPrimary, fontWeight: FontWeight.w600),
+              onChanged: (val) {
+                setState(() {
+                  _query = val;
+                  _currentPage = 0;
+                });
+                _loadLogs();
               },
+              decoration: InputDecoration(
+                hintText: 'Search staff, ID, or RFID...',
+                hintStyle: const TextStyle(fontSize: 12.5, color: Color(0xFF94A3B8), fontWeight: FontWeight.normal),
+                prefixIcon: const Icon(Icons.search_rounded, size: 18, color: AdminWebColors.textSecondary),
+                suffixIcon: _query.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear_rounded, size: 16),
+                        onPressed: () {
+                          _searchController.clear();
+                          setState(() {
+                            _query = '';
+                            _currentPage = 0;
+                          });
+                          _loadLogs();
+                        },
+                      )
+                    : null,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+                filled: true,
+                fillColor: Colors.white,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: AdminWebColors.border),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: AdminWebColors.border),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: AdminWebColors.accent, width: 1.5),
+                ),
+              ),
             ),
-          ),
+          );
 
-          
-
-          // 3. FILTER & SEARCH CONTROLS
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: GlassCard(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              child: Wrap(
-                spacing: 12,
-                runSpacing: 10,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                children: [
-                  // Search Box
-                  SizedBox(
-                    width: 280,
-                    height: 42,
-                    child: TextField(
-                      controller: _searchController,
-                      style: const TextStyle(fontSize: 13, color: AdminWebColors.textPrimary, fontWeight: FontWeight.w600),
-                      onChanged: (val) {
-                        setState(() {
-                          _query = val;
-                          _currentPage = 0;
-                        });
-                        _loadLogs();
-                      },
-                      decoration: InputDecoration(
-                        hintText: 'Search staff, ID, or RFID...',
-                        hintStyle: const TextStyle(fontSize: 12.5, color: Color(0xFF94A3B8), fontWeight: FontWeight.normal),
-                        prefixIcon: const Icon(Icons.search_rounded, size: 18, color: AdminWebColors.textSecondary),
-                        suffixIcon: _query.isNotEmpty
-                            ? IconButton(
-                                icon: const Icon(Icons.clear_rounded, size: 16),
-                                onPressed: () {
-                                  _searchController.clear();
-                                  setState(() {
-                                    _query = '';
-                                    _currentPage = 0;
-                                  });
-                                  _loadLogs();
-                                },
-                              )
-                            : null,
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 12),
-                        filled: true,
-                        fillColor: Colors.white,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          borderSide: const BorderSide(color: AdminWebColors.border),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          borderSide: const BorderSide(color: AdminWebColors.border),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          borderSide: const BorderSide(color: AdminWebColors.accent, width: 1.5),
-                        ),
-                      ),
-                    ),
-                  ),
-
-                  // Date Filter Dropdown with icon
-                  Container(
-                    height: 42,
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: AdminWebColors.border),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.calendar_today_rounded, size: 15, color: AdminWebColors.accent),
-                        const SizedBox(width: 8),
-                        DropdownButtonHideUnderline(
-                          child: DropdownButton<String>(
-                            value: _selectedDatePreset == 'Custom' && _customSelectedDate != null
-                                ? 'Custom'
-                                : _selectedDatePreset,
-                            items: [
-                              const DropdownMenuItem(value: 'Today', child: Text('Today', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600))),
-                              const DropdownMenuItem(value: 'Yesterday', child: Text('Yesterday', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600))),
-                              const DropdownMenuItem(value: 'Past 7 Days', child: Text('Past 7 Days', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600))),
-                              const DropdownMenuItem(value: 'All Dates', child: Text('All Dates', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600))),
-                              if (_selectedDatePreset == 'Custom' && _customSelectedDate != null)
-                                DropdownMenuItem(
-                                  value: 'Custom',
-                                  child: Text(
-                                    DateFormat('MMM d, yyyy').format(_customSelectedDate!),
-                                    style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: AdminWebColors.accent),
-                                  ),
-                                ),
-                              const DropdownMenuItem(
-                                value: 'Pick Custom Date...',
-                                child: Text('Pick Date...', style: TextStyle(fontSize: 12.5, fontStyle: FontStyle.italic)),
-                              ),
-                            ],
-                            onChanged: (v) {
-                              if (v == 'Pick Custom Date...') {
-                                _selectCustomDate();
-                              } else if (v != null && v != 'Custom') {
-                                setState(() {
-                                  _selectedDatePreset = v;
-                                  _customSelectedDate = null;
-                                  _currentPage = 0;
-                                });
-                                _loadLogs();
-                              }
-                            },
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  // Branch Dropdown with icon
-                  Container(
-                    height: 42,
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: AdminWebColors.border),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.storefront_rounded, size: 15, color: AdminWebColors.accent),
-                        const SizedBox(width: 8),
-                        DropdownButtonHideUnderline(
-                          child: DropdownButton<String>(
-                            value: _selectedBranch,
-                            items: _branchOptions
-                                .map((b) => DropdownMenuItem(value: b, child: Text(b, style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600))))
-                                .toList(),
-                            onChanged: (v) {
-                              if (v != null) {
-                                setState(() {
-                                  _selectedBranch = v;
-                                  _currentPage = 0;
-                                });
-                                _loadLogs();
-                              }
-                            },
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  // Position Dropdown with icon
-                  Container(
-                    height: 42,
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: AdminWebColors.border),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.badge_outlined, size: 15, color: AdminWebColors.accent),
-                        const SizedBox(width: 8),
-                        DropdownButtonHideUnderline(
-                          child: DropdownButton<String>(
-                            value: _selectedPosition,
-                            items: _positionOptions
-                                .map((p) => DropdownMenuItem(value: p, child: Text(p, style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600))))
-                                .toList(),
-                            onChanged: (v) {
-                              if (v != null) {
-                                setState(() {
-                                  _selectedPosition = v;
-                                  _currentPage = 0;
-                                });
-                                _loadLogs();
-                              }
-                            },
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  // Production Gate Status (Automated based on Cooking Sessions & Staff Time-Out)
-                  Tooltip(
-                    message: _productionGateOpen
-                        ? 'Production shift is OPEN (Active cooking session). Staff can time in via Base Reader.'
-                        : 'Production shift is CLOSED (Both staff timed out or no cooking session scheduled today).',
-                    child: Container(
-                      height: 42,
-                      padding: const EdgeInsets.symmetric(horizontal: 14),
-                      decoration: BoxDecoration(
-                        color: _productionGateOpen
-                            ? const Color(0xFFECFDF5)
-                            : const Color(0xFFF3F4F6),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(
-                          color: _productionGateOpen
-                              ? const Color(0xFF059669)
-                              : const Color(0xFF9CA3AF),
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            _productionGateOpen
-                                ? Icons.lock_open_rounded
-                                : Icons.lock_rounded,
-                            size: 15,
-                            color: _productionGateOpen
-                                ? const Color(0xFF059669)
-                                : const Color(0xFF6B7280),
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            _productionGateOpen
-                                ? 'Production: OPEN'
-                                : 'Production: CLOSED',
-                            style: TextStyle(
-                              fontSize: 12.5,
-                              fontWeight: FontWeight.w700,
-                              color: _productionGateOpen
-                                  ? const Color(0xFF065F46)
-                                  : const Color(0xFF374151),
+          // Date Filter Dropdown with icon
+          final dateDropdownWidget = Container(
+            height: 42,
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: AdminWebColors.border),
+            ),
+            child: Row(
+              mainAxisSize: isDesktop ? MainAxisSize.min : MainAxisSize.max,
+              children: [
+                const Icon(Icons.calendar_today_rounded, size: 15, color: AdminWebColors.accent),
+                const SizedBox(width: 8),
+                Expanded(
+                  flex: isDesktop ? 0 : 1,
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<String>(
+                      isExpanded: !isDesktop,
+                      value: _selectedDatePreset == 'Custom' && _customSelectedDate != null
+                          ? 'Custom'
+                          : _selectedDatePreset,
+                      items: [
+                        const DropdownMenuItem(value: 'Today', child: Text('Today', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600))),
+                        const DropdownMenuItem(value: 'Yesterday', child: Text('Yesterday', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600))),
+                        const DropdownMenuItem(value: 'Past 7 Days', child: Text('Past 7 Days', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600))),
+                        const DropdownMenuItem(value: 'All Dates', child: Text('All Dates', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600))),
+                        if (_selectedDatePreset == 'Custom' && _customSelectedDate != null)
+                          DropdownMenuItem(
+                            value: 'Custom',
+                            child: Text(
+                              DateFormat('MMM d, yyyy').format(_customSelectedDate!),
+                              style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: AdminWebColors.accent),
                             ),
                           ),
-                        ],
-                      ),
+                        const DropdownMenuItem(
+                          value: 'Pick Custom Date...',
+                          child: Text('Pick Date...', style: TextStyle(fontSize: 12.5, fontStyle: FontStyle.italic)),
+                        ),
+                      ],
+                      onChanged: (v) {
+                        if (v == 'Pick Custom Date...') {
+                          _selectCustomDate();
+                        } else if (v != null && v != 'Custom') {
+                          setState(() {
+                            _selectedDatePreset = v;
+                            _customSelectedDate = null;
+                            _currentPage = 0;
+                          });
+                          _loadLogs();
+                        }
+                      },
                     ),
                   ),
+                ),
+              ],
+            ),
+          );
 
-                  // Reset Filters Button (if active)
-                  if (_hasActiveFilters)
-                    TextButton.icon(
-                      onPressed: _resetFilters,
-                      icon: const Icon(Icons.filter_alt_off_rounded, size: 16),
-                      label: const Text('Reset Filters', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                      style: TextButton.styleFrom(
-                        foregroundColor: AdminWebColors.error,
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                      ),
+          // Branch Dropdown with icon
+          final branchDropdownWidget = Container(
+            height: 42,
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: AdminWebColors.border),
+            ),
+            child: Row(
+              mainAxisSize: isDesktop ? MainAxisSize.min : MainAxisSize.max,
+              children: [
+                const Icon(Icons.storefront_rounded, size: 15, color: AdminWebColors.accent),
+                const SizedBox(width: 8),
+                Expanded(
+                  flex: isDesktop ? 0 : 1,
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<String>(
+                      isExpanded: !isDesktop,
+                      value: _selectedBranch,
+                      items: _branchOptions
+                          .map((b) => DropdownMenuItem(value: b, child: Text(b, style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis)))
+                          .toList(),
+                      onChanged: (v) {
+                        if (v != null) {
+                          setState(() {
+                            _selectedBranch = v;
+                            _currentPage = 0;
+                          });
+                          _loadLogs();
+                        }
+                      },
                     ),
+                  ),
+                ),
+              ],
+            ),
+          );
+
+          // Position Dropdown with icon
+          final positionDropdownWidget = Container(
+            height: 42,
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: AdminWebColors.border),
+            ),
+            child: Row(
+              mainAxisSize: isDesktop ? MainAxisSize.min : MainAxisSize.max,
+              children: [
+                const Icon(Icons.badge_outlined, size: 15, color: AdminWebColors.accent),
+                const SizedBox(width: 8),
+                Expanded(
+                  flex: isDesktop ? 0 : 1,
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<String>(
+                      isExpanded: !isDesktop,
+                      value: _selectedPosition,
+                      items: _positionOptions
+                          .map((p) => DropdownMenuItem(value: p, child: Text(p, style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis)))
+                          .toList(),
+                      onChanged: (v) {
+                        if (v != null) {
+                          setState(() {
+                            _selectedPosition = v;
+                            _currentPage = 0;
+                          });
+                          _loadLogs();
+                        }
+                      },
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+
+          // Production Gate Status (Automated based on Cooking Sessions & Staff Time-Out)
+          final productionGateWidget = Tooltip(
+            message: _productionGateOpen
+                ? 'Production shift is OPEN (Active cooking session). Staff can time in via Base Reader.'
+                : 'Production shift is CLOSED (Both staff timed out or no cooking session scheduled today).',
+            child: Container(
+              height: 42,
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              decoration: BoxDecoration(
+                color: _productionGateOpen
+                    ? const Color(0xFFECFDF5)
+                    : const Color(0xFFF3F4F6),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: _productionGateOpen
+                      ? const Color(0xFF059669)
+                      : const Color(0xFF9CA3AF),
+                ),
+              ),
+              child: Row(
+                mainAxisSize: isDesktop ? MainAxisSize.min : MainAxisSize.max,
+                mainAxisAlignment: isDesktop ? MainAxisAlignment.start : MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    _productionGateOpen
+                        ? Icons.lock_open_rounded
+                        : Icons.lock_rounded,
+                    size: 15,
+                    color: _productionGateOpen
+                        ? const Color(0xFF059669)
+                        : const Color(0xFF6B7280),
+                  ),
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: Text(
+                      _productionGateOpen
+                          ? 'Production: OPEN'
+                          : 'Production: CLOSED',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: _productionGateOpen
+                            ? const Color(0xFF065F46)
+                            : const Color(0xFF374151),
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
                 ],
               ),
             ),
-          ),
-          const SizedBox(height: 14),
+          );
 
-          // 4. EXPORT DTR BUTTON (BELOW PRODUCTION CLOSED BOX)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 0, 20, 14),
+          // Reset Filters Button (if active)
+          final resetFiltersWidget = _hasActiveFilters
+              ? TextButton.icon(
+                  onPressed: _resetFilters,
+                  icon: const Icon(Icons.filter_alt_off_rounded, size: 16),
+                  label: const Text('Reset Filters', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                  style: TextButton.styleFrom(
+                    foregroundColor: AdminWebColors.error,
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  ),
+                )
+              : const SizedBox.shrink();
+
+          final filterSection = Padding(
+            padding: EdgeInsets.symmetric(horizontal: hPadding),
+            child: GlassCard(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: isDesktop
+                  ? Wrap(
+                      spacing: 12,
+                      runSpacing: 10,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        searchBoxWidget,
+                        dateDropdownWidget,
+                        branchDropdownWidget,
+                        positionDropdownWidget,
+                        productionGateWidget,
+                        if (_hasActiveFilters) resetFiltersWidget,
+                      ],
+                    )
+                  : Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        searchBoxWidget,
+                        const SizedBox(height: 10),
+                        Row(
+                          children: [
+                            Expanded(child: dateDropdownWidget),
+                            const SizedBox(width: 8),
+                            Expanded(child: branchDropdownWidget),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        Row(
+                          children: [
+                            Expanded(child: positionDropdownWidget),
+                            const SizedBox(width: 8),
+                            Expanded(child: productionGateWidget),
+                          ],
+                        ),
+                        if (_hasActiveFilters) ...[
+                          const SizedBox(height: 8),
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: resetFiltersWidget,
+                          ),
+                        ],
+                      ],
+                    ),
+            ),
+          );
+
+          final exportSection = Padding(
+            padding: EdgeInsets.fromLTRB(hPadding, 14, hPadding, 14),
             child: Align(
-              alignment: Alignment.centerRight,
+              alignment: isDesktop ? Alignment.centerRight : Alignment.centerLeft,
               child: ElevatedButton.icon(
                 onPressed: _isExporting ? null : _handleExportExcel,
                 icon: _isExporting
@@ -985,96 +1029,125 @@ class _AttendanceDtrScreenState extends State<AttendanceDtrScreen> {
                 ),
               ),
             ),
-          ),
+          );
 
-          // 4. MAIN ATTENDANCE DATA TABLE (FULL WIDTH & BALANCED)
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-              child: GlassCard(
-                padding: EdgeInsets.zero,
-                child: _isLoading
-                    ? const Center(
-                        child: CircularProgressIndicator(color: AdminWebColors.accent),
-                      )
-                    : _logs.isEmpty
-                        ? _buildEmptyState()
-                        : ClipRRect(
-                            borderRadius: BorderRadius.circular(16),
-                            child: LayoutBuilder(
-                              builder: (context, constraints) {
-                                const minTableWidth = 1100.0;
-                                final tableWidth = constraints.maxWidth > minTableWidth
-                                    ? constraints.maxWidth
-                                    : minTableWidth;
+          Widget tableCard = GlassCard(
+            padding: EdgeInsets.zero,
+            child: _isLoading
+                ? const Center(
+                    child: CircularProgressIndicator(color: AdminWebColors.accent),
+                  )
+                : _logs.isEmpty
+                    ? _buildEmptyState()
+                    : ClipRRect(
+                        borderRadius: BorderRadius.circular(16),
+                        child: LayoutBuilder(
+                          builder: (context, tblConstraints) {
+                            const minTableWidth = 1100.0;
+                            final tableWidth = tblConstraints.maxWidth > minTableWidth
+                                ? tblConstraints.maxWidth
+                                : minTableWidth;
 
-                                final totalCount = _logs.length;
-                                final totalPages = (totalCount / _pageSize).ceil();
-                                final safeCurrentPage = totalPages > 0 ? _currentPage.clamp(0, totalPages - 1) : 0;
-                                final pagedLogs = _logs.skip(safeCurrentPage * _pageSize).take(_pageSize).toList();
+                            final totalCount = _logs.length;
+                            final totalPages = (totalCount / _pageSize).ceil();
+                            final safeCurrentPage = totalPages > 0 ? _currentPage.clamp(0, totalPages - 1) : 0;
+                            final pagedLogs = _logs.skip(safeCurrentPage * _pageSize).take(_pageSize).toList();
 
-                                return Column(
-                                  children: [
-                                    Expanded(
-                                      child: SingleChildScrollView(
-                                        scrollDirection: Axis.horizontal,
-                                        child: SizedBox(
-                                          width: tableWidth,
-                                          child: Column(
-                                            children: [
-                                              // ── Full-Width Header Row ──
-                                              Container(
-                                                height: 52,
-                                                padding: const EdgeInsets.symmetric(horizontal: 20),
-                                                decoration: BoxDecoration(
-                                                  color: AdminWebColors.accent.withValues(alpha: 0.08),
-                                                  borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-                                                ),
-                                                child: const Row(
-                                                  children: [
-                                                    Expanded(flex: 5, child: Text('STAFF MEMBER', style: _colHeaderStyle)),
-                                                    Expanded(flex: 4, child: Text('ROLE & BRANCH', style: _colHeaderStyle)),
-                                                    Expanded(flex: 3, child: Text('DATE', style: _colHeaderStyle)),
-                                                    Expanded(flex: 3, child: Text('TIME IN', style: _colHeaderStyle)),
-                                                    Expanded(flex: 3, child: Text('TIME OUT', style: _colHeaderStyle)),
-                                                    Expanded(flex: 4, child: Text('STATUS', style: _colHeaderStyle)),
-                                                  ],
-                                                ),
-                                              ),
-
-                                              // ── Full-Width Data Rows ──
-                                              Expanded(
-                                                child: ListView.separated(
-                                                  itemCount: pagedLogs.length,
-                                                  separatorBuilder: (context, index) =>
-                                                      const Divider(height: 1, color: AdminWebColors.border),
-                                                  itemBuilder: (context, index) => _buildTableRow(pagedLogs[index]),
-                                                ),
-                                              ),
-                                            ],
+                            return Column(
+                              children: [
+                                Expanded(
+                                  child: SingleChildScrollView(
+                                    scrollDirection: Axis.horizontal,
+                                    child: SizedBox(
+                                      width: tableWidth,
+                                      child: Column(
+                                        children: [
+                                          // ── Full-Width Header Row ──
+                                          Container(
+                                            height: 52,
+                                            padding: const EdgeInsets.symmetric(horizontal: 20),
+                                            decoration: BoxDecoration(
+                                              color: AdminWebColors.accent.withValues(alpha: 0.08),
+                                              borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                                            ),
+                                            child: const Row(
+                                              children: [
+                                                Expanded(flex: 5, child: Text('STAFF MEMBER', style: _colHeaderStyle)),
+                                                Expanded(flex: 4, child: Text('ROLE & BRANCH', style: _colHeaderStyle)),
+                                                Expanded(flex: 3, child: Text('DATE', style: _colHeaderStyle)),
+                                                Expanded(flex: 3, child: Text('TIME IN', style: _colHeaderStyle)),
+                                                Expanded(flex: 3, child: Text('TIME OUT', style: _colHeaderStyle)),
+                                                Expanded(flex: 4, child: Text('STATUS', style: _colHeaderStyle)),
+                                              ],
+                                            ),
                                           ),
-                                        ),
+
+                                          // ── Full-Width Data Rows ──
+                                          Expanded(
+                                            child: ListView.separated(
+                                              itemCount: pagedLogs.length,
+                                              separatorBuilder: (context, index) =>
+                                                  const Divider(height: 1, color: AdminWebColors.border),
+                                              itemBuilder: (context, index) => _buildTableRow(pagedLogs[index]),
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                     ),
-                                    if (totalCount > _pageSize)
-                                      Padding(
-                                        padding: const EdgeInsets.symmetric(vertical: 6),
-                                        child: AdminPaginationBar(
-                                          currentPage: safeCurrentPage,
-                                          totalItems: totalCount,
-                                          pageSize: _pageSize,
-                                          onPageChanged: (p) => setState(() => _currentPage = p),
-                                        ),
-                                      ),
-                                  ],
-                                );
-                              },
-                            ),
-                          ),
-              ),
+                                  ),
+                                ),
+                                if (totalCount > _pageSize)
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(vertical: 6),
+                                    child: AdminPaginationBar(
+                                      currentPage: safeCurrentPage,
+                                      totalItems: totalCount,
+                                      pageSize: _pageSize,
+                                      onPageChanged: (p) => setState(() => _currentPage = p),
+                                    ),
+                                  ),
+                              ],
+                            );
+                          },
+                        ),
+                      ),
+          );
+
+          if (isDesktop) {
+            return Column(
+              children: [
+                kpiSection,
+                filterSection,
+                exportSection,
+                Expanded(
+                  child: Padding(
+                    padding: EdgeInsets.fromLTRB(hPadding, 0, hPadding, 20),
+                    child: tableCard,
+                  ),
+                ),
+              ],
+            );
+          }
+
+          // Mobile View: SingleChildScrollView for top-to-bottom natural scrolling on phones!
+          return SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                kpiSection,
+                filterSection,
+                exportSection,
+                Padding(
+                  padding: EdgeInsets.fromLTRB(hPadding, 0, hPadding, 24),
+                  child: SizedBox(
+                    height: 560,
+                    child: tableCard,
+                  ),
+                ),
+              ],
             ),
-          ),
-        ],
+          );
+        },
       ),
     );
   }

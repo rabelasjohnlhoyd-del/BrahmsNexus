@@ -48,7 +48,7 @@ class _SystemSettingsScreenState extends State<SystemSettingsScreen> {
                 // ── 1. SYSTEM HELP & GUIDED TOURS ────────────────────────────
                 _buildSectionHeader('System Help & Guided Tours'),
                 GlassCard(
-                  padding: const EdgeInsets.all(20),
+                  padding: EdgeInsets.all(MediaQuery.of(context).size.width < 600 ? 14 : 20),
                   child: Column(
                     children: [
                       _buildActionRow(
@@ -68,7 +68,7 @@ class _SystemSettingsScreenState extends State<SystemSettingsScreen> {
                 // ── 2. LEGAL, COMPLIANCE & POLICIES ──────────────────────────
                 _buildSectionHeader('Legal, Compliance & Operational Policies'),
                 GlassCard(
-                  padding: const EdgeInsets.all(20),
+                  padding: EdgeInsets.all(MediaQuery.of(context).size.width < 600 ? 14 : 20),
                   child: Column(
                     children: [
                       _buildActionRow(
@@ -98,7 +98,7 @@ class _SystemSettingsScreenState extends State<SystemSettingsScreen> {
                 // ── 3. OPERATIONAL DIRECTORY & SUPPORT ───────────────────────
                 _buildSectionHeader('Operational Support & Store Directory'),
                 GlassCard(
-                  padding: const EdgeInsets.all(20),
+                  padding: EdgeInsets.all(MediaQuery.of(context).size.width < 600 ? 14 : 20),
                   child: Column(
                     children: [
                       _buildActionRow(
@@ -118,7 +118,7 @@ class _SystemSettingsScreenState extends State<SystemSettingsScreen> {
                 // ── 4. ABOUT BRAHMS NEXUS ────────────────────────────────────
                 _buildSectionHeader('About Brahms Nexus'),
                 GlassCard(
-                  padding: const EdgeInsets.all(20),
+                  padding: EdgeInsets.all(MediaQuery.of(context).size.width < 600 ? 14 : 20),
                   child: Column(
                     children: [
                       _buildActionRow(
@@ -165,6 +165,67 @@ class _SystemSettingsScreenState extends State<SystemSettingsScreen> {
     required IconData actionIcon,
     required VoidCallback onTap,
   }) {
+    final isMobile = MediaQuery.of(context).size.width < 600;
+
+    if (isMobile) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AdminWebColors.accent.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(icon, color: AdminWebColors.accent, size: 20),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14,
+                    color: AdminWebColors.textPrimary,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Padding(
+            padding: const EdgeInsets.only(left: 2),
+            child: Text(
+              description,
+              style: const TextStyle(
+                fontSize: 12.5,
+                color: AdminWebColors.textSecondary,
+                height: 1.45,
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Align(
+            alignment: Alignment.centerRight,
+            child: OutlinedButton.icon(
+              onPressed: onTap,
+              icon: Icon(actionIcon, size: 15),
+              label: Text(actionLabel),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AdminWebColors.accent,
+                side: const BorderSide(color: AdminWebColors.accent, width: 1.2),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+                textStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5),
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [

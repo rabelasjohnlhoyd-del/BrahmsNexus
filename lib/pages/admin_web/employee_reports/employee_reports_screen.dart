@@ -509,6 +509,7 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
     required int index,
     required String label,
     required IconData icon,
+    bool isMobile = false,
   }) {
     final isSelected = _selectedTab == index;
     return Material(
@@ -523,7 +524,7 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
         },
         borderRadius: BorderRadius.circular(10),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+          padding: EdgeInsets.symmetric(horizontal: isMobile ? 8 : 18, vertical: 10),
           decoration: BoxDecoration(
             color: isSelected ? AdminWebColors.accent : Colors.white,
             borderRadius: BorderRadius.circular(10),
@@ -532,20 +533,24 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
             ),
           ),
           child: Row(
-            mainAxisSize: MainAxisSize.min,
+            mainAxisSize: isMobile ? MainAxisSize.max : MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(
                 icon,
                 size: 16,
                 color: isSelected ? Colors.white : AdminWebColors.textSecondary,
               ),
-              const SizedBox(width: 8),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w800,
-                  color: isSelected ? Colors.white : AdminWebColors.textPrimary,
+              const SizedBox(width: 6),
+              Flexible(
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: isMobile ? 11 : 12,
+                    fontWeight: FontWeight.w800,
+                    color: isSelected ? Colors.white : AdminWebColors.textPrimary,
+                  ),
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
             ],
@@ -575,18 +580,21 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
             _countByStatus(ReportSubmissionStatus.submitted),
             AdminWebColors.success,
             Icons.check_circle_rounded,
+            isMobile: !isWide,
           ),
           _statusCard(
             'Incomplete',
             _countByStatus(ReportSubmissionStatus.incomplete),
             AdminWebColors.warning,
             Icons.error_rounded,
+            isMobile: !isWide,
           ),
           _statusCard(
             'Missing',
             _countByStatus(ReportSubmissionStatus.missing),
             AdminWebColors.error,
             Icons.cancel_rounded,
+            isMobile: !isWide,
           ),
         ];
 
@@ -596,18 +604,21 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
             _countVerifByStatus(InventoryVerificationStatus.confirmed),
             AdminWebColors.success,
             Icons.verified_rounded,
+            isMobile: !isWide,
           ),
           _statusCard(
             'Pending Input',
             _countVerifByStatus(InventoryVerificationStatus.pending),
             AdminWebColors.warning,
             Icons.schedule_rounded,
+            isMobile: !isWide,
           ),
           _statusCard(
             'Discrepancy',
             _countVerifByStatus(InventoryVerificationStatus.discrepancyReported),
             AdminWebColors.error,
             Icons.warning_amber_rounded,
+            isMobile: !isWide,
           ),
         ];
 
@@ -619,23 +630,51 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
             children: [
               const SizedBox(height: 8),
               // Top Sub-Tab Switcher
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: [
-                    _buildTabButton(
-                      index: 0,
-                      label: 'STAFF DAILY REPORTS',
-                      icon: Icons.fact_check_rounded,
+              LayoutBuilder(
+                builder: (context, tabConstraints) {
+                  final isNarrow = tabConstraints.maxWidth < 500;
+                  if (isNarrow) {
+                    return Row(
+                      children: [
+                        Expanded(
+                          child: _buildTabButton(
+                            index: 0,
+                            label: 'DAILY REPORTS',
+                            icon: Icons.fact_check_rounded,
+                            isMobile: true,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: _buildTabButton(
+                            index: 1,
+                            label: 'INVENTORY VERIF',
+                            icon: Icons.verified_rounded,
+                            isMobile: true,
+                          ),
+                        ),
+                      ],
+                    );
+                  }
+                  return SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        _buildTabButton(
+                          index: 0,
+                          label: 'STAFF DAILY REPORTS',
+                          icon: Icons.fact_check_rounded,
+                        ),
+                        const SizedBox(width: 10),
+                        _buildTabButton(
+                          index: 1,
+                          label: 'INVENTORY VERIFICATION',
+                          icon: Icons.verified_rounded,
+                        ),
+                      ],
                     ),
-                    const SizedBox(width: 10),
-                    _buildTabButton(
-                      index: 1,
-                      label: 'INVENTORY VERIFICATION',
-                      icon: Icons.verified_rounded,
-                    ),
-                  ],
-                ),
+                  );
+                },
               ),
               const SizedBox(height: 20),
 
@@ -727,19 +766,22 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
                         ),
                       );
 
+                      final isMobileScreen = barConstraints.maxWidth < 600;
+
                       final dateBtn = OutlinedButton.icon(
                         onPressed: _pickDate,
-                        icon: const Icon(Icons.calendar_today_rounded, size: 15),
+                        icon: Icon(Icons.calendar_today_rounded, size: isMobileScreen ? 13 : 15),
                         label: Text(
                           _dateFilter == null
-                              ? 'FILTER DATE'
-                              : '${_dateFilter!.month}/${_dateFilter!.day}/${_dateFilter!.year}',
-                          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                              ? (isMobileScreen ? 'DATE' : 'FILTER DATE')
+                              : '${_dateFilter!.month}/${_dateFilter!.day}${isMobileScreen ? '' : '/${_dateFilter!.year}'}',
+                          style: TextStyle(fontSize: isMobileScreen ? 10.5 : 11, fontWeight: FontWeight.bold),
+                          overflow: TextOverflow.ellipsis,
                         ),
                         style: OutlinedButton.styleFrom(
                           foregroundColor: AdminWebColors.accent,
                           side: const BorderSide(color: AdminWebColors.accent),
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                          padding: EdgeInsets.symmetric(horizontal: isMobileScreen ? 6 : 12, vertical: 11),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                         ),
                       );
@@ -755,6 +797,7 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
                             )
                           : const SizedBox.shrink();
 
+                      final resolvedCount = _reports.where((r) => r.ownerReply != null && r.ownerReply!.isNotEmpty).length;
                       final resolvedToggle = OutlinedButton.icon(
                         onPressed: () {
                           setState(() {
@@ -766,18 +809,19 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
                           _showResolvedReports
                               ? Icons.hourglass_top_rounded
                               : Icons.check_circle_outline_rounded,
-                          size: 15,
+                          size: isMobileScreen ? 13 : 15,
                         ),
                         label: Text(
                           _showResolvedReports
-                              ? 'SHOW PENDING'
-                              : 'SHOW RESOLVED (${_reports.where((r) => r.ownerReply != null && r.ownerReply!.isNotEmpty).length})',
-                          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                              ? 'PENDING'
+                              : (isMobileScreen ? 'RESOLVED ($resolvedCount)' : 'SHOW RESOLVED ($resolvedCount)'),
+                          style: TextStyle(fontSize: isMobileScreen ? 10.5 : 11, fontWeight: FontWeight.bold),
+                          overflow: TextOverflow.ellipsis,
                         ),
                         style: OutlinedButton.styleFrom(
                           foregroundColor: _showResolvedReports ? AdminWebColors.warning : AdminWebColors.accent,
                           side: BorderSide(color: _showResolvedReports ? AdminWebColors.warning : AdminWebColors.accent),
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                          padding: EdgeInsets.symmetric(horizontal: isMobileScreen ? 6 : 12, vertical: 11),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                         ),
                       );
@@ -789,16 +833,17 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
                         },
                         icon: Icon(
                           _newestFirst ? Icons.sort_rounded : Icons.history_rounded,
-                          size: 15,
+                          size: isMobileScreen ? 13 : 15,
                         ),
                         label: Text(
-                          _newestFirst ? 'NEWEST FIRST' : 'OLDEST FIRST',
-                          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                          _newestFirst ? (isMobileScreen ? 'NEWEST' : 'NEWEST FIRST') : (isMobileScreen ? 'OLDEST' : 'OLDEST FIRST'),
+                          style: TextStyle(fontSize: isMobileScreen ? 10.5 : 11, fontWeight: FontWeight.bold),
+                          overflow: TextOverflow.ellipsis,
                         ),
                         style: OutlinedButton.styleFrom(
                           foregroundColor: AdminWebColors.accent,
                           side: const BorderSide(color: AdminWebColors.accent),
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                          padding: EdgeInsets.symmetric(horizontal: isMobileScreen ? 6 : 12, vertical: 11),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                         ),
                       );
@@ -827,14 +872,17 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
                           const SizedBox(height: 10),
                           branchDropdown,
                           const SizedBox(height: 10),
-                          Wrap(
-                            spacing: 8,
-                            runSpacing: 8,
+                          Row(
                             children: [
-                              dateBtn,
-                              if (_dateFilter != null) dateClearBtn,
-                              resolvedToggle,
-                              sortBtn,
+                              Expanded(child: dateBtn),
+                              if (_dateFilter != null) ...[
+                                const SizedBox(width: 4),
+                                dateClearBtn,
+                              ],
+                              const SizedBox(width: 6),
+                              Expanded(child: resolvedToggle),
+                              const SizedBox(width: 6),
+                              Expanded(child: sortBtn),
                             ],
                           ),
                         ],
@@ -1926,9 +1974,50 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
     );
   }
 
-  Widget _statusCard(String label, int count, Color color, IconData icon) {
+  Widget _statusCard(String label, int count, Color color, IconData icon, {bool isMobile = false}) {
+    if (isMobile) {
+      return GlassCard(
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 10),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.15),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, color: color, size: 16),
+            ),
+            const SizedBox(height: 6),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                label,
+                maxLines: 1,
+                style: const TextStyle(
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w700,
+                  color: AdminWebColors.textSecondary,
+                ),
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              '$count',
+              style: TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.bold,
+                color: color,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
     return GlassCard(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -1949,15 +2038,17 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
                 Text(
                   label,
                   overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
                   style: const TextStyle(
-                    fontSize: 11.5,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
                     color: AdminWebColors.textSecondary,
                   ),
                 ),
                 Text(
                   '$count',
                   style: TextStyle(
-                    fontSize: 17,
+                    fontSize: 18,
                     fontWeight: FontWeight.bold,
                     color: color,
                   ),

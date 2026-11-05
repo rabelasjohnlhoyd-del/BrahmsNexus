@@ -60,7 +60,7 @@ class _ReportExportScreenState extends State<ReportExportScreen> {
     return Container(
       color: AdminWebColors.background,
       child: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
+        padding: EdgeInsets.all(MediaQuery.of(context).size.width < 600 ? 12 : 24),
         child: Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 600),
@@ -69,7 +69,7 @@ class _ReportExportScreenState extends State<ReportExportScreen> {
               children: [
                 const SizedBox(height: 20),
                 GlassCard(
-                padding: const EdgeInsets.all(24),
+                padding: EdgeInsets.all(MediaQuery.of(context).size.width < 600 ? 14 : 24),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [

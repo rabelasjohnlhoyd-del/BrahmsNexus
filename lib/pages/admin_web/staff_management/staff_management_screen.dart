@@ -631,32 +631,32 @@ class _StaffTile extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                Text(
+                  member.fullName,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14,
+                    color: !member.isActive
+                        ? AdminWebColors.textSecondary
+                        : AdminWebColors.textPrimary,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
+                ),
+                const SizedBox(height: 3),
                 Row(
                   children: [
-                    Expanded(
-                      child: Text(
-                        member.fullName,
-                        style: TextStyle(
-                          fontWeight: FontWeight.w700,
-                          fontSize: 15,
-                          color: !member.isActive
-                              ? AdminWebColors.textSecondary
-                              : AdminWebColors.textPrimary,
-                        ),
-                        overflow: TextOverflow.ellipsis,
+                    Text(
+                      '@${member.username}',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                        color: AdminWebColors.textSecondary,
                       ),
                     ),
+                    const SizedBox(width: 8),
                     _StatusChip(isActive: member.isActive),
                   ],
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  '@${member.username}',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                    color: AdminWebColors.textSecondary,
-                  ),
                 ),
                 if (!member.isActive) ...[
                   const SizedBox(height: 8),
@@ -675,44 +675,64 @@ class _StaffTile extends StatelessWidget {
                         Icon(Icons.lock_clock_outlined,
                             size: 14, color: AdminWebColors.error),
                         SizedBox(width: 6),
-                        Text(
-                          'ACCOUNT TEMPORARILY FROZEN / DEACTIVATED (DETAILS HIDDEN)',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w800,
-                            color: AdminWebColors.error,
-                            letterSpacing: 0.3,
+                        Flexible(
+                          child: Text(
+                            'ACCOUNT TEMPORARILY FROZEN / DEACTIVATED (DETAILS HIDDEN)',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              color: AdminWebColors.error,
+                              letterSpacing: 0.3,
+                            ),
                           ),
                         ),
                       ],
                     ),
                   ),
                 ] else ...[
-                  const SizedBox(height: 10),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 6,
+                  const SizedBox(height: 8),
+                  // Row 1: Branch + Position
+                  Row(
                     children: [
-                      _InfoPill(
-                        icon: Icons.store_mall_directory_outlined,
-                        label: member.branch,
-                      ),
-                      _InfoPill(
-                        icon: Icons.work_outline,
-                        label: member.position,
-                      ),
-                      if (member.age.isNotEmpty)
-                        _InfoPill(
-                          icon: Icons.badge_outlined,
-                          label: '${member.age} YRS',
+                      Expanded(
+                        child: _InfoPill(
+                          icon: Icons.store_mall_directory_outlined,
+                          label: member.branch,
                         ),
-                      if (member.address.isNotEmpty)
-                        _InfoPill(
-                          icon: Icons.location_on_outlined,
-                          label: member.address,
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: _InfoPill(
+                          icon: Icons.work_outline,
+                          label: member.position,
                         ),
+                      ),
                     ],
                   ),
+                  if (member.age.isNotEmpty || member.address.isNotEmpty) ...[
+                    const SizedBox(height: 6),
+                    // Row 2: Age + Address
+                    Row(
+                      children: [
+                        if (member.age.isNotEmpty)
+                          Expanded(
+                            child: _InfoPill(
+                              icon: Icons.badge_outlined,
+                              label: '${member.age} YRS',
+                            ),
+                          ),
+                        if (member.age.isNotEmpty && member.address.isNotEmpty)
+                          const SizedBox(width: 6),
+                        if (member.address.isNotEmpty)
+                          Expanded(
+                            child: _InfoPill(
+                              icon: Icons.location_on_outlined,
+                              label: member.address,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ],
                 ],
               ],
             ),

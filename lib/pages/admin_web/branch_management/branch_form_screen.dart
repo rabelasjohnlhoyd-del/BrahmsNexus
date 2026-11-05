@@ -125,9 +125,10 @@ class _BranchFormScreenState extends State<BranchFormScreen> {
         ? PhilippineAddressData.getBarangays(_selectedCity!)
         : <String>[];
 
-    return Container(
-      color: AdminWebColors.background,
-      child: SingleChildScrollView(
+    return Scaffold(
+      backgroundColor: AdminWebColors.background,
+      body: SafeArea(
+        child: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Center(
           child: ConstrainedBox(
@@ -355,6 +356,7 @@ class _BranchFormScreenState extends State<BranchFormScreen> {
           ),
         ),
       ),
-    );
+    ),
+  );
   }
 }

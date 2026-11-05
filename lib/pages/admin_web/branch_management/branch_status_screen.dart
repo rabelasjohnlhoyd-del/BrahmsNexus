@@ -321,13 +321,13 @@ class _BranchStatusScreenState extends State<BranchStatusScreen> {
                       mainAxisSpacing: 16,
                     ),
                     itemCount: _branches.length,
-                    itemBuilder: (ctx, i) => _buildBranchCard(_branches[i], i + 1),
+                    itemBuilder: (ctx, i) => _buildBranchCard(_branches[i], i + 1, isWide: true),
                   );
                 }
                 return ListView.separated(
                   itemCount: _branches.length,
                   separatorBuilder: (_, _) => const SizedBox(height: 14),
-                  itemBuilder: (ctx, i) => _buildBranchCard(_branches[i], i + 1),
+                  itemBuilder: (ctx, i) => _buildBranchCard(_branches[i], i + 1, isWide: false),
                 );
               },
             ),
@@ -339,15 +339,16 @@ class _BranchStatusScreenState extends State<BranchStatusScreen> {
 
   Widget _buildSummaryBar(int openCount, int closedCount) {
     return GlassCard(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-      child: Row(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+      child: Wrap(
+        spacing: 12,
+        runSpacing: 8,
         children: [
           _summaryPill(
             label: '$openCount BRANCHES OPEN',
             color: AdminWebColors.success,
             icon: Icons.lock_open_rounded,
           ),
-          const SizedBox(width: 16),
           _summaryPill(
             label: '$closedCount BRANCHES CLOSED',
             color: AdminWebColors.error,
@@ -387,7 +388,7 @@ class _BranchStatusScreenState extends State<BranchStatusScreen> {
     );
   }
 
-  Widget _buildBranchCard(Branch branch, int stopNumber) {
+  Widget _buildBranchCard(Branch branch, int stopNumber, {bool isWide = true}) {
     final status = _getStatusForBranch(branch);
     final isOpen = status?.isOpen ?? false;
     final isClosed = status?.isClosed ?? false;
@@ -424,12 +425,139 @@ class _BranchStatusScreenState extends State<BranchStatusScreen> {
       lastUpdatedText = 'Last update: $h:$m';
     }
 
+    final cardInner = Padding(
+      padding: const EdgeInsets.fromLTRB(18, 14, 18, 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: isWide ? MainAxisSize.max : MainAxisSize.min,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'STOP $stopNumber · ROUTE SEQUENCE ${branch.dailyRouteSequence}',
+                      style: const TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                        color: AdminWebColors.accent,
+                        letterSpacing: 0.8,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      branch.name,
+                      style: const TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w900,
+                        color: AdminWebColors.textPrimary,
+                      ),
+                    ),
+                    Text(
+                      branch.municipality.isNotEmpty
+                          ? 'Brgy. ${branch.municipality}'
+                          : branch.fullName,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AdminWebColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: statusColor.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: statusColor.withValues(alpha: 0.35)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(statusIcon, size: 13, color: statusColor),
+                    const SizedBox(width: 4),
+                    Text(
+                      statusText,
+                      style: TextStyle(
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w900,
+                        color: statusColor,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          if (isWide) const Spacer() else const SizedBox(height: 14),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              if ((status?.cookName ?? '').isNotEmpty)
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(Icons.person_rounded,
+                              size: 13, color: AdminWebColors.textSecondary),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              'Cook: ${status!.cookName}',
+                              style: const TextStyle(
+                                fontSize: 11.5,
+                                color: AdminWebColors.textSecondary,
+                                fontWeight: FontWeight.w600,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (isOpen && (status.timeIn ?? '').isNotEmpty) ...[
+                        const SizedBox(height: 2),
+                        Row(
+                          children: [
+                            const Icon(Icons.nfc_rounded, size: 11, color: AdminWebColors.success),
+                            const SizedBox(width: 4),
+                            Text(
+                              'RFID In: ${status.timeIn}',
+                              style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, color: AdminWebColors.success),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              if (lastUpdatedText.isNotEmpty)
+                Text(
+                  lastUpdatedText,
+                  style: const TextStyle(
+                    fontSize: 10.5,
+                    color: AdminWebColors.textSecondary,
+                  ),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+
     return InkWell(
       onTap: () => _showBranchDetailDialog(branch, status),
       borderRadius: BorderRadius.circular(16),
       child: GlassCard(
         padding: EdgeInsets.zero,
         child: Column(
+          mainAxisSize: isWide ? MainAxisSize.max : MainAxisSize.min,
           children: [
             // Colored status bar at top
             Container(
@@ -439,132 +567,7 @@ class _BranchStatusScreenState extends State<BranchStatusScreen> {
                 borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
               ),
             ),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(18, 14, 18, 14),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'STOP $stopNumber · ROUTE SEQUENCE ${branch.dailyRouteSequence}',
-                                style: const TextStyle(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w800,
-                                  color: AdminWebColors.accent,
-                                  letterSpacing: 0.8,
-                                ),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                branch.name,
-                                style: const TextStyle(
-                                  fontSize: 17,
-                                  fontWeight: FontWeight.w900,
-                                  color: AdminWebColors.textPrimary,
-                                ),
-                              ),
-                              Text(
-                                branch.municipality.isNotEmpty
-                                    ? 'Brgy. ${branch.municipality}'
-                                    : branch.fullName,
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  color: AdminWebColors.textSecondary,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                          decoration: BoxDecoration(
-                            color: statusColor.withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: statusColor.withValues(alpha: 0.35)),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(statusIcon, size: 13, color: statusColor),
-                              const SizedBox(width: 4),
-                              Text(
-                                statusText,
-                                style: TextStyle(
-                                  fontSize: 10.5,
-                                  fontWeight: FontWeight.w900,
-                                  color: statusColor,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                    const Spacer(),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        if ((status?.cookName ?? '').isNotEmpty)
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Row(
-                                  children: [
-                                    const Icon(Icons.person_rounded,
-                                        size: 13, color: AdminWebColors.textSecondary),
-                                    const SizedBox(width: 4),
-                                    Expanded(
-                                      child: Text(
-                                        'Cook: ${status!.cookName}',
-                                        style: const TextStyle(
-                                          fontSize: 11.5,
-                                          color: AdminWebColors.textSecondary,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                if (isOpen && (status.timeIn ?? '').isNotEmpty) ...[
-                                  const SizedBox(height: 2),
-                                  Row(
-                                    children: [
-                                      const Icon(Icons.nfc_rounded, size: 11, color: AdminWebColors.success),
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        'RFID In: ${status.timeIn}',
-                                        style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, color: AdminWebColors.success),
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ],
-                            ),
-                          ),
-                        if (lastUpdatedText.isNotEmpty)
-                          Text(
-                            lastUpdatedText,
-                            style: const TextStyle(
-                              fontSize: 10.5,
-                              color: AdminWebColors.textSecondary,
-                            ),
-                          ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
+            if (isWide) Expanded(child: cardInner) else cardInner,
           ],
         ),
       ),

@@ -326,10 +326,14 @@ Future<void> _handleSave() async {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      color: AdminWebColors.background,
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
+    final isMobile = MediaQuery.of(context).size.width < 600;
+    return Theme(
+      data: AdminWebTheme.themeData,
+      child: Scaffold(
+        backgroundColor: AdminWebColors.background,
+        body: SafeArea(
+        child: SingleChildScrollView(
+        padding: EdgeInsets.symmetric(horizontal: MediaQuery.of(context).size.width < 600 ? 12 : 24, vertical: 16),
         child: Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 800),
@@ -361,7 +365,7 @@ Future<void> _handleSave() async {
                   const SizedBox(height: 12),
                   
                   GlassCard(
-                    padding: const EdgeInsets.all(24),
+                    padding: EdgeInsets.all(MediaQuery.of(context).size.width < 600 ? 14 : 24),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -392,7 +396,7 @@ Future<void> _handleSave() async {
                                 validator: (v) => _validateRequired(v, 'First name'),
                               ),
                             ),
-                            const SizedBox(width: 16),
+                            SizedBox(width: isMobile ? 8 : 16),
                             Expanded(
                               flex: 1,
                               child: TextFormField(
@@ -405,7 +409,7 @@ Future<void> _handleSave() async {
                                 ),
                               ),
                             ),
-                            const SizedBox(width: 16),
+                            SizedBox(width: isMobile ? 8 : 16),
                             Expanded(
                               flex: 2,
                               child: TextFormField(
@@ -458,14 +462,14 @@ Future<void> _handleSave() async {
                                 validator: _validateEmail,
                               ),
                             ),
-                            const SizedBox(width: 16),
+                            SizedBox(width: isMobile ? 8 : 16),
                             Expanded(
                               child: TextFormField(
                                 controller: _phoneController,
                                 keyboardType: TextInputType.phone,
                                 textInputAction: TextInputAction.next,
-                                decoration: const InputDecoration(
-                                  labelText: 'PHONE NUMBER *',
+                                decoration: InputDecoration(
+                                  labelText: isMobile ? 'PHONE *' : 'PHONE NUMBER *',
                                   isDense: true,
                                   prefixIcon: Icon(Icons.phone_outlined, size: 20),
                                 ),
@@ -496,7 +500,7 @@ Future<void> _handleSave() async {
                                 ),
                               ),
                             ),
-                            const SizedBox(width: 16),
+                            SizedBox(width: isMobile ? 8 : 16),
                             Expanded(
                               flex: 1,
                               child: TextFormField(
@@ -536,7 +540,7 @@ Future<void> _handleSave() async {
                   
                   const SizedBox(height: 24),
                   GlassCard(
-                    padding: const EdgeInsets.all(24),
+                    padding: EdgeInsets.all(MediaQuery.of(context).size.width < 600 ? 14 : 24),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -555,6 +559,7 @@ Future<void> _handleSave() async {
                           children: [
                             Expanded(
                               child: DropdownButtonFormField<String>(
+                                isExpanded: true,
                                 initialValue: _selectedBranch,
                                 decoration: const InputDecoration(
                                   labelText: 'BRANCH',
@@ -577,9 +582,10 @@ Future<void> _handleSave() async {
                                 validator: _validateBranch,
                               ),
                             ),
-                            const SizedBox(width: 16),
+                            SizedBox(width: isMobile ? 8 : 16),
                             Expanded(
                               child: DropdownButtonFormField<String>(
+                                isExpanded: true,
                                 initialValue: _selectedPosition,
                                 decoration: const InputDecoration(
                                   labelText: 'POSITION',
@@ -620,11 +626,6 @@ Future<void> _handleSave() async {
                           onChanged: (value) => setState(() => _isActive = value),
                           activeThumbColor: AdminWebColors.accent,
                           activeTrackColor: AdminWebColors.accent.withValues(alpha: 0.3),
-                          thumbColor: WidgetStateProperty.resolveWith<Color?>(
-                            (states) => states.contains(WidgetState.selected)
-                                ? Colors.white
-                                : null,
-                          ),
                           title: const Text(
                             'ACTIVE ACCOUNT',
                             style: TextStyle(
@@ -644,7 +645,7 @@ Future<void> _handleSave() async {
                   ),
                   const SizedBox(height: 24),
                   GlassCard(
-                    padding: const EdgeInsets.all(24),
+                    padding: EdgeInsets.all(MediaQuery.of(context).size.width < 600 ? 14 : 24),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -682,28 +683,26 @@ Future<void> _handleSave() async {
                           ],
                         ),
                         const SizedBox(height: 18),
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            Expanded(
-                              child: TextFormField(
-                                controller: _rfidController,
-                                textCapitalization: TextCapitalization.characters,
-                                decoration: InputDecoration(
-                                  labelText: 'CARD UID (HEX / SERIAL)',
-                                  hintText: 'e.g. 9A:F3:1B:7C or scan with reader',
-                                  isDense: true,
-                                  prefixIcon: const Icon(Icons.credit_card_outlined, size: 20),
-                                  suffixIcon: _rfidController.text.isNotEmpty
-                                      ? IconButton(
-                                          icon: const Icon(Icons.clear, size: 18),
-                                          onPressed: _confirmClearRfid,
-                                        )
-                                      : null,
-                                ),
+                            TextFormField(
+                              controller: _rfidController,
+                              textCapitalization: TextCapitalization.characters,
+                              decoration: InputDecoration(
+                                labelText: 'CARD UID (HEX / SERIAL)',
+                                hintText: 'e.g. 9A:F3:1B:7C or scan with reader',
+                                isDense: true,
+                                prefixIcon: const Icon(Icons.credit_card_outlined, size: 20),
+                                suffixIcon: _rfidController.text.isNotEmpty
+                                    ? IconButton(
+                                        icon: const Icon(Icons.clear, size: 18),
+                                        onPressed: _confirmClearRfid,
+                                      )
+                                    : null,
                               ),
                             ),
-                            const SizedBox(width: 12),
+                            const SizedBox(height: 10),
                             ElevatedButton.icon(
                               onPressed: _isScanningRfid ? null : _startRfidScan,
                               icon: Icon(_isScanningRfid ? Icons.sensors_rounded : Icons.tap_and_play_rounded, size: 18),
@@ -762,6 +761,8 @@ Future<void> _handleSave() async {
           ),
         ),
       ),
+    ),
+    ),
     );
   }
 }
