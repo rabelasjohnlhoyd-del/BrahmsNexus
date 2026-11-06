@@ -751,47 +751,39 @@ class _DriverHomepageScreenState extends State<DriverHomepageScreen> {
                                       ],
                                     ),
                                   ),
-                                  const SizedBox(width: 8),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                    decoration: BoxDecoration(
-                                      color: isClosed
-                                          ? const Color(0xFFDC2626).withValues(alpha: 0.1)
-                                          : AppColors.success.withValues(alpha: 0.1),
-                                      borderRadius: BorderRadius.circular(8),
-                                      border: Border.all(
-                                        color: isClosed
-                                            ? const Color(0xFFDC2626).withValues(alpha: 0.3)
-                                            : AppColors.success.withValues(alpha: 0.3),
+                                  if (isClosed) ...[
+                                    const SizedBox(width: 8),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFDC2626).withValues(alpha: 0.1),
+                                        borderRadius: BorderRadius.circular(8),
+                                        border: Border.all(
+                                          color: const Color(0xFFDC2626).withValues(alpha: 0.3),
+                                        ),
+                                      ),
+                                      child: const Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(
+                                            CupertinoIcons.lock_fill,
+                                            size: 10,
+                                            color: Color(0xFFDC2626),
+                                          ),
+                                          SizedBox(width: 4),
+                                          Text(
+                                            'CLOSED',
+                                            style: TextStyle(
+                                              fontSize: 10.5,
+                                              fontWeight: FontWeight.w800,
+                                              color: Color(0xFFDC2626),
+                                              letterSpacing: 0.4,
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                     ),
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Icon(
-                                          isClosed
-                                              ? CupertinoIcons.lock_fill
-                                              : CupertinoIcons.checkmark_alt_circle_fill,
-                                          size: 10,
-                                          color: isClosed
-                                              ? const Color(0xFFDC2626)
-                                              : AppColors.success,
-                                        ),
-                                        const SizedBox(width: 4),
-                                        Text(
-                                          isClosed ? 'CLOSED' : 'OPEN',
-                                          style: TextStyle(
-                                            fontSize: 10.5,
-                                            fontWeight: FontWeight.w800,
-                                            color: isClosed
-                                                ? const Color(0xFFDC2626)
-                                                : AppColors.success,
-                                            letterSpacing: 0.4,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
+                                  ],
                                 ],
                               ),
                             ),

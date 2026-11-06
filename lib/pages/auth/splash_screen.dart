@@ -119,7 +119,40 @@ class _SplashScreenState extends State<SplashScreen>
       debugPrint('Supabase init error: $e');
     }
 
-    final splashDuration = Duration(milliseconds: kIsWeb ? 2000 : 2800);
+    // Fast-track for remembered web admin on page refresh without artificial waiting delay
+    if (kIsWeb) {
+      try {
+        final savedUser = await AuthService.tryAutoLoginWithRememberMe();
+        if (savedUser != null && savedUser.role == UserRole.owner && mounted) {
+          Navigator.of(context).pushReplacement(
+            PageRouteBuilder(
+              pageBuilder: (context, animation, secondaryAnimation) =>
+                  RoleRouter.resolveDestination(
+                role: savedUser.role,
+                status: savedUser.status,
+                position: savedUser.position,
+                user: savedUser,
+              ),
+              transitionsBuilder: (context, animation, secondaryAnimation, child) {
+                return FadeTransition(
+                  opacity: CurvedAnimation(
+                    parent: animation,
+                    curve: Curves.easeInOutCubic,
+                  ),
+                  child: child,
+                );
+              },
+              transitionDuration: const Duration(milliseconds: 300),
+            ),
+          );
+          return;
+        }
+      } catch (e) {
+        debugPrint('Fast-track auto login error: $e');
+      }
+    }
+
+    const splashDuration = Duration(milliseconds: 2800);
     await Future.delayed(splashDuration);
     _checkSessionAndNavigate();
   }

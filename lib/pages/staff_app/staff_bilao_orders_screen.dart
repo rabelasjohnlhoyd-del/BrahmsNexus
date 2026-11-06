@@ -12,6 +12,7 @@ import '../../services/auth_service.dart';
 import '../../services/firestore_service.dart';
 import '../../services/gemini_service.dart';
 import '../../services/input_validators.dart';
+import '../../services/notification_service.dart';
 import '../../services/supabase_service.dart';
 import '../../services/tutorial_service.dart';
 import '../../theme/app_theme.dart';
@@ -1434,6 +1435,16 @@ class _AddBilaoOrderSheetState extends State<_AddBilaoOrderSheet> {
 
       // 2. Also record in Firestore for real-time cook & driver notifications
       await FirestoreService.createBilaoOrder(order);
+
+      // 3. Explicitly notify owner with current cook full name
+      NotificationService.notifyOwnerOfNewBilaoOrder(
+        branchName: widget.branchName,
+        customerName: _nameCtrl.text.trim(),
+        sizeLabel: _size.label,
+        quantity: _quantity,
+        totalAmount: order.totalAmount,
+        cookName: AuthService.currentUser?.fullName ?? AuthService.currentUsername,
+      ).catchError((_) {});
 
       if (mounted) Navigator.pop(context);
     } catch (e) {

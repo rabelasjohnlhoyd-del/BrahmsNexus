@@ -218,6 +218,19 @@ class FirestoreService {
         debugPrint('notifyDriverOfPendingBilao failed: $e');
       });
 
+      // If branch order, also notify owner immediately
+      if (order.hasCookCommission) {
+        NotificationService.notifyOwnerOfNewBilaoOrder(
+          branchName: order.pickupBranchName ?? 'Branch',
+          customerName: order.customerName,
+          sizeLabel: order.size.label,
+          quantity: order.quantity,
+          totalAmount: order.totalAmount,
+        ).catchError((e) {
+          debugPrint('notifyOwnerOfNewBilaoOrder failed: $e');
+        });
+      }
+
       return docRef.id;
     } catch (e) {
       debugPrint('FirestoreService.createBilaoOrder error: $e');

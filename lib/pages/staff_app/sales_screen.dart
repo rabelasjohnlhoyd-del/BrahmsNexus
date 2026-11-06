@@ -5,6 +5,7 @@ import 'package:flutter/material.dart' show Colors, Material, InkWell, LinearPro
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../models/bilao_order.dart';
 import '../../models/branch.dart';
 import '../../models/branch_daily_inventory.dart';
 import '../../models/branch_meat_inventory.dart';
@@ -68,6 +69,33 @@ class SalesScreenState extends State<SalesScreen> {
   StreamSubscription<BranchDailyInventory?>? _inventorySub;
   StreamSubscription<List<BranchMeatStock>>? _meatStocksSub;
   StreamSubscription<SalesRecord?>? _todaySalesSub;
+  StreamSubscription<List<BilaoOrder>>? _bilaoOrdersSub;
+  List<BilaoOrder> _todayBranchBilaoOrders = [];
+
+  int get _smallBilaoCount => _todayBranchBilaoOrders
+      .where((o) => o.size == BilaoSize.small)
+      .fold(0, (sum, o) => sum + o.quantity);
+
+  int get _mediumBilaoCount => _todayBranchBilaoOrders
+      .where((o) => o.size == BilaoSize.medium)
+      .fold(0, (sum, o) => sum + o.quantity);
+
+  int get _largeBilaoCount => _todayBranchBilaoOrders
+      .where((o) => o.size == BilaoSize.large)
+      .fold(0, (sum, o) => sum + o.quantity);
+
+  int get _totalBilaoOrdersCount =>
+      _smallBilaoCount + _mediumBilaoCount + _largeBilaoCount;
+
+  double get _totalBilaoCommission =>
+      (_smallBilaoCount * BilaoSize.small.commission) +
+      (_mediumBilaoCount * BilaoSize.medium.commission) +
+      (_largeBilaoCount * BilaoSize.large.commission);
+
+  double get _effectiveBilaoCommission {
+    if (_totalBilaoOrdersCount > 0) return _totalBilaoCommission;
+    return _todaySalesRecord?.bilaoCommission ?? 0.0;
+  }
 
   // Shift Tally Counters
   int _countRegSisig = 0;
@@ -293,8 +321,8 @@ class SalesScreenState extends State<SalesScreen> {
 
     // Fast one-shot fetch so verification status is instantly active without delay
     FirestoreService.getTodayBranchInventory(
-      branchId: matchedBranch.id,
-      branchName: matchedBranch.fullName,
+      branchId: _currentBranchId,
+      branchName: _currentBranchName,
       date: DateTime.now(),
     ).then((inv) {
       if (mounted && inv != null) {
@@ -306,8 +334,8 @@ class SalesScreenState extends State<SalesScreen> {
 
     _inventorySub?.cancel();
     _inventorySub = FirestoreService.watchTodayBranchInventory(
-      branchId: matchedBranch.id,
-      branchName: matchedBranch.fullName,
+      branchId: _currentBranchId,
+      branchName: _currentBranchName,
       date: DateTime.now(),
     ).listen((inv) {
       if (mounted) {
@@ -336,7 +364,7 @@ class SalesScreenState extends State<SalesScreen> {
 
     _todaySalesSub?.cancel();
     _todaySalesSub = FirestoreService.watchTodayBranchSales(
-      branchId: matchedBranch.id,
+      branchId: _currentBranchId,
       date: DateTime.now(),
     ).listen((sales) {
       if (mounted) {
@@ -357,8 +385,32 @@ class SalesScreenState extends State<SalesScreen> {
         });
       }
     });
-  }
 
+    _bilaoOrdersSub?.cancel();
+    _bilaoOrdersSub = FirestoreService.watchBranchBilaoOrders(
+      branchId: _currentBranchId,
+      branchName: _currentBranchName,
+    ).listen((orders) {
+      if (mounted) {
+        final now = DateTime.now();
+        final todayBranchOrders = orders.where((o) {
+          if (!o.hasCookCommission) return false;
+          final isTodayScheduled = o.scheduledDateTime.year == now.year &&
+              o.scheduledDateTime.month == now.month &&
+              o.scheduledDateTime.day == now.day;
+          final isTodayCreated = o.createdAt != null &&
+              o.createdAt!.year == now.year &&
+              o.createdAt!.month == now.month &&
+              o.createdAt!.day == now.day;
+          return isTodayScheduled || isTodayCreated;
+        }).toList();
+
+        setState(() {
+          _todayBranchBilaoOrders = todayBranchOrders;
+        });
+      }
+    });
+  }
   void _syncControllersWithStock(BranchMeatStock stock) {
     if (_submitted) return;
     _karneController.text = stock.regular250gRemaining.toString();
@@ -988,16 +1040,22 @@ class SalesScreenState extends State<SalesScreen> {
 
     final computation = _computation;
 
+    final bilaoComm = _effectiveBilaoCommission;
+    final totalStaffTakeHome = computation.salary + bilaoComm.toInt();
+    final finalCashRemit = (computation.totalRevenue - totalStaffTakeHome).clamp(0, 999999);
+
     final confirmed = await showCupertinoDialog<bool>(
       context: context,
       builder: (dialogContext) => CupertinoAlertDialog(
         title: const Text('Submit Closing Sales?'),
         content: Text(
-          'Total Orders Punched: ${computation.totalOrders} · '
-          'Gross Revenue: \u20b1${computation.totalRevenue} · '
-          'Wage & Commission: \u20b1${computation.salary} · '
-          'Cash Remittance: \u20b1${computation.cashRemit}. This '
-          "cannot be edited once submitted.",
+          'Total Orders Punched: ${computation.totalOrders} • '
+          'Gross Revenue: ₱${computation.totalRevenue} • '
+          'Meat Wage: ₱${computation.salary}'
+          '${bilaoComm > 0 ? ' • Bilao Comm: +₱${bilaoComm.toStringAsFixed(0)}' : ''} • '
+          'Total Take-Home: ₱$totalStaffTakeHome • '
+          'Cash Remittance: ₱$finalCashRemit. This '
+          'cannot be edited once submitted.',
         ),
         actions: [
           CupertinoDialogAction(
@@ -1024,6 +1082,9 @@ class SalesScreenState extends State<SalesScreen> {
 
     try {
       final computation = _computation;
+      final bilaoComm = _effectiveBilaoCommission;
+      final totalStaffTakeHome = computation.salary + bilaoComm.toInt();
+      final finalCashRemit = (computation.totalRevenue - totalStaffTakeHome).clamp(0, 999999);
       final record = SalesRecord(
         id: '',
         branchId: _currentBranchId,
@@ -1036,6 +1097,7 @@ class SalesScreenState extends State<SalesScreen> {
         commissionRatePerPortion: 5.0,
         totalSalesAmount: computation.totalRevenue.toDouble(),
         wage: computation.salary.toDouble(),
+        bilaoCommission: bilaoComm,
         regularSold: computation.regularSold,
         mediumSold: computation.mediumSold,
         b1t1OrdersSold: computation.b1t1OrdersSold,
@@ -1079,8 +1141,10 @@ class SalesScreenState extends State<SalesScreen> {
           title: const Text('Sales Submitted'),
           content: Text(
             'Sales report submitted successfully!\n'
-            'Earned Salary & Commission: ₱${computation.salary}\n'
-            'Expected Cash Remittance: ₱${computation.cashRemit}',
+            'Meat Portion Wage: ₱${computation.salary}\n'
+            '${bilaoComm > 0 ? 'Bilao Orders Commission: +₱${bilaoComm.toStringAsFixed(0)}\n' : ''}'
+            'Total Take-Home Pay: ₱$totalStaffTakeHome\n'
+            'Expected Cash Remittance: ₱$finalCashRemit',
           ),
           actions: [
             CupertinoDialogAction(
@@ -1481,16 +1545,135 @@ class SalesScreenState extends State<SalesScreen> {
                     isSubtotal: true,
                   ),
                   const SizedBox(height: 12),
+                  // Staff Meat Portion Wage
                   _computedRow(
-                    'Less Staff Wage & Commission',
+                    'Less Meat Portion Wage',
                     '- ₱${computation.salary.toStringAsFixed(0)}',
                     subtitle: '₱${computation.salary} wage for ${computation.totalKarneUsed} meat portions',
                     isNegative: true,
                   ),
+                  // Bilao Orders Breakdown & Commission (if any)
+                  if (_totalBilaoOrdersCount > 0) ...[
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: AppColors.accent.withValues(alpha: 0.05),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: AppColors.accent.withValues(alpha: 0.2),
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              const Icon(CupertinoIcons.bag_fill, size: 13, color: AppColors.accent),
+                              const SizedBox(width: 6),
+                              const Text(
+                                'BRANCH BILAO ORDERS TODAY',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 0.4,
+                                  color: AppColors.accent,
+                                ),
+                              ),
+                              const Spacer(),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: AppColors.success.withValues(alpha: 0.15),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Text(
+                                  '+₱${_totalBilaoCommission.toStringAsFixed(0)} COMM',
+                                  style: const TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w800,
+                                    color: AppColors.success,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          if (_smallBilaoCount > 0)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 2),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    '• Small Bilao (10 Pax) × $_smallBilaoCount',
+                                    style: const TextStyle(fontSize: 12, color: AppColors.textPrimary),
+                                  ),
+                                  Text(
+                                    '+ ₱${(_smallBilaoCount * 62).toStringAsFixed(0)} (₱62/pc)',
+                                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.success),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          if (_mediumBilaoCount > 0)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 2),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    '• Medium Bilao (15 Pax) × $_mediumBilaoCount',
+                                    style: const TextStyle(fontSize: 12, color: AppColors.textPrimary),
+                                  ),
+                                  Text(
+                                    '+ ₱${(_mediumBilaoCount * 87).toStringAsFixed(0)} (₱87/pc)',
+                                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.success),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          if (_largeBilaoCount > 0)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 2),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    '• Large Bilao (20 Pax) × $_largeBilaoCount',
+                                    style: const TextStyle(fontSize: 12, color: AppColors.textPrimary),
+                                  ),
+                                  Text(
+                                    '+ ₱${(_largeBilaoCount * 125).toStringAsFixed(0)} (₱125/pc)',
+                                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.success),
+                                  ),
+                                ],
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    _computedRow(
+                      'Less Bilao Commission',
+                      '- ₱${_totalBilaoCommission.toStringAsFixed(0)}',
+                      subtitle: '$_totalBilaoOrdersCount bilao order${_totalBilaoOrdersCount > 1 ? 's' : ''} cook commission',
+                      isNegative: true,
+                    ),
+                  ],
+                  const SizedBox(height: 6),
+                  _computedRow(
+                    'TOTAL COOK TAKE-HOME PAY',
+                    '₱${(computation.salary + _effectiveBilaoCommission).toStringAsFixed(0)}',
+                    subtitle: _effectiveBilaoCommission > 0
+                        ? '₱${computation.salary} meat wage + ₱${_effectiveBilaoCommission.toStringAsFixed(0)} bilao commission'
+                        : '₱${computation.salary} meat portion wage',
+                    isSubtotal: true,
+                  ),
                   const _CupertinoDivider(),
                   _computedRow(
                     'TOTAL CASH REMITTANCE',
-                    '₱${computation.cashRemit.toStringAsFixed(0)}',
+                    '₱${((computation.totalRevenue - (computation.salary + _effectiveBilaoCommission)).clamp(0, 999999)).toStringAsFixed(0)}',
                     isTotal: true,
                   ),
                 ],

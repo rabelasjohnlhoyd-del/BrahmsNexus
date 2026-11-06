@@ -1,6 +1,7 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'admin_web_colors.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../services/attendance_service.dart';
 import '../../services/auth_service.dart';
 import '../../services/notification_service.dart';
@@ -69,14 +70,35 @@ class SmoothWebScrollBehavior extends MaterialScrollBehavior {
 /// the old indigo [AdminTheme] (deprecated, no longer used here) or
 /// the mobile Driver/Staff [AppColors] palette.
 class AdminWebShell extends StatefulWidget {
-  const AdminWebShell({super.key});
+  const AdminWebShell({super.key, this.initialIndex});
+
+  final int? initialIndex;
 
   @override
   State<AdminWebShell> createState() => AdminWebShellState();
 }
 
 class AdminWebShellState extends State<AdminWebShell> {
-  int _selectedIndex = 0;
+  static const List<String> _tabRoutes = [
+    'dashboard',
+    'analytics',
+    'financials',
+    'bilao-orders',
+    'inventory',
+    'sales-payroll',
+    'branch-management',
+    'branch-assignments',
+    'branch-allocation',
+    'staff-management',
+    'account-approvals',
+    'attendance-dtr',
+    'employee-reports',
+    'announcements',
+    'activity-log',
+    'system-settings',
+  ];
+
+  late int _selectedIndex;
   String? _customTitle;
   List<Widget> _currentActions = [];
   bool _isSidebarCollapsed = false;
@@ -106,9 +128,43 @@ class AdminWebShellState extends State<AdminWebShell> {
   @override
   void initState() {
     super.initState();
+    _selectedIndex = widget.initialIndex ?? _resolveInitialTab();
+    _activatedIndices.add(_selectedIndex);
     AttendanceService.ensureAttendanceSync();
-    // Disabled automatic pop-up of tutorial on launch.
-    // The tour can still be accessed on-demand via System Settings.
+    _restoreSavedTab();
+  }
+
+  int _resolveInitialTab() {
+    try {
+      final fragment = Uri.base.fragment.toLowerCase().replaceAll('/', '').trim();
+      if (fragment.isNotEmpty) {
+        final idx = _tabRoutes.indexOf(fragment);
+        if (idx != -1) return idx;
+      }
+    } catch (_) {}
+    return 0;
+  }
+
+  Future<void> _restoreSavedTab() async {
+    try {
+      final fragment = Uri.base.fragment.toLowerCase().replaceAll('/', '').trim();
+      if (fragment.isNotEmpty && _tabRoutes.indexOf(fragment) != -1) {
+        return;
+      }
+
+      final prefs = await SharedPreferences.getInstance();
+      final saved = prefs.getInt('admin_web_last_active_tab');
+      if (saved != null && saved >= 0 && saved < _items.length && saved != _selectedIndex) {
+        if (mounted) {
+          setState(() {
+            _selectedIndex = saved;
+            _activatedIndices.add(saved);
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('Error restoring admin tab: $e');
+    }
   }
 
   void showTutorial() {
@@ -180,6 +236,11 @@ class AdminWebShellState extends State<AdminWebShell> {
         _pageCache.remove(14);
       }
     });
+
+    // Persist active tab so browser refresh and desktop mode keep user on current page
+    SharedPreferences.getInstance().then((prefs) {
+      prefs.setInt('admin_web_last_active_tab', index);
+    }).catchError((_) {});
 
     final nav = _pageNavigatorKey.currentState;
     if (nav != null && nav.canPop()) {
@@ -304,6 +365,8 @@ class AdminWebShellState extends State<AdminWebShell> {
             style: TextButton.styleFrom(foregroundColor: AdminWebColors.error),
             onPressed: () async {
               Navigator.of(dialogContext).pop();
+              final prefs = await SharedPreferences.getInstance();
+              await prefs.remove('admin_web_last_active_tab');
               await AuthService.signOut();
               if (mounted) {
                 Navigator.of(context).pushAndRemoveUntil(

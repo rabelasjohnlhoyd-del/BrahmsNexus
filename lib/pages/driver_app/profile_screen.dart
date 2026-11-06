@@ -77,9 +77,6 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
 
                 const SizedBox(height: 16),
 
-                // --- LIVE TODAY ATTENDANCE CARD ---
-                const StaffAttendanceCard(),
-                const SizedBox(height: 14),
 
                 // --- ATTENDANCE & DTR HISTORY BANNER ---
                 GestureDetector(

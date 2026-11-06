@@ -515,6 +515,26 @@ class NotificationService {
     );
   }
 
+  /// Triggered when a Branch Cook creates a new Bilao order from their branch. Notifies Owner.
+  static Future<void> notifyOwnerOfNewBilaoOrder({
+    required String branchName,
+    required String customerName,
+    required String sizeLabel,
+    required int quantity,
+    required double totalAmount,
+    String? cookName,
+  }) async {
+    final staff = (cookName != null && cookName.isNotEmpty) ? cookName : 'Branch Cook';
+    await sendNotification(
+      title: 'Bagong Bilao Order - $branchName',
+      message: 'Nag-encode si $staff ng bagong bilao order para kay $customerName ($sizeLabel × $quantity, ₱${totalAmount.toStringAsFixed(0)}) sa $branchName.',
+      type: NotificationType.salesReport,
+      targetRole: 'owner',
+      route: 'bilao_orders',
+      targetBranch: branchName,
+    );
+  }
+
   /// Triggered when driver marks the Bilao order as Out For Delivery. Notifies Owner.
   static Future<void> notifyOwnerOfBilaoOutForDelivery({
     required String customerName,
