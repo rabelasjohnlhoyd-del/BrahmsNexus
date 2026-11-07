@@ -276,11 +276,13 @@ class RouteScreenState extends State<RouteScreen> {
             _openedBranchIdsToday.add(rawBranchId);
           }
 
-          // A branch is considered closed for retrieval today ONLY if:
-          // it was opened today, explicitly closed today, lastTapType is retrieval_closing,
-          // and it is currently marked closed and not open.
-          final isRetrievalClosingTap = openedToday &&
-              closedToday &&
+          // A branch is considered closed for retrieval if:
+          // lastTapType is retrieval_closing, it is currently closed and not open,
+          // AND it was closed today (closedToday).
+          // NOTE: We no longer require openedToday to be true — this was blocking
+          // localhost testing and manual fallback closures where morning deployment
+          // may not have set openedDateStr in Firestore.
+          final isRetrievalClosingTap = closedToday &&
               lastTapType == 'retrieval_closing' &&
               isClosed &&
               !isOpen;
@@ -297,8 +299,18 @@ class RouteScreenState extends State<RouteScreen> {
             _attendanceConfirmedRetrievalIds.remove(branchId);
             _attendanceConfirmedRetrievalIds.remove(doc.id);
           } else if (!isRetrievalClosingTap) {
+            // Guard: Never remove from completedDeployment if:
+            // 1. Manually confirmed by attendanceConfirmed set
+            // 2. Branch has an offline tap queued (pending sync) — prevents stale
+            //    Firestore snapshots (driverOnWay: true) from reverting DONE state
+            //    while triggerOfflineSync() is still uploading.
+            final hasOfflinePendingDeployment =
+                DriverBleService.offlinePendingDeploymentIds.contains(branchId) ||
+                DriverBleService.offlinePendingDeploymentIds.contains(doc.id) ||
+                DriverBleService.offlinePendingDeploymentIds.contains(rawBranchId);
             if (!_attendanceConfirmedDeploymentIds.contains(branchId) &&
-                !_attendanceConfirmedDeploymentIds.contains(doc.id)) {
+                !_attendanceConfirmedDeploymentIds.contains(doc.id) &&
+                !hasOfflinePendingDeployment) {
               _completedDeploymentIds.remove(branchId);
               _completedDeploymentIds.remove(doc.id);
             }
@@ -314,9 +326,16 @@ class RouteScreenState extends State<RouteScreen> {
             _closedBranchIds.remove(branchId);
             _closedBranchIds.remove(doc.id);
           } else {
-            // Guard: Never keep in completed retrieval if not closed today
+            // Guard: Never remove from completedRetrieval if:
+            // 1. Manually confirmed by attendanceConfirmed set
+            // 2. Branch has an offline retrieval tap queued (pending sync)
+            final hasOfflinePendingRetrieval =
+                DriverBleService.offlinePendingRetrievalIds.contains(branchId) ||
+                DriverBleService.offlinePendingRetrievalIds.contains(doc.id) ||
+                DriverBleService.offlinePendingRetrievalIds.contains(rawBranchId);
             if (!_attendanceConfirmedRetrievalIds.contains(branchId) &&
-                !_attendanceConfirmedRetrievalIds.contains(doc.id)) {
+                !_attendanceConfirmedRetrievalIds.contains(doc.id) &&
+                !hasOfflinePendingRetrieval) {
               _completedRetrievalIds.remove(branchId);
               _completedRetrievalIds.remove(doc.id);
             }
@@ -327,10 +346,27 @@ class RouteScreenState extends State<RouteScreen> {
           final driverOnWayMode = data['driverOnWayMode'] as String?;
 
           // Deployment notification tracking
+          // KEY GUARD: If branch is already locally confirmed as DONE (completed locally or
+          // has an offline tap queued), NEVER move it back to "On the way" — even if Firestore
+          // still shows driverOnWay: true from a stale snapshot before sync completes.
+          final locallyDoneDeployment = _completedDeploymentIds.contains(branchId) ||
+              _completedDeploymentIds.contains(doc.id) ||
+              _attendanceConfirmedDeploymentIds.contains(branchId) ||
+              DriverBleService.offlinePendingDeploymentIds.contains(branchId) ||
+              DriverBleService.offlinePendingDeploymentIds.contains(doc.id) ||
+              DriverBleService.offlinePendingDeploymentIds.contains(rawBranchId);
+
           if (isDriverOnWay && (driverOnWayMode == 'deployment' || driverOnWayMode == null)) {
-            _notifiedDeploymentIds.add(branchId);
-            _notifiedDeploymentIds.add(doc.id);
-            _notifiedDeploymentIds.add(rawBranchId);
+            if (locallyDoneDeployment) {
+              // Branch is locally confirmed DONE — force clear "on the way", don't revert!
+              _notifiedDeploymentIds.remove(branchId);
+              _notifiedDeploymentIds.remove(doc.id);
+              _notifiedDeploymentIds.remove(rawBranchId);
+            } else {
+              _notifiedDeploymentIds.add(branchId);
+              _notifiedDeploymentIds.add(doc.id);
+              _notifiedDeploymentIds.add(rawBranchId);
+            }
           } else if (isDeploymentOpeningTap || (isDriverOnWay == false && driverOnWayMode == 'deployment')) {
             _notifiedDeploymentIds.remove(branchId);
             _notifiedDeploymentIds.remove(doc.id);
@@ -338,11 +374,29 @@ class RouteScreenState extends State<RouteScreen> {
           }
 
           // Retrieval notification tracking
+          // KEY GUARD: Same as deployment — if already locally confirmed closed for retrieval,
+          // never revert to "On the way" due to stale Firestore snapshot.
+          final locallyDoneRetrieval = _completedRetrievalIds.contains(branchId) ||
+              _completedRetrievalIds.contains(doc.id) ||
+              _attendanceConfirmedRetrievalIds.contains(branchId) ||
+              DriverBleService.offlinePendingRetrievalIds.contains(branchId) ||
+              DriverBleService.offlinePendingRetrievalIds.contains(doc.id) ||
+              DriverBleService.offlinePendingRetrievalIds.contains(rawBranchId);
+
           if (isDriverOnWay && driverOnWayMode == 'retrieval') {
-            _notifiedRetrievalIds.add(branchId);
-            _notifiedRetrievalIds.add(doc.id);
-            _notifiedRetrievalIds.add(rawBranchId);
-          } else if (isRetrievalClosingTap || (isDriverOnWay == false && driverOnWayMode == 'retrieval')) {
+            if (isRetrievalClosingTap || locallyDoneRetrieval) {
+              // Already done — force clear "on the way"
+              _notifiedRetrievalIds.remove(branchId);
+              _notifiedRetrievalIds.remove(doc.id);
+              _notifiedRetrievalIds.remove(rawBranchId);
+            } else {
+              _notifiedRetrievalIds.add(branchId);
+              _notifiedRetrievalIds.add(doc.id);
+              _notifiedRetrievalIds.add(rawBranchId);
+            }
+          }
+          if (isRetrievalClosingTap || (isDriverOnWay == false && driverOnWayMode == 'retrieval')) {
+            // Branch closed for retrieval: clear from "on the way" so it won't revert to ON THE WAY
             _notifiedRetrievalIds.remove(branchId);
             _notifiedRetrievalIds.remove(doc.id);
             _notifiedRetrievalIds.remove(rawBranchId);
@@ -383,6 +437,8 @@ class RouteScreenState extends State<RouteScreen> {
       });
       await SupabaseService.refreshStaffFromRemote();
       await AssignmentService.ensureInitialized();
+      // Proactively trigger pending offline Bluetooth RFID sync when network loads
+      DriverBleService().triggerOfflineSync();
       if (mounted) setState(() {});
     } catch (_) {
       if (mounted) {
@@ -626,6 +682,7 @@ class RouteScreenState extends State<RouteScreen> {
                 branchName: branch.fullName,
                 cookName: staffName,
                 isOnTheWay: true,
+                isDeployment: _activeMode == RouteMode.deployment,
               );
 
               // 2. Instant UI update to "Awaiting RFID Card Tap" (No endless spinner!)
@@ -722,7 +779,9 @@ class RouteScreenState extends State<RouteScreen> {
 
   Future<void> _handleManualArrivalVerification(Branch branch, StaffMember? staff) async {
     final isDeployment = _activeMode == RouteMode.deployment;
-    if (!isDeployment && !_wasBranchOpenedToday(branch)) return;
+    // NOTE: Removed early-return guard for retrieval on unopened branch.
+    // This was blocking localhost testing where morning deployment wasn't done.
+    // Retrieval fallback should always be allowed when driver manually confirms.
     final staffName = staff?.fullName ?? 'Assigned Cook';
     final cookId = staff?.id ?? 'cook_${branch.id}';
     final rfidTag = (staff?.rfidTag != null && staff!.rfidTag.isNotEmpty)
@@ -748,6 +807,9 @@ class RouteScreenState extends State<RouteScreen> {
         _notifiedRetrievalIds.remove(branchCanonId);
         _completedRetrievalIds.add(branch.id);
         _completedRetrievalIds.add(branchCanonId);
+        // Retrieval closed: also force-remove from notified so it won't re-show "ON THE WAY"
+        _attendanceConfirmedRetrievalIds.add(branch.id);
+        _attendanceConfirmedRetrievalIds.add(branchCanonId);
       }
     });
 
@@ -777,7 +839,7 @@ class RouteScreenState extends State<RouteScreen> {
       );
     }
 
-    // Cloud updates in background with fast timeout so UI NEVER freezes when offline!
+    // Cloud updates in background — increased timeout to 8s for slow/cellular connections
     FirestoreService.processBranchCookRfidTap(
       branchId: branch.id,
       branchName: branch.fullName,
@@ -786,7 +848,7 @@ class RouteScreenState extends State<RouteScreen> {
       isDeployment: isDeployment,
       rfidTag: rfidTag,
       deviceId: 'driver_manual_override',
-    ).timeout(const Duration(milliseconds: 1500)).catchError((e) {
+    ).timeout(const Duration(seconds: 8)).catchError((e) {
       debugPrint('Manual override Firestore note: $e');
       return false;
     });
@@ -794,12 +856,12 @@ class RouteScreenState extends State<RouteScreen> {
     if (staff != null) {
       AttendanceService.ensureSupabaseAttendanceLog(
         staff: staff,
-        branchId: branch.id,
+        branchId: branchCanonId,
         branchName: branch.fullName,
         rfidUid: rfidTag,
         deviceId: 'driver_manual_override',
         isDeployment: isDeployment,
-      ).timeout(const Duration(milliseconds: 1500)).catchError((e) {
+      ).timeout(const Duration(seconds: 8)).catchError((e) {
         debugPrint('Manual override Supabase note: $e');
       });
     }

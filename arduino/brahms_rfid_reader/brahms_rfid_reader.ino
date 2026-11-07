@@ -151,7 +151,7 @@ void showSuccessScreen(String staffName, String type, bool isOffline = false) {
 
   display.drawFastHLine(0, 52, SCREEN_WIDTH, SSD1306_WHITE);
   if (isOffline) {
-    centerPrint("Saved Offline (Sync Later)", 55, 1);
+    centerPrint("SAVED OFFLINE (SYNC)", 55, 1);
   } else {
     centerPrint("Attendance Verified", 55, 1);
   }
@@ -183,7 +183,7 @@ void showErrorScreen(String code) {
     footerNote  = "Open Driver App";
   } else if (code == "TIMEOUT") {
     cleanNotice = "App Not Responding";
-    footerNote  = "Please check Driver App";
+    footerNote  = "Check Driver App";
   } else if (code == "NO_TIME_IN") {
     cleanNotice = "No Morning Time-In";
     footerNote  = "Cannot record shift";
@@ -191,15 +191,15 @@ void showErrorScreen(String code) {
     cleanNotice = "Already Timed-In";
     footerNote  = "Shift currently active";
   } else if (code == "DRIVER_NOT_ON_THE_WAY" || code == "WAITING_DRIVER") {
-    cleanNotice = "Waiting For Driver";
-    footerNote  = "Dispatch route inactive";
+    cleanNotice = "Tap 'On The Way'";
+    footerNote  = "Driver route inactive";
   } else if (code == "DEBOUNCED") {
     cleanNotice = "Please Wait A Moment";
     footerNote  = "Card recently scanned";
   } else if (code == "ALREADY_COMPLETED") {
     cleanNotice = "Shift Already Ended";
     footerNote  = "Attendance complete";
-  } else if (code == "UNREGISTERED") {
+  } else if (code == "UNREGISTERED" || code == "UNKNOWN_CARD") {
     cleanNotice = "Unregistered Card";
     footerNote  = "Register in Admin Web";
   } else if (code == "WRONG_LOCATION") {
@@ -392,6 +392,11 @@ bool processTapViaBluetooth(String uid) {
     return false;
   }
 
+  // 1b. FLUSH SERIAL BUFFER: Linisin ang mga lumang tira-tirang bytes bago magpadala ng bagong tap
+  while (SerialBT.available()) {
+    SerialBT.read();
+  }
+
   // 2. Ipadala ang Card Tap sa Driver App sa format na JSON
   StaticJsonDocument<128> sendDoc;
   sendDoc["event"]     = "rfid_tap";
@@ -406,12 +411,12 @@ bool processTapViaBluetooth(String uid) {
   Serial.println(outgoingMessage);
   SerialBT.print(outgoingMessage);
 
-  // 3. Hintayin ang tugon ng Driver App (Timeout: 3 segundo)
+  // 3. Hintayin ang tugon ng Driver App (Timeout: 5 segundo para hindi magka-false timeout sa offline mode)
   unsigned long sendTime = millis();
   String responseLine = "";
   bool gotResponse = false;
 
-  while (millis() - sendTime < 3000) {
+  while (millis() - sendTime < 5000) {
     if (SerialBT.available()) {
       char c = (char)SerialBT.read();
       if (c == '\n' || c == '\r') {
@@ -423,7 +428,7 @@ bool processTapViaBluetooth(String uid) {
         responseLine += c;
       }
     }
-    delay(10);
+    delay(5);
   }
 
   // 4. Kung nag-timeout at hindi sumagot ang phone
@@ -435,11 +440,12 @@ bool processTapViaBluetooth(String uid) {
     return false;
   }
 
+  responseLine.trim();
   Serial.print("[BT RECV] ");
   Serial.println(responseLine);
 
-  // 5. I-parse ang tugon mula sa Driver App
-  StaticJsonDocument<256> resDoc;
+  // 5. I-parse ang tugon mula sa Driver App gamit ang 512-byte doc para ligtas sa mahahabang pangalan
+  StaticJsonDocument<512> resDoc;
   DeserializationError parseErr = deserializeJson(resDoc, responseLine);
 
   if (parseErr) {
@@ -469,7 +475,7 @@ bool processTapViaBluetooth(String uid) {
     return true;
   }
   // UNREGISTERED CARD: Ipakita ang UID sa OLED
-  else if (code == "UNREGISTERED") {
+  else if (code == "UNREGISTERED" || code == "UNKNOWN_CARD") {
     Serial.print("[NOTICE] Unregistered Card: ");
     Serial.println(uid);
     showUnregisteredCardScreen(uid);

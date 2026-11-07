@@ -19,7 +19,7 @@ class GeminiConfig {
   // ===========================================================================
   static const List<String> apiKeys = [
     key,
-    // 'AIzaSySecondBackupKeyHere...',
+     //'',
     // 'AIzaSyThirdBackupKeyHere...',
   ];
 
@@ -60,7 +60,7 @@ class GeminiConfig {
 
   static bool _isValidKey(String k) {
     final trimmed = k.trim();
-    return trimmed.isNotEmpty && trimmed != 'PASTE_YOUR_API_KEY_HERE';
+    return trimmed.isNotEmpty && trimmed != '';
   }
 
   /// The active primary API key.

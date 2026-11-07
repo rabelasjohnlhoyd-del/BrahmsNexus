@@ -21,6 +21,7 @@ import 'auth_service.dart';
 import 'firestore_cache.dart';
 import 'notification_service.dart';
 import 'supabase_service.dart';
+import 'attendance_service.dart';
 
 /// Service dedicated to handling high-frequency, operational, and real-time
 /// data in Cloud Firestore.
@@ -1774,6 +1775,7 @@ class FirestoreService {
         cleanBId == 'unassigned') {
       return false; // Skip invalid branch IDs like n/a to prevent Firestore path errors
     }
+    final canonId = AttendanceService.normalizeBranchId(cleanBId, branchName);
 
     try {
       final batch = _db.batch();
@@ -1791,9 +1793,7 @@ class FirestoreService {
         'timestamp': FieldValue.serverTimestamp(),
       });
 
-      // 2. Update real-time branch status
-      final statusRef = _db.collection('branch_status').doc(cleanBId);
-      batch.set(statusRef, {
+      final statusPayload = {
         'branchId': cleanBId,
         'branchName': branchName,
         'isOpen': isDeployment, // true if opening, false if closing
@@ -1814,9 +1814,35 @@ class FirestoreService {
           'closedAt': FieldValue.serverTimestamp(),
           'closedDateStr': DateTime.now().toIso8601String().substring(0, 10),
         },
-      }, SetOptions(merge: true));
+      };
+
+      // 2. Update real-time branch status for primary ID
+      final statusRef = _db.collection('branch_status').doc(cleanBId);
+      batch.set(statusRef, statusPayload, SetOptions(merge: true));
+
+      // Also mirror to canonical ID (e.g. br1..br6) if different, to ensure Admin Web always sees it
+      if (canonId.isNotEmpty && canonId != cleanBId && canonId != 'unassigned' && canonId != 'commissary') {
+        final canonStatusRef = _db.collection('branch_status').doc(canonId);
+        batch.set(canonStatusRef, statusPayload, SetOptions(merge: true));
+      }
 
       await batch.commit();
+
+      // If closing retrieval, also clear Supabase driver_dispatch_status
+      if (!isDeployment) {
+        try {
+          final client = SupabaseService.client;
+          if (client != null) {
+            await client.from('driver_dispatch_status').upsert({
+              'branch_id': cleanBId,
+              'branch_name': branchName,
+              'driver_on_the_way': false,
+              'mode': 'retrieval_completed',
+              'updated_at': DateTime.now().toUtc().toIso8601String(),
+            }).timeout(const Duration(seconds: 4));
+          }
+        } catch (_) {}
+      }
 
       return true;
     } catch (e) {
@@ -1838,6 +1864,7 @@ class FirestoreService {
       debugPrint('FirestoreService.setDriverOnTheWay: Skipping invalid branchId: $branchId');
       return;
     }
+    final canonId = AttendanceService.normalizeBranchId(cleanBId, branchName);
 
     // 1. Synchronize to Supabase driver_dispatch_status FIRST (Direct RFID hardware gating)
     try {
@@ -1850,7 +1877,18 @@ class FirestoreService {
           'driver_on_the_way': true,
           'mode': isDeployment ? 'deployment' : 'retrieval',
           'updated_at': DateTime.now().toUtc().toIso8601String(),
-        }).timeout(const Duration(milliseconds: 1500));
+        }).timeout(const Duration(seconds: 4));
+
+        if (canonId.isNotEmpty && canonId != cleanBId && canonId != 'unassigned' && canonId != 'commissary') {
+          await client.from('driver_dispatch_status').upsert({
+            'branch_id': canonId,
+            'branch_name': branchName,
+            'driver_name': driverName,
+            'driver_on_the_way': true,
+            'mode': isDeployment ? 'deployment' : 'retrieval',
+            'updated_at': DateTime.now().toUtc().toIso8601String(),
+          }).timeout(const Duration(seconds: 4));
+        }
       }
     } catch (e) {
       debugPrint('Supabase driver_dispatch_status sync error: $e');
@@ -1858,7 +1896,7 @@ class FirestoreService {
 
     // 2. Synchronize to Firestore branch_status (UI Status)
     try {
-      await _db.collection('branch_status').doc(cleanBId).set({
+      final statusMap = {
         'branchId': cleanBId,
         'branchName': branchName,
         'driverOnWay': true,
@@ -1867,7 +1905,12 @@ class FirestoreService {
         'cookName': cookName,
         'driverName': driverName,
         'lastUpdated': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true)).timeout(const Duration(milliseconds: 1500));
+      };
+      await _db.collection('branch_status').doc(cleanBId).set(statusMap, SetOptions(merge: true)).timeout(const Duration(seconds: 4));
+
+      if (canonId.isNotEmpty && canonId != cleanBId && canonId != 'unassigned' && canonId != 'commissary') {
+        await _db.collection('branch_status').doc(canonId).set(statusMap, SetOptions(merge: true)).timeout(const Duration(seconds: 4));
+      }
     } catch (e) {
       debugPrint('FirestoreService.setDriverOnTheWay error: $e');
     }

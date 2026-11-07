@@ -1,4 +1,5 @@
 import 'dart:async';
+import '../../../services/attendance_service.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../models/branch.dart';
@@ -47,18 +48,32 @@ class _BranchManagementScreenState extends State<BranchManagementScreen> {
         _branchClosedMap.clear();
         for (final doc in snap.docs) {
           final data = doc.data();
-          final bId = (data['branchId']?.toString() ?? doc.id).toLowerCase();
+          final rawBId = (data['branchId']?.toString() ?? doc.id).toLowerCase();
+          final cookName = data['cookName']?.toString() ?? '';
+          final bId = rawBId;
+          // Also compute the canonical branchId (br1..br6) for cross-matching
+          final canonId = AttendanceService.normalizeBranchId(rawBId, cookName);
           final rawIsOpen = data['isOpen'] == true;
           final isClosed = data['isClosed'] == true;
           final lastTapType = data['lastTapType'] as String?;
           final openedDateStr = data['openedDateStr'] as String?;
+          final closedDateStr = data['closedDateStr'] as String?;
           final hasRfidArrivalToday = lastTapType == 'deployment_opening' && openedDateStr == todayStr;
-          final isClosedByRetrieval = lastTapType == 'retrieval_closing';
+          // Closed today by retrieval tap
+          final isClosedByRetrieval = lastTapType == 'retrieval_closing' && closedDateStr == todayStr;
 
-          // Open if cook has tapped arrival RFID today and branch is not closed
+          // Open if cook has tapped arrival RFID today and branch is not closed by retrieval
           final isOpen = !isClosed && !isClosedByRetrieval && (rawIsOpen || hasRfidArrivalToday);
+
+          // Store under primary key
           _branchOpenMap[bId] = isOpen;
-          _branchClosedMap[bId] = isClosed;
+          _branchClosedMap[bId] = isClosed || isClosedByRetrieval;
+
+          // Also store under canonical ID (br1..br6) so tile lookup never mismatches
+          if (canonId.isNotEmpty && canonId != bId && canonId != 'unassigned' && canonId != 'commissary') {
+            _branchOpenMap[canonId] = isOpen;
+            _branchClosedMap[canonId] = isClosed || isClosedByRetrieval;
+          }
         }
       });
     });
@@ -317,7 +332,10 @@ class _BranchManagementScreenState extends State<BranchManagementScreen> {
                               separatorBuilder: (context, index) => const SizedBox(height: 12),
                               itemBuilder: (context, index) {
                                 final b = branches[(_currentPage * _pageSize) + index];
-                                final isOpen = (_branchOpenMap[b.id.toLowerCase()] == true && _branchClosedMap[b.id.toLowerCase()] != true);
+                                final bLower = b.id.toLowerCase();
+                final bCanon = AttendanceService.normalizeBranchId(bLower, b.name);
+                final isOpen = ((_branchOpenMap[bLower] ?? _branchOpenMap[bCanon]) == true)
+                    && ((_branchClosedMap[bLower] ?? _branchClosedMap[bCanon]) != true);
                                 return GlassCard(
                                   padding: EdgeInsets.zero,
                                   child: Material(
