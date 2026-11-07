@@ -787,7 +787,7 @@ class _SalesPayrollScreenState extends State<SalesPayrollScreen> {
                   _buildProductionAndDriverPayroll(isWide),
                 ],
 
-                const SizedBox(height: 40),
+                SizedBox(height: isWide ? 40 : 84),
               ],
             ),
           );

@@ -62,7 +62,7 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
   // Real-time branch inventory stocks (track open vs closed branch status)
   StreamSubscription<List<BranchMeatStock>>? _meatStocksSub;
   List<BranchMeatStock> _branchMeatStocks = [];
-  // Previous snapshot ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â used to detect branches that just became closed
+  // Previous snapshot — used to detect branches that just became closed
   List<BranchMeatStock> _prevStocks = [];
 
   bool _isBranchClosed(String branchId, String branchName) {
@@ -110,7 +110,7 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
         if (!newStock.isClosed) continue;
         final prev = _prevStocks.firstWhere(
           (p) => p.branchId == newStock.branchId,
-          orElse: () => newStock, // not found ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ treat as unchanged
+          orElse: () => newStock, // not found → treat as unchanged
         );
         if (!prev.isClosed) {
           newlyClosedNames.add(newStock.branchName.trim().toLowerCase());
@@ -265,7 +265,7 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
                 fallback: AssignmentService.getWorkStatus(a.employeeId, fallback: a.workStatus))
             : AssignmentService.getWorkStatus(a.employeeId, fallback: a.workStatus);
 
-        // Same for branch ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â keep current a.branchName as fallback to avoid branch resetting.
+        // Same for branch — keep current a.branchName as fallback to avoid branch resetting.
         final branchName = staff.username.isNotEmpty
             ? AssignmentService.getAssignedBranch(staff.username,
                 fallback: AssignmentService.getAssignedBranch(a.employeeId, fallback: a.branchName))
@@ -687,7 +687,7 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
     }
     final conflicts = branchOccupants.entries.where((e) => e.value.length > 1).toList();
     if (conflicts.isNotEmpty) {
-      final conflictDetails = conflicts.map((c) => 'ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢ ${c.key}:\n  - ${c.value.join("\n  - ")}').join('\n\n');
+      final conflictDetails = conflicts.map((c) => '• ${c.key}:\n  - ${c.value.join("\n  - ")}').join('\n\n');
       if (!mounted) return;
       showDialog(
         context: context,
@@ -726,7 +726,7 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
         .toList();
     if (closedAssignments.isNotEmpty) {
       final closedDetails = closedAssignments
-          .map((a) => 'ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢ ${a.employeeName} ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ ${a.branchName} (SARADO / CLOSED)')
+          .map((a) => '• ${a.employeeName} → ${a.branchName} (SARADO / CLOSED)')
           .join('\n');
       if (!mounted) return;
       showDialog(
@@ -783,8 +783,8 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
         ),
         content: Text(
           'Are you sure you want to save today\'s assignments?\n\n'
-          'ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢ $onDutyCount staff ON DUTY\n'
-          'ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢ $restDayCount staff on REST DAY\n\n'
+          '• $onDutyCount staff ON DUTY\n'
+          '• $restDayCount staff on REST DAY\n\n'
           'This action can only be done once today. Once saved, assignments cannot be changed until tomorrow.',
           style: const TextStyle(fontSize: 13, height: 1.5),
         ),
@@ -916,12 +916,13 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
       child: Stack(
         children: [
           Container(
-      color: AdminWebColors.background,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+            color: AdminWebColors.background,
+            child: LayoutBuilder(
+              builder: (context, screenConstraints) {
+                final isWide = screenConstraints.maxWidth >= 700;
+                final mainContent = Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
             // Header Controls
             Padding(
               padding: const EdgeInsets.only(top: 16, bottom: 16),
@@ -1348,58 +1349,126 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
             const SizedBox(height: 20),
 
             // Assignments List
-            Expanded(
-              child: list.isEmpty
-                ? const Center(child: Text('No matching staff found.', style: TextStyle(color: AdminWebColors.textSecondary)))
-                : Builder(
-                    builder: (context) {
-                      final safeTotalPages = ((list.length + _pageSize - 1) / _pageSize).floor().clamp(1, 99999);
-                      final safePage = _currentPage.clamp(0, safeTotalPages - 1);
-                      final pageItemCount = (list.length - (safePage * _pageSize)).clamp(0, _pageSize);
+            if (isWide)
+              Expanded(
+                child: list.isEmpty
+                  ? const Center(child: Text('No matching staff found.', style: TextStyle(color: AdminWebColors.textSecondary)))
+                  : Builder(
+                      builder: (context) {
+                        final safeTotalPages = ((list.length + _pageSize - 1) / _pageSize).floor().clamp(1, 99999);
+                        final safePage = _currentPage.clamp(0, safeTotalPages - 1);
+                        final pageItemCount = (list.length - (safePage * _pageSize)).clamp(0, _pageSize);
 
-                      return Column(
-                        children: [
-                          Expanded(
-                            child: ListView.separated(
-                              itemCount: pageItemCount,
-                              separatorBuilder: (context, index) => const SizedBox(height: 12),
-                              itemBuilder: (context, index) {
-                                final a = list[(safePage * _pageSize) + index];
-                                return LayoutBuilder(
-                                  builder: (context, constraints) {
-                                    final isWide = constraints.maxWidth >= 850;
-                                    return _AssignmentCard(
-                                      key: ValueKey('card-${a.employeeId}-${a.employeeName}'),
-                                      assignment: a,
-                                      allAssignments: _assignments,
-                                      branches: _availableBranches,
-                                      isBranchClosed: _isBranchClosed,
-                                      isWide: isWide,
-                                      isLocked: _isLocked,
-                                      onBranchChanged: (branch) => _updateBranch(a, branch),
-                                      onStatusChanged: (status) => _updateStatus(a, status),
-                                    );
-                                  },
+                        return Column(
+                          children: [
+                            Expanded(
+                              child: ListView.separated(
+                                itemCount: pageItemCount,
+                                separatorBuilder: (context, index) => const SizedBox(height: 12),
+                                itemBuilder: (context, index) {
+                                  final a = list[(safePage * _pageSize) + index];
+                                  return LayoutBuilder(
+                                    builder: (context, constraints) {
+                                      final isCardWide = constraints.maxWidth >= 850;
+                                      return _AssignmentCard(
+                                        key: ValueKey('card-${a.employeeId}-${a.employeeName}'),
+                                        assignment: a,
+                                        allAssignments: _assignments,
+                                        branches: _availableBranches,
+                                        isBranchClosed: _isBranchClosed,
+                                        isWide: isCardWide,
+                                        isLocked: _isLocked,
+                                        onBranchChanged: (branch) => _updateBranch(a, branch),
+                                        onStatusChanged: (status) => _updateStatus(a, status),
+                                      );
+                                    },
+                                  );
+                                },
+                              ),
+                            ),
+                            AdminPaginationBar(
+                              currentPage: safePage,
+                              totalItems: list.length,
+                              pageSize: _pageSize,
+                              onPageChanged: (p) => setState(() => _currentPage = p),
+                            ),
+                          ],
+                        );
+                      },
+                    ),
+              )
+            else ...[
+              if (list.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 40),
+                  child: Center(child: Text('No matching staff found.', style: TextStyle(color: AdminWebColors.textSecondary))),
+                )
+              else
+                Builder(
+                  builder: (context) {
+                    final safeTotalPages = ((list.length + _pageSize - 1) / _pageSize).floor().clamp(1, 99999);
+                    final safePage = _currentPage.clamp(0, safeTotalPages - 1);
+                    final pageItemCount = (list.length - (safePage * _pageSize)).clamp(0, _pageSize);
+
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        ListView.separated(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          itemCount: pageItemCount,
+                          separatorBuilder: (context, index) => const SizedBox(height: 12),
+                          itemBuilder: (context, index) {
+                            final a = list[(safePage * _pageSize) + index];
+                            return LayoutBuilder(
+                              builder: (context, constraints) {
+                                final isCardWide = constraints.maxWidth >= 850;
+                                return _AssignmentCard(
+                                  key: ValueKey('card-${a.employeeId}-${a.employeeName}'),
+                                  assignment: a,
+                                  allAssignments: _assignments,
+                                  branches: _availableBranches,
+                                  isBranchClosed: _isBranchClosed,
+                                  isWide: isCardWide,
+                                  isLocked: _isLocked,
+                                  onBranchChanged: (branch) => _updateBranch(a, branch),
+                                  onStatusChanged: (status) => _updateStatus(a, status),
                                 );
                               },
-                            ),
-                          ),
-                          AdminPaginationBar(
-                            currentPage: safePage,
-                            totalItems: list.length,
-                            pageSize: _pageSize,
-                            onPageChanged: (p) => setState(() => _currentPage = p),
-                          ),
-                        ],
-                      );
-                    },
-                  ),
-            ),
+                            );
+                          },
+                        ),
+                        const SizedBox(height: 12),
+                        AdminPaginationBar(
+                          currentPage: safePage,
+                          totalItems: list.length,
+                          pageSize: _pageSize,
+                          onPageChanged: (p) => setState(() => _currentPage = p),
+                        ),
+                        const SizedBox(height: 84),
+                      ],
+                    );
+                  },
+                ),
+            ],
             const SizedBox(height: 24),
           ],
-        ),
-      ),
-          ),
+        );
+
+        if (isWide) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: mainContent,
+          );
+        }
+
+        return SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
+          child: mainContent,
+        );
+      },
+    ),
+  ),
           if (_isSaving)
             Positioned.fill(
               child: Container(
@@ -1551,7 +1620,7 @@ class _AssignmentCard extends StatelessWidget {
     final bool isOnDuty = assignment.workStatus == WorkStatus.onDuty;
 
     // Check if another cook is currently ON DUTY at this same branch (conflict).
-    // Skip N/A / Unassigned branches ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â they are not real branches and would cause false conflicts.
+    // Skip N/A / Unassigned branches — they are not real branches and would cause false conflicts.
     BranchAssignment? conflictingOnDutyCook;
     final conflictBranchClean = assignment.branchId.trim().toLowerCase();
     final isNoConflictBranch = conflictBranchClean.isEmpty || conflictBranchClean == 'n/a' || conflictBranchClean == 'unassigned';
@@ -1812,7 +1881,7 @@ class _AssignmentCard extends StatelessWidget {
           const DropdownMenuItem<String>(
             value: 'unassigned',
             child: Text(
-              'N/A ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â SELECT A BRANCH TO ASSIGN',
+              'N/A — SELECT A BRANCH TO ASSIGN',
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 fontSize: 12,
@@ -1847,7 +1916,7 @@ class _AssignmentCard extends StatelessWidget {
               children: [
                 Expanded(
                   child: Text(
-                    '${b.fullName.toUpperCase()} ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â (CLOSED / SARADO)',
+                    '${b.fullName.toUpperCase()} — (CLOSED / SARADO)',
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       fontSize: 12,
@@ -1884,7 +1953,7 @@ class _AssignmentCard extends StatelessWidget {
             );
           } else if (isOnDuty && isOccupied && !isCurrent) {
             itemChild = Text(
-              '${b.fullName.toUpperCase()} ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â (Occupied: ${occupiedCook.employeeName.split(" ").first})',
+              '${b.fullName.toUpperCase()} — (Occupied: ${occupiedCook.employeeName.split(" ").first})',
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(
                 fontSize: 12,

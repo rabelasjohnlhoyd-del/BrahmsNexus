@@ -104,11 +104,14 @@ class _InventoryExportDialogState extends State<InventoryExportDialog> {
     }
     final remainingWarehouseKg = (totalBatchKg - totalCookedKg).clamp(0, totalBatchKg);
 
+    final isMobile = MediaQuery.of(context).size.width < 600;
+
     return AlertDialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      titlePadding: const EdgeInsets.fromLTRB(24, 20, 24, 12),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-      actionsPadding: const EdgeInsets.fromLTRB(24, 12, 24, 20),
+      insetPadding: EdgeInsets.symmetric(horizontal: isMobile ? 12 : 40, vertical: 24),
+      titlePadding: EdgeInsets.fromLTRB(isMobile ? 16 : 24, 20, isMobile ? 16 : 24, 12),
+      contentPadding: EdgeInsets.symmetric(horizontal: isMobile ? 16 : 24, vertical: 8),
+      actionsPadding: EdgeInsets.fromLTRB(isMobile ? 16 : 24, 10, isMobile ? 16 : 24, isMobile ? 16 : 20),
       title: Row(
         children: [
           Container(
@@ -138,11 +141,12 @@ class _InventoryExportDialogState extends State<InventoryExportDialog> {
         ],
       ),
       content: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 520),
+        constraints: const BoxConstraints(maxWidth: 520),
+        child: SingleChildScrollView(
           child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
             const Text(
               'I-export ang kumpletong estado ng bodega, karne, mga sangay, at mga dispatch transfer para sa financial reconciliation at cost-of-goods accounting:',
               style: TextStyle(fontSize: 12.5, color: AdminWebColors.textSecondary),
@@ -193,25 +197,57 @@ class _InventoryExportDialogState extends State<InventoryExportDialog> {
             ),
           ],
         ),
+        ),
       ),
       actions: [
-        TextButton(
-          onPressed: _isGenerating ? null : () => Navigator.pop(context),
-          child: const Text('Cancel'),
-        ),
-        ElevatedButton.icon(
-          onPressed: _isGenerating ? null : _handleDownload,
-          icon: _isGenerating
-              ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-              : const Icon(Icons.download_rounded, size: 18),
-          label: Text(_isGenerating ? 'Generating Excel...' : 'Download Inventory Excel (.xlsx)'),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFF2E7D32),
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        if (isMobile)
+          Row(
+            children: [
+              TextButton(
+                onPressed: _isGenerating ? null : () => Navigator.pop(context),
+                child: const Text('Cancel', style: TextStyle(color: AdminWebColors.textSecondary)),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: _isGenerating ? null : _handleDownload,
+                  icon: _isGenerating
+                      ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                      : const Icon(Icons.download_rounded, size: 16),
+                  label: Text(
+                    _isGenerating ? 'Generating...' : 'Download Excel (.xlsx)',
+                    style: const TextStyle(fontSize: 13),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF2E7D32),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                ),
+              ),
+            ],
+          )
+        else ...[
+          TextButton(
+            onPressed: _isGenerating ? null : () => Navigator.pop(context),
+            child: const Text('Cancel'),
           ),
-        ),
+          ElevatedButton.icon(
+            onPressed: _isGenerating ? null : _handleDownload,
+            icon: _isGenerating
+                ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                : const Icon(Icons.download_rounded, size: 18),
+            label: Text(_isGenerating ? 'Generating Excel...' : 'Download Inventory Excel (.xlsx)'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF2E7D32),
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+          ),
+        ],
       ],
     );
   }

@@ -1808,7 +1808,7 @@ class _AddBilaoOrderScreenState extends State<AddBilaoOrderScreen> {
                   MediaQuery.of(context).size.width < 600 ? 12 : 24,
                   12,
                   MediaQuery.of(context).size.width < 600 ? 12 : 24,
-                  24,
+                  MediaQuery.of(context).size.width < 600 ? 90 : 24,
                 ),
                 child: Center(
                   child: ConstrainedBox(
@@ -1860,6 +1860,7 @@ class _AddBilaoOrderScreenState extends State<AddBilaoOrderScreen> {
                                   _buildStep4(),
                                   const SizedBox(height: 16),
                                   _buildSubmitCard(),
+                                  if (MediaQuery.of(context).size.width < 600) const SizedBox(height: 70),
                                 ],
                               );
                       },

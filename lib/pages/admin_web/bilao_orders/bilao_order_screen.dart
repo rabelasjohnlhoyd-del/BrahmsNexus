@@ -1109,9 +1109,11 @@ class _BilaoOrderScreenState extends State<BilaoOrderScreen> {
                 Text('Bilao Pricing', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
               ],
             ),
-            content: SizedBox(
-              width: 380,
-              child: Column(
+            content: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 380),
+              child: SizedBox(
+                width: double.maxFinite,
+                child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: BilaoSize.values.map((size) {
                   final price = _prices[size] ?? size.price;
@@ -1191,6 +1193,7 @@ class _BilaoOrderScreenState extends State<BilaoOrderScreen> {
                     ),
                   );
                 }).toList(),
+              ),
               ),
             ),
             actions: [
@@ -1395,14 +1398,16 @@ class _BilaoOrderScreenState extends State<BilaoOrderScreen> {
                                   onPressed: () => ExcelExportDialog.show(context, orders: _orders),
                                   icon: const Icon(Icons.table_view_rounded,
                                       size: 14, color: Colors.white),
-                                  label: const Text(
-                                    'EXPORT',
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.w800,
-                                      fontSize: 10.5,
+                                  label: const FittedBox(
+                                    fit: BoxFit.scaleDown,
+                                    child: Text(
+                                      'EXPORT',
+                                      maxLines: 1,
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w800,
+                                        fontSize: 10.5,
+                                      ),
                                     ),
                                   ),
                                   style: ElevatedButton.styleFrom(
@@ -1422,14 +1427,16 @@ class _BilaoOrderScreenState extends State<BilaoOrderScreen> {
                                   onPressed: _showPricingDialog,
                                   icon: const Icon(Icons.sell_outlined,
                                       size: 14, color: AdminWebColors.accent),
-                                  label: const Text(
-                                    'PRICING',
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                      color: AdminWebColors.textPrimary,
-                                      fontWeight: FontWeight.w700,
-                                      fontSize: 10.5,
+                                  label: const FittedBox(
+                                    fit: BoxFit.scaleDown,
+                                    child: Text(
+                                      'PRICING',
+                                      maxLines: 1,
+                                      style: TextStyle(
+                                        color: AdminWebColors.textPrimary,
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 10.5,
+                                      ),
                                     ),
                                   ),
                                   style: OutlinedButton.styleFrom(
@@ -1448,13 +1455,15 @@ class _BilaoOrderScreenState extends State<BilaoOrderScreen> {
                                   onPressed: _openAddOrder,
                                   icon: const Icon(Icons.add_rounded,
                                       size: 15, color: Colors.white),
-                                  label: const Text(
-                                    'NEW ORDER',
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                      fontSize: 10.5,
-                                      fontWeight: FontWeight.w800,
+                                  label: const FittedBox(
+                                    fit: BoxFit.scaleDown,
+                                    child: Text(
+                                      'NEW ORDER',
+                                      maxLines: 1,
+                                      style: TextStyle(
+                                        fontSize: 10.5,
+                                        fontWeight: FontWeight.w800,
+                                      ),
                                     ),
                                   ),
                                   style: ElevatedButton.styleFrom(
@@ -1636,7 +1645,7 @@ class _BilaoOrderScreenState extends State<BilaoOrderScreen> {
                             pageSize: _pageSize,
                             onPageChanged: (p) => setState(() => _currentPage = p),
                           ),
-                          const SizedBox(height: 16),
+                          SizedBox(height: isWide ? 16 : 80),
                         ],
                       ),
               ),

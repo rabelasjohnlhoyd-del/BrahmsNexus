@@ -151,6 +151,10 @@ class _InventoryScreenState extends State<InventoryScreen>
 
           return AlertDialog(
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            insetPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 24),
+            titlePadding: const EdgeInsets.fromLTRB(16, 18, 16, 8),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
             title: const Row(
               children: [
                 Icon(Icons.calendar_month_rounded, color: AdminWebColors.accent),
@@ -158,15 +162,18 @@ class _InventoryScreenState extends State<InventoryScreen>
                 Text('Start New Monthly Batch', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
               ],
             ),
-            content: SizedBox(
-              width: 440,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+            content: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 440),
+              child: SingleChildScrollView(
+                child: SizedBox(
+                  width: double.maxFinite,
+                  child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                   
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
                     decoration: BoxDecoration(
                       color: AdminWebColors.background,
                       borderRadius: BorderRadius.circular(10),
@@ -174,12 +181,14 @@ class _InventoryScreenState extends State<InventoryScreen>
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.date_range_rounded, size: 18, color: AdminWebColors.accent),
-                        const SizedBox(width: 8),
-                        const Text('MONTH:', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
+                        const Icon(Icons.date_range_rounded, size: 16, color: AdminWebColors.accent),
+                        const SizedBox(width: 6),
+                        const Text('MONTH:', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 11)),
                         const Spacer(),
                         IconButton(
-                          icon: const Icon(Icons.chevron_left_rounded, size: 20),
+                          constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                          padding: EdgeInsets.zero,
+                          icon: const Icon(Icons.chevron_left_rounded, size: 18),
                           tooltip: canGoBack ? 'Kasalukuyang Buwan' : 'Bawal nang pumili ng nakaraang buwan',
                           onPressed: canGoBack
                               ? () {
@@ -191,18 +200,20 @@ class _InventoryScreenState extends State<InventoryScreen>
                               : null,
                         ),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                           decoration: BoxDecoration(
                             color: AdminWebColors.accent.withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(6),
                           ),
                           child: Text(
                             DateFormat('MMMM yyyy').format(selectedMonth),
-                            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: AdminWebColors.accent),
+                            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12, color: AdminWebColors.accent),
                           ),
                         ),
                         IconButton(
-                          icon: const Icon(Icons.chevron_right_rounded, size: 20),
+                          constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                          padding: EdgeInsets.zero,
+                          icon: const Icon(Icons.chevron_right_rounded, size: 18),
                           tooltip: canGoForward ? 'Kasunod na Buwan' : 'Lalabas lang ang susunod kapag tapos na ang kasalukuyang buwan',
                           onPressed: canGoForward
                               ? () {
@@ -270,8 +281,9 @@ class _InventoryScreenState extends State<InventoryScreen>
                   TextField(
                     controller: kilosCtrl,
                     decoration: const InputDecoration(
-                      labelText: 'TOTAL RAW MEAT (KILOS) - GOOD FOR 1 MONTH',
-                      hintText: '1 - 3000 KG',
+                      labelText: 'TOTAL RAW MEAT',
+                      helperText: 'Good for 1 month (1 - 3000 KG).',
+                      hintText: '1 - 3000',
                       suffixText: 'KG',
                       border: OutlineInputBorder(),
                       prefixIcon: Icon(Icons.scale_rounded, size: 18),
@@ -294,17 +306,28 @@ class _InventoryScreenState extends State<InventoryScreen>
                   ),
                 ],
               ),
+              ),
+              ),
             ),
             actions: [
-              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('CANCEL')),
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: monthAlreadyHasBatch ? Colors.grey : AdminWebColors.accent,
-                  foregroundColor: Colors.white,
-                ),
-                onPressed: monthAlreadyHasBatch
-                    ? null
-                    : () async {
+              Row(
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    child: const Text('CANCEL', style: TextStyle(color: AdminWebColors.textSecondary)),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: monthAlreadyHasBatch ? Colors.grey : AdminWebColors.accent,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                      onPressed: monthAlreadyHasBatch
+                          ? null
+                          : () async {
                         final messenger = ScaffoldMessenger.of(context);
                         // ── Validation with user-visible error messages ──
                         final nameText = nameCtrl.text.trim();
@@ -370,8 +393,11 @@ class _InventoryScreenState extends State<InventoryScreen>
                       },
                 child: const Text('CREATE MONTHLY BATCH'),
               ),
-            ],
-          );
+            ),
+          ],
+        ),
+      ],
+    );
         },
       ),
     );
@@ -3072,9 +3098,11 @@ class _InventoryScreenState extends State<InventoryScreen>
             ),
           ],
         ),
-        content: SizedBox(
-          width: 440,
-          child: Column(
+        content: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 440),
+          child: SizedBox(
+            width: double.maxFinite,
+            child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -3102,6 +3130,7 @@ class _InventoryScreenState extends State<InventoryScreen>
                 ),
               ),
             ],
+          ),
           ),
         ),
         actions: [

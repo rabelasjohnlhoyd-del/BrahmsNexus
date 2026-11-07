@@ -967,9 +967,11 @@ class _MonthlyFinancialsScreenState extends State<MonthlyFinancialsScreen> {
                 Text('Start New Monthly Period', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
               ],
             ),
-            content: SizedBox(
-              width: 440,
-              child: Column(
+            content: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 440),
+              child: SizedBox(
+                width: double.maxFinite,
+                child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -1051,6 +1053,7 @@ class _MonthlyFinancialsScreenState extends State<MonthlyFinancialsScreen> {
                     ),
                   ],
                 ],
+              ),
               ),
             ),
             actions: [

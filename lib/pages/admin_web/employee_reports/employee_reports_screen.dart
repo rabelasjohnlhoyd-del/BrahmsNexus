@@ -622,12 +622,9 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
           ),
         ];
 
-        return Container(
-          color: AdminWebColors.background,
-          padding: EdgeInsets.symmetric(horizontal: isWide ? 24 : 12, vertical: 16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
+        final mainContent = Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
               const SizedBox(height: 8),
               // Top Sub-Tab Switcher
               LayoutBuilder(
@@ -893,111 +890,70 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
                 const SizedBox(height: 16),
 
                 // Daily Reports List View
-                Expanded(
-                  child: _visibleReports.isEmpty
-                      ? const Center(
-                          child: Text(
-                            'No matching reports found.',
-                            style: TextStyle(color: AdminWebColors.textSecondary),
-                          ),
-                        )
-                      : Column(
-                          children: [
-                            Expanded(
-                              child: ListView.separated(
-                                itemCount: (_visibleReports.length - (_currentPage * _pageSize)).clamp(0, _pageSize),
-                                separatorBuilder: (context, index) =>
-                                    const SizedBox(height: 10),
-                                itemBuilder: (context, index) {
-                                  final r = _visibleReports[(_currentPage * _pageSize) + index];
-                                  return GlassCard(
-                                    padding: EdgeInsets.zero,
-                                    child: Material(
-                                      color: Colors.transparent,
-                                      borderRadius: BorderRadius.circular(16),
-                                      clipBehavior: Clip.antiAlias,
-                                      child: ListTile(
-                                        onTap: () => _showReportDetail(r),
-                                        leading: Container(
-                                          width: 36,
-                                          height: 36,
-                                          decoration: BoxDecoration(
-                                            color: const Color(0xFFF5EDE6),
-                                            shape: BoxShape.circle,
-                                            border: Border.all(color: AdminWebColors.accent.withValues(alpha: 0.2)),
-                                          ),
-                                          alignment: Alignment.center,
-                                          child: Text(
-                                            _getInitials(r.employeeName),
-                                            style: const TextStyle(color: AdminWebColors.accent, fontSize: 12, fontWeight: FontWeight.bold),
-                                          ),
-                                        ),
-                                        title: Text(
-                                          r.employeeName,
-                                          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
-                                        ),
-                                        subtitle: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          children: [
-                                            const SizedBox(height: 2),
-                                            Text(
-                                              '${r.branchName} · ${_formatDate(r.date)}',
-                                              style: const TextStyle(fontSize: 12, color: AdminWebColors.textSecondary),
-                                            ),
-                                            if (r.ownerReply != null && r.ownerReply!.isNotEmpty) ...[
-                                              const SizedBox(height: 4),
-                                              Row(
-                                                children: [
-                                                  const Icon(Icons.reply_rounded, size: 13, color: AdminWebColors.accent),
-                                                  const SizedBox(width: 4),
-                                                  Expanded(
-                                                    child: Text(
-                                                      'Response: ${r.ownerReply}',
-                                                      maxLines: 1,
-                                                      overflow: TextOverflow.ellipsis,
-                                                      style: const TextStyle(
-                                                        fontSize: 11.5,
-                                                        fontWeight: FontWeight.w600,
-                                                        color: AdminWebColors.accent,
-                                                      ),
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            ],
-                                          ],
-                                        ),
-                                        trailing: Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                          decoration: BoxDecoration(
-                                            color: _statusColor(r.status).withValues(alpha: 0.15),
-                                            borderRadius: BorderRadius.circular(8),
-                                          ),
-                                          child: Text(
-                                            r.status.label,
-                                            style: TextStyle(
-                                              color: _statusColor(r.status),
-                                              fontWeight: FontWeight.w700,
-                                              fontSize: 11.5,
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  );
-                                },
+                if (isWide)
+                  Expanded(
+                    child: _visibleReports.isEmpty
+                        ? const Center(
+                            child: Text(
+                              'No matching reports found.',
+                              style: TextStyle(color: AdminWebColors.textSecondary),
+                            ),
+                          )
+                        : Column(
+                            children: [
+                              Expanded(
+                                child: ListView.separated(
+                                  itemCount: (_visibleReports.length - (_currentPage * _pageSize)).clamp(0, _pageSize),
+                                  separatorBuilder: (context, index) =>
+                                      const SizedBox(height: 10),
+                                  itemBuilder: (context, index) {
+                                    final r = _visibleReports[(_currentPage * _pageSize) + index];
+                                    return _buildReportItemCard(r);
+                                  },
+                                ),
                               ),
-                            ),
-                            const SizedBox(height: 12),
-                            AdminPaginationBar(
-                              currentPage: _currentPage,
-                              totalItems: _visibleReports.length,
-                              pageSize: _pageSize,
-                              onPageChanged: (p) => setState(() => _currentPage = p),
-                            ),
-                          ],
+                              const SizedBox(height: 12),
+                              AdminPaginationBar(
+                                currentPage: _currentPage,
+                                totalItems: _visibleReports.length,
+                                pageSize: _pageSize,
+                                onPageChanged: (p) => setState(() => _currentPage = p),
+                              ),
+                            ],
+                          ),
+                  )
+                else ...[
+                  if (_visibleReports.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 40),
+                      child: Center(
+                        child: Text(
+                          'No matching reports found.',
+                          style: TextStyle(color: AdminWebColors.textSecondary),
                         ),
-                ),
+                      ),
+                    )
+                  else ...[
+                    ListView.separated(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: (_visibleReports.length - (_currentPage * _pageSize)).clamp(0, _pageSize),
+                      separatorBuilder: (context, index) =>
+                          const SizedBox(height: 10),
+                      itemBuilder: (context, index) {
+                        final r = _visibleReports[(_currentPage * _pageSize) + index];
+                        return _buildReportItemCard(r);
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    AdminPaginationBar(
+                      currentPage: _currentPage,
+                      totalItems: _visibleReports.length,
+                      pageSize: _pageSize,
+                      onPageChanged: (p) => setState(() => _currentPage = p),
+                    ),
+                  ],
+                ],
               ],
 
               // ── TAB 1: INVENTORY VERIFICATION ──────────────────────────────
@@ -1028,41 +984,63 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
                   ],
                 ),
                 const SizedBox(height: 14),
-                Expanded(
-                  child: _verifications.isEmpty
-                      ? GlassCard(
-                          padding: const EdgeInsets.all(24),
-                          child: Center(
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: const [
-                                Icon(Icons.schedule_rounded, size: 40, color: AdminWebColors.border),
-                                SizedBox(height: 10),
-                                Text(
-                                  'No branches have verified inventory yet today.',
-                                  style: TextStyle(color: AdminWebColors.textSecondary),
-                                ),
-                              ],
-                            ),
-                          ),
-                        )
-                      : isWide
-                          ? GridView.builder(
-                              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                                crossAxisCount: 3,
-                                childAspectRatio: 2.1,
-                                crossAxisSpacing: 14,
-                                mainAxisSpacing: 14,
+                if (isWide)
+                  Expanded(
+                    child: _verifications.isEmpty
+                        ? GlassCard(
+                            padding: const EdgeInsets.all(24),
+                            child: Center(
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: const [
+                                  Icon(Icons.schedule_rounded, size: 40, color: AdminWebColors.border),
+                                  SizedBox(height: 10),
+                                  Text(
+                                    'No branches have verified inventory yet today.',
+                                    style: TextStyle(color: AdminWebColors.textSecondary),
+                                  ),
+                                ],
                               ),
-                              itemCount: _verifications.length,
-                              itemBuilder: (ctx, i) => _buildVerifCard(_verifications[i]),
-                            )
-                          : ListView.separated(
-                              itemCount: _verifications.length,
-                              separatorBuilder: (_, _) => const SizedBox(height: 12),
-                              itemBuilder: (ctx, i) => _buildVerifCard(_verifications[i]),
                             ),
-                ),
+                          )
+                        : GridView.builder(
+                            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 3,
+                              childAspectRatio: 2.1,
+                              crossAxisSpacing: 14,
+                              mainAxisSpacing: 14,
+                            ),
+                            itemCount: _verifications.length,
+                            itemBuilder: (ctx, i) => _buildVerifCard(_verifications[i]),
+                          ),
+                  )
+                else ...[
+                  if (_verifications.isEmpty)
+                    GlassCard(
+                      padding: const EdgeInsets.all(24),
+                      child: Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: const [
+                            Icon(Icons.schedule_rounded, size: 40, color: AdminWebColors.border),
+                            SizedBox(height: 10),
+                            Text(
+                              'No branches have verified inventory yet today.',
+                              style: TextStyle(color: AdminWebColors.textSecondary),
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
+                  else
+                    ListView.separated(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: _verifications.length,
+                      separatorBuilder: (_, _) => const SizedBox(height: 12),
+                      itemBuilder: (ctx, i) => _buildVerifCard(_verifications[i]),
+                    ),
+                ],
               ],
 
               // ── TAB 2: ATTENDANCE & DTR (RFID) ──────────────────────────────
@@ -1070,9 +1048,102 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
                 _buildAttendanceTab(isWide),
               ],
             ],
+          );
+
+        if (isWide) {
+          return Container(
+            color: AdminWebColors.background,
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+            child: mainContent,
+          );
+        }
+
+        return Container(
+          color: AdminWebColors.background,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(12, 16, 12, 84),
+            child: mainContent,
           ),
         );
       },
+    );
+  }
+
+  Widget _buildReportItemCard(DailyReport r) {
+    return GlassCard(
+      padding: EdgeInsets.zero,
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(16),
+        clipBehavior: Clip.antiAlias,
+        child: ListTile(
+          onTap: () => _showReportDetail(r),
+          leading: Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: const Color(0xFFF5EDE6),
+              shape: BoxShape.circle,
+              border: Border.all(color: AdminWebColors.accent.withValues(alpha: 0.2)),
+            ),
+            alignment: Alignment.center,
+            child: Text(
+              _getInitials(r.employeeName),
+              style: const TextStyle(color: AdminWebColors.accent, fontSize: 12, fontWeight: FontWeight.bold),
+            ),
+          ),
+          title: Text(
+            r.employeeName,
+            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+          ),
+          subtitle: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: 2),
+              Text(
+                '${r.branchName} · ${_formatDate(r.date)}',
+                style: const TextStyle(fontSize: 12, color: AdminWebColors.textSecondary),
+              ),
+              if (r.ownerReply != null && r.ownerReply!.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    const Icon(Icons.reply_rounded, size: 13, color: AdminWebColors.accent),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Text(
+                        'Response: ${r.ownerReply}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w600,
+                          color: AdminWebColors.accent,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ],
+          ),
+          trailing: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: _statusColor(r.status).withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              r.status.label,
+              style: TextStyle(
+                color: _statusColor(r.status),
+                fontWeight: FontWeight.w700,
+                fontSize: 11.5,
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 
@@ -1216,8 +1287,7 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
       'Driver',
     ];
 
-    return Expanded(
-      child: Column(
+    final mainAttendanceContent = Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // KPI Metric Cards
@@ -1229,33 +1299,37 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
                   totalClockedIn,
                   AdminWebColors.accent,
                   Icons.how_to_reg_rounded,
+                  isMobile: !isWide,
                 ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 8),
               Expanded(
                 child: _statusCard(
                   'On Time',
                   onTimeCount,
                   AdminWebColors.success,
                   Icons.check_circle_rounded,
+                  isMobile: !isWide,
                 ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 8),
               Expanded(
                 child: _statusCard(
                   'Late Arrival',
                   lateCount,
                   AdminWebColors.warning,
                   Icons.schedule_rounded,
+                  isMobile: !isWide,
                 ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 8),
               Expanded(
                 child: _statusCard(
                   'Clocked Out',
                   clockedOutCount,
                   const Color(0xFF1976D2),
                   Icons.logout_rounded,
+                  isMobile: !isWide,
                 ),
               ),
             ],
@@ -1265,11 +1339,11 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
           // Search & Filter Toolbar
           GlassCard(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            child: Row(
-              children: [
-                // Search Input
-                Expanded(
-                  flex: 3,
+            child: LayoutBuilder(
+              builder: (context, barConstraints) {
+                final isBarWide = barConstraints.maxWidth >= 750;
+                final searchField = SizedBox(
+                  width: isBarWide ? null : double.infinity,
                   child: TextField(
                     controller: _attendanceSearchController,
                     onChanged: (val) {
@@ -1294,11 +1368,9 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
                       isDense: true,
                     ),
                   ),
-                ),
-                const SizedBox(width: 12),
+                );
 
-                // Date Picker Button
-                InkWell(
+                final datePickerBtn = InkWell(
                   onTap: _pickAttendanceDate,
                   borderRadius: BorderRadius.circular(10),
                   child: Container(
@@ -1324,99 +1396,143 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
                       ],
                     ),
                   ),
-                ),
-                if (!isToday) ...[
-                  const SizedBox(width: 6),
-                  TextButton(
-                    onPressed: () {
-                      setState(() {
-                        _attendanceDate = DateTime.now();
-                        _attendanceCurrentPage = 0;
-                      });
-                      _loadAttendance();
-                    },
-                    style: TextButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                    ),
-                    child: const Text('Reset Today', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AdminWebColors.accent)),
-                  ),
-                ],
-                const SizedBox(width: 12),
+                );
 
-                // Branch / Role Filter Dropdown
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: AdminWebColors.border),
-                  ),
-                  child: DropdownButtonHideUnderline(
-                    child: DropdownButton<String>(
-                      value: _attendanceBranchFilter ?? 'All',
-                      items: branchFilterOptions.map((opt) {
-                        return DropdownMenuItem<String>(
-                          value: opt,
-                          child: Text(
-                            opt,
-                            style: const TextStyle(fontSize: 12.5, color: AdminWebColors.textPrimary),
-                          ),
-                        );
-                      }).toList(),
-                      onChanged: (val) {
-                        setState(() {
-                          _attendanceBranchFilter = val;
-                          _attendanceCurrentPage = 0;
-                        });
-                      },
+                final branchDropdown = SizedBox(
+                  width: isBarWide ? null : double.infinity,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: AdminWebColors.border),
+                    ),
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<String>(
+                        isExpanded: !isBarWide,
+                        value: _attendanceBranchFilter ?? 'All',
+                        items: branchFilterOptions.map((opt) {
+                          return DropdownMenuItem<String>(
+                            value: opt,
+                            child: Text(
+                              opt,
+                              style: const TextStyle(fontSize: 12.5, color: AdminWebColors.textPrimary),
+                            ),
+                          );
+                        }).toList(),
+                        onChanged: (val) {
+                          setState(() {
+                            _attendanceBranchFilter = val;
+                            _attendanceCurrentPage = 0;
+                          });
+                        },
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(width: 12),
+                );
 
-                // Refresh Button
-                IconButton(
+                final refreshBtn = IconButton(
                   tooltip: 'Refresh Attendance',
                   icon: _isLoadingAttendance
                       ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
                       : const Icon(Icons.refresh_rounded, color: AdminWebColors.accent),
                   onPressed: _loadAttendance,
-                ),
-              ],
+                );
+
+                if (isBarWide) {
+                  return Row(
+                    children: [
+                      Expanded(flex: 3, child: searchField),
+                      const SizedBox(width: 12),
+                      datePickerBtn,
+                      if (!isToday) ...[
+                        const SizedBox(width: 6),
+                        TextButton(
+                          onPressed: () {
+                            setState(() {
+                              _attendanceDate = DateTime.now();
+                              _attendanceCurrentPage = 0;
+                            });
+                            _loadAttendance();
+                          },
+                          style: TextButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          ),
+                          child: const Text('Reset Today', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AdminWebColors.accent)),
+                        ),
+                      ],
+                      const SizedBox(width: 12),
+                      branchDropdown,
+                      const SizedBox(width: 12),
+                      refreshBtn,
+                    ],
+                  );
+                }
+
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    searchField,
+                    const SizedBox(height: 10),
+                    branchDropdown,
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Expanded(child: datePickerBtn),
+                        if (!isToday) ...[
+                          const SizedBox(width: 6),
+                          TextButton(
+                            onPressed: () {
+                              setState(() {
+                                _attendanceDate = DateTime.now();
+                                _attendanceCurrentPage = 0;
+                              });
+                              _loadAttendance();
+                            },
+                            child: const Text('Today', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AdminWebColors.accent)),
+                          ),
+                        ],
+                        const SizedBox(width: 6),
+                        refreshBtn,
+                      ],
+                    ),
+                  ],
+                );
+              },
             ),
           ),
           const SizedBox(height: 16),
 
           // Main Attendance Table / Cards
-          Expanded(
-            child: filtered.isEmpty
-                ? GlassCard(
-                    padding: const EdgeInsets.all(32),
-                    child: Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.access_time_filled_rounded, size: 48, color: AdminWebColors.accent.withValues(alpha: 0.4)),
-                          const SizedBox(height: 12),
-                          const Text(
-                            'Walang natagpuang attendance records.',
-                            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: AdminWebColors.textPrimary),
-                          ),
-                          const SizedBox(height: 6),
-                          const Text(
-                            'Mag-tap ng RFID card sa reader upang mai-record ang Time-In at Time-Out.',
-                            style: TextStyle(fontSize: 12, color: AdminWebColors.textSecondary),
-                          ),
-                        ],
+          if (isWide)
+            Expanded(
+              child: filtered.isEmpty
+                  ? GlassCard(
+                      padding: const EdgeInsets.all(32),
+                      child: Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.access_time_filled_rounded, size: 48, color: AdminWebColors.accent.withValues(alpha: 0.4)),
+                            const SizedBox(height: 12),
+                            const Text(
+                              'Walang natagpuang attendance records.',
+                              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: AdminWebColors.textPrimary),
+                            ),
+                            const SizedBox(height: 6),
+                            const Text(
+                              'Mag-tap ng RFID card sa reader upang mai-record ang Time-In at Time-Out.',
+                              style: TextStyle(fontSize: 12, color: AdminWebColors.textSecondary),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                  )
-                : GlassCard(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      children: [
-                        // Header Row (Wide View)
-                        if (isWide)
+                    )
+                  : GlassCard(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        children: [
+                          // Header Row (Wide View)
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                             decoration: BoxDecoration(
@@ -1434,14 +1550,14 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
                               ],
                             ),
                           ),
-                        if (isWide) const SizedBox(height: 8),
+                          const SizedBox(height: 8),
 
-                        // List Rows
-                        Expanded(
-                          child: ListView.separated(
-                            itemCount: paginated.length,
-                            separatorBuilder: (_, _) => const Divider(height: 1, color: AdminWebColors.border),
-                            itemBuilder: (context, idx) {
+                          // List Rows
+                          Expanded(
+                            child: ListView.separated(
+                              itemCount: paginated.length,
+                              separatorBuilder: (_, _) => const Divider(height: 1, color: AdminWebColors.border),
+                              itemBuilder: (context, idx) {
                               final row = paginated[idx];
                               final staffName = row['staff_name']?.toString() ?? 'Staff';
                               final position = row['position']?.toString() ?? 'Staff';
@@ -1673,10 +1789,136 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
                       ],
                     ),
                   ),
-          ),
+          )
+        else ...[
+          if (filtered.isEmpty)
+            GlassCard(
+              padding: const EdgeInsets.all(32),
+              child: Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.access_time_filled_rounded, size: 48, color: AdminWebColors.accent.withValues(alpha: 0.4)),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'Walang natagpuang attendance records.',
+                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: AdminWebColors.textPrimary),
+                    ),
+                    const SizedBox(height: 6),
+                    const Text(
+                      'Mag-tap ng RFID card sa reader upang mai-record ang Time-In at Time-Out.',
+                      style: TextStyle(fontSize: 12, color: AdminWebColors.textSecondary),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          else
+            GlassCard(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                children: [
+                  ListView.separated(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: paginated.length,
+                    separatorBuilder: (_, _) => const Divider(height: 1, color: AdminWebColors.border),
+                    itemBuilder: (context, idx) {
+                      final row = paginated[idx];
+                      final staffName = row['staff_name']?.toString() ?? 'Staff';
+                      final position = row['position']?.toString() ?? 'Staff';
+                      final branch = row['branch_name']?.toString() ?? 'Branch';
+                      final timeIn = AttendanceService.formatTime(row['time_in']);
+                      final timeOut = AttendanceService.formatTime(row['time_out']);
+                      final hasTimeIn = row['time_in'] != null;
+                      final hasTimeOut = row['time_out'] != null;
+                      final status = (row['status']?.toString() ?? 'on_time').toLowerCase();
+                      final isLate = status == 'late';
+                      final totalHours = (hasTimeIn && hasTimeOut)
+                          ? AttendanceService.formatDuration(row['time_in'], row['time_out'])
+                          : (hasTimeIn ? AttendanceService.formatDuration(row['time_in'], null) : '--');
+
+                      Color statusBg;
+                      Color statusFg;
+                      String statusText;
+
+                      if (hasTimeOut) {
+                        statusBg = const Color(0xFF1976D2).withValues(alpha: 0.12);
+                        statusFg = const Color(0xFF1976D2);
+                        statusText = 'TIMED OUT';
+                      } else if (hasTimeIn) {
+                        statusBg = (isLate ? const Color(0xFFD97706) : AdminWebColors.success).withValues(alpha: 0.12);
+                        statusFg = isLate ? const Color(0xFFD97706) : AdminWebColors.success;
+                        statusText = isLate ? 'LATE IN' : 'ON TIME';
+                      } else {
+                        statusBg = Colors.grey.withValues(alpha: 0.12);
+                        statusFg = Colors.grey.shade700;
+                        statusText = 'NOT IN YET';
+                      }
+
+                      return Container(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                CircleAvatar(
+                                  radius: 16,
+                                  backgroundColor: AdminWebColors.accent.withValues(alpha: 0.15),
+                                  child: Text(
+                                    staffName.isNotEmpty ? staffName[0].toUpperCase() : 'S',
+                                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: AdminWebColors.accent),
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(staffName, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14, color: AdminWebColors.textPrimary)),
+                                      Text('$position · $branch', style: const TextStyle(fontSize: 11.5, color: AdminWebColors.textSecondary)),
+                                    ],
+                                  ),
+                                ),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                  decoration: BoxDecoration(color: statusBg, borderRadius: BorderRadius.circular(6)),
+                                  child: Text(statusText, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: statusFg)),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                Expanded(child: Text('In: $timeIn', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AdminWebColors.textPrimary))),
+                                Expanded(child: Text('Out: $timeOut', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AdminWebColors.textPrimary))),
+                                Text('Hours: $totalHours', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: AdminWebColors.accent)),
+                              ],
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  AdminPaginationBar(
+                    currentPage: _attendanceCurrentPage,
+                    totalItems: filtered.length,
+                    pageSize: _attendancePageSize,
+                    onPageChanged: (p) => setState(() => _attendanceCurrentPage = p),
+                  ),
+                ],
+              ),
+            ),
         ],
-      ),
+      ],
     );
+
+    if (isWide) {
+      return Expanded(child: mainAttendanceContent);
+    }
+    return mainAttendanceContent;
   }
 
   Color _verifColor(InventoryVerificationStatus s) {
@@ -1716,9 +1958,11 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
               Expanded(child: Text(v.branchName, style: const TextStyle(fontSize: 16))),
             ],
           ),
-          content: SizedBox(
-            width: 380,
-            child: Column(
+          content: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 380),
+            child: SizedBox(
+              width: double.maxFinite,
+              child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -1791,6 +2035,7 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
                   _verifDetailRow('B1T1',    null, ar.b1t1,    color),
                 ],
               ],
+            ),
             ),
           ),
           actions: [

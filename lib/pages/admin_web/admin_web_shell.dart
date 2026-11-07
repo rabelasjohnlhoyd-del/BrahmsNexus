@@ -631,6 +631,7 @@ class AdminWebShellState extends State<AdminWebShell> {
 
           return Scaffold(
             backgroundColor: AdminWebColors.background,
+            drawerScrimColor: Colors.black.withValues(alpha: 0.35),
             appBar: AppBar(
               backgroundColor: AdminWebColors.background,
               elevation: 0,
@@ -739,7 +740,9 @@ class AdminWebShellState extends State<AdminWebShell> {
             body: SafeArea(
               child: Stack(
                 children: [
-                  _buildBodyIndexedStack(),
+                  Positioned.fill(
+                    child: _buildBodyIndexedStack(),
+                  ),
                   AdminMessengerDock(
                     onOrderParsed: _handleMessengerOrderParsed,
                   ),

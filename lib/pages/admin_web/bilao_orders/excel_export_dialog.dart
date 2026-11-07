@@ -201,11 +201,15 @@ class _ExcelExportDialogState extends State<ExcelExportDialog> {
     final totalRev = _matchingRevenue;
     final df = DateFormat('MMM d, yyyy');
 
+    final isMobile = MediaQuery.of(context).size.width < 600;
+
     return AlertDialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      titlePadding: const EdgeInsets.fromLTRB(24, 20, 24, 12),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-      actionsPadding: const EdgeInsets.fromLTRB(24, 12, 24, 20),
+      titlePadding: EdgeInsets.fromLTRB(isMobile ? 16 : 24, 20, isMobile ? 16 : 24, 12),
+      contentPadding: EdgeInsets.symmetric(horizontal: isMobile ? 16 : 24, vertical: 8),
+      actionsPadding: EdgeInsets.fromLTRB(isMobile ? 16 : 24, 12, isMobile ? 16 : 24, isMobile ? 16 : 20),
+      actionsOverflowButtonSpacing: 8,
+      actionsOverflowDirection: VerticalDirection.down,
       title: Row(
         children: [
           Container(
@@ -388,7 +392,7 @@ class _ExcelExportDialogState extends State<ExcelExportDialog> {
           icon: _isGenerating
               ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
               : const Icon(Icons.table_view_rounded, size: 18),
-          label: Text(_isGenerating ? 'Generating Excel...' : 'Download Bilao Orders Audit (.xlsx)'),
+          label: Text(_isGenerating ? 'Generating Excel...' : (isMobile ? 'Download Excel (.xlsx)' : 'Download Bilao Orders Audit (.xlsx)')),
           style: ElevatedButton.styleFrom(
             backgroundColor: const Color(0xFF2E7D32),
             foregroundColor: Colors.white,

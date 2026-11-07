@@ -911,7 +911,7 @@ Future<void> _handleSave() async {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 40),
+                  SizedBox(height: MediaQuery.of(context).size.width < 700 ? 84 : 40),
                 ],
               ),
             ),

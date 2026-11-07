@@ -498,7 +498,7 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
                         isArchivedView: _showArchived,
                       )
                 : ListView.separated(
-                    padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+                    padding: EdgeInsets.fromLTRB(24, 0, 24, MediaQuery.of(context).size.width < 700 ? 80 : 24),
                     itemCount: staff.length,
                     separatorBuilder: (_, _) => const SizedBox(height: 12),
                     itemBuilder: (context, index) {
@@ -519,7 +519,9 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
               totalItems: _totalCount,
               pageSize: _pageSize,
               onPageChanged: (p) => _changePage(p + 1),
-            ),
+            )
+          else
+            SizedBox(height: MediaQuery.of(context).size.width < 700 ? 80 : 0),
         ],
       ),
     ),

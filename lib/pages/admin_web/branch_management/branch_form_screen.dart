@@ -349,7 +349,7 @@ class _BranchFormScreenState extends State<BranchFormScreen> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 40),
+                  SizedBox(height: MediaQuery.of(context).size.width < 700 ? 84 : 40),
                 ],
               ),
             ),

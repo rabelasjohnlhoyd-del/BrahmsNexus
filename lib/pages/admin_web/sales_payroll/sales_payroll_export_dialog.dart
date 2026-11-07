@@ -239,11 +239,14 @@ class _SalesPayrollExportDialogState extends State<SalesPayrollExportDialog> {
     final driverSubtotal = widget.driverRate * widget.driverDays;
     final commissaryPayroll = productionStaffSubtotal + driverSubtotal;
 
+    final isMobile = MediaQuery.of(context).size.width < 600;
+
     return AlertDialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      titlePadding: const EdgeInsets.fromLTRB(24, 20, 24, 12),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-      actionsPadding: const EdgeInsets.fromLTRB(24, 12, 24, 20),
+      insetPadding: EdgeInsets.symmetric(horizontal: isMobile ? 12 : 40, vertical: 24),
+      titlePadding: EdgeInsets.fromLTRB(isMobile ? 16 : 24, 20, isMobile ? 16 : 24, 12),
+      contentPadding: EdgeInsets.symmetric(horizontal: isMobile ? 16 : 24, vertical: 8),
+      actionsPadding: EdgeInsets.fromLTRB(isMobile ? 16 : 24, 10, isMobile ? 16 : 24, isMobile ? 16 : 20),
       title: Row(
         children: [
           Container(
@@ -351,22 +354,25 @@ class _SalesPayrollExportDialogState extends State<SalesPayrollExportDialog> {
                   children: [
                     Row(
                       children: [
-                        const Icon(Icons.visibility_outlined, size: 16, color: AdminWebColors.accent),
+                        const Icon(Icons.visibility_outlined, size: 15, color: AdminWebColors.accent),
                         const SizedBox(width: 6),
-                        const Text(
-                          'EXECUTIVE AUDIT PREVIEW',
-                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 0.5, color: AdminWebColors.textPrimary),
+                        const Expanded(
+                          child: Text(
+                            'EXECUTIVE AUDIT PREVIEW',
+                            style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, letterSpacing: 0.3, color: AdminWebColors.textPrimary),
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
-                        const Spacer(),
+                        const SizedBox(width: 6),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
                           decoration: BoxDecoration(
                             color: const Color(0xFF2E7D32).withValues(alpha: 0.12),
                             borderRadius: BorderRadius.circular(6),
                           ),
                           child: Text(
-                            '${matches.length} Shifts Selected',
-                            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF2E7D32)),
+                            isMobile ? '${matches.length} Shifts' : '${matches.length} Shifts Selected',
+                            style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, color: Color(0xFF2E7D32)),
                           ),
                         ),
                       ],
@@ -408,52 +414,94 @@ class _SalesPayrollExportDialogState extends State<SalesPayrollExportDialog> {
         ),
       ),
       actions: [
-        TextButton(
-          onPressed: _isGenerating ? null : () => Navigator.of(context).pop(),
-          child: const Text('Cancel', style: TextStyle(color: AdminWebColors.textSecondary)),
-        ),
-        ElevatedButton.icon(
-          onPressed: _isGenerating ? null : _handleExport,
-          icon: _isGenerating
-              ? const SizedBox(
-                  width: 14,
-                  height: 14,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                )
-              : const Icon(Icons.download_rounded, size: 16),
-          label: Text(_isGenerating ? 'Generating Excel...' : 'Download Sales & Payroll (.xlsx)'),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFF2E7D32),
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        if (isMobile)
+          Row(
+            children: [
+              TextButton(
+                onPressed: _isGenerating ? null : () => Navigator.of(context).pop(),
+                child: const Text('Cancel', style: TextStyle(color: AdminWebColors.textSecondary)),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: _isGenerating ? null : _handleExport,
+                  icon: _isGenerating
+                      ? const SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        )
+                      : const Icon(Icons.download_rounded, size: 16),
+                  label: Text(
+                    _isGenerating ? 'Generating...' : 'Download Excel (.xlsx)',
+                    style: const TextStyle(fontSize: 13),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF2E7D32),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                ),
+              ),
+            ],
+          )
+        else ...[
+          TextButton(
+            onPressed: _isGenerating ? null : () => Navigator.of(context).pop(),
+            child: const Text('Cancel', style: TextStyle(color: AdminWebColors.textSecondary)),
           ),
-        ),
+          ElevatedButton.icon(
+            onPressed: _isGenerating ? null : _handleExport,
+            icon: _isGenerating
+                ? const SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                  )
+                : const Icon(Icons.download_rounded, size: 16),
+            label: Text(_isGenerating ? 'Generating Excel...' : 'Download Sales & Payroll (.xlsx)'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF2E7D32),
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+          ),
+        ],
       ],
     );
   }
 
   Widget _previewRow(String label, String value, {bool isBold = false, Color? color}) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: isBold ? FontWeight.w700 : FontWeight.w500,
-            color: AdminWebColors.textSecondary,
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 11.5,
+                fontWeight: isBold ? FontWeight.w700 : FontWeight.w500,
+                color: AdminWebColors.textSecondary,
+              ),
+            ),
           ),
-        ),
-        Text(
-          value,
-          style: TextStyle(
-            fontSize: 12.5,
-            fontWeight: isBold ? FontWeight.w800 : FontWeight.w600,
-            color: color ?? AdminWebColors.textPrimary,
+          const SizedBox(width: 8),
+          Text(
+            value,
+            textAlign: TextAlign.right,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: isBold ? FontWeight.w800 : FontWeight.w600,
+              color: color ?? AdminWebColors.textPrimary,
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 

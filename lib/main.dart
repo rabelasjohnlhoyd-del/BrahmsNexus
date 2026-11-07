@@ -93,8 +93,10 @@ class BrahmsNexusApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
       builder: (context, child) {
+        final screenWidth = MediaQuery.of(context).size.width;
+        final maxScale = screenWidth < 600 ? 1.12 : 1.3;
         final clampedScaler = MediaQuery.textScalerOf(context)
-            .clamp(minScaleFactor: 0.9, maxScaleFactor: 1.3);
+            .clamp(minScaleFactor: 0.88, maxScaleFactor: maxScale);
         return MediaQuery(
           data: MediaQuery.of(context).copyWith(textScaler: clampedScaler),
           child: child!,

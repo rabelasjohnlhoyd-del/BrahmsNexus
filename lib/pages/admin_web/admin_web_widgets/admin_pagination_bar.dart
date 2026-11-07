@@ -38,9 +38,8 @@ class AdminPaginationBar extends StatelessWidget {
     final safeCurrentPage = currentPage.clamp(0, safeTotalPages - 1);
     final canPrev = safeCurrentPage > 0;
     final canNext = safeCurrentPage < safeTotalPages - 1;
-
     return Padding(
-      padding: const EdgeInsets.only(top: 16, bottom: 8),
+      padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
