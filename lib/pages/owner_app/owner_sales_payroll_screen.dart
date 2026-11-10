@@ -23,30 +23,7 @@ class _OwnerSalesPayrollScreenState extends State<OwnerSalesPayrollScreen> {
   int _currentPage = 0;
   static const int _pageSize = 5;
 
-  final List<SalesRecord> _records = [
-    SalesRecord(
-      id: 's1',
-      branchId: 'br1',
-      branchName: 'Brgy. Gatid, Sta. Cruz',
-      employeeId: 'emp1',
-      employeeName: 'Juan Dela Cruz',
-      date: DateTime.now(),
-      portionsSold: 42,
-      commissionRatePerPortion: 5,
-      totalSalesAmount: 4200,
-    ),
-    SalesRecord(
-      id: 's2',
-      branchId: 'br2',
-      branchName: 'Brgy. Labuin, Pila',
-      employeeId: 'emp2',
-      employeeName: 'Maria Reyes',
-      date: DateTime.now(),
-      portionsSold: 35,
-      commissionRatePerPortion: 5,
-      totalSalesAmount: 3500,
-    ),
-  ];
+  final List<SalesRecord> _records = [];
 
   List<SalesRecord> get _visibleRecords {
     if (_branchFilter == null) return _records;

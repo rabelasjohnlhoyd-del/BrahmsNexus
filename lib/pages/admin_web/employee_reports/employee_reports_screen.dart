@@ -57,48 +57,7 @@ class _EmployeeReportsScreenState extends State<EmployeeReportsScreen> {
   int _attendanceCurrentPage = 0;
   static const int _attendancePageSize = 8;
 
-  final List<DailyReport> _reports = [
-    DailyReport(
-      id: 'r1',
-      employeeId: 'emp1',
-      employeeName: 'Juan Dela Cruz',
-      branchId: 'br1',
-      branchName: 'Brgy. Gatid, Sta. Cruz',
-      date: DateTime.now(),
-      content: 'Sales completed for today, no stock issues.',
-      status: ReportSubmissionStatus.submitted,
-    ),
-    DailyReport(
-      id: 'r2',
-      employeeId: 'emp2',
-      employeeName: 'Maria Reyes',
-      branchId: 'br3',
-      branchName: 'Brgy. Sta. Clara Sur, Pila',
-      date: DateTime.now(),
-      content: 'Mayonnaise running low, requested restock from driver.',
-      status: ReportSubmissionStatus.incomplete,
-    ),
-    DailyReport(
-      id: 'r3',
-      employeeId: 'emp3',
-      employeeName: 'Pedro Santos',
-      branchId: 'br2',
-      branchName: 'Brgy. Labuin, Pila',
-      date: DateTime.now().subtract(const Duration(days: 1)),
-      content: '',
-      status: ReportSubmissionStatus.missing,
-    ),
-    DailyReport(
-      id: 'r4',
-      employeeId: 'emp1',
-      employeeName: 'Juan Dela Cruz',
-      branchId: 'br1',
-      branchName: 'Brgy. Gatid, Sta. Cruz',
-      date: DateTime.now().subtract(const Duration(days: 1)),
-      content: 'Normal day, no specific issues.',
-      status: ReportSubmissionStatus.submitted,
-    ),
-  ];
+  final List<DailyReport> _reports = [];
 
   final _searchController = TextEditingController();
   String _searchQuery = '';

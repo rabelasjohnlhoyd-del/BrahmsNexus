@@ -37,48 +37,7 @@ class _BilaoOrderScreenState extends State<BilaoOrderScreen> {
   static const int _pageSize = 6;
   StreamSubscription<List<BilaoOrder>>? _ordersSub;
 
-  final List<BilaoOrder> _orders = [
-    BilaoOrder(
-      id: 'ord1',
-      customerName: 'Ana Lopez',
-      contactNumber: '0917 555 1234',
-      size: BilaoSize.large,
-      quantity: 2,
-      scheduledDateTime: DateTime.now().add(const Duration(hours: 5)),
-      fulfillmentType: BilaoFulfillmentType.branchPickup,
-      pickupBranchId: 'br1',
-      pickupBranchName: 'Brgy. Gatid, Sta. Cruz',
-      notes: 'Customer waiting at Table 2',
-      preparationStatus: PreparationStatus.preparing,
-      deliveryStatus: DeliveryStatus.forDelivery,
-    ),
-    BilaoOrder(
-      id: 'ord2',
-      customerName: 'Mark Villanueva',
-      contactNumber: '0917 555 5678',
-      size: BilaoSize.medium,
-      quantity: 1,
-      scheduledDateTime: DateTime.now().add(const Duration(days: 1)),
-      fulfillmentType: BilaoFulfillmentType.directDelivery,
-      deliveryAddress: 'Blk 5 Lot 2, Brgy. Labuin, Pila, Laguna',
-      notes: 'Katabi ng kapilya, tawagan bago pumunta',
-      preparationStatus: PreparationStatus.pending,
-      deliveryStatus: DeliveryStatus.forDelivery,
-    ),
-    BilaoOrder(
-      id: 'ord3',
-      customerName: 'Liza Gomez',
-      contactNumber: '0917 555 9012',
-      size: BilaoSize.small,
-      quantity: 3,
-      scheduledDateTime: DateTime.now().subtract(const Duration(days: 2)),
-      fulfillmentType: BilaoFulfillmentType.branchPickup,
-      pickupBranchId: 'br2',
-      pickupBranchName: 'Brgy. Labuin, Pila',
-      preparationStatus: PreparationStatus.ready,
-      deliveryStatus: DeliveryStatus.completed,
-    ),
-  ];
+  final List<BilaoOrder> _orders = [];
 
   String _searchQuery = '';
   String _statusFilter = 'All';

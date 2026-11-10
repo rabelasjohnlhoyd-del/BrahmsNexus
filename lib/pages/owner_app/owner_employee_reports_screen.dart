@@ -30,9 +30,6 @@ class OwnerEmployeeReportsScreen extends StatefulWidget {
 
 class _OwnerEmployeeReportsScreenState
     extends State<OwnerEmployeeReportsScreen> {
-  static String _branchName(String id) =>
-      kSampleBranches.firstWhere((b) => b.id == id, orElse: () => kSampleBranches.first).fullName;
-
   int _currentPage = 0;
   static const int _pageSize = 5;
 
@@ -78,48 +75,7 @@ class _OwnerEmployeeReportsScreenState
     super.dispose();
   }
 
-  final List<DailyReport> _reports = [
-    DailyReport(
-      id: 'r1',
-      employeeId: 'emp1',
-      employeeName: 'Juan Dela Cruz',
-      branchId: 'br1',
-      branchName: _branchName('br1'),
-      date: DateTime.now(),
-      content: 'Kumpleto ang benta ngayong araw, walang isyu sa stock.',
-      status: ReportSubmissionStatus.submitted,
-    ),
-    DailyReport(
-      id: 'r2',
-      employeeId: 'emp2',
-      employeeName: 'Maria Reyes',
-      branchId: 'br3',
-      branchName: _branchName('br3'),
-      date: DateTime.now(),
-      content: 'Kulang ang mayo, humingi na ng dagdag kay Driver.',
-      status: ReportSubmissionStatus.incomplete,
-    ),
-    DailyReport(
-      id: 'r3',
-      employeeId: 'emp3',
-      employeeName: 'Pedro Santos',
-      branchId: 'br2',
-      branchName: _branchName('br2'),
-      date: DateTime.now().subtract(const Duration(days: 1)),
-      content: '',
-      status: ReportSubmissionStatus.missing,
-    ),
-    DailyReport(
-      id: 'r4',
-      employeeId: 'emp1',
-      employeeName: 'Juan Dela Cruz',
-      branchId: 'br1',
-      branchName: _branchName('br1'),
-      date: DateTime.now().subtract(const Duration(days: 1)),
-      content: 'Normal na araw, walang partikular na isyu.',
-      status: ReportSubmissionStatus.submitted,
-    ),
-  ];
+  final List<DailyReport> _reports = [];
 
   String _searchQuery = '';
   String? _branchFilter; // branch id, null = all

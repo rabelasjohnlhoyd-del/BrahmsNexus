@@ -44,13 +44,7 @@ class _OwnerInventoryScreenState extends State<OwnerInventoryScreen> {
   StreamSubscription<List<BranchMeatStock>>? _meatStocksSub;
   StreamSubscription<List<MeatDispatch>>? _dispatchesSub;
 
-  final List<KarneBatch> _batches = [
-    KarneBatch(
-      id: 'kb1',
-      name: 'Batch Danish Crown - July',
-      totalKilos: 1000,
-    ),
-  ];
+  final List<KarneBatch> _batches = [];
 
   List<BranchMeatStock> _branchMeatStocks = kSampleBranches
       .map((b) => BranchMeatStock.defaultForBranch(b))

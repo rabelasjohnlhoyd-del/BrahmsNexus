@@ -41,39 +41,6 @@ class FirestoreService {
   // 1. BILAO ORDERS (Operational & Real-Time)
   // ===========================================================================
 
-  static final List<BilaoOrder> _defaultBilaoOrders = [
-    BilaoOrder(
-      id: 'ord1',
-      customerName: 'Ana Lopez',
-      contactNumber: '0917 555 1234',
-      size: BilaoSize.large,
-      quantity: 2,
-      scheduledDateTime: DateTime.now().add(const Duration(hours: 5)),
-      preparationStatus: PreparationStatus.preparing,
-      deliveryStatus: DeliveryStatus.forDelivery,
-    ),
-    BilaoOrder(
-      id: 'ord2',
-      customerName: 'Mark Villanueva',
-      contactNumber: '0917 555 5678',
-      size: BilaoSize.medium,
-      quantity: 1,
-      scheduledDateTime: DateTime.now().add(const Duration(days: 1)),
-      preparationStatus: PreparationStatus.pending,
-      deliveryStatus: DeliveryStatus.forDelivery,
-    ),
-    BilaoOrder(
-      id: 'ord3',
-      customerName: 'Liza Gomez',
-      contactNumber: '0917 555 9012',
-      size: BilaoSize.small,
-      quantity: 3,
-      scheduledDateTime: DateTime.now().subtract(const Duration(days: 2)),
-      preparationStatus: PreparationStatus.ready,
-      deliveryStatus: DeliveryStatus.completed,
-    ),
-  ];
-
   /// Stream of all active and upcoming bilao orders for Admin Web & Owner App.
   static Stream<List<BilaoOrder>> watchAllBilaoOrders({int limit = 100}) {
     final query = _db
@@ -83,7 +50,7 @@ class FirestoreService {
     return FirestoreListenCache.query('bilao_orders:all:$limit', query)
         .map((snapshot) {
       if (snapshot.docs.isEmpty) {
-        return _defaultBilaoOrders;
+        return const <BilaoOrder>[];
       }
       return snapshot.docs.map((doc) => _bilaoFromDoc(doc)).toList();
     });
@@ -1345,42 +1312,6 @@ class FirestoreService {
   }
 
 
-  static final List<SalesRecord> _defaultSalesRecords = [
-    SalesRecord(
-      id: 's1',
-      branchId: 'br1',
-      branchName: 'Brgy. Gatid, Sta. Cruz',
-      employeeId: 'emp1',
-      employeeName: 'Jovelle P. Camila',
-      date: DateTime.now(),
-      portionsSold: 42,
-      commissionRatePerPortion: 5,
-      totalSalesAmount: 4200,
-    ),
-    SalesRecord(
-      id: 's2',
-      branchId: 'br2',
-      branchName: 'Brgy. Labuin, Pila',
-      employeeId: 'emp2',
-      employeeName: 'Jobelle T. Fuentes',
-      date: DateTime.now(),
-      portionsSold: 35,
-      commissionRatePerPortion: 5,
-      totalSalesAmount: 3500,
-    ),
-    SalesRecord(
-      id: 's3',
-      branchId: 'br3',
-      branchName: 'Brgy. Sta. Clara Sur, Pila',
-      employeeId: 'emp3',
-      employeeName: 'Patricia Mharie M. Espiritu',
-      date: DateTime.now().subtract(const Duration(days: 1)),
-      portionsSold: 28,
-      commissionRatePerPortion: 5,
-      totalSalesAmount: 2800,
-    ),
-  ];
-
   /// Streams real-time daily sales records.
   static Stream<List<SalesRecord>> watchRecentSales({int limit = 50}) {
     final query = _db
@@ -1390,7 +1321,7 @@ class FirestoreService {
     return FirestoreListenCache.query('daily_sales:recent:$limit', query)
         .map((snapshot) {
       if (snapshot.docs.isEmpty) {
-        return _defaultSalesRecords;
+        return const <SalesRecord>[];
       }
       return snapshot.docs.map((doc) {
         final data = doc.data();
@@ -1490,29 +1421,6 @@ class FirestoreService {
   // 4. DAILY EMPLOYEE INCIDENT REPORTS
   // ===========================================================================
 
-  static final List<DailyReport> _defaultReports = [
-    DailyReport(
-      id: 'r1',
-      employeeId: 'emp1',
-      employeeName: 'Jovelle P. Camila',
-      branchId: 'br1',
-      branchName: 'Brgy. Gatid, Sta. Cruz',
-      date: DateTime.now(),
-      content: 'Kumpleto ang benta ngayong araw, walang isyu sa stock.',
-      status: ReportSubmissionStatus.submitted,
-    ),
-    DailyReport(
-      id: 'r2',
-      employeeId: 'emp2',
-      employeeName: 'Jobelle T. Fuentes',
-      branchId: 'br2',
-      branchName: 'Brgy. Labuin, Pila',
-      date: DateTime.now(),
-      content: 'Kulang ang mayo, humingi na ng dagdag kay Driver.',
-      status: ReportSubmissionStatus.incomplete,
-    ),
-  ];
-
   /// Streams real-time daily employee reports.
   static Stream<List<DailyReport>> watchDailyReports({int limit = 50}) {
     final query = _db
@@ -1522,7 +1430,7 @@ class FirestoreService {
     return FirestoreListenCache.query('daily_reports:$limit', query)
         .map((snapshot) {
       if (snapshot.docs.isEmpty) {
-        return _defaultReports;
+        return const <DailyReport>[];
       }
       return snapshot.docs.map((doc) {
         final data = doc.data();

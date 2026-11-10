@@ -443,53 +443,9 @@ class _OwnerHomepageScreenState extends State<OwnerHomepageScreen> {
     );
   }
 
-  final List<SalesRecord> _salesRecords = [
-    SalesRecord(
-      id: 's1',
-      branchId: 'br1',
-      branchName: 'Brgy. Gatid, Sta. Cruz',
-      employeeId: 'emp1',
-      employeeName: 'Juan Dela Cruz',
-      date: DateTime.now(),
-      portionsSold: 42,
-      commissionRatePerPortion: 5,
-      totalSalesAmount: 4200,
-    ),
-    SalesRecord(
-      id: 's2',
-      branchId: 'br2',
-      branchName: 'Brgy. Labuin, Pila',
-      employeeId: 'emp2',
-      employeeName: 'Maria Reyes',
-      date: DateTime.now(),
-      portionsSold: 35,
-      commissionRatePerPortion: 5,
-      totalSalesAmount: 3500,
-    ),
-  ];
+  final List<SalesRecord> _salesRecords = [];
 
-  final List<DailyReport> _reports = [
-    DailyReport(
-      id: 'r1',
-      employeeId: 'emp1',
-      employeeName: 'Juan Dela Cruz',
-      branchId: 'br1',
-      branchName: 'Brgy. Gatid, Sta. Cruz',
-      date: DateTime.now(),
-      content: 'Kumpleto ang benta ngayong araw, walang isyu sa stock.',
-      status: ReportSubmissionStatus.submitted,
-    ),
-    DailyReport(
-      id: 'r2',
-      employeeId: 'emp2',
-      employeeName: 'Maria Reyes',
-      branchId: 'br3',
-      branchName: 'Brgy. Sta. Clara Sur, Pila',
-      date: DateTime.now(),
-      content: '',
-      status: ReportSubmissionStatus.missing,
-    ),
-  ];
+  final List<DailyReport> _reports = [];
 
   bool _isSameDay(DateTime a, DateTime b) {
     return a.year == b.year && a.month == b.month && a.day == b.day;
