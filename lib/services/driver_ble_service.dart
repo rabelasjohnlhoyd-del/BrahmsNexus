@@ -23,6 +23,16 @@ class DriverBleService {
   /// the UI to "On the way" before the offline sync completes.
   static final Set<String> offlinePendingDeploymentIds = {};
   static final Set<String> offlinePendingRetrievalIds = {};
+
+  /// Clears pending offline queues from memory and disk (used on route reset or fresh start)
+  static Future<void> clearOfflineQueue() async {
+    offlinePendingDeploymentIds.clear();
+    offlinePendingRetrievalIds.clear();
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_offlineQueueKey);
+    } catch (_) {}
+  }
   DriverBleService._internal();
 
   static const String targetDeviceName = 'Brahms_Driver_Reader';
@@ -45,6 +55,14 @@ class DriverBleService {
   String activeBranchId = '';
   String activeBranchName = '';
   String activeCookName = '';
+  String activeCookStaffId = '';
+  String activeCookRfidTag = '';
+
+  /// Broadcast stream to immediately notify RouteScreen and other UI listeners
+  /// when a card tap has been processed (whether online or saved offline).
+  static final StreamController<Map<String, dynamic>> _tapEventsController =
+      StreamController<Map<String, dynamic>>.broadcast();
+  static Stream<Map<String, dynamic>> get tapEventsStream => _tapEventsController.stream;
 
   void setActiveDispatch({
     required String branchId,
@@ -52,12 +70,16 @@ class DriverBleService {
     required String cookName,
     required bool isOnTheWay,
     bool isDeployment = true,
+    String? cookStaffId,
+    String? cookRfidTag,
   }) {
     isDriverOnTheWay = isOnTheWay;
     isDeploymentMode = isDeployment;
     activeBranchId = branchId;
     activeBranchName = branchName;
     activeCookName = cookName;
+    activeCookStaffId = cookStaffId ?? '';
+    activeCookRfidTag = cookRfidTag ?? '';
     debugPrint('[BT] Active dispatch updated: branch=$branchName, cook=$cookName, isOnTheWay=$isOnTheWay, mode=${isDeployment ? "deployment" : "retrieval"}');
   }
 
@@ -67,6 +89,8 @@ class DriverBleService {
     activeBranchId = '';
     activeBranchName = '';
     activeCookName = '';
+    activeCookStaffId = '';
+    activeCookRfidTag = '';
   }
 
   /// Public connection status notifiers for UI
@@ -225,213 +249,320 @@ class DriverBleService {
     }
   }
 
-  /// Processes the tap: calls Supabase online, or caches offline if network is down.
+  /// Processes the tap: validates staff registration, route status, and location match;
+  /// processes attendance online or queues offline, and immediately notifies RouteScreen.
   Future<void> _processDriverTap(String uid, String deviceId) async {
-    Map<String, dynamic> responsePayload;
+    Map<String, dynamic> responsePayload = {
+      'status': 'error',
+      'code': 'CONN_ERR',
+      'message': 'Unable to process tap',
+      'name': 'Staff',
+    };
+    final cleanUid = uid.replaceAll(':', '').replaceAll(' ', '').toUpperCase().trim();
 
     try {
-      // 1. Attempt online attendance processing
-      final result = await AttendanceService.processTap(
-        rfidUid: uid,
-        deviceId: deviceId,
-        branchId: activeBranchId,
-      ).timeout(const Duration(milliseconds: 2500));
+      // 1. Identify staff member by RFID tag
+      StaffMember? tappedStaff = await AttendanceService.findStaffByRfid(uid);
 
-      final success = result['success'] == true;
-      final type = result['type']?.toString() ?? '';
-      final code = result['code']?.toString() ?? '';
-      final staffName = result['staff_name']?.toString() ?? 'Staff';
-      final message = result['message']?.toString() ?? '';
-
-      // RETRIEVAL INTERCEPTION (STORE CLOSING / TIME-OUT):
-      // Kung retrieval mode (hapon/uwian) at nag-tap ang cook, ito ay TIME-OUT.
-      // Kung sinabi ng Supabase na ALREADY_TIMED_IN o DRIVER_NOT_ON_THE_WAY o error,
-      // i-override at i-record bilang Time-Out at i-close ang branch!
-      if (!isDeploymentMode && (code == 'ALREADY_TIMED_IN' || code == 'DRIVER_NOT_ON_THE_WAY' || (!success && type != 'time_out'))) {
-        final staff = await AttendanceService.findStaffByRfid(uid);
-        if (staff != null) {
-          final canonId = AttendanceService.normalizeBranchId(
-            activeBranchId.isNotEmpty ? activeBranchId : staff.branch,
-            staff.fullName,
-          );
-          final bName = activeBranchName.isNotEmpty ? activeBranchName : AttendanceService.canonicalBranchName(canonId);
-
-          await AttendanceService.ensureSupabaseAttendanceLog(
-            staff: staff,
-            branchId: canonId,
-            branchName: bName,
-            rfidUid: uid,
-            deviceId: deviceId,
-            isDeployment: false,
-          );
-
-          await FirestoreService.processBranchCookRfidTap(
-            branchId: canonId,
-            branchName: bName,
-            cookName: staff.fullName,
-            cookId: staff.id,
-            isDeployment: false,
+      // Fallback: If not found in staff registry but matches active cook's tag
+      if (tappedStaff == null && activeCookRfidTag.isNotEmpty) {
+        final cleanActiveTag = activeCookRfidTag.replaceAll(':', '').replaceAll(' ', '').toUpperCase().trim();
+        if (cleanActiveTag == cleanUid) {
+          tappedStaff = StaffMember(
+            id: activeCookStaffId.isNotEmpty ? activeCookStaffId : 'cook',
+            firstName: activeCookName,
+            lastName: '',
+            username: 'cook',
+            branch: activeBranchId,
+            position: 'Branch Cook',
             rfidTag: uid,
-            deviceId: deviceId,
+            isActive: true,
+            isArchived: false,
           );
-
-          isDriverOnTheWay = false;
-
-          responsePayload = {
-            'status': 'success',
-            'type': 'time_out',
-            'name': staff.fullName,
-            'code': 'TIME_OUT',
-            'offline': false,
-          };
-          await _sendResponseToEsp32(responsePayload);
-          return;
         }
       }
 
-      final isOffline = result['is_offline'] == true || code == 'CONN_ERR' || code == 'SERVER_ERR';
-      if (isOffline) {
-        // WALANG INTERNET ANG PHONE:
-        // Suriin kung si driver mismo ang nag-tap ng sarili niyang attendance card:
-        final tappedStaff = await AttendanceService.findStaffByRfid(uid);
-        final tappedPos = (tappedStaff?.position ?? '').toLowerCase();
-        final isDriverSelfTap = tappedPos.contains('driver') ||
-            (AuthService.currentAppUser != null &&
-                tappedStaff != null &&
-                tappedStaff.fullName.toLowerCase().trim() == AuthService.currentAppUser!.fullName.toLowerCase().trim());
-
-        if (!isDriverSelfTap && !isDriverOnTheWay) {
-          debugPrint('[BT] Offline Tap REJECTED: Driver has NOT tapped "On the way" in the app!');
-          responsePayload = {
-            'status': 'error',
-            'code': 'DRIVER_NOT_ON_THE_WAY',
-            'message': 'Driver route is not yet active for this branch.',
-            'name': 'Branch Cook',
-          };
-          await _sendResponseToEsp32(responsePayload);
-          return;
-        }
-
-        // Kung driver self-tap o cook tap habang on the way:
-        final displayName = isDriverSelfTap
-            ? (tappedStaff?.fullName ?? AuthService.currentAppUser?.fullName ?? 'Driver')
-            : (activeCookName.isNotEmpty ? activeCookName : (tappedStaff?.fullName ?? staffName));
-
-        debugPrint('[BT] Phone offline. Saving tap offline for $displayName (isDriverSelf=$isDriverSelfTap, isDeployment=$isDeploymentMode)...');
-        await _saveTapOffline(
-          uid,
-          deviceId,
-          branchId: isDriverSelfTap ? 'commissary' : activeBranchId,
-          cookName: displayName,
-          isDeployment: isDeploymentMode,
-        );
-
-        responsePayload = {
-          'status': 'offline_saved',
-          'type': isDeploymentMode ? 'time_in' : 'time_out',
-          'name': displayName,
-          'code': 'OFFLINE_SAVED',
-          'offline': true,
-        };
-
-        if (!isDriverSelfTap) {
-          isDriverOnTheWay = false;
-        }
-      } else if (success && (type == 'time_in' || type == 'time_out')) {
-        // 1. Success mula sa Supabase (May pangalan at tamang shift)
-        if (!isDeploymentMode) {
-          // Auto-close branch in Firestore for retrieval shift
-          final cleanBId = AttendanceService.normalizeBranchId(activeBranchId, staffName);
-          final bName = activeBranchName.isNotEmpty ? activeBranchName : AttendanceService.canonicalBranchName(cleanBId);
-          final staff = await AttendanceService.findStaffByRfid(uid);
-          await FirestoreService.processBranchCookRfidTap(
-            branchId: cleanBId,
-            branchName: bName,
-            cookName: staffName,
-            cookId: staff?.id ?? 'cook',
-            isDeployment: false,
-            rfidTag: uid,
-            deviceId: deviceId,
-          );
-        }
-
-        responsePayload = {
-          'status': 'success',
-          'type': type,
-          'name': staffName,
-          'code': code,
-          'offline': false,
-        };
-      } else {
-        // 2. Rejection o Notice mula sa Supabase:
-        // DRIVER_NOT_ON_THE_WAY, UNREGISTERED, WRONG_LOCATION, ALREADY_COMPLETED, etc.
-        if (code == 'UNREGISTERED' || code == 'UNKNOWN_CARD') {
-          try {
-            await SupabaseService.client?.from('rfid_scan_queue').insert({
+      // VALIDATION 1: UNREGISTERED CARD (Reject immediately, do NOT save offline!)
+      if (tappedStaff == null) {
+        debugPrint('[BT] Tap REJECTED: Card $uid is not registered to any staff member!');
+        try {
+          if (SupabaseService.client != null) {
+            await SupabaseService.client!.from('rfid_scan_queue').insert({
               'rfid_uid': uid.toUpperCase(),
               'device_id': deviceId,
             });
-            debugPrint('[BT] Pushed unregistered card $uid to rfid_scan_queue for Admin Web enrollment!');
-          } catch (e) {
-            debugPrint('[BT] Failed to push to rfid_scan_queue: $e');
+            debugPrint('[BT] Pushed unregistered card $uid to rfid_scan_queue for enrollment');
           }
-        }
+        } catch (_) {}
 
-        if (result['details'] != null) {
-          debugPrint('[BT] Supabase error details: ${result['details']}');
-        }
         responsePayload = {
           'status': 'error',
-          'code': code.isNotEmpty ? code : 'REJECTED',
-          'message': message,
-          'name': staffName,
+          'code': 'UNREGISTERED',
+          'message': 'RFID card is not registered.',
+          'name': 'Unknown Card',
         };
+        await _sendResponseToEsp32(responsePayload);
+        return;
       }
-    } catch (e) {
-      // 2. Offline Mode: Network failed or timed out during transit
-      debugPrint('[BT] Online tap timed out (Saving Offline): $e');
-      final tappedStaff = await AttendanceService.findStaffByRfid(uid);
-      final tappedPos = (tappedStaff?.position ?? '').toLowerCase();
+
+      // VALIDATION 2: DRIVER SELF-TAP (Time-in/out for driver himself)
+      final tappedPos = (tappedStaff.position).toLowerCase();
       final isDriverSelfTap = tappedPos.contains('driver') ||
           (AuthService.currentAppUser != null &&
-              tappedStaff != null &&
-              tappedStaff.fullName.toLowerCase().trim() == AuthService.currentAppUser!.fullName.toLowerCase().trim());
+              tappedStaff.fullName.toLowerCase().trim() ==
+                  AuthService.currentAppUser!.fullName.toLowerCase().trim());
 
-      if (!isDriverSelfTap && !isDriverOnTheWay) {
+      if (isDriverSelfTap) {
+        debugPrint('[BT] Driver self-attendance tap detected for ${tappedStaff.fullName}');
+        bool selfSavedOnline = false;
+        try {
+          final res = await AttendanceService.processTap(
+            rfidUid: uid,
+            deviceId: deviceId,
+            branchId: 'commissary',
+          ).timeout(const Duration(milliseconds: 2500));
+          if (res['success'] == true) {
+            selfSavedOnline = true;
+            responsePayload = {
+              'status': 'success',
+              'type': res['type']?.toString() ?? 'time_in',
+              'name': tappedStaff.fullName,
+              'code': res['code']?.toString() ?? 'TIME_IN',
+              'offline': false,
+            };
+          }
+        } catch (_) {}
+
+        if (!selfSavedOnline) {
+          await _saveTapOffline(
+            uid,
+            deviceId,
+            branchId: 'commissary',
+            cookName: tappedStaff.fullName,
+            isDeployment: true,
+          );
+          responsePayload = {
+            'status': 'offline_saved',
+            'type': 'time_in',
+            'name': tappedStaff.fullName,
+            'code': 'OFFLINE_SAVED',
+            'offline': true,
+          };
+        }
+
+        await _sendResponseToEsp32(responsePayload);
+        return;
+      }
+
+      // VALIDATION 3: DRIVER MUST BE "ON THE WAY"
+      if (!isDriverOnTheWay) {
+        debugPrint('[BT] Tap REJECTED: Driver has not tapped "On the way" in the app!');
         responsePayload = {
           'status': 'error',
           'code': 'DRIVER_NOT_ON_THE_WAY',
-          'message': 'Driver route is not yet active for this branch.',
-          'name': 'Branch Cook',
+          'message': 'Driver route is not active for this branch. Tap "On the way" first.',
+          'name': tappedStaff.fullName,
         };
-      } else {
-        final displayName = isDriverSelfTap
-            ? (tappedStaff?.fullName ?? AuthService.currentAppUser?.fullName ?? 'Driver')
-            : (activeCookName.isNotEmpty ? activeCookName : (tappedStaff?.fullName ?? 'Staff'));
+        await _sendResponseToEsp32(responsePayload);
+        return;
+      }
 
+      // VALIDATION 4: COOK & BRANCH MATCHING (Prevent wrong cook / wrong branch tap)
+      final tappedCanonBranch = AttendanceService.normalizeBranchId(tappedStaff.branch, tappedStaff.fullName);
+      final activeCanonBranch = AttendanceService.normalizeBranchId(activeBranchId, activeCookName);
+
+      final nameMatches = activeCookName.isNotEmpty &&
+          (tappedStaff.fullName.toLowerCase().trim() == activeCookName.toLowerCase().trim() ||
+           tappedStaff.fullName.toLowerCase().contains(activeCookName.toLowerCase().trim()) ||
+           activeCookName.toLowerCase().contains(tappedStaff.fullName.toLowerCase().trim()));
+
+      final branchMatches = tappedCanonBranch.isNotEmpty &&
+          activeCanonBranch.isNotEmpty &&
+          tappedCanonBranch == activeCanonBranch;
+
+      final idMatches = activeCookStaffId.isNotEmpty &&
+          tappedStaff.id.toLowerCase().trim() == activeCookStaffId.toLowerCase().trim();
+
+      final tagMatches = activeCookRfidTag.isNotEmpty &&
+          activeCookRfidTag.replaceAll(':', '').replaceAll(' ', '').toUpperCase().trim() == cleanUid;
+
+      final isAuthorizedCook = nameMatches || branchMatches || idMatches || tagMatches;
+
+      if (!isAuthorizedCook) {
+        debugPrint('[BT] Tap REJECTED: Wrong cook! Tapped: ${tappedStaff.fullName} (${tappedStaff.branch}), Expected: $activeCookName ($activeBranchId)');
+        responsePayload = {
+          'status': 'error',
+          'code': 'WRONG_COOK',
+          'message': 'Card belongs to ${tappedStaff.fullName}, not assigned to $activeBranchName.',
+          'name': tappedStaff.fullName,
+        };
+        await _sendResponseToEsp32(responsePayload);
+        return;
+      }
+
+      // VALIDATION 5: RETRIEVAL MODE (STORE CLOSING / TIME-OUT)
+      if (!isDeploymentMode) {
+        final canonId = activeCanonBranch.isNotEmpty ? activeCanonBranch : tappedCanonBranch;
+        final bName = activeBranchName.isNotEmpty ? activeBranchName : AttendanceService.canonicalBranchName(canonId);
+
+        bool onlineCloseSuccess = false;
+        try {
+          final res = await AttendanceService.processTap(
+            rfidUid: uid,
+            deviceId: deviceId,
+            branchId: canonId,
+          ).timeout(const Duration(milliseconds: 2500));
+          if (res['success'] == true && res['type'] == 'time_out') {
+            onlineCloseSuccess = true;
+          }
+        } catch (_) {}
+
+        if (onlineCloseSuccess) {
+          await FirestoreService.processBranchCookRfidTap(
+            branchId: canonId,
+            branchName: bName,
+            cookName: tappedStaff.fullName,
+            cookId: tappedStaff.id,
+            isDeployment: false,
+            rfidTag: uid,
+            deviceId: deviceId,
+          );
+          responsePayload = {
+            'status': 'success',
+            'type': 'time_out',
+            'name': tappedStaff.fullName,
+            'code': 'TIME_OUT',
+            'offline': false,
+          };
+        } else {
+          await _saveTapOffline(
+            uid,
+            deviceId,
+            branchId: canonId,
+            cookName: tappedStaff.fullName,
+            isDeployment: false,
+          );
+          responsePayload = {
+            'status': 'offline_saved',
+            'type': 'time_out',
+            'name': tappedStaff.fullName,
+            'code': 'OFFLINE_SAVED',
+            'offline': true,
+          };
+        }
+
+        // Notify RouteScreen instantly so UI updates stop to completed
+        _tapEventsController.add({
+          'branch_id': activeBranchId,
+          'canon_id': canonId,
+          'cook_name': tappedStaff.fullName,
+          'is_deployment': false,
+          'is_offline': !onlineCloseSuccess,
+          'uid': uid,
+        });
+
+        clearActiveDispatch();
+        await _sendResponseToEsp32(responsePayload);
+        return;
+      }
+
+      // DEPLOYMENT MODE (TIME-IN / STORE OPENING):
+      final canonId = activeCanonBranch.isNotEmpty ? activeCanonBranch : tappedCanonBranch;
+      final bName = activeBranchName.isNotEmpty ? activeBranchName : AttendanceService.canonicalBranchName(canonId);
+
+      // Proactively ensure Supabase driver_dispatch_status is ON THE WAY
+      // so Supabase RPC process_rfid_tap will never reject the cook's tap!
+      try {
+        if (SupabaseService.client != null && canonId.isNotEmpty) {
+          await SupabaseService.client!.from('driver_dispatch_status').upsert({
+            'branch_id': canonId,
+            'branch_name': bName,
+            'driver_name': AuthService.currentAppUser?.fullName ?? 'Driver',
+            'driver_on_the_way': true,
+            'mode': 'deployment',
+            'updated_at': DateTime.now().toUtc().toIso8601String(),
+          }).timeout(const Duration(seconds: 3));
+        }
+      } catch (_) {}
+
+      bool onlineSuccess = false;
+      try {
+        final result = await AttendanceService.processTap(
+          rfidUid: uid,
+          deviceId: deviceId,
+          branchId: canonId,
+        ).timeout(const Duration(milliseconds: 5000));
+
+        final success = result['success'] == true;
+        final code = result['code']?.toString() ?? '';
+        final isOffline = result['is_offline'] == true || code == 'CONN_ERR' || code == 'SERVER_ERR';
+
+        if (!isOffline && (success || code == 'ALREADY_TIMED_IN')) {
+          onlineSuccess = true;
+
+          await FirestoreService.processBranchCookRfidTap(
+            branchId: canonId,
+            branchName: bName,
+            cookName: tappedStaff.fullName,
+            cookId: tappedStaff.id,
+            isDeployment: true,
+            rfidTag: uid,
+            deviceId: deviceId,
+          );
+
+          responsePayload = {
+            'status': 'success',
+            'type': 'time_in',
+            'name': tappedStaff.fullName,
+            'code': code.isNotEmpty ? code : 'TIME_IN',
+            'offline': false,
+          };
+        }
+      } catch (e) {
+        debugPrint('[BT] Online tap timed out or errored: $e');
+      }
+
+      if (!onlineSuccess) {
+        // Save to offline queue
         await _saveTapOffline(
           uid,
           deviceId,
-          branchId: isDriverSelfTap ? 'commissary' : activeBranchId,
-          cookName: displayName,
-          isDeployment: isDeploymentMode,
+          branchId: canonId,
+          cookName: tappedStaff.fullName,
+          isDeployment: true,
         );
 
         responsePayload = {
           'status': 'offline_saved',
-          'type': isDeploymentMode ? 'time_in' : 'time_out',
-          'name': displayName,
+          'type': 'time_in',
+          'name': tappedStaff.fullName,
           'code': 'OFFLINE_SAVED',
           'offline': true,
         };
-        if (!isDriverSelfTap) {
-          isDriverOnTheWay = false;
-        }
       }
-    }
 
-    // 3. Send response line back to ESP32 so OLED and Buzzer update
-    await _sendResponseToEsp32(responsePayload);
+      // NOTIFY ROUTE SCREEN INSTANTLY TO MARK STOP COMPLETED & UNLOCK NEXT STOP
+      _tapEventsController.add({
+        'branch_id': activeBranchId,
+        'canon_id': canonId,
+        'cook_name': tappedStaff.fullName,
+        'is_deployment': true,
+        'is_offline': !onlineSuccess,
+        'uid': uid,
+      });
+
+      clearActiveDispatch();
+      await _sendResponseToEsp32(responsePayload);
+    } catch (e) {
+      debugPrint('[BT] _processDriverTap exception: $e');
+      responsePayload = {
+        'status': 'error',
+        'code': 'PARSE_ERR',
+        'message': 'System busy - retry',
+        'name': 'Error',
+      };
+      await _sendResponseToEsp32(responsePayload);
+    }
   }
 
   /// Sends newline-terminated JSON response back to ESP32 over Bluetooth Serial
@@ -517,11 +648,34 @@ class DriverBleService {
           final deviceId = data['device_id']?.toString() ?? 'esp32_driver_portable';
           final branchId = data['branch_id']?.toString() ?? '';
           final cookName = data['cook_name']?.toString() ?? '';
+          final isDep = data['is_deployment'] != false;
+
+          final staff = await AttendanceService.findStaffByRfid(uid);
+          final cName = cookName.isNotEmpty ? cookName : (staff?.fullName ?? 'Branch Cook');
+          final canonId = AttendanceService.normalizeBranchId(
+            branchId.isNotEmpty ? branchId : (staff?.branch ?? ''),
+            cName,
+          );
+          final bName = AttendanceService.canonicalBranchName(canonId);
+
+          // Proactively ensure driver_dispatch_status is active so process_rfid_tap allows offline sync
+          try {
+            if (SupabaseService.client != null && canonId.isNotEmpty) {
+              await SupabaseService.client!.from('driver_dispatch_status').upsert({
+                'branch_id': canonId,
+                'branch_name': bName,
+                'driver_name': 'Driver',
+                'driver_on_the_way': true,
+                'mode': isDep ? 'deployment' : 'retrieval',
+                'updated_at': DateTime.now().toUtc().toIso8601String(),
+              }).timeout(const Duration(seconds: 3));
+            }
+          } catch (_) {}
 
           var res = await AttendanceService.processTap(
             rfidUid: uid,
             deviceId: deviceId,
-            branchId: branchId,
+            branchId: canonId.isNotEmpty ? canonId : branchId,
           ).timeout(const Duration(seconds: 4));
 
           // Kung offline pa rin ang phone, ihinto na muna ang sync loop para hindi mag-spam
@@ -531,57 +685,51 @@ class DriverBleService {
             break;
           }
 
-          // KUNG HINARANG NG DATABASE DAHIL DRIVER_NOT_ON_THE_WAY:
-          // Ang offline tap na ito ay na-verify na ng driver phone habang on the way bago na-save.
-          // I-bypass ang database restriction at direktang i-save sa attendance_logs at i-open ang branch!
-          if (res['code'] == 'DRIVER_NOT_ON_THE_WAY' ||
-              (res['success'] != true &&
-               res['code'] != 'ALREADY_TIMED_IN' &&
-               res['code'] != 'ALREADY_COMPLETED')) {
-            final staff = await AttendanceService.findStaffByRfid(uid);
-            if (staff != null) {
-              final canonId = AttendanceService.normalizeBranchId(
-                branchId.isNotEmpty ? branchId : staff.branch,
-                staff.fullName,
-              );
-              final bName = AttendanceService.canonicalBranchName(canonId);
-
-              final isDep = data['is_deployment'] != false;
-              // 1. Diretso sa Supabase attendance_logs
-              await AttendanceService.ensureSupabaseAttendanceLog(
-                staff: staff,
-                branchId: canonId,
-                branchName: bName,
-                rfidUid: uid,
-                deviceId: deviceId,
-                isDeployment: isDep,
-              );
-
-              // 2. I-update ang branch status sa Firestore
-              await FirestoreService.processBranchCookRfidTap(
-                branchId: canonId,
-                branchName: bName,
-                cookName: staff.fullName,
-                cookId: staff.id,
-                isDeployment: isDep,
-                rfidTag: uid,
-                deviceId: deviceId,
-              );
-
-              debugPrint('[BT] Offline tap successfully resolved via fallback for ${staff.fullName} ($canonId)!');
-              res = {'success': true};
-            }
+          // 1. Siguraduhing may official attendance_log sa Supabase
+          if (staff != null) {
+            await AttendanceService.ensureSupabaseAttendanceLog(
+              staff: staff,
+              branchId: canonId,
+              branchName: bName,
+              rfidUid: uid,
+              deviceId: deviceId,
+              isDeployment: isDep,
+            );
           }
 
-          if (res['success'] == true || res['code'] == 'ALREADY_TIMED_IN' || res['code'] == 'ALREADY_COMPLETED') {
-            debugPrint('[BT] Successfully synced offline tap for UID: $uid');
-            // Remove from pending offline sets now that sync is confirmed
-            if (branchId.isNotEmpty) {
-              offlinePendingDeploymentIds.remove(branchId);
-              offlinePendingRetrievalIds.remove(branchId);
-            }
-          } else {
-            remaining.add(item);
+          // 2. LAGING i-update ang Firestore branch status (opening / closing)
+          // kahit ALREADY_TIMED_IN o DRIVER_NOT_ON_THE_WAY ang tugon
+          if (canonId.isNotEmpty && canonId != 'commissary' && canonId != 'unassigned') {
+            await FirestoreService.processBranchCookRfidTap(
+              branchId: canonId,
+              branchName: bName,
+              cookName: cName,
+              cookId: staff?.id ?? 'cook',
+              isDeployment: isDep,
+              rfidTag: uid,
+              deviceId: deviceId,
+            );
+          }
+
+          // 3. I-broadcast sa UI para maging green/completed ang stop
+          _tapEventsController.add({
+            'branch_id': branchId,
+            'canon_id': canonId,
+            'cook_name': cName,
+            'is_deployment': isDep,
+            'is_offline': false,
+            'uid': uid,
+          });
+
+          debugPrint('[BT] Successfully synced and opened branch for offline tap UID: $uid ($cName, $canonId)');
+
+          if (branchId.isNotEmpty) {
+            offlinePendingDeploymentIds.remove(branchId);
+            offlinePendingRetrievalIds.remove(branchId);
+          }
+          if (canonId.isNotEmpty) {
+            offlinePendingDeploymentIds.remove(canonId);
+            offlinePendingRetrievalIds.remove(canonId);
           }
         } catch (e) {
           debugPrint('[BT] Sync item error: $e');

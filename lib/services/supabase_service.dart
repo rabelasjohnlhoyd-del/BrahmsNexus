@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../config/supabase_config.dart';
 import '../models/announcement.dart';
@@ -834,10 +835,34 @@ class SupabaseService {
           ..addAll(list)
           ..addAll(preserved);
         _staffRefreshTime = DateTime.now();
+
+        // Cache locally for offline RFID attendance validation
+        try {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString(
+            'brahms_cached_staff_profiles',
+            jsonEncode(_inMemoryStaff.map((s) => s.toMap()).toList()),
+          );
+        } catch (_) {}
       }
       return list;
     } catch (e) {
       debugPrint('SupabaseService.refreshStaffFromRemote error: $e');
+      // Offline fallback: load from cached staff profiles if memory is empty
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        final cached = prefs.getString('brahms_cached_staff_profiles');
+        if (cached != null && cached.isNotEmpty && _inMemoryStaff.length <= kSampleStaff.length) {
+          final decoded = (jsonDecode(cached) as List)
+              .map((m) => StaffMember.fromMap(Map<String, dynamic>.from(m as Map)))
+              .toList();
+          if (decoded.isNotEmpty) {
+            _inMemoryStaff
+              ..clear()
+              ..addAll(decoded);
+          }
+        }
+      } catch (_) {}
       return List.from(_inMemoryStaff);
     }
   }

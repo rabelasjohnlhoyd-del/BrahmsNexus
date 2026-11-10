@@ -1,6 +1,8 @@
-﻿import 'dart:async';
+import 'dart:async';
+import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/staff_member.dart';
 import 'assignment_service.dart';
@@ -854,6 +856,23 @@ class AttendanceService {
         debugPrint('_findStaffByRfid remote error: $e');
       }
     }
+
+    // 3. SharedPreferences local cache check (Guaranteed offline lookup)
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final cachedJson = prefs.getString('brahms_cached_staff_profiles');
+      if (cachedJson != null && cachedJson.isNotEmpty) {
+        final list = (jsonDecode(cachedJson) as List);
+        for (final item in list) {
+          final map = Map<String, dynamic>.from(item as Map);
+          final rTag = (map['rfid_tag']?.toString() ?? map['rfidTag']?.toString() ?? '').toUpperCase().trim();
+          final cleanRTag = rTag.replaceAll(':', '').replaceAll(' ', '');
+          if (rTag == rawUid.toUpperCase().trim() || cleanRTag == cleanUid) {
+            return StaffMember.fromMap(map);
+          }
+        }
+      }
+    } catch (_) {}
 
     return null;
   }

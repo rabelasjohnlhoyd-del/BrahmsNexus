@@ -63,6 +63,7 @@ class RouteScreenState extends State<RouteScreen> {
   StreamSubscription? _statusSubscription;
   StreamSubscription? _meatStocksSubscription;
   StreamSubscription? _attendanceSubscription;
+  StreamSubscription<Map<String, dynamic>>? _driverBleTapSub;
 
   // Track closed branches (set by owner via Branch Allocation / branch_status)
   final Set<String> _closedBranchIds = {};
@@ -86,6 +87,7 @@ class RouteScreenState extends State<RouteScreen> {
     _listenToBranchStatus();
     _listenToAttendanceLogs();
     _listenToMeatStocks();
+    _listenToDriverBleTaps();
     _startDayResetTimer();
     _maybeTriggerGuidedTour();
   }
@@ -150,6 +152,7 @@ class RouteScreenState extends State<RouteScreen> {
 
   @override
   void dispose() {
+    _driverBleTapSub?.cancel();
     _statusSubscription?.cancel();
     _meatStocksSubscription?.cancel();
     _attendanceSubscription?.cancel();
@@ -158,11 +161,60 @@ class RouteScreenState extends State<RouteScreen> {
     super.dispose();
   }
 
+  /// Listens to real-time RFID tap events coming directly from the ESP32 Portable Reader
+  /// via DriverBleService. Immediately updates route stop status to completed (Green)
+  /// with zero network latency, ensuring offline taps instantly complete the stop!
+  void _listenToDriverBleTaps() {
+    _driverBleTapSub?.cancel();
+    _driverBleTapSub = DriverBleService.tapEventsStream.listen((event) {
+      if (!mounted) return;
+      final bId = event['branch_id']?.toString() ?? '';
+      final cName = event['cook_name']?.toString() ?? '';
+      final canonId = event['canon_id']?.toString() ?? AttendanceService.normalizeBranchId(bId, cName);
+      final isDep = event['is_deployment'] == true;
+      if (bId.isEmpty && canonId.isEmpty) return;
+
+      debugPrint('[RouteScreen] Instant DriverBle tap event received for $bId ($canonId), isDep=$isDep');
+
+      setState(() {
+        if (isDep) {
+          if (bId.isNotEmpty) {
+            _completedDeploymentIds.add(bId);
+            _attendanceConfirmedDeploymentIds.add(bId);
+            _openedBranchIdsToday.add(bId);
+            _notifiedDeploymentIds.remove(bId);
+          }
+          if (canonId.isNotEmpty) {
+            _completedDeploymentIds.add(canonId);
+            _attendanceConfirmedDeploymentIds.add(canonId);
+            _openedBranchIdsToday.add(canonId);
+            _notifiedDeploymentIds.remove(canonId);
+          }
+        } else {
+          if (bId.isNotEmpty) {
+            _completedRetrievalIds.add(bId);
+            _attendanceConfirmedRetrievalIds.add(bId);
+            _notifiedRetrievalIds.remove(bId);
+          }
+          if (canonId.isNotEmpty) {
+            _completedRetrievalIds.add(canonId);
+            _attendanceConfirmedRetrievalIds.add(canonId);
+            _notifiedRetrievalIds.remove(canonId);
+          }
+        }
+      });
+    });
+  }
+
   void _listenToAttendanceLogs() {
     _attendanceSubscription?.cancel();
     _attendanceSubscription = AttendanceService.watchTodayAttendance().listen((todayLogs) {
       if (!mounted) return;
       setState(() {
+        final activeDeploymentConfirmed = <String>{};
+        final activeRetrievalConfirmed = <String>{};
+        final activeOpenedToday = <String>{};
+
         for (final log in todayLogs) {
           final sName = log['staff_name']?.toString() ?? '';
           final sId = log['staff_id']?.toString() ?? '';
@@ -174,23 +226,37 @@ class RouteScreenState extends State<RouteScreen> {
           final hasTimeOut = log['time_out'] != null && log['time_out'].toString().isNotEmpty;
 
           if (hasTimeIn) {
-            _openedBranchIdsToday.add(branchCanonId);
-            _openedBranchIdsToday.add(rawBId);
+            activeOpenedToday.add(branchCanonId);
+            activeOpenedToday.add(rawBId);
           }
 
           if (hasTimeOut) {
-            _attendanceConfirmedRetrievalIds.add(branchCanonId);
-            _completedRetrievalIds.add(branchCanonId);
-            _completedDeploymentIds.add(branchCanonId);
+            activeRetrievalConfirmed.add(branchCanonId);
+            activeRetrievalConfirmed.add(rawBId);
             _notifiedRetrievalIds.remove(branchCanonId);
           } else if (hasTimeIn) {
-            _attendanceConfirmedDeploymentIds.add(branchCanonId);
-            _completedDeploymentIds.add(branchCanonId);
+            activeDeploymentConfirmed.add(branchCanonId);
+            activeDeploymentConfirmed.add(rawBId);
             _notifiedDeploymentIds.remove(branchCanonId);
-            // Cook has timed in for deployment, but not timed out: Retrieval is NOT completed!
-            _attendanceConfirmedRetrievalIds.remove(branchCanonId);
-            _completedRetrievalIds.remove(branchCanonId);
           }
+        }
+
+        _attendanceConfirmedDeploymentIds
+          ..clear()
+          ..addAll(activeDeploymentConfirmed);
+        _attendanceConfirmedRetrievalIds
+          ..clear()
+          ..addAll(activeRetrievalConfirmed);
+        _openedBranchIdsToday
+          ..clear()
+          ..addAll(activeOpenedToday);
+
+        // If today has no attendance logs, clear completed sets so route resets cleanly
+        if (activeDeploymentConfirmed.isEmpty) {
+          _completedDeploymentIds.clear();
+        }
+        if (activeRetrievalConfirmed.isEmpty) {
+          _completedRetrievalIds.clear();
         }
       });
     }, onError: (e) {
@@ -341,8 +407,15 @@ class RouteScreenState extends State<RouteScreen> {
             }
           }
 
-          // driverOnWay flag — live push from Firestore (scoped to mode)
-          final isDriverOnWay = data['driverOnWay'] == true;
+          // driverOnWay flag — live push from Firestore (scoped to mode and today's date)
+          final driverOnWayDateStr = data['driverOnWayDateStr'] as String?;
+          final lastUpdatedTs = data['lastUpdated'] as Timestamp?;
+          final isUpdatedToday = lastUpdatedTs != null
+              ? (lastUpdatedTs.toDate().toIso8601String().substring(0, 10) == todayStr)
+              : true;
+          final isDriverOnWay = (data['driverOnWay'] == true) &&
+              (driverOnWayDateStr == null || driverOnWayDateStr == todayStr) &&
+              isUpdatedToday;
           final driverOnWayMode = data['driverOnWayMode'] as String?;
 
           // Deployment notification tracking
@@ -367,7 +440,8 @@ class RouteScreenState extends State<RouteScreen> {
               _notifiedDeploymentIds.add(doc.id);
               _notifiedDeploymentIds.add(rawBranchId);
             }
-          } else if (isDeploymentOpeningTap || (isDriverOnWay == false && driverOnWayMode == 'deployment')) {
+          } else {
+            // Driver is NOT on the way for deployment (or is on the way for retrieval)
             _notifiedDeploymentIds.remove(branchId);
             _notifiedDeploymentIds.remove(doc.id);
             _notifiedDeploymentIds.remove(rawBranchId);
@@ -394,9 +468,8 @@ class RouteScreenState extends State<RouteScreen> {
               _notifiedRetrievalIds.add(doc.id);
               _notifiedRetrievalIds.add(rawBranchId);
             }
-          }
-          if (isRetrievalClosingTap || (isDriverOnWay == false && driverOnWayMode == 'retrieval')) {
-            // Branch closed for retrieval: clear from "on the way" so it won't revert to ON THE WAY
+          } else {
+            // Driver is NOT on the way for retrieval (or retrieval is already closed)
             _notifiedRetrievalIds.remove(branchId);
             _notifiedRetrievalIds.remove(doc.id);
             _notifiedRetrievalIds.remove(rawBranchId);
@@ -683,6 +756,8 @@ class RouteScreenState extends State<RouteScreen> {
                 cookName: staffName,
                 isOnTheWay: true,
                 isDeployment: _activeMode == RouteMode.deployment,
+                cookStaffId: staff.id,
+                cookRfidTag: staff.rfidTag,
               );
 
               // 2. Instant UI update to "Awaiting RFID Card Tap" (No endless spinner!)
@@ -813,6 +888,9 @@ class RouteScreenState extends State<RouteScreen> {
       }
     });
 
+    // Clear active dispatch on portable reader
+    DriverBleService().clearActiveDispatch();
+
     if (mounted) {
       final messenger = ScaffoldMessenger.of(context);
       messenger.showSnackBar(
@@ -839,9 +917,9 @@ class RouteScreenState extends State<RouteScreen> {
       );
     }
 
-    // Cloud updates in background — increased timeout to 8s for slow/cellular connections
+    // Cloud updates in background — instant direct write to Firestore branch_status
     FirestoreService.processBranchCookRfidTap(
-      branchId: branch.id,
+      branchId: branchCanonId.isNotEmpty ? branchCanonId : branch.id,
       branchName: branch.fullName,
       cookName: staffName,
       cookId: cookId,
@@ -980,9 +1058,17 @@ class RouteScreenState extends State<RouteScreen> {
             ),
 
             Expanded(
-              child: ListView(
-                padding: const EdgeInsets.all(16),
-                children: [
+              child: RefreshIndicator(
+                color: AppColors.accent,
+                onRefresh: () async {
+                  _resetForNewDay();
+                  await DriverBleService.clearOfflineQueue();
+                  await _loadData();
+                },
+                child: ListView(
+                  padding: const EdgeInsets.all(16),
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  children: [
                   DriverCard(
                     padding: const EdgeInsets.all(16),
                     child: Column(
@@ -1156,6 +1242,9 @@ class RouteScreenState extends State<RouteScreen> {
                           }
                         }
                       }
+
+                      // Phone Call Eligibility: Only allowed if the stop is active/unlocked and open
+                      final canCallStaff = !isLocked && !isUnopenedRetrieval && !(_activeMode == RouteMode.retrieval && completed);
 
                       return IntrinsicHeight(
                         child: Row(
@@ -1400,20 +1489,24 @@ class RouteScreenState extends State<RouteScreen> {
                                             CupertinoButton(
                                               padding: EdgeInsets.zero,
                                               minimumSize: const Size(34, 34),
+                                              onPressed: canCallStaff ? () => _confirmPhoneCall(staff) : null,
                                               child: Container(
                                                 width: 32,
                                                 height: 32,
                                                 decoration: BoxDecoration(
-                                                  color: AppColors.success.withValues(alpha: 0.12),
+                                                  color: canCallStaff
+                                                      ? AppColors.success.withValues(alpha: 0.12)
+                                                      : AppColors.border.withValues(alpha: 0.25),
                                                   shape: BoxShape.circle,
                                                 ),
-                                                child: const Icon(
+                                                child: Icon(
                                                   CupertinoIcons.phone_fill,
                                                   size: 17,
-                                                  color: AppColors.success,
+                                                  color: canCallStaff
+                                                      ? AppColors.success
+                                                      : AppColors.textSecondary.withValues(alpha: 0.35),
                                                 ),
                                               ),
-                                              onPressed: () => _confirmPhoneCall(staff),
                                             ),
                                         ],
                                       ),
@@ -1421,7 +1514,7 @@ class RouteScreenState extends State<RouteScreen> {
 
                                     if (!completed) ...[
                                       const SizedBox(height: 16),
-                                      if (notified) ...[
+                                      if (notified && !isLocked) ...[
                                         Container(
                                           width: double.infinity,
                                           padding: const EdgeInsets.all(12),
@@ -1571,6 +1664,7 @@ class RouteScreenState extends State<RouteScreen> {
                 ],
               ),
             ),
+          ),
           ],
         ),
       ),

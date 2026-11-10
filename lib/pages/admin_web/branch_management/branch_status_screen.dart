@@ -104,23 +104,28 @@ class _BranchStatusScreenState extends State<BranchStatusScreen> {
           final isClosed = data['isClosed'] as bool? ?? false;
           final lastTapType = data['lastTapType'] as String?;
           final openedDateStr = data['openedDateStr'] as String?;
-          final hasRfidArrivalToday = lastTapType == 'deployment_opening' && openedDateStr == todayStr;
+          final isDeploymentOpeningToday = lastTapType == 'deployment_opening' && (openedDateStr == null || openedDateStr == todayStr);
           final isClosedByRetrieval = lastTapType == 'retrieval_closing';
 
-          // Store is strictly OPEN if cook tapped arrival RFID today and branch is not closed
-          final effectiveIsOpen = !isClosed && !isClosedByRetrieval && (rawIsOpen || hasRfidArrivalToday);
+          // Store is strictly OPEN if cook tapped arrival RFID / opened today and not closed by retrieval
+          final effectiveIsOpen = !isClosedByRetrieval && (isDeploymentOpeningToday || (rawIsOpen && !isClosed));
+          final effectiveIsClosed = isClosedByRetrieval || (!effectiveIsOpen && isClosed);
 
           final rawId = (data['branchId']?.toString() ?? doc.id).toLowerCase();
           final cookName = data['cookName']?.toString() ?? '';
           final canonId = AttendanceService.normalizeBranchId(rawId, cookName);
+
+          final driverOnWayDateStr = data['driverOnWayDateStr'] as String?;
+          final isDriverOnWayToday = (data['driverOnWay'] as bool? ?? false) &&
+              (driverOnWayDateStr == null || driverOnWayDateStr == todayStr);
 
           final prev = _statuses[canonId];
           final status = _BranchLiveStatus(
             branchId: canonId,
             branchName: data['branchName']?.toString() ?? prev?.branchName ?? '',
             isOpen: effectiveIsOpen,
-            isClosed: isClosed || isClosedByRetrieval,
-            driverOnWay: data['driverOnWay'] as bool? ?? false,
+            isClosed: effectiveIsClosed,
+            driverOnWay: isDriverOnWayToday,
             cookName: cookName.isNotEmpty ? cookName : (prev?.cookName ?? ''),
             driverName: data['driverName']?.toString() ?? prev?.driverName ?? '',
             lastUpdated: (data['lastUpdated'] as Timestamp?)?.toDate() ?? prev?.lastUpdated,
@@ -275,15 +280,23 @@ class _BranchStatusScreenState extends State<BranchStatusScreen> {
   }
 
   _BranchLiveStatus? _getStatusForBranch(Branch branch) {
-    final bId = branch.id.toLowerCase();
+    final bId = branch.id.toLowerCase().trim();
     if (_statuses.containsKey(bId)) return _statuses[bId];
 
-    final normName = branch.name.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
+    final canonId = AttendanceService.normalizeBranchId(bId, branch.name);
+    if (canonId.isNotEmpty && canonId != 'unassigned' && canonId != 'commissary') {
+      if (_statuses.containsKey(canonId)) return _statuses[canonId];
+    }
+
+    final cleanName = branch.name.toLowerCase().trim();
+    if (_statuses.containsKey(cleanName)) return _statuses[cleanName];
+
+    // Match strictly by canonical branch ID (e.g. br1..br6)
     for (final entry in _statuses.entries) {
-      final key = entry.key.replaceAll(RegExp(r'[^a-z0-9]'), '');
-      final statusName = entry.value.branchName.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
-      if (normName.contains(key) || key.contains(normName) ||
-          normName.contains(statusName) || statusName.contains(normName)) {
+      final key = entry.key.toLowerCase().trim();
+      final statusName = entry.value.branchName.toLowerCase().trim();
+      final entryCanon = AttendanceService.normalizeBranchId(key, statusName);
+      if (entryCanon.isNotEmpty && entryCanon == canonId) {
         return entry.value;
       }
     }
@@ -399,18 +412,14 @@ class _BranchStatusScreenState extends State<BranchStatusScreen> {
     final String statusText;
     final IconData statusIcon;
 
-    if (neverUpdated || isClosed) {
-      statusColor = AdminWebColors.textSecondary;
-      statusText = 'CLOSED';
-      statusIcon = Icons.lock_rounded;
-    } else if (driverOnWay && !isOpen) {
-      statusColor = AdminWebColors.warning;
-      statusText = 'DRIVER ON THE WAY';
-      statusIcon = Icons.directions_car_rounded;
-    } else if (isOpen) {
+    if (isOpen) {
       statusColor = AdminWebColors.success;
       statusText = 'OPEN';
       statusIcon = Icons.lock_open_rounded;
+    } else if (driverOnWay) {
+      statusColor = AdminWebColors.warning;
+      statusText = 'DRIVER ON THE WAY';
+      statusIcon = Icons.directions_car_rounded;
     } else {
       statusColor = AdminWebColors.textSecondary;
       statusText = 'CLOSED';

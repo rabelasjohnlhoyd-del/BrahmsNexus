@@ -1778,21 +1778,6 @@ class FirestoreService {
     final canonId = AttendanceService.normalizeBranchId(cleanBId, branchName);
 
     try {
-      final batch = _db.batch();
-
-      // 1. Log attendance
-      final tapRef = _db.collection('rfid_attendance').doc();
-      batch.set(tapRef, {
-        'rfidTag': rfidTag,
-        'employeeId': cookId,
-        'employeeName': cookName,
-        'branchId': cleanBId,
-        'branchName': branchName,
-        'tapType': isDeployment ? 'deployment_opening' : 'retrieval_closing',
-        'deviceId': deviceId,
-        'timestamp': FieldValue.serverTimestamp(),
-      });
-
       final statusPayload = {
         'branchId': cleanBId,
         'branchName': branchName,
@@ -1816,17 +1801,37 @@ class FirestoreService {
         },
       };
 
-      // 2. Update real-time branch status for primary ID
-      final statusRef = _db.collection('branch_status').doc(cleanBId);
-      batch.set(statusRef, statusPayload, SetOptions(merge: true));
+      // 1. Direct real-time write to branch_status (Instant update for Live Branch Overview & Driver App)
+      await _db
+          .collection('branch_status')
+          .doc(cleanBId)
+          .set(statusPayload, SetOptions(merge: true))
+          .timeout(const Duration(seconds: 4));
 
       // Also mirror to canonical ID (e.g. br1..br6) if different, to ensure Admin Web always sees it
       if (canonId.isNotEmpty && canonId != cleanBId && canonId != 'unassigned' && canonId != 'commissary') {
-        final canonStatusRef = _db.collection('branch_status').doc(canonId);
-        batch.set(canonStatusRef, statusPayload, SetOptions(merge: true));
+        await _db
+            .collection('branch_status')
+            .doc(canonId)
+            .set(statusPayload, SetOptions(merge: true))
+            .timeout(const Duration(seconds: 4))
+            .catchError((_) {});
       }
 
-      await batch.commit();
+      // 2. Log attendance asynchronously so any rfid_attendance collection congestion never blocks status updates
+      _db.collection('rfid_attendance').add({
+        'rfidTag': rfidTag,
+        'employeeId': cookId,
+        'employeeName': cookName,
+        'branchId': cleanBId,
+        'branchName': branchName,
+        'tapType': isDeployment ? 'deployment_opening' : 'retrieval_closing',
+        'deviceId': deviceId,
+        'timestamp': FieldValue.serverTimestamp(),
+      }).catchError((e) {
+        debugPrint('rfid_attendance log background note: $e');
+        return _db.collection('rfid_attendance').doc();
+      });
 
       // If closing retrieval, also clear Supabase driver_dispatch_status
       if (!isDeployment) {
@@ -1901,6 +1906,7 @@ class FirestoreService {
         'branchName': branchName,
         'driverOnWay': true,
         'driverOnWayMode': isDeployment ? 'deployment' : 'retrieval',
+        'driverOnWayDateStr': DateTime.now().toIso8601String().substring(0, 10),
         'isClosed': false,
         'cookName': cookName,
         'driverName': driverName,

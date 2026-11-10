@@ -202,9 +202,12 @@ void showErrorScreen(String code) {
   } else if (code == "UNREGISTERED" || code == "UNKNOWN_CARD") {
     cleanNotice = "Unregistered Card";
     footerNote  = "Register in Admin Web";
+  } else if (code == "WRONG_COOK" || code == "WRONG_BRANCH") {
+    cleanNotice = "Wrong Branch Cook";
+    footerNote  = "Not assigned here";
   } else if (code == "WRONG_LOCATION") {
-    cleanNotice = "Use Base Terminal";
-    footerNote  = "For Branch Cook Only";
+    cleanNotice = "Wrong Branch Cook";
+    footerNote  = "Not assigned here";
   } else if (code == "SERVER_ERR" || code == "CONN_ERR") {
     cleanNotice = "Server Unavailable";
     footerNote  = "Saved to offline queue";
