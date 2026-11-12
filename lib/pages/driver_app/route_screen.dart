@@ -228,16 +228,15 @@ class RouteScreenState extends State<RouteScreen> {
           if (hasTimeIn) {
             activeOpenedToday.add(branchCanonId);
             activeOpenedToday.add(rawBId);
+            activeDeploymentConfirmed.add(branchCanonId);
+            activeDeploymentConfirmed.add(rawBId);
+            _notifiedDeploymentIds.remove(branchCanonId);
           }
 
           if (hasTimeOut) {
             activeRetrievalConfirmed.add(branchCanonId);
             activeRetrievalConfirmed.add(rawBId);
             _notifiedRetrievalIds.remove(branchCanonId);
-          } else if (hasTimeIn) {
-            activeDeploymentConfirmed.add(branchCanonId);
-            activeDeploymentConfirmed.add(rawBId);
-            _notifiedDeploymentIds.remove(branchCanonId);
           }
         }
 
@@ -389,6 +388,10 @@ class RouteScreenState extends State<RouteScreen> {
             // If retrieval is closed, deployment was naturally completed earlier today
             _completedDeploymentIds.add(branchId);
             _completedDeploymentIds.add(doc.id);
+            _attendanceConfirmedDeploymentIds.add(branchId);
+            _attendanceConfirmedDeploymentIds.add(doc.id);
+            _openedBranchIdsToday.add(branchId);
+            _openedBranchIdsToday.add(doc.id);
             _closedBranchIds.remove(branchId);
             _closedBranchIds.remove(doc.id);
           } else {
@@ -508,7 +511,7 @@ class RouteScreenState extends State<RouteScreen> {
       setState(() {
         _branches = branches.isNotEmpty ? branches : List.from(kSampleBranches);
       });
-      await SupabaseService.refreshStaffFromRemote();
+      await SupabaseService.refreshStaffFromRemote(forceRefresh: true);
       await AssignmentService.ensureInitialized();
       // Proactively trigger pending offline Bluetooth RFID sync when network loads
       DriverBleService().triggerOfflineSync();
@@ -570,6 +573,16 @@ class RouteScreenState extends State<RouteScreen> {
 
       return false;
     }).toList();
+
+    if (matching.isEmpty) {
+      for (final s in allStaff) {
+        if (s.isArchived || !s.isActive) continue;
+        final resolved = AttendanceService.resolveBranchForStaff(s.branch, s.fullName, s.id);
+        if (resolved.isNotEmpty && resolved == branchCanonId) {
+          matching.add(s);
+        }
+      }
+    }
 
     if (matching.isEmpty) return null;
 
@@ -970,7 +983,8 @@ class RouteScreenState extends State<RouteScreen> {
 
       final staff = _getAssignedStaff(b);
       if (staff == null) return false;
-      if (_isRestDay(staff)) return false;
+      final wasOpenedToday = _wasBranchOpenedToday(b);
+      if (!wasOpenedToday && _isRestDay(staff)) return false;
 
       return true;
     }).toList();
@@ -1061,8 +1075,6 @@ class RouteScreenState extends State<RouteScreen> {
               child: RefreshIndicator(
                 color: AppColors.accent,
                 onRefresh: () async {
-                  _resetForNewDay();
-                  await DriverBleService.clearOfflineQueue();
                   await _loadData();
                 },
                 child: ListView(

@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../models/branch.dart';
 import '../../../services/attendance_service.dart';
-import '../../../services/firestore_service.dart';
 import '../../../services/supabase_service.dart';
 import '../admin_web_colors.dart';
 import '../admin_web_shell.dart';
@@ -104,12 +103,13 @@ class _BranchStatusScreenState extends State<BranchStatusScreen> {
           final isClosed = data['isClosed'] as bool? ?? false;
           final lastTapType = data['lastTapType'] as String?;
           final openedDateStr = data['openedDateStr'] as String?;
-          final isDeploymentOpeningToday = lastTapType == 'deployment_opening' && (openedDateStr == null || openedDateStr == todayStr);
+          final isOpenedToday = openedDateStr == null || openedDateStr == todayStr;
+          final isDeploymentOpeningToday = lastTapType == 'deployment_opening' && isOpenedToday;
           final isClosedByRetrieval = lastTapType == 'retrieval_closing';
 
-          // Store is strictly OPEN if cook tapped arrival RFID / opened today and not closed by retrieval
-          final effectiveIsOpen = !isClosedByRetrieval && (isDeploymentOpeningToday || (rawIsOpen && !isClosed));
-          final effectiveIsClosed = isClosedByRetrieval || (!effectiveIsOpen && isClosed);
+          // Store is strictly OPEN only if it was opened today and not closed by retrieval
+          final effectiveIsOpen = !isClosedByRetrieval && isOpenedToday && (isDeploymentOpeningToday || (rawIsOpen && !isClosed));
+          final effectiveIsClosed = !effectiveIsOpen;
 
           final rawId = (data['branchId']?.toString() ?? doc.id).toLowerCase();
           final cookName = data['cookName']?.toString() ?? '';
@@ -404,9 +404,7 @@ class _BranchStatusScreenState extends State<BranchStatusScreen> {
   Widget _buildBranchCard(Branch branch, int stopNumber, {bool isWide = true}) {
     final status = _getStatusForBranch(branch);
     final isOpen = status?.isOpen ?? false;
-    final isClosed = status?.isClosed ?? false;
     final driverOnWay = status?.driverOnWay ?? false;
-    final neverUpdated = status == null;
 
     final Color statusColor;
     final String statusText;

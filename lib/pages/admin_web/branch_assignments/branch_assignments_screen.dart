@@ -231,7 +231,13 @@ class _BranchAssignmentsScreenState extends State<BranchAssignmentsScreen> {
       if (s.id.trim().toLowerCase() == employeeId.trim().toLowerCase()) return s;
       if (s.id.trim().toLowerCase().replaceAll('-', '') == cleanId) return s;
       if (s.username.isNotEmpty && s.username.trim().toLowerCase() == employeeId.trim().toLowerCase()) return s;
-      if (cleanName.isNotEmpty && s.fullName.trim().toLowerCase() == cleanName) return s;
+      if (cleanName.isNotEmpty) {
+        final sFull = s.fullName.trim().toLowerCase();
+        final sSimple = '${s.firstName} ${s.lastName}'.trim().toLowerCase();
+        if (sFull == cleanName || sSimple == cleanName || sFull.contains(cleanName) || cleanName.contains(sSimple)) {
+          return s;
+        }
+      }
     }
     return null;
   }
@@ -1589,7 +1595,13 @@ class _AssignmentCard extends StatelessWidget {
       if (s.id.trim().toLowerCase() == employeeId.trim().toLowerCase()) return s;
       if (s.id.trim().toLowerCase().replaceAll('-', '') == cleanId) return s;
       if (s.username.isNotEmpty && s.username.trim().toLowerCase() == employeeId.trim().toLowerCase()) return s;
-      if (cleanName.isNotEmpty && s.fullName.trim().toLowerCase() == cleanName) return s;
+      if (cleanName.isNotEmpty) {
+        final sFull = s.fullName.trim().toLowerCase();
+        final sSimple = '${s.firstName} ${s.lastName}'.trim().toLowerCase();
+        if (sFull == cleanName || sSimple == cleanName || sFull.contains(cleanName) || cleanName.contains(sSimple)) {
+          return s;
+        }
+      }
     }
     return null;
   }
@@ -1652,14 +1664,14 @@ class _AssignmentCard extends StatelessWidget {
         try {
           final bytes = base64Decode(photoUrl.split(',').last);
           avatarChild = ClipOval(
-            child: Image.memory(bytes, width: 44, height: 44, fit: BoxFit.cover, errorBuilder: (_, __, ___) => _buildInitialsText(assignment.employeeName, isOnDuty)),
+            child: Image.memory(bytes, width: 44, height: 44, fit: BoxFit.cover, errorBuilder: (ctx, err, stack) => _buildInitialsText(assignment.employeeName, isOnDuty)),
           );
         } catch (_) {
           avatarChild = _buildInitialsText(assignment.employeeName, isOnDuty);
         }
       } else {
         avatarChild = ClipOval(
-          child: Image.network(photoUrl, width: 44, height: 44, fit: BoxFit.cover, errorBuilder: (_, __, ___) => _buildInitialsText(assignment.employeeName, isOnDuty)),
+          child: Image.network(photoUrl, width: 44, height: 44, fit: BoxFit.cover, errorBuilder: (ctx, err, stack) => _buildInitialsText(assignment.employeeName, isOnDuty)),
         );
       }
     } else {
